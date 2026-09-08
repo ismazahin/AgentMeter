@@ -70,11 +70,29 @@ class GpuProbe:
         return max(0.0, float(peak - self._baseline)) / (1024 * 1024)
 
     def total_used_mb(self) -> Optional[float]:
-        """Whole-device allocated VRAM in MB (for run-level diagnostics)."""
+        """Whole-device allocated VRAM in MB via the torch allocator."""
         if not self.available:
             return None
         self._torch.cuda.synchronize(self.device)
         return float(self._torch.cuda.memory_allocated(self.device)) / (1024 * 1024)
+
+    def pynvml_used_mb(self) -> Optional[float]:
+        """Device-level used VRAM in MB via NVML.
+
+        Captures memory the torch allocator does not see (e.g. bitsandbytes
+        quantized weights), so it is the honest figure for total footprint.
+        """
+        if not self.available:
+            return None
+        try:
+            import pynvml
+
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(self.device or 0)
+            info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            return float(info.used) / (1024 * 1024)
+        except Exception:
+            return None
 
 
 class MetricsCollector:

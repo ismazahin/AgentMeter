@@ -20,6 +20,12 @@ model:
     max_new_tokens: 256
     temperature: 0.0
     do_sample: false
+    quantization:              # DECLARED methodology change when enabled (thesis)
+      load_in_4bit: false      # 4-bit NF4 — needed to fit a 7-8B model on a 15GB T4
+      load_in_8bit: false
+      bnb_4bit_quant_type: nf4
+      bnb_4bit_use_double_quant: true
+      bnb_4bit_compute_dtype: float16
   mock:
     latency_s: 0.0             # optional simulated per-call latency for the mock provider
 

@@ -72,6 +72,9 @@ def run_pilot(
 
     model_label = cfg.get("model.name") if cfg.get("model.provider") == "hf" else f"mock:{provider.name}"
     gpu = GpuProbe()
+    # Device-level VRAM after weights are resident (captures quantized weights
+    # that the torch allocator under-reports).
+    device_vram_after_load_mb = gpu.pynvml_used_mb()
     collector = MetricsCollector()
     hook = make_instrumented_hook(collector, model_label, gpu)
     pipeline = Pipeline(cfg, provider, node_hook=hook)
@@ -113,6 +116,8 @@ def run_pilot(
         "gpu_name": _gpu_name(),
         "model_load_s": model_load_s,
         "model_weight_vram_mb": getattr(provider, "model_vram_mb", None),
+        "quantization": getattr(provider, "quantization_label", "none"),
+        "device_vram_after_load_mb": device_vram_after_load_mb,
         "n_scenarios": n_scn,
         "agents": pipeline.agent_names,
         "metrics_rows": [r.as_dict() for r in collector.rows],
@@ -164,9 +169,12 @@ def _format_report(p: dict[str, Any]) -> str:
     lines.append("  AgentMeter — Phase 5 PILOT RUN")
     lines.append("=" * 78)
     lines.append(f"Model            : {p['model_label']}  (provider={p['provider']}, device={p['device']})")
+    lines.append(f"Quantization     : {p.get('quantization', 'none')}")
     lines.append(f"GPU              : {p['gpu_name'] or 'none'}  (cuda={p['gpu_available']})")
     if p.get("model_weight_vram_mb") is not None:
-        lines.append(f"Model weights    : {p['model_weight_vram_mb']:,.1f} MB resident VRAM (load took {p['model_load_s']:.1f}s, excluded)")
+        lines.append(f"Model weights    : {p['model_weight_vram_mb']:,.1f} MB (torch allocator; load took {p['model_load_s']:.1f}s, excluded)")
+    if p.get("device_vram_after_load_mb") is not None:
+        lines.append(f"Device VRAM used : {p['device_vram_after_load_mb']:,.1f} MB (NVML, whole device after load)")
     lines.append(f"Agents           : {' -> '.join(p['agents'])}")
     lines.append(f"Scenarios        : {p['n_scenarios']}")
     lines.append("")

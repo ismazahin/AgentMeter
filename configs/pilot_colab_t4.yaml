@@ -1,0 +1,90 @@
+# Phase 5 PILOT config — Google Colab FREE tier (1x NVIDIA T4, 15 GB VRAM).
+#
+# A 7-8B model does NOT fit in fp16 on a 15 GB T4, so this pilot uses 4-bit
+# (NF4) quantization via bitsandbytes. QUANTIZATION IS A DECLARED METHODOLOGY
+# CHANGE — the VRAM/latency/token numbers are for the quantized model, and any
+# model comparison must use the same quantization for fairness.
+#
+# Run (in Colab, GPU runtime):
+#   python main.py --config configs/pilot_colab_t4.yaml pilot
+
+run:
+  mode: pilot
+  device: cuda
+  require_gpu: true      # STOP if no CUDA — no silent CPU fallback
+  seed: 42
+
+model:
+  provider: hf
+  name: mistralai/Mistral-7B-Instruct-v0.3   # or meta-llama/Meta-Llama-3-8B-Instruct
+  hf:
+    token_env: HF_TOKEN
+    dtype: float16
+    device_map: null
+    max_new_tokens: 200
+    temperature: 0.0
+    do_sample: false
+    quantization:
+      load_in_4bit: true            # <-- fits the T4
+      load_in_8bit: false
+      bnb_4bit_quant_type: nf4
+      bnb_4bit_use_double_quant: true
+      bnb_4bit_compute_dtype: float16
+  mock:
+    latency_s: 0.0
+
+dataset:
+  path: data/demo_flows.csv
+  label_column: Label
+  id_column: null
+  drop_columns: []
+  limit: 8
+  max_feature_chars: 4000
+
+pipeline:
+  agents:
+    - perceive
+    - reason
+    - decide
+    - act
+
+classes:
+  - Brute Force
+  - Volumetric DDoS
+  - Port Scanning
+  - SYN Flood
+  - Data Exfiltration
+  - Benign
+
+mitre:
+  Brute Force: "T1110 - Brute Force"
+  Volumetric DDoS: "T1498 - Network Denial of Service"
+  Port Scanning: "T1046 - Network Service Discovery"
+  SYN Flood: "T1499 - Endpoint Denial of Service"
+  Data Exfiltration: "T1048 - Exfiltration Over Alternative Protocol"
+  Benign: "N/A - No adversary technique"
+
+scoring:
+  weights:
+    accuracy: 0.40
+    latency: 0.25
+    vram: 0.20
+    tokens: 0.15
+  targets:
+    accuracy_pct: 80.0
+    latency_s: 5.0
+    vram_mb: 16000.0
+    tokens_total: 1200.0
+  tiers:
+    healthy_min: 80.0
+    degraded_min: 60.0
+  sensitivity_weight_sets:
+    equal: {accuracy: 0.25, latency: 0.25, vram: 0.25, tokens: 0.25}
+    accuracy_heavy: {accuracy: 0.55, latency: 0.20, vram: 0.15, tokens: 0.10}
+    efficiency_heavy: {accuracy: 0.25, latency: 0.30, vram: 0.30, tokens: 0.15}
+
+storage:
+  sqlite_path: results/agentmeter.db
+
+output:
+  results_dir: results

@@ -37,12 +37,30 @@ class HFProvider(ModelProvider):
         self.temperature: float = float(hf.get("temperature", 0.0))
         self.do_sample: bool = bool(hf.get("do_sample", False))
 
+        # Quantization (config-driven; declared as a methodology change in the
+        # thesis). Off by default. 4-bit NF4 is what fits a 7-8B model on a T4.
+        quant = hf.get("quantization", {}) or {}
+        self.load_in_4bit: bool = bool(quant.get("load_in_4bit", False))
+        self.load_in_8bit: bool = bool(quant.get("load_in_8bit", False))
+        self.bnb_4bit_quant_type: str = quant.get("bnb_4bit_quant_type", "nf4")
+        self.bnb_4bit_use_double_quant: bool = bool(quant.get("bnb_4bit_use_double_quant", True))
+        self.bnb_4bit_compute_dtype: str = quant.get("bnb_4bit_compute_dtype", "float16")
+
         self.require_gpu: bool = bool(config.get("run.require_gpu", False))
         self.device = self._resolve_device(config.get("run.device", "auto"))
+
+        self.quantized: bool = self.load_in_4bit or self.load_in_8bit
+        if self.quantized and self.device != "cuda":
+            raise RuntimeError("Quantization (bitsandbytes) requires a CUDA device.")
 
         self.tokenizer = None
         self.model = None
         self.model_vram_mb: Optional[float] = None  # weight footprint, diagnostic
+        self.quantization_label: str = (
+            "4bit-" + self.bnb_4bit_quant_type if self.load_in_4bit
+            else "8bit" if self.load_in_8bit
+            else "none"
+        )
 
     # --- device / dtype -------------------------------------------------
     def _resolve_device(self, requested: str) -> str:
@@ -97,21 +115,44 @@ class HFProvider(ModelProvider):
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        # transformers >=5 renamed torch_dtype -> dtype; support both.
-        try:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.name, dtype=self._dtype(), token=token
-            )
-        except TypeError:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.name, torch_dtype=self._dtype(), token=token
-            )
-        self.model.to(self.device)
+        kwargs: dict = {"token": token}
+        if self.quantized:
+            # bitsandbytes: model must be placed via device_map at load time and
+            # must NOT be moved with .to() afterward.
+            from transformers import BitsAndBytesConfig
+
+            if self.load_in_4bit:
+                bnb = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type=self.bnb_4bit_quant_type,
+                    bnb_4bit_use_double_quant=self.bnb_4bit_use_double_quant,
+                    bnb_4bit_compute_dtype=getattr(self._torch, self.bnb_4bit_compute_dtype),
+                )
+            else:
+                bnb = BitsAndBytesConfig(load_in_8bit=True)
+            kwargs["quantization_config"] = bnb
+            kwargs["device_map"] = {"": 0}
+            self.model = self._from_pretrained(**kwargs)
+        else:
+            kwargs["_dtype"] = self._dtype()
+            self.model = self._from_pretrained(**kwargs)
+            self.model.to(self.device)
         self.model.eval()
 
         if self.device == "cuda":
             self._torch.cuda.synchronize()
             self.model_vram_mb = self._torch.cuda.memory_allocated() / (1024 * 1024)
+
+    def _from_pretrained(self, _dtype=None, **kwargs):
+        """from_pretrained with the transformers 4.x/5.x dtype-kwarg shim."""
+        from transformers import AutoModelForCausalLM
+
+        if _dtype is None:
+            return AutoModelForCausalLM.from_pretrained(self.name, **kwargs)
+        try:
+            return AutoModelForCausalLM.from_pretrained(self.name, dtype=_dtype, **kwargs)
+        except TypeError:
+            return AutoModelForCausalLM.from_pretrained(self.name, torch_dtype=_dtype, **kwargs)
 
     def unload(self) -> None:
         self.model = None

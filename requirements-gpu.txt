@@ -7,3 +7,4 @@ accelerate>=0.30
 huggingface_hub>=0.23
 sentencepiece>=0.2
 pynvml>=11.5
+bitsandbytes>=0.43    # 4-bit/8-bit quantization (e.g. to fit a 7-8B model on a 15GB T4)

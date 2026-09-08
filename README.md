@@ -18,7 +18,15 @@ Built incrementally, phase by phase. Currently: **Phase 0 (skeleton + env check)
 | 2 | Minimal 4-agent LangGraph pipeline (linear) | ✅ |
 | 3 | Per-agent instrumentation (time, tokens, VRAM) | ✅ |
 | 4 | HF in-process model adapter (Mode A) | ✅ (code + offline smoke) |
-| 5 | **Pilot run** (1 model, 5-10 scenarios) | ✅ code ready — run on GPU Space |
+| 5 | **Pilot run** (1 model, 5-10 scenarios) | ✅ code ready — run on Colab (T4) or HF Space (L4) |
+
+**Running the pilot (needs a GPU):**
+- **Google Colab (free T4, 15 GB):** open `notebooks/agentmeter_pilot_colab.ipynb`
+  in Colab, set a T4 runtime, run the cells. Uses **4-bit NF4** quantization
+  (`configs/pilot_colab_t4.yaml`) because a 7-8B model does not fit in fp16 on a T4.
+  Quantization is a declared methodology change — see the notebook's notice.
+- **HF Space (L4, 24 GB):** see `space/SPACE_SETUP.md`; uses fp16
+  (`configs/pilot_mistral_l4.yaml`). Incurs GPU cost — pause the Space after.
 
 Phases 6-10 are intentionally **not** built yet.
 

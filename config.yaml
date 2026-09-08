@@ -45,6 +45,14 @@ pipeline:
     - reason
     - decide
     - act
+  # Per-agent output-token budget (format/hygiene, not detection logic).
+  # decide only needs a label -> tiny budget so it is never truncated;
+  # perceive/reason are bounded so they finish via EOS, not a hard cut.
+  max_new_tokens:
+    perceive: 160
+    reason: 200
+    decide: 12
+    act: 160
 
 # The 6 threat classes (Decide must output exactly one).
 classes:

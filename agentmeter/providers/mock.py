@@ -74,7 +74,10 @@ class MockProvider(ModelProvider):
         self.latency_s: float = float(config.get("model.mock.latency_s", 0.0) or 0.0)
 
     # --- interface ------------------------------------------------------
-    def generate(self, prompt: str, system: str | None = None) -> GenerationResult:
+    def generate(
+        self, prompt: str, system: str | None = None, max_new_tokens: int | None = None
+    ) -> GenerationResult:
+        # max_new_tokens accepted for interface parity; the mock does not stream.
         if self.latency_s > 0:
             time.sleep(self.latency_s)
 

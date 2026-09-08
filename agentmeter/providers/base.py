@@ -27,6 +27,12 @@ class ModelProvider(ABC):
         """Free the device / VRAM. No-op unless overridden."""
 
     @abstractmethod
-    def generate(self, prompt: str, system: str | None = None) -> GenerationResult:
-        """Run one inference call and return text + token counts + TTFT."""
+    def generate(
+        self, prompt: str, system: str | None = None, max_new_tokens: int | None = None
+    ) -> GenerationResult:
+        """Run one inference call and return text + token counts + TTFT.
+
+        max_new_tokens, when given, overrides the provider default for this call
+        (used for per-agent token budgets). None means use the default.
+        """
         raise NotImplementedError

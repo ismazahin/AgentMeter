@@ -47,6 +47,11 @@ pipeline:
     - reason
     - decide
     - act
+  max_new_tokens:
+    perceive: 160
+    reason: 200
+    decide: 12
+    act: 160
 
 classes:
   - Brute Force

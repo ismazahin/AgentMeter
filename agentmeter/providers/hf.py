@@ -212,7 +212,9 @@ class HFProvider(ModelProvider):
         except Exception:
             return None
 
-    def generate(self, prompt: str, system: Optional[str] = None) -> GenerationResult:
+    def generate(
+        self, prompt: str, system: Optional[str] = None, max_new_tokens: Optional[int] = None
+    ) -> GenerationResult:
         from transformers import TextIteratorStreamer
 
         torch = self._torch
@@ -224,7 +226,7 @@ class HFProvider(ModelProvider):
         )
         gen_kwargs = dict(
             **inputs,
-            max_new_tokens=self.max_new_tokens,
+            max_new_tokens=int(max_new_tokens) if max_new_tokens else self.max_new_tokens,
             do_sample=self.do_sample,
             pad_token_id=self.tokenizer.pad_token_id,
             streamer=streamer,

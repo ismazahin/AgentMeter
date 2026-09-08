@@ -28,6 +28,12 @@ def main(argv: list[str] | None = None) -> int:
     p_bench.add_argument("--proj-scenarios", type=int, default=1000, help="projection: total scenarios")
     p_bench.add_argument("--proj-models", type=int, default=2, help="projection: number of models")
 
+    p_pilot = sub.add_parser("pilot", help="Phase 5: pilot run (1 real model on GPU, 5-10 scenarios)")
+    p_pilot.add_argument("--n", type=int, default=None, help="scenarios to run (default: dataset.limit)")
+    p_pilot.add_argument("--json", type=str, default="results/pilot.json", help="write pilot payload here")
+    p_pilot.add_argument("--proj-scenarios", type=int, default=1000, help="projection: total scenarios")
+    p_pilot.add_argument("--proj-models", type=int, default=2, help="projection: number of models")
+
     args = parser.parse_args(argv)
 
     if args.command == "check-env":
@@ -46,6 +52,25 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "bench":
         return _bench(args.n, args.json, args.proj_scenarios, args.proj_models, args.config)
+
+    if args.command == "pilot":
+        from agentmeter.pilot import run_pilot
+
+        try:
+            result = run_pilot(
+                config_path=args.config,
+                n=args.n,
+                proj_scenarios=args.proj_scenarios,
+                proj_models=args.proj_models,
+                json_path=args.json,
+            )
+        except RuntimeError as e:
+            print(f"\n{e}\n", file=sys.stderr)
+            return 1
+        print(result.report)
+        if result.payload.get("_json_path"):
+            print(f"\nWrote pilot payload -> {result.payload['_json_path']}")
+        return 0
 
     parser.print_help()
     return 0

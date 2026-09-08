@@ -18,7 +18,7 @@ Built incrementally, phase by phase. Currently: **Phase 0 (skeleton + env check)
 | 2 | Minimal 4-agent LangGraph pipeline (linear) | ✅ |
 | 3 | Per-agent instrumentation (time, tokens, VRAM) | ✅ |
 | 4 | HF in-process model adapter (Mode A) | ✅ (code + offline smoke) |
-| 5 | **Pilot run** (1 model, 5-10 scenarios) | ⏳ GPU Space |
+| 5 | **Pilot run** (1 model, 5-10 scenarios) | ✅ code ready — run on GPU Space |
 
 Phases 6-10 are intentionally **not** built yet.
 

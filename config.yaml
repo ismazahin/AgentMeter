@@ -1,0 +1,74 @@
+# AgentMeter configuration — single source of truth.
+# Nothing (weights, thresholds, model names, paths) is hard-coded in code.
+
+run:
+  mode: pilot          # pilot | precompute
+  device: auto         # auto | cuda | cpu
+  require_gpu: false   # Phases 0-3: false (mock/CPU allowed).
+                       # Phase 5 pilot: set true -> STOP if torch.cuda unavailable.
+  seed: 42
+
+model:
+  # Phases 0-3 use the "mock" provider: no HF account, no token, no GPU.
+  # Phase 4 introduces the "hf" provider (in-process, Mode A).
+  provider: mock       # mock | hf
+  name: mistralai/Mistral-7B-Instruct-v0.3
+  hf:
+    token_env: HF_TOKEN        # read token from this env var (never store token in file)
+    dtype: float16
+    device_map: null           # set at load time; keep model on a single GPU
+    max_new_tokens: 256
+    temperature: 0.0
+    do_sample: false
+
+dataset:
+  path: data/demo_flows.csv
+  label_column: Label
+  limit: 10            # pilot: 5-10 scenarios. null = all rows.
+
+pipeline:
+  # Agent-count agnostic: the harness measures whatever chain is listed here,
+  # in order. Keep it a minimal LINEAR chain (no loops, no governance).
+  agents:
+    - perceive
+    - reason
+    - decide
+    - act
+
+# The 6 threat classes (Decide must output exactly one).
+classes:
+  - Brute Force
+  - Volumetric DDoS
+  - Port Scanning
+  - SYN Flood
+  - Data Exfiltration
+  - Benign
+
+scoring:
+  # Simple Additive Weighting (SAW). Direct-Rating weights, DECLARED subjective.
+  # Used in Phase 8 — kept here from the start so nothing is hard-coded later.
+  weights:
+    accuracy: 0.40
+    latency: 0.25
+    vram: 0.20
+    tokens: 0.15
+  # Targets are calibrated empirically on the real GPU (Phase 8). Placeholders.
+  targets:
+    accuracy_pct: 80.0     # higher is better
+    latency_s: 5.0         # lower is better (per-scenario wall time budget)
+    vram_mb: 16000.0       # lower is better
+    tokens_total: 1200.0   # lower is better (input+output per scenario)
+  tiers:
+    healthy_min: 80.0      # >= healthy_min  -> Healthy
+    degraded_min: 60.0     # >= degraded_min -> Degraded, else Critical
+  # Weight sets for the mandatory sensitivity analysis (Phase 8).
+  sensitivity_weight_sets:
+    equal:        {accuracy: 0.25, latency: 0.25, vram: 0.25, tokens: 0.25}
+    accuracy_heavy: {accuracy: 0.55, latency: 0.20, vram: 0.15, tokens: 0.10}
+    efficiency_heavy: {accuracy: 0.25, latency: 0.30, vram: 0.30, tokens: 0.15}
+
+storage:
+  sqlite_path: results/agentmeter.db
+
+output:
+  results_dir: results

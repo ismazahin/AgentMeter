@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Results / artifacts
+results/
+*.db
+*.sqlite
+
+# HF / model caches
+.cache/
+hf_cache/
+*.safetensors
+*.bin
+
+# Secrets — NEVER commit a token
+.env
+*.token
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

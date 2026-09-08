@@ -1,0 +1,9 @@
+# AgentMeter — GPU / Hugging Face dependencies (Phases 4-5).
+# Install these ONLY on the GPU host (HF Space, 1x L4). They pull ~GBs.
+# Install AFTER requirements.txt.
+torch>=2.1
+transformers>=4.40
+accelerate>=0.30
+huggingface_hub>=0.23
+sentencepiece>=0.2
+pynvml>=11.5

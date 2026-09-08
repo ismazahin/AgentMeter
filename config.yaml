@@ -22,9 +22,12 @@ model:
     do_sample: false
 
 dataset:
-  path: data/demo_flows.csv
+  path: data/demo_flows.csv   # synthetic demo for Phases 1-3; swap for the real CSV later
   label_column: Label
+  id_column: null      # optional column to use as scenario_id; null = row index
+  drop_columns: []     # extra non-feature columns to hide from the model (besides label)
   limit: 10            # pilot: 5-10 scenarios. null = all rows.
+  max_feature_chars: 4000  # safety cap on feature-prompt length
 
 pipeline:
   # Agent-count agnostic: the harness measures whatever chain is listed here,

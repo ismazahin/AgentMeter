@@ -164,39 +164,66 @@ class HFProvider(ModelProvider):
             self._torch.cuda.empty_cache()
 
     # --- inference ------------------------------------------------------
-    def _encode(self, prompt: str, system: Optional[str]):
-        """Build input_ids using the chat template when available."""
+    def _encode(self, prompt: str, system: Optional[str]) -> dict:
+        """Encode one turn into a dict of tensors on the device.
+
+        Always returns a mapping with at least 'input_ids' (and usually
+        'attention_mask'), so callers read input_ids consistently. This is
+        deliberately robust to apply_chat_template returning either a bare
+        tensor (older transformers) or a BatchEncoding (transformers >=5,
+        where return_dict defaults to True).
+        """
         tok = self.tokenizer
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
+        enc = None
         if getattr(tok, "chat_template", None):
-            try:
-                return tok.apply_chat_template(
-                    messages, add_generation_prompt=True, return_tensors="pt"
-                ).to(self.device)
-            except Exception:
-                # Some templates reject a 'system' role — fold it into the user turn.
-                merged = (f"{system}\n\n" if system else "") + prompt
-                return tok(merged, return_tensors="pt").input_ids.to(self.device)
+            enc = self._apply_chat_template(messages)
+        if enc is None:
+            # No template, or it rejected the messages (e.g. a 'system' role) —
+            # fold system into the user turn and tokenize plainly.
+            merged = (f"{system}\n\n" if system else "") + prompt
+            enc = tok(merged, return_tensors="pt")
 
-        merged = (f"{system}\n\n" if system else "") + prompt
-        return tok(merged, return_tensors="pt").input_ids.to(self.device)
+        # Normalize a bare tensor into a dict.
+        if hasattr(enc, "shape") and not hasattr(enc, "items"):
+            enc = {"input_ids": enc}
+        return {k: v.to(self.device) for k, v in enc.items()}
+
+    def _apply_chat_template(self, messages):
+        """Return a BatchEncoding/dict for the chat template, or None on failure."""
+        tok = self.tokenizer
+        try:
+            return tok.apply_chat_template(
+                messages, add_generation_prompt=True, return_tensors="pt", return_dict=True
+            )
+        except TypeError:
+            # Older transformers without return_dict: returns a bare tensor.
+            try:
+                ids = tok.apply_chat_template(
+                    messages, add_generation_prompt=True, return_tensors="pt"
+                )
+                return {"input_ids": ids}
+            except Exception:
+                return None
+        except Exception:
+            return None
 
     def generate(self, prompt: str, system: Optional[str] = None) -> GenerationResult:
         from transformers import TextIteratorStreamer
 
         torch = self._torch
-        input_ids = self._encode(prompt, system)
-        input_len = int(input_ids.shape[-1])
+        inputs = self._encode(prompt, system)
+        input_len = int(inputs["input_ids"].shape[-1])
 
         streamer = TextIteratorStreamer(
             self.tokenizer, skip_prompt=True, skip_special_tokens=True
         )
         gen_kwargs = dict(
-            input_ids=input_ids,
+            **inputs,
             max_new_tokens=self.max_new_tokens,
             do_sample=self.do_sample,
             pad_token_id=self.tokenizer.pad_token_id,

@@ -80,20 +80,32 @@ def main() -> int:
     p.model = build_tiny_model(vsize, tok.eos_token_id, tok.pad_token_id)
     p.device = "cpu"
 
+    # (a) plain tokenizer path (no chat template).
     res = p.generate(
         "Network flow features Destination Port 0",
         system="You are the Decide agent classify",
     )
-    print("\n[generate] GenerationResult:")
-    print(f"  text (repr, truncated): {res.text[:80]!r}")
-    print(f"  input_tokens : {res.input_tokens}")
-    print(f"  output_tokens: {res.output_tokens}")
-    print(f"  ttft_s       : {res.ttft_s}")
+    print("\n[generate: plain] GenerationResult:")
+    print(f"  input_tokens : {res.input_tokens}  output_tokens: {res.output_tokens}  ttft_s: {res.ttft_s}")
+    assert res.input_tokens > 0 and res.output_tokens >= 0
 
-    assert res.input_tokens > 0
-    assert res.output_tokens >= 0
-    assert res.ttft_s is None or res.ttft_s >= 0
-    print("\nAll offline smoke assertions passed.")
+    # (b) chat-template path — reproduces the transformers>=5 case where
+    # apply_chat_template returns a BatchEncoding (dict), not a bare tensor.
+    tok.chat_template = (
+        "{% for m in messages %}{{ m['role'] }}: {{ m['content'] }}\n{% endfor %}assistant:"
+    )
+    res2 = p.generate(
+        "Network flow features Destination Port 0",
+        system="You are the Decide agent classify",
+    )
+    print("[generate: chat-template] GenerationResult:")
+    print(f"  text (repr, truncated): {res2.text[:60]!r}")
+    print(f"  input_tokens : {res2.input_tokens}  output_tokens: {res2.output_tokens}  ttft_s: {res2.ttft_s}")
+    assert res2.input_tokens > 0, "chat-template path must count input tokens (the bug)"
+    assert res2.output_tokens >= 0
+    assert res2.ttft_s is None or res2.ttft_s >= 0
+
+    print("\nAll offline smoke assertions passed (plain + chat-template paths).")
     return 0
 
 

@@ -14,11 +14,11 @@ Built incrementally, phase by phase. Currently: **Phase 0 (skeleton + env check)
 | Phase | Deliverable | State |
 |-------|-------------|-------|
 | 0 | Skeleton, `config.yaml`, deps, env check | ✅ |
-| 1 | Dataset loader + data isolation + prompt builder | ⏳ |
-| 2 | Minimal 4-agent LangGraph pipeline (linear) | ⏳ |
-| 3 | Per-agent instrumentation (time, tokens, VRAM) | ⏳ |
-| 4 | HF in-process model adapter (Mode A) | ⏳ |
-| 5 | **Pilot run** (1 model, 5-10 scenarios) | ⏳ |
+| 1 | Dataset loader + data isolation + prompt builder | ✅ |
+| 2 | Minimal 4-agent LangGraph pipeline (linear) | ✅ |
+| 3 | Per-agent instrumentation (time, tokens, VRAM) | ✅ |
+| 4 | HF in-process model adapter (Mode A) | ✅ (code + offline smoke) |
+| 5 | **Pilot run** (1 model, 5-10 scenarios) | ⏳ GPU Space |
 
 Phases 6-10 are intentionally **not** built yet.
 

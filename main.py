@@ -11,6 +11,7 @@ import sys
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="agentmeter", description="AgentMeter harness")
+    parser.add_argument("--config", type=str, default=None, help="path to a config.yaml (default: ./config.yaml)")
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("check-env", help="Phase 0: verify the environment (no GPU required)")
@@ -30,28 +31,31 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "check-env":
-        from agentmeter.env_check import main as check_main
+        from agentmeter.env_check import check_environment, format_report
+        from agentmeter.config import load_config
 
-        return check_main()
+        report = check_environment(load_config(args.config))
+        print(format_report(report))
+        return 0 if report.ok else 1
 
     if args.command == "load-data":
-        return _load_data(args.show)
+        return _load_data(args.show, args.config)
 
     if args.command == "run-pipeline":
-        return _run_pipeline(args.n)
+        return _run_pipeline(args.n, args.config)
 
     if args.command == "bench":
-        return _bench(args.n, args.json, args.proj_scenarios, args.proj_models)
+        return _bench(args.n, args.json, args.proj_scenarios, args.proj_models, args.config)
 
     parser.print_help()
     return 0
 
 
-def _load_data(show: int) -> int:
+def _load_data(show: int, config_path: str | None = None) -> int:
     from agentmeter.config import load_config
     from agentmeter.dataset import DatasetLoader
 
-    cfg = load_config()
+    cfg = load_config(config_path)
     loader = DatasetLoader(cfg)
     scenarios = loader.load()
     summary = loader.summarize(scenarios)
@@ -84,13 +88,13 @@ def _load_data(show: int) -> int:
     return 0
 
 
-def _run_pipeline(n: int) -> int:
+def _run_pipeline(n: int, config_path: str | None = None) -> int:
     from agentmeter.config import load_config
     from agentmeter.dataset import DatasetLoader
     from agentmeter.pipeline import Pipeline
     from agentmeter.providers import get_provider
 
-    cfg = load_config()
+    cfg = load_config(config_path)
     provider = get_provider(cfg)
     provider.load()
     pipeline = Pipeline(cfg, provider)
@@ -126,7 +130,7 @@ def _run_pipeline(n: int) -> int:
     return 0
 
 
-def _bench(n, json_path, proj_scenarios, proj_models) -> int:
+def _bench(n, json_path, proj_scenarios, proj_models, config_path: str | None = None) -> int:
     import json as _json
     import math
     from pathlib import Path
@@ -137,7 +141,7 @@ def _bench(n, json_path, proj_scenarios, proj_models) -> int:
     from agentmeter.pipeline import Pipeline
     from agentmeter.providers import get_provider
 
-    cfg = load_config()
+    cfg = load_config(config_path)
     provider = get_provider(cfg)
     provider.load()
 
@@ -158,6 +162,11 @@ def _bench(n, json_path, proj_scenarios, proj_models) -> int:
     print("=" * 72)
     print(f"Model label   : {model_label}")
     print(f"GPU / VRAM     : {'available (torch.cuda)' if gpu.available else 'NOT available -> vram_peak_mb = None (expected on CPU/mock)'}")
+    weight_vram = getattr(provider, "model_vram_mb", None)
+    if weight_vram is not None:
+        print(f"Model weights  : {weight_vram:,.1f} MB resident VRAM (excluded from per-agent deltas)")
+    if getattr(provider, "device", None) is not None:
+        print(f"Device         : {provider.device}")
     print(f"Agents         : {' -> '.join(pipeline.agent_names)}")
     print(f"Scenarios      : {len(scenarios)}")
     print("")

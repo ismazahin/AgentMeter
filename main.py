@@ -21,6 +21,12 @@ def main(argv: list[str] | None = None) -> int:
     p_run = sub.add_parser("run-pipeline", help="Phase 2: run the 4-agent pipeline (mock model)")
     p_run.add_argument("--n", type=int, default=1, help="how many scenarios to run")
 
+    p_bench = sub.add_parser("bench", help="Phase 3: run instrumented pipeline, print per-agent metrics")
+    p_bench.add_argument("--n", type=int, default=None, help="scenarios to run (default: dataset.limit)")
+    p_bench.add_argument("--json", type=str, default=None, help="write raw metrics to this JSON path")
+    p_bench.add_argument("--proj-scenarios", type=int, default=1000, help="projection: total scenarios")
+    p_bench.add_argument("--proj-models", type=int, default=2, help="projection: number of models")
+
     args = parser.parse_args(argv)
 
     if args.command == "check-env":
@@ -33,6 +39,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "run-pipeline":
         return _run_pipeline(args.n)
+
+    if args.command == "bench":
+        return _bench(args.n, args.json, args.proj_scenarios, args.proj_models)
 
     parser.print_help()
     return 0
@@ -113,6 +122,98 @@ def _run_pipeline(n: int) -> int:
     print(f"Pipeline produced verdicts for {run_n} scenario(s). "
           f"Mock agreement with ground truth: {correct}/{run_n} "
           f"(mock heuristic only — not a real model).")
+    provider.unload()
+    return 0
+
+
+def _bench(n, json_path, proj_scenarios, proj_models) -> int:
+    import json as _json
+    import math
+    from pathlib import Path
+
+    from agentmeter.config import load_config
+    from agentmeter.dataset import DatasetLoader
+    from agentmeter.instrument import GpuProbe, MetricsCollector, make_instrumented_hook
+    from agentmeter.pipeline import Pipeline
+    from agentmeter.providers import get_provider
+
+    cfg = load_config()
+    provider = get_provider(cfg)
+    provider.load()
+
+    model_label = (
+        cfg.get("model.name") if cfg.get("model.provider") == "hf" else f"mock:{provider.name}"
+    )
+    collector = MetricsCollector()
+    gpu = GpuProbe()
+    hook = make_instrumented_hook(collector, model_label, gpu)
+    pipeline = Pipeline(cfg, provider, node_hook=hook)
+
+    scenarios = DatasetLoader(cfg).load()
+    if n is not None:
+        scenarios = scenarios[:n]
+
+    print("=" * 72)
+    print("  AgentMeter — Phase 3: Per-Agent Instrumentation")
+    print("=" * 72)
+    print(f"Model label   : {model_label}")
+    print(f"GPU / VRAM     : {'available (torch.cuda)' if gpu.available else 'NOT available -> vram_peak_mb = None (expected on CPU/mock)'}")
+    print(f"Agents         : {' -> '.join(pipeline.agent_names)}")
+    print(f"Scenarios      : {len(scenarios)}")
+    print("")
+
+    for s in scenarios:
+        pipeline.run(s.scenario_id, s.feature_prompt)
+
+    # --- per (scenario, agent) rows ---
+    def fmt(v, spec="{:.4f}"):
+        return "  n/a" if v is None else spec.format(v)
+
+    print(f"{'scenario':<10} {'agent':<9} {'wall_s':>9} {'ttft_s':>8} {'vram_mb':>9} {'in_tok':>7} {'out_tok':>8}")
+    print("-" * 72)
+    for r in collector.rows:
+        print(f"{r.scenario_id:<10} {r.agent_name:<9} {r.wall_time_s:>9.4f} "
+              f"{fmt(r.ttft_s, '{:.4f}'):>8} {fmt(r.vram_peak_mb, '{:.1f}'):>9} "
+              f"{r.input_tokens:>7} {r.output_tokens:>8}")
+
+    # --- per-agent means ---
+    print("")
+    print("Per-agent mean cost (across scenarios):")
+    print(f"{'agent':<9} {'mean_wall_s':>12} {'mean_ttft_s':>12} {'mean_vram_mb':>13} {'mean_in':>9} {'mean_out':>9}")
+    print("-" * 72)
+    summary = collector.per_agent_summary()
+    for name in pipeline.agent_names:
+        a = summary.get(name)
+        if not a:
+            continue
+        vram = "  n/a" if math.isnan(a["mean_vram_mb"]) else f"{a['mean_vram_mb']:.1f}"
+        ttft = "  n/a" if math.isnan(a["mean_ttft_s"]) else f"{a['mean_ttft_s']:.4f}"
+        print(f"{name:<9} {a['mean_wall_s']:>12.4f} {ttft:>12} {vram:>13} "
+              f"{a['mean_input_tokens']:>9.1f} {a['mean_output_tokens']:>9.1f}")
+
+    # --- totals + projection ---
+    mean_scn = collector.mean_scenario_wall_s()
+    print("")
+    print(f"Mean per-scenario wall time : {mean_scn:.4f} s")
+    total_proj = mean_scn * proj_scenarios * proj_models
+    print(f"Projection (illustrative)   : {proj_scenarios} scenarios x {proj_models} models")
+    print(f"   ~ {total_proj:.1f} s  = {total_proj/60:.1f} min = {total_proj/3600:.2f} h")
+    print("(Projection uses THIS run's timings. On CPU/mock these are tiny and")
+    print(" not representative — real numbers come from the Phase 5 GPU pilot.)")
+
+    if json_path:
+        out = Path(json_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "model_label": model_label,
+            "gpu_available": gpu.available,
+            "rows": [r.as_dict() for r in collector.rows],
+            "per_agent_summary": summary,
+            "mean_scenario_wall_s": mean_scn,
+        }
+        out.write_text(_json.dumps(payload, indent=2, default=str))
+        print(f"\nWrote raw metrics -> {out}")
+
     provider.unload()
     return 0
 

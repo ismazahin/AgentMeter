@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentMeter — Pilot Results</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; background:#f4f5f8; color:#1a1a2e;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 56px; }
+  h1 { font-size: 30px; margin: 0 0 2px; }
+  .sub { color:#5a6072; margin: 0 0 24px; font-size: 15px; }
+  h2 { font-size: 20px; margin: 36px 0 14px; }
+  .cards { display:grid; grid-template-columns: repeat(auto-fit,minmax(158px,1fr)); gap:12px; }
+  .card { background:#ffffff; border:1px solid #e2e5ec; border-radius:12px; padding:14px 16px; }
+  .cl { font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#5a6072; }
+  .cv { font-size:20px; font-weight:700; margin-top:4px; word-break:break-word; }
+  .cs { font-size:12px; color:#5a6072; margin-top:3px; }
+  table { width:100%; border-collapse:collapse; background:#ffffff;
+    border:1px solid #e2e5ec; border-radius:12px; overflow:hidden; font-size:15px; }
+  th, td { padding:11px 14px; text-align:right; border-bottom:1px solid #e2e5ec; }
+  th:first-child, td:first-child { text-align:left; }
+  th { background:#eef0f6; font-size:12.5px; text-transform:uppercase; letter-spacing:.03em; color:#5a6072; }
+  tr:last-child td { border-bottom:none; }
+  td.ag { font-weight:700; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:13px; }
+  .charts { display:grid; grid-template-columns: 1fr 1fr; gap:24px; }
+  .panel { background:#ffffff; border:1px solid #e2e5ec; border-radius:12px; padding:18px 20px; }
+  @media (max-width: 720px) { .charts { grid-template-columns:1fr; } }
+  .accrow { display:flex; align-items:center; gap:20px; margin-bottom:14px; }
+  .bignum { font-size:44px; font-weight:800; color:#4f6bed; }
+  tr.ok td.mk { color:#1e7e34; font-weight:700; }
+  tr.bad td.mk { color:#c0392b; font-weight:700; }
+  tr.ok td:first-child { box-shadow: inset 4px 0 0 #1e7e34; }
+  tr.bad td:first-child { box-shadow: inset 4px 0 0 #c0392b; }
+  .foot { margin-top:34px; color:#5a6072; font-size:12.5px; }
+  .note { background:#eef2ff; border:1px solid #dfe4ff; border-radius:10px; padding:12px 16px;
+    font-size:13.5px; color:#3a3f63; margin-top:14px; }
+</style></head>
+<body><div class="wrap">
+  <h1>AgentMeter — Pilot Results</h1>
+  <p class="sub">Per-agent resource benchmarking of a linear Perceive → Reason → Decide → Act
+     threat-detection pipeline. The pipeline is the test subject; the contribution is the measurement.</p>
+
+  <div class="cards"><div class="card"><div class="cl">Model</div><div class="cv"><span class="mono">Mistral-7B-Instruct-v0.3</span></div></div>
+<div class="card"><div class="cl">Quantization</div><div class="cv">4bit-nf4</div></div>
+<div class="card"><div class="cl">GPU</div><div class="cv">Tesla T4</div></div>
+<div class="card"><div class="cl">Model load</div><div class="cv">219 s</div><div class="cs">3,951 MB weights</div></div>
+<div class="card"><div class="cl">Mean / scenario</div><div class="cv">31.6 s</div><div class="cs">8 scenarios</div></div>
+<div class="card"><div class="cl">Full-run projection</div><div class="cv">17.6 h</div><div class="cs">1000 scenarios × 2 models</div></div></div>
+
+  <h2>Per-agent cost breakdown</h2>
+  <table>
+    <thead><tr><th>Agent</th><th>Mean wall (s)</th><th>Mean TTFT (s)</th>
+      <th>Mean VRAM (MB)</th><th>Mean in-tok</th><th>Mean out-tok</th></tr></thead>
+    <tbody><tr><td class='ag'>Perceive</td><td>12.05</td><td>1.45</td><td>464</td><td>941</td><td>160</td></tr>
+<tr><td class='ag'>Reason</td><td>11.45</td><td>1.53</td><td>595</td><td>1106</td><td>145</td></tr>
+<tr><td class='ag'>Decide</td><td>2.11</td><td>1.96</td><td>778</td><td>1310</td><td>5</td></tr>
+<tr><td class='ag'>Act</td><td>6.02</td><td>0.51</td><td>168</td><td>219</td><td>90</td></tr></tbody>
+  </table>
+  <div class="note"><b>Read the two dimensions separately.</b> Wall time is driven mainly by how
+     many tokens an agent <i>generates</i>; peak VRAM is driven by how long its <i>input context</i>
+     is (KV-cache). The most expensive agent can differ between the two — that is the point of
+     per-agent instrumentation.</div>
+
+  <h2>Which agent costs the most?</h2>
+  <div class="charts">
+    <div class="panel"><svg viewBox="0 0 460 240" width="100%" role="img" aria-label="Mean wall time per agent" font-family="inherit">
+<text x="0" y="24" font-size="17" font-weight="700" fill="#1a1a2e">Mean wall time per agent</text>
+<text x="92" y="66" font-size="14.5" text-anchor="end" fill="#1a1a2e" font-weight="700">Perceive</text>
+<rect x="108" y="50" width="264.0" height="26" rx="5" fill="#e8590c"/>
+<text x="380.0" y="68" font-size="14" fill="#5a6072">12.0 s</text>
+<text x="114" y="68" font-size="12" fill="#fff" font-weight="700">most costly</text>
+<text x="92" y="112" font-size="14.5" text-anchor="end" fill="#1a1a2e" font-weight="500">Reason</text>
+<rect x="108" y="96" width="250.9" height="26" rx="5" fill="#4f6bed"/>
+<text x="366.9" y="114" font-size="14" fill="#5a6072">11.5 s</text>
+<text x="92" y="158" font-size="14.5" text-anchor="end" fill="#1a1a2e" font-weight="500">Decide</text>
+<rect x="108" y="142" width="46.2" height="26" rx="5" fill="#4f6bed"/>
+<text x="162.2" y="160" font-size="14" fill="#5a6072">2.1 s</text>
+<text x="92" y="204" font-size="14.5" text-anchor="end" fill="#1a1a2e" font-weight="500">Act</text>
+<rect x="108" y="188" width="131.8" height="26" rx="5" fill="#4f6bed"/>
+<text x="247.8" y="206" font-size="14" fill="#5a6072">6.0 s</text>
+</svg></div>
+    <div class="panel"><svg viewBox="0 0 460 240" width="100%" role="img" aria-label="Mean peak VRAM per agent" font-family="inherit">
+<text x="0" y="24" font-size="17" font-weight="700" fill="#1a1a2e">Mean peak VRAM per agent</text>
+<text x="92" y="66" font-size="14.5" text-anchor="end" fill="#1a1a2e" font-weight="500">Perceive</text>
+<rect x="108" y="50" width="157.5" height="26" rx="5" fill="#4f6bed"/>
+<text x="273.5" y="68" font-size="14" fill="#5a6072">464.2 MB</text>
+<text x="92" y="112" font-size="14.5" text-anchor="end" fill="#1a1a2e" font-weight="500">Reason</text>
+<rect x="108" y="96" width="201.8" height="26" rx="5" fill="#4f6bed"/>
+<text x="317.8" y="114" font-size="14" fill="#5a6072">594.6 MB</text>
+<text x="92" y="158" font-size="14.5" text-anchor="end" fill="#1a1a2e" font-weight="700">Decide</text>
+<rect x="108" y="142" width="264.0" height="26" rx="5" fill="#e8590c"/>
+<text x="380.0" y="160" font-size="14" fill="#5a6072">777.9 MB</text>
+<text x="114" y="160" font-size="12" fill="#fff" font-weight="700">most costly</text>
+<text x="92" y="204" font-size="14.5" text-anchor="end" fill="#1a1a2e" font-weight="500">Act</text>
+<rect x="108" y="188" width="57.1" height="26" rx="5" fill="#4f6bed"/>
+<text x="173.1" y="206" font-size="14" fill="#5a6072">168.1 MB</text>
+</svg></div>
+  </div>
+
+  <h2>Accuracy &amp; per-scenario verdicts</h2>
+  <div class="accrow"><div class="bignum">62.5%</div>
+     <div class="sub" style="margin:0">detection accuracy vs held-out ground truth &middot; 5/8 correct</div></div>
+  <table>
+    <thead><tr><th>Scenario</th><th>Predicted</th><th>Actual (ground truth)</th><th>Result</th></tr></thead>
+    <tbody><tr class='ok'><td class='mono'>row_0000</td><td>Benign</td><td>Benign</td><td class='mk'>✓ correct</td></tr>
+<tr class='ok'><td class='mono'>row_0001</td><td>Brute Force</td><td>Brute Force</td><td class='mk'>✓ correct</td></tr>
+<tr class='bad'><td class='mono'>row_0002</td><td>Volumetric DDoS</td><td>Port Scanning</td><td class='mk'>✗ wrong</td></tr>
+<tr class='bad'><td class='mono'>row_0003</td><td>DoS Hulk</td><td>Brute Force</td><td class='mk'>✗ wrong</td></tr>
+<tr class='bad'><td class='mono'>row_0004</td><td>Volumetric DDoS</td><td>DoS Hulk</td><td class='mk'>✗ wrong</td></tr>
+<tr class='ok'><td class='mono'>row_0005</td><td>Volumetric DDoS</td><td>Volumetric DDoS</td><td class='mk'>✓ correct</td></tr>
+<tr class='ok'><td class='mono'>row_0006</td><td>Benign</td><td>Benign</td><td class='mk'>✓ correct</td></tr>
+<tr class='ok'><td class='mono'>row_0007</td><td>Port Scanning</td><td>Port Scanning</td><td class='mk'>✓ correct</td></tr></tbody>
+  </table>
+
+  <p class="foot">Generated 2026-09-09 12:51 from <span class="mono">pilot.json</span>.
+     Research benchmarking study — not a production security product.</p>
+</div></body></html>

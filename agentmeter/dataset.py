@@ -27,8 +27,9 @@ class Scenario:
 
     scenario_id: str
     feature_prompt: str          # feature-only text the model sees (NO label)
-    held_out_label: str          # ground truth, kept in memory only
+    held_out_label: str          # ground-truth class (after mapping), memory only
     raw_features: dict[str, Any] = field(default_factory=dict)  # for storage/debug
+    raw_label: str = ""          # original CSV label before any mapping
 
 
 def _format_value(value: Any) -> str:
@@ -68,6 +69,10 @@ class DatasetLoader:
         self.limit: int | None = config.get("dataset.limit")
         self.max_feature_chars: int | None = config.get("dataset.max_feature_chars")
         self.known_classes: list[str] = list(config.get("classes", []) or [])
+        # Ground-truth normalization for real datasets (memory only; never seen
+        # by the model). Applied to the held-out label, not the features.
+        self.label_map: dict[str, str] = dict(config.get("dataset.label_map", {}) or {})
+        self.drop_labels: set[str] = set(config.get("dataset.drop_labels", []) or [])
 
     def load(self) -> list[Scenario]:
         if not self.path.exists():
@@ -81,12 +86,20 @@ class DatasetLoader:
                 f"Columns: {list(df.columns)}"
             )
 
+        # Drop rows whose raw label is excluded (e.g. classes out of taxonomy),
+        # BEFORE applying the pilot row limit.
+        if self.drop_labels:
+            df = df[~df[self.label_column].astype(str).isin(self.drop_labels)]
+
+        df = df.reset_index(drop=True)
         if self.limit is not None:
             df = df.head(int(self.limit))
 
         # --- DATA ISOLATION -------------------------------------------------
         # Labels are pulled out FIRST and never re-attached to the model view.
-        labels = df[self.label_column].astype(str).tolist()
+        raw_labels = df[self.label_column].astype(str).tolist()
+        # Map raw dataset labels onto the canonical taxonomy (memory only).
+        labels = [self.label_map.get(lbl, lbl) for lbl in raw_labels]
 
         id_values = None
         if self.id_column and self.id_column in df.columns:
@@ -114,6 +127,7 @@ class DatasetLoader:
                     feature_prompt=prompt,
                     held_out_label=labels[i],
                     raw_features=features,
+                    raw_label=raw_labels[i],
                 )
             )
         return scenarios
@@ -121,14 +135,19 @@ class DatasetLoader:
     def summarize(self, scenarios: list[Scenario]) -> dict[str, Any]:
         """Small summary for the CLI: counts, label distribution, unknown labels."""
         label_counts: dict[str, int] = {}
+        raw_counts: dict[str, int] = {}
         for s in scenarios:
             label_counts[s.held_out_label] = label_counts.get(s.held_out_label, 0) + 1
+            raw_counts[s.raw_label] = raw_counts.get(s.raw_label, 0) + 1
+        # After mapping, which effective labels are still outside the taxonomy?
         unknown = sorted(
             {lbl for lbl in label_counts if self.known_classes and lbl not in self.known_classes}
         )
         return {
             "n_scenarios": len(scenarios),
             "label_distribution": dict(sorted(label_counts.items())),
+            "raw_label_distribution": dict(sorted(raw_counts.items())),
             "labels_not_in_config_classes": unknown,
+            "label_map_applied": dict(self.label_map),
             "dataset_path": str(self.path),
         }

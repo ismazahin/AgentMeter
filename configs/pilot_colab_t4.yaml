@@ -34,12 +34,14 @@ model:
     latency_s: 0.0
 
 dataset:
-  path: data/demo_flows.csv
+  path: data/cicids_pilot.csv   # real CIC-IDS pilot sample (78 features + Label)
   label_column: Label
   id_column: null
   drop_columns: []
-  limit: 8
+  limit: 10             # 10 rows in this sample; all scorable against the 5 classes
   max_feature_chars: 4000
+  label_map: {}         # no remapping — DoS Hulk is a first-class label
+  drop_labels: []       # no dropping — all rows kept
 
 pipeline:
   agents:
@@ -57,16 +59,14 @@ classes:
   - Brute Force
   - Volumetric DDoS
   - Port Scanning
-  - SYN Flood
-  - Data Exfiltration
+  - DoS Hulk
   - Benign
 
 mitre:
   Brute Force: "T1110 - Brute Force"
   Volumetric DDoS: "T1498 - Network Denial of Service"
   Port Scanning: "T1046 - Network Service Discovery"
-  SYN Flood: "T1499 - Endpoint Denial of Service"
-  Data Exfiltration: "T1048 - Exfiltration Over Alternative Protocol"
+  DoS Hulk: "T1499 - Endpoint Denial of Service"
   Benign: "N/A - No adversary technique"
 
 scoring:

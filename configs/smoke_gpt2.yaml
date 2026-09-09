@@ -46,16 +46,14 @@ classes:
   - Brute Force
   - Volumetric DDoS
   - Port Scanning
-  - SYN Flood
-  - Data Exfiltration
+  - DoS Hulk
   - Benign
 
 mitre:
   Brute Force: "T1110 - Brute Force"
   Volumetric DDoS: "T1498 - Network Denial of Service"
   Port Scanning: "T1046 - Network Service Discovery"
-  SYN Flood: "T1499 - Endpoint Denial of Service"
-  Data Exfiltration: "T1048 - Exfiltration Over Alternative Protocol"
+  DoS Hulk: "T1499 - Endpoint Denial of Service"
   Benign: "N/A - No adversary technique"
 
 scoring:

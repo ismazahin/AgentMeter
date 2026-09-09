@@ -41,23 +41,19 @@ def _heuristic_class(f: dict[str, float], classes: list[str]) -> str:
     bwd = f.get("Total Bwd Packets", 0)
     pps = f.get("Flow Packets/s", 0)
     syn = f.get("SYN Flag Count", 0)
-    bwd_bytes = f.get("Total Length of Bwd Packets", 0)
 
     def pick(name: str, fallback: str = "Benign") -> str:
         return name if name in classes else (classes[0] if classes else fallback)
 
-    # SYN flood: overwhelming SYNs, little/no return traffic.
+    # DoS Hulk: overwhelming one-directional flood (e.g. HTTP flood / SYN burst).
     if syn >= 1000 and bwd == 0:
-        return pick("SYN Flood")
+        return pick("DoS Hulk")
     # Volumetric DDoS: extreme packet rate in both directions.
     if pps >= 100000 and fwd >= 1000 and bwd >= 1000:
         return pick("Volumetric DDoS")
     # Port scanning: tiny, short probe flows carrying a SYN.
     if fwd <= 2 and dur <= 100000 and syn >= 1:
         return pick("Port Scanning")
-    # Data exfiltration: large sustained outbound-return payload.
-    if bwd_bytes >= 10_000_000 and dur >= 5_000_000:
-        return pick("Data Exfiltration")
     # Brute force: repeated auth attempts against SSH/FTP.
     if port in (22, 21) and fwd >= 50:
         return pick("Brute Force")

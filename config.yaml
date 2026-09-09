@@ -36,6 +36,11 @@ dataset:
   drop_columns: []     # extra non-feature columns to hide from the model (besides label)
   limit: 10            # pilot: 5-10 scenarios. null = all rows.
   max_feature_chars: 4000  # safety cap on feature-prompt length
+  # Ground-truth normalization for real datasets (applied to the held-out label
+  # in memory only — the model never sees it). Maps raw CSV labels onto the 6
+  # canonical classes. Declare any mapping in the thesis.
+  label_map: {}        # e.g. {DoS Hulk: Volumetric DDoS, PortScan: Port Scanning}
+  drop_labels: []      # raw labels to exclude entirely, e.g. [DoS Hulk]
 
 pipeline:
   # Agent-count agnostic: the harness measures whatever chain is listed here,
@@ -54,23 +59,25 @@ pipeline:
     decide: 12
     act: 160
 
-# The 6 threat classes (Decide must output exactly one).
+# The 5 threat classes (Decide must output exactly one).
+# Aligned to the CIC-IDS labels used in this study (SYN Flood and Data
+# Exfiltration were dropped: no SYN Flood label in CIC-IDS, too few Infiltration
+# rows). DoS Hulk is a first-class member the model must be able to output.
 classes:
   - Brute Force
   - Volumetric DDoS
   - Port Scanning
-  - SYN Flood
-  - Data Exfiltration
+  - DoS Hulk
   - Benign
 
 # MITRE ATT&CK reference mapping (used by the Act agent as grounding / fallback).
-# Not hard-coded in code; adjust as needed.
+# Not hard-coded in code; adjust as needed. DoS Hulk (endpoint/app-layer DoS,
+# T1499) is kept distinct from distributed Volumetric DDoS (T1498).
 mitre:
   Brute Force: "T1110 - Brute Force"
   Volumetric DDoS: "T1498 - Network Denial of Service"
   Port Scanning: "T1046 - Network Service Discovery"
-  SYN Flood: "T1499 - Endpoint Denial of Service"
-  Data Exfiltration: "T1048 - Exfiltration Over Alternative Protocol"
+  DoS Hulk: "T1499 - Endpoint Denial of Service"
   Benign: "N/A - No adversary technique"
 
 scoring:

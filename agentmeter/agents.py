@@ -52,8 +52,7 @@ _ALIASES = {
     "Brute Force": ["brute force", "bruteforce", "brute-force"],
     "Volumetric DDoS": ["volumetric ddos", "ddos", "volumetric", "distributed denial"],
     "Port Scanning": ["port scanning", "port scan", "portscan", "port-scan", "scanning"],
-    "SYN Flood": ["syn flood", "syn-flood", "synflood", "syn"],
-    "Data Exfiltration": ["data exfiltration", "exfiltration", "exfil", "data exfil"],
+    "DoS Hulk": ["dos hulk", "doshulk", "hulk"],  # keep 'dos' out: ambiguous vs DDoS
     "Benign": ["benign", "normal", "no threat", "not malicious", "legitimate"],
 }
 

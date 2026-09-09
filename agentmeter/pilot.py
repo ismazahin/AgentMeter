@@ -55,15 +55,45 @@ def _gpu_guard(config: Config) -> None:
         )
 
 
+def free_cuda() -> None:
+    """Aggressively release GPU memory so the next model loads from a clean slate.
+
+    Call this between models in a multi-model run — the second model's VRAM
+    readings are only trustworthy if the first is fully freed.
+    """
+    import gc
+
+    gc.collect()
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+            torch.cuda.reset_peak_memory_stats()
+            torch.cuda.ipc_collect()
+    except Exception:
+        pass
+
+
 def run_pilot(
     config_path: Optional[str] = None,
     n: Optional[int] = None,
     proj_scenarios: int = 1000,
     proj_models: int = 2,
     json_path: Optional[str] = None,
+    model_name: Optional[str] = None,
 ) -> PilotResult:
     cfg = load_config(config_path)
+    if model_name:  # override for multi-model runs (same config, swap the model)
+        cfg.data.setdefault("model", {})["name"] = model_name
     _gpu_guard(cfg)
+
+    # Start from a clean GPU so before-load VRAM reflects only what's resident
+    # from anything prior (should be ~0 additional for this model).
+    free_cuda()
+    gpu = GpuProbe()
+    device_vram_before_load_mb = gpu.pynvml_used_mb()
 
     provider = get_provider(cfg)
     load_t0 = time.perf_counter()
@@ -71,7 +101,6 @@ def run_pilot(
     model_load_s = time.perf_counter() - load_t0  # excluded from per-agent readings
 
     model_label = cfg.get("model.name") if cfg.get("model.provider") == "hf" else f"mock:{provider.name}"
-    gpu = GpuProbe()
     # Device-level VRAM after weights are resident (captures quantized weights
     # that the torch allocator under-reports).
     device_vram_after_load_mb = gpu.pynvml_used_mb()
@@ -117,6 +146,7 @@ def run_pilot(
         "model_load_s": model_load_s,
         "model_weight_vram_mb": getattr(provider, "model_vram_mb", None),
         "quantization": getattr(provider, "quantization_label", "none"),
+        "device_vram_before_load_mb": device_vram_before_load_mb,
         "device_vram_after_load_mb": device_vram_after_load_mb,
         "n_scenarios": n_scn,
         "agents": pipeline.agent_names,
@@ -136,6 +166,7 @@ def run_pilot(
     }
 
     provider.unload()
+    free_cuda()  # fully release VRAM so the next model (if any) starts clean
 
     report = _format_report(payload)
     if json_path:
@@ -147,6 +178,61 @@ def run_pilot(
         payload["_json_path"] = str(p)
 
     return PilotResult(payload=payload, report=report)
+
+
+def _short_name(model_name: str) -> str:
+    return model_name.split("/")[-1]
+
+
+def run_pilot_models(
+    models: list[str],
+    config_path: Optional[str] = None,
+    n: Optional[int] = None,
+    out_dir: str = "results",
+    proj_scenarios: int = 1000,
+) -> list[PilotResult]:
+    """Benchmark several models SEQUENTIALLY in one process (never in parallel).
+
+    For each model: fully free the GPU, load the model, run the same scenarios
+    with the same config/quantization, save results/pilot_<short>.json, then
+    unload and free VRAM before the next model. Also writes a combined file
+    results/pilot_combined.json. Same pipeline + same scenarios for every model,
+    so any difference is attributable to the model alone (Cara 1).
+    """
+    from pathlib import Path
+
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    proj_models = len(models)
+    results: list[PilotResult] = []
+
+    for i, name in enumerate(models):
+        print(f"\n{'#'*70}\n# Model {i+1}/{len(models)}: {name}\n{'#'*70}")
+        free_cuda()  # guarantee the previous model is gone before this one loads
+        res = run_pilot(
+            config_path=config_path,
+            n=n,
+            proj_scenarios=proj_scenarios,
+            proj_models=proj_models,
+            json_path=str(out / f"pilot_{_short_name(name)}.json"),
+            model_name=name,
+        )
+        print(res.report)
+        results.append(res)
+        free_cuda()  # and free it again before the loop continues
+
+    combined = {
+        "kind": "agentmeter_pilot_combined",
+        "models": [r.payload for r in results],
+        "model_labels": [r.payload.get("model_label") for r in results],
+    }
+    combined_path = out / "pilot_combined.json"
+    combined_path.write_text(json.dumps(combined, indent=2, default=str))
+    print(f"\nWrote combined results -> {combined_path}")
+    print("Per-model files:")
+    for r in results:
+        print(f"  - {r.payload.get('_json_path')}")
+    return results
 
 
 def _gpu_name() -> Optional[str]:
@@ -174,7 +260,10 @@ def _format_report(p: dict[str, Any]) -> str:
     if p.get("model_weight_vram_mb") is not None:
         lines.append(f"Model weights    : {p['model_weight_vram_mb']:,.1f} MB (torch allocator; load took {p['model_load_s']:.1f}s, excluded)")
     if p.get("device_vram_after_load_mb") is not None:
-        lines.append(f"Device VRAM used : {p['device_vram_after_load_mb']:,.1f} MB (NVML, whole device after load)")
+        before = p.get("device_vram_before_load_mb")
+        before_s = f"{before:,.1f}" if before is not None else "n/a"
+        lines.append(f"Device VRAM      : {before_s} MB before load -> "
+                     f"{p['device_vram_after_load_mb']:,.1f} MB after (NVML; low 'before' = clean isolation)")
     lines.append(f"Agents           : {' -> '.join(p['agents'])}")
     lines.append(f"Scenarios        : {p['n_scenarios']}")
     lines.append("")

@@ -28,6 +28,14 @@ Built incrementally, phase by phase. Currently: **Phase 0 (skeleton + env check)
 - **HF Space (L4, 24 GB):** see `space/SPACE_SETUP.md`; uses fp16
   (`configs/pilot_mistral_l4.yaml`). Incurs GPU cost — pause the Space after.
 
+**Presenting the results (CPU-only, no GPU, no deps):**
+```bash
+python scripts/report.py results/pilot.json     # -> results/pilot_report.html
+```
+Open the HTML in any browser (great on a projector): a per-agent cost table,
+time & VRAM bar charts (which agent costs most), accuracy, and per-scenario
+verdicts. In Colab it renders inline (last notebook cell).
+
 Phases 6-10 are intentionally **not** built yet.
 
 ## Design rules (hard constraints)

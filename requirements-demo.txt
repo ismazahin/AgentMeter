@@ -1,0 +1,5 @@
+# AgentMeter — local demo dependencies (CPU-only, no GPU).
+# For the interactive model-comparison app (scripts/compare_app.py).
+# The static HTML report (scripts/report.py) needs NONE of these — it is pure stdlib.
+gradio>=4.0
+pandas>=2.0

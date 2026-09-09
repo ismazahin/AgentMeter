@@ -36,6 +36,16 @@ Open the HTML in any browser (great on a projector): a per-agent cost table,
 time & VRAM bar charts (which agent costs most), accuracy, and per-scenario
 verdicts. In Colab it renders inline (last notebook cell).
 
+**Comparing two models side by side (interactive, local, CPU-only):**
+```bash
+pip install -r requirements-demo.txt     # gradio + pandas (one-time)
+python scripts/compare_app.py            # reads ./results/*.json, opens in browser
+```
+Pick any two models produced by the pilot (`pilot_<model>.json` or
+`pilot_combined.json`) and compare per-agent wall time & VRAM, per-agent tokens,
+accuracy, and a resource-efficiency summary. Reads strictly from saved JSON —
+never fabricates; if a model file is missing it says so.
+
 Phases 6-10 are intentionally **not** built yet.
 
 ## Design rules (hard constraints)

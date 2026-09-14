@@ -19,6 +19,7 @@ Built incrementally, phase by phase. Currently: **Phase 0 (skeleton + env check)
 | 3 | Per-agent instrumentation (time, tokens, VRAM) | ✅ |
 | 4 | HF in-process model adapter (Mode A) | ✅ (code + offline smoke) |
 | 5 | **Pilot run** (1 model, 5-10 scenarios) | ✅ code ready — run on Colab (T4) or HF Space (L4) |
+| 6 | Full-run orchestrator + SQLite persistence + checkpoint/resume | ✅ |
 
 **Running the pilot (needs a GPU):**
 - **Google Colab (free T4, 15 GB):** open `notebooks/agentmeter_pilot_colab.ipynb`
@@ -46,7 +47,24 @@ Pick any two models produced by the pilot (`pilot_<model>.json` or
 accuracy, and a resource-efficiency summary. Reads strictly from saved JSON —
 never fabricates; if a model file is missing it says so.
 
-Phases 6-10 are intentionally **not** built yet.
+**Full run + persistence + resume (Phase 6, CPU-testable with the mock):**
+```bash
+# Benchmark every model in run.models x every scenario, SEQUENTIALLY, persisting
+# each scenario to SQLite (storage.sqlite_path) as it completes.
+python main.py run-full                                   # uses config.yaml
+python main.py --config configs/run_full_mock.yaml run-full --fresh   # 5 mock models, no GPU
+```
+Interrupt it any time (Ctrl-C, crash, timeout) and re-run the same command: it
+**resumes**, skipping every `(model, scenario)` already persisted and finishing
+the rest. Each scenario's four agent rows + its verdict are written in one atomic
+transaction, so a mid-scenario crash never leaves a half-written scenario.
+`--fresh` abandons any incomplete run and starts clean. If the config changed
+since an incomplete run (different fingerprint), it refuses to resume rather than
+silently corrupt the comparison. This phase only **persists** the raw rows the
+existing instrumentation collects — it computes no accuracy/SAW aggregates
+(that is Phase 7/8).
+
+Phases 7-10 are intentionally **not** built yet.
 
 ## Design rules (hard constraints)
 

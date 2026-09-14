@@ -7,6 +7,10 @@ run:
   require_gpu: false   # Phases 0-3: false (mock/CPU allowed).
                        # Phase 5 pilot: set true -> STOP if torch.cuda unavailable.
   seed: 42
+  # Phase 6 `run-full`: models benchmarked SEQUENTIALLY (never in parallel),
+  # one loaded at a time. Empty -> falls back to the single model.name below.
+  models:
+    - mistralai/Mistral-7B-Instruct-v0.3
 
 model:
   # Phases 0-3 use the "mock" provider: no HF account, no token, no GPU.

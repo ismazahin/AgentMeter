@@ -1,0 +1,94 @@
+# Phase 6 CPU-only test config for `run-full` — proves the full-run
+# orchestrator + SQLite persistence + checkpoint/resume WITHOUT a GPU, HF
+# token, or cost. Uses the deterministic MockProvider, five distinct "models"
+# (labels only — the mock ignores weights), and the small CIC-IDS sample.
+#
+# Run (fresh):    python main.py --config configs/run_full_mock.yaml run-full --fresh
+# Resume:         python main.py --config configs/run_full_mock.yaml run-full
+#
+# latency_s is a small artificial per-call delay so a mid-run interrupt (e.g.
+# `timeout`) can be demonstrated deterministically. Set to 0.0 for a fast run.
+
+run:
+  mode: pilot
+  device: cpu           # explicit; require_gpu is false so mock/CPU is allowed
+  require_gpu: false
+  seed: 42
+  models:               # 5 distinct labels -> 5 sequential "models"
+    - mock/alpha-1b
+    - mock/beta-3b
+    - mock/gamma-7b
+    - mock/delta-8b
+    - mock/epsilon-13b
+
+model:
+  provider: mock
+  name: mock/alpha-1b   # overridden per model by run-full; kept for validation
+  hf:
+    token_env: HF_TOKEN
+    dtype: float16
+    device_map: null
+    max_new_tokens: 64
+    temperature: 0.0
+    do_sample: false
+  mock:
+    latency_s: 0.30     # artificial delay so an interrupt is demonstrable
+
+dataset:
+  path: data/cicids_pilot.csv
+  label_column: Label
+  id_column: null
+  drop_columns: []
+  limit: 3              # small N per model for a fast, clear test
+  max_feature_chars: 4000
+  label_map: {}
+  drop_labels: []
+
+pipeline:
+  agents:
+    - perceive
+    - reason
+    - decide
+    - act
+  max_new_tokens:
+    perceive: 160
+    reason: 200
+    decide: 12
+    act: 160
+
+classes:
+  - Brute Force
+  - Volumetric DDoS
+  - Port Scanning
+  - DoS Hulk
+  - Benign
+
+mitre:
+  Brute Force: "T1110 - Brute Force"
+  Volumetric DDoS: "T1498 - Network Denial of Service"
+  Port Scanning: "T1046 - Network Service Discovery"
+  DoS Hulk: "T1499 - Endpoint Denial of Service"
+  Benign: "N/A - No adversary technique"
+
+scoring:
+  weights:
+    accuracy: 0.40
+    latency: 0.25
+    vram: 0.20
+    tokens: 0.15
+  targets:
+    accuracy_pct: 80.0
+    latency_s: 5.0
+    vram_mb: 16000.0
+    tokens_total: 1200.0
+  tiers:
+    healthy_min: 80.0
+    degraded_min: 60.0
+  sensitivity_weight_sets:
+    equal: {accuracy: 0.25, latency: 0.25, vram: 0.25, tokens: 0.25}
+
+storage:
+  sqlite_path: results/agentmeter_mock.db
+
+output:
+  results_dir: results

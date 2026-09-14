@@ -34,6 +34,14 @@ def main(argv: list[str] | None = None) -> int:
     p_pilot.add_argument("--proj-scenarios", type=int, default=1000, help="projection: total scenarios")
     p_pilot.add_argument("--proj-models", type=int, default=2, help="projection: number of models")
 
+    p_full = sub.add_parser(
+        "run-full", help="Phase 6: full run (models x scenarios, sequential, persisted to SQLite, resumable)"
+    )
+    p_full.add_argument("--n", type=int, default=None, help="scenarios per model (default: dataset.limit)")
+    p_full.add_argument("--fresh", action="store_true", help="ignore any incomplete run and start a new one")
+    p_full.add_argument("--proj-scenarios", type=int, default=1000, help="projection: total scenarios")
+    p_full.add_argument("--proj-models", type=int, default=None, help="projection: number of models (default: #models)")
+
     args = parser.parse_args(argv)
 
     if args.command == "check-env":
@@ -70,6 +78,26 @@ def main(argv: list[str] | None = None) -> int:
         print(result.report)
         if result.payload.get("_json_path"):
             print(f"\nWrote pilot payload -> {result.payload['_json_path']}")
+        return 0
+
+    if args.command == "run-full":
+        from agentmeter.runner import ConfigMismatchError, run_full
+
+        try:
+            result = run_full(
+                config_path=args.config,
+                n=args.n,
+                fresh=args.fresh,
+                proj_scenarios=args.proj_scenarios,
+                proj_models=args.proj_models,
+            )
+        except ConfigMismatchError as e:
+            print(f"\n{e}\n", file=sys.stderr)
+            return 2
+        except RuntimeError as e:
+            print(f"\n{e}\n", file=sys.stderr)
+            return 1
+        print(result.report)
         return 0
 
     parser.print_help()

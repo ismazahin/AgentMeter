@@ -59,8 +59,15 @@ sequentially — one model loaded per process, then the process exits so the OS
 reclaims all GPU memory. This is what makes each model's VRAM readings clean by
 construction: bitsandbytes 4-bit / accelerate `device_map` weights that in-process
 unload could not reliably free are gone the moment the worker exits, so the next
-model starts from a fresh CUDA context. The worker keeps the VRAM guard as a
-sanity check against its own fresh-context baseline (it should always pass now).
+model starts from a fresh CUDA context. The `vram_guard` in each model's JSON is
+the **startup-isolation** check: it verifies the worker *started* clean — its
+device VRAM before loading its own weights is within `free_vram_tolerance_mb` of
+the fresh-context baseline (the first worker's before-load). On a clean run
+`exceeded` is `false`; a worker that ever starts far above the baseline (a prior
+process failed to release VRAM) sets `exceeded:true` and warns loudly. The
+per-worker in-process post-unload residual is recorded separately as
+`in_process_residual_mb` — expected non-zero for bnb-4bit and harmless, since the
+process exits and the OS reclaims the VRAM, so it does **not** drive the guard.
 
 Interrupt it any time (Ctrl-C, crash, killed worker) and re-run the same command:
 it **resumes**, re-running only the incomplete model, skipping every

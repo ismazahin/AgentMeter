@@ -48,13 +48,21 @@ class WorkerError(RuntimeError):
 
 
 def _spawn_model_worker(
-    config_path: str, model: str, run_id: str, n: Optional[int]
+    config_path: str,
+    model: str,
+    run_id: str,
+    n: Optional[int],
+    baseline_vram_mb: Optional[float] = None,
+    vram_out: Optional[str] = None,
 ) -> int:
     """Spawn ONE per-model worker (sqlite mode) and BLOCK until it exits.
 
     Sequential by construction: the parent waits here, so two workers never run
-    at once. Returns the worker's exit code (0 = success, its scenarios persisted
-    atomically; non-zero = crash, model left incomplete for resume).
+    at once. `baseline_vram_mb` is the fresh-context reference the worker checks
+    its own start against; `vram_out` is a sidecar the worker writes its
+    before-load reading to, so the parent can establish that baseline from the
+    first worker. Returns the worker's exit code (0 = success, its scenarios
+    persisted atomically; non-zero = crash, model left incomplete for resume).
     """
     cmd = [
         sys.executable, "-m", "agentmeter.worker",
@@ -65,7 +73,24 @@ def _spawn_model_worker(
     ]
     if n is not None:
         cmd += ["--n", str(n)]
+    if baseline_vram_mb is not None:
+        cmd += ["--baseline-vram-mb", repr(float(baseline_vram_mb))]
+    if vram_out is not None:
+        cmd += ["--vram-out", vram_out]
     return subprocess.run(cmd).returncode
+
+
+def _read_worker_before_load(sidecar_path: str) -> Optional[float]:
+    """Read a worker's fresh-context before-load VRAM from its sidecar (or None)."""
+    try:
+        import json as _json
+        from pathlib import Path as _Path
+
+        data = _json.loads(_Path(sidecar_path).read_text())
+        val = data.get("device_vram_before_load_mb")
+        return float(val) if val is not None else None
+    except Exception:
+        return None
 
 
 @dataclass
@@ -229,6 +254,12 @@ def run_full(
         # on models, dataset, DB path, quant — everything the fingerprint covers).
         worker_config = str(cfg.path)
 
+        # The fresh-context baseline is established by the first worker that runs
+        # and passed to later workers so each worker's startup-isolation guard is
+        # judged against a known-clean reference (before_load ~ baseline -> clean).
+        baseline_vram_mb: Optional[float] = None
+        vram_sidecar = str(db_path) + ".worker_vram.json"
+
         # SEQUENTIAL subprocess-per-model: each model runs in its own fresh process
         # so the OS reclaims all GPU memory on exit — clean VRAM by construction.
         # Never two workers at once.
@@ -242,7 +273,10 @@ def run_full(
                 continue
 
             print(f"[{mi+1}/{len(models)}] {label}: spawning worker (running {len(remaining)}/{n_scn} scenario(s))")
-            rc = _spawn_model_worker(worker_config, model_name, run_id, n)
+            rc = _spawn_model_worker(
+                worker_config, model_name, run_id, n,
+                baseline_vram_mb=baseline_vram_mb, vram_out=vram_sidecar,
+            )
             if rc != 0:
                 # A crashed/killed worker leaves this model incomplete; the run row
                 # stays 'running' so a later resume re-runs just this model. Its
@@ -251,6 +285,9 @@ def run_full(
                     f"worker for model {label!r} exited with code {rc}. Run {run_id} left "
                     f"incomplete — re-run `run-full` (no --fresh) to resume just this model."
                 )
+            # First worker establishes the fresh-context baseline for the rest.
+            if baseline_vram_mb is None:
+                baseline_vram_mb = _read_worker_before_load(vram_sidecar)
             # The worker persisted atomically; refresh completion from the DB.
             done = store.completed_pairs(run_id)
 

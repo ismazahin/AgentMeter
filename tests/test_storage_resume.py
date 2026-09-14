@@ -259,9 +259,9 @@ def test_run_full_spawns_one_worker_per_model(tmp_path, monkeypatch):
     real_spawn = runner._spawn_model_worker
     spawned: list[tuple[str, str]] = []
 
-    def spy_spawn(config_path, model, run_id, n):
+    def spy_spawn(config_path, model, run_id, n, *args, **kwargs):
         spawned.append((model, run_id))
-        return real_spawn(config_path, model, run_id, n)  # still run the real worker
+        return real_spawn(config_path, model, run_id, n, *args, **kwargs)
 
     monkeypatch.setattr(runner, "_spawn_model_worker", spy_spawn)
     run_full(config_path=cfg_path, fresh=True)

@@ -25,10 +25,17 @@ import sys
 from typing import Optional
 
 from .config import load_config
-from .pilot import _gpu_guard, check_vram_residual, free_cuda, release_provider
+from .pilot import _gpu_guard, free_cuda, release_provider, startup_isolation_guard
 
 
-def _run_model_sqlite(cfg, model_name: str, run_id: str, n: Optional[int]) -> None:
+def _run_model_sqlite(
+    cfg,
+    model_name: str,
+    run_id: str,
+    n: Optional[int],
+    baseline_vram_mb: Optional[float] = None,
+    vram_out: Optional[str] = None,
+) -> None:
     """Run one model's scenarios and persist them into the run-full SQLite DB.
 
     Skips (model, scenario) pairs already marked complete for this run, so a
@@ -54,18 +61,24 @@ def _run_model_sqlite(cfg, model_name: str, run_id: str, n: Optional[int]) -> No
         if n is not None:
             scenarios = scenarios[:n]
 
-        # Fresh-context VRAM baseline for THIS process (the whole point of the
-        # subprocess): the guard below compares against it and should always pass.
-        free_cuda()
-        gpu0 = GpuProbe()
-        baseline_vram_mb = gpu0.pynvml_used_mb() if gpu0.available else None
         tolerance_mb = float(cfg.get("run.free_vram_tolerance_mb", 500.0) or 500.0)
 
-        provider = get_provider(cfg)
+        # This worker's fresh-context device VRAM BEFORE loading its own weights.
+        # It is the isolation signal: compared against the parent-supplied baseline
+        # (the first worker's before-load), it says whether THIS worker started
+        # clean. Report it to the parent via the sidecar so it can set the baseline.
+        free_cuda()
         before_gpu = GpuProbe()
         dev_before = before_gpu.pynvml_used_mb() if before_gpu.available else None
         if dev_before is not None:
             print(f"    device VRAM before load: {dev_before:,.1f} MB (fresh context)")
+        if vram_out:
+            import json as _json
+            from pathlib import Path as _Path
+
+            _Path(vram_out).write_text(_json.dumps({"device_vram_before_load_mb": dev_before}))
+
+        provider = get_provider(cfg)
         provider.load()
 
         gpu = GpuProbe()
@@ -112,9 +125,12 @@ def _run_model_sqlite(cfg, model_name: str, run_id: str, n: Optional[int]) -> No
         finally:
             release_provider(provider)
 
-        # Fresh-context guard: should always pass now. If it ever trips, something
-        # is genuinely wrong — surface it loudly.
-        check_vram_residual(baseline_vram_mb, tolerance_mb, label)
+        # Startup-isolation guard: did THIS worker start clean vs the fresh-context
+        # baseline the parent established (first worker's before-load; for the first
+        # worker, itself -> clean)? Should always pass now; loud if a worker ever
+        # started contaminated (a previous process failed to release VRAM).
+        guard_baseline = baseline_vram_mb if baseline_vram_mb is not None else dev_before
+        startup_isolation_guard(guard_baseline, dev_before, tolerance_mb, label)
     finally:
         store.close()
 
@@ -130,6 +146,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--n", type=int, default=None, help="scenarios (default: dataset.limit)")
     parser.add_argument("--out", type=str, default=None, help="pilot mode: per-model JSON path")
     parser.add_argument("--run-id", type=str, default=None, help="sqlite mode: run id to persist under")
+    parser.add_argument("--baseline-vram-mb", type=float, default=None,
+                        help="fresh-context baseline (first worker's before-load) for the startup guard")
+    parser.add_argument("--vram-out", type=str, default=None,
+                        help="sqlite mode: sidecar path to write this worker's before-load reading")
     parser.add_argument("--proj-scenarios", type=int, default=1000)
     parser.add_argument("--proj-models", type=int, default=1)
     args = parser.parse_args(argv)
@@ -144,6 +164,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             json_path=args.out,
             proj_scenarios=args.proj_scenarios,
             proj_models=args.proj_models,
+            baseline_vram_mb=args.baseline_vram_mb,
         )
         print(res.report)
         return 0
@@ -152,7 +173,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     if not args.run_id:
         parser.error("--run-id is required in sqlite mode")
     cfg = load_config(args.config)
-    _run_model_sqlite(cfg, args.model, args.run_id, args.n)
+    _run_model_sqlite(
+        cfg, args.model, args.run_id, args.n,
+        baseline_vram_mb=args.baseline_vram_mb, vram_out=args.vram_out,
+    )
     return 0
 
 

@@ -93,52 +93,61 @@ def release_provider(provider) -> None:
     free_cuda()
 
 
-def vram_guard_report(baseline_mb, used_mb, tolerance_mb, model_label):
-    """Compare post-unload device VRAM against the pre-first-load baseline.
+def startup_isolation_guard(baseline_mb, before_load_mb, tolerance_mb, model_label):
+    """The REAL cross-process isolation check: did this worker START clean?
 
-    Returns a dict describing the check (or None if it could not be performed)
-    and WARNS LOUDLY when the residual exceeds tolerance. Never fabricates a
-    reading: callers pass used_mb=None when pynvml/CUDA are unavailable, and the
-    check is skipped with a clear note instead of inventing a number.
+    In subprocess-per-model isolation the meaningful signal is whether a model's
+    worker began in a fresh CUDA context — i.e. its device VRAM BEFORE loading its
+    own weights is within tolerance of the established fresh-context baseline (the
+    first worker's before-load). If a later worker starts far above that baseline,
+    a previous process failed to release VRAM and the comparison is contaminated.
+
+    (The per-worker POST-UNLOAD residual is NOT used here: a bnb-4bit worker can
+    show a large in-process residual and still be perfectly clean, because the
+    process exits immediately after and the OS reclaims all VRAM.)
+
+    Returns a dict; WARNS LOUDLY only when a worker starts contaminated. Never
+    fabricates a reading: with pynvml/CUDA unavailable (mock/CPU) the check is
+    skipped and exceeded is False.
     """
-    if used_mb is None or baseline_mb is None:
+    if baseline_mb is None or before_load_mb is None:
         print(
-            f"  [VRAM guard] skipped after {model_label}: no device VRAM reading "
-            f"(pynvml unavailable or no CUDA) — cannot verify residual, not fabricating one."
+            f"  [VRAM isolation] {model_label}: startup check skipped — no device reading "
+            f"(pynvml/CUDA unavailable), not fabricating one."
         )
-        return None
-    residual = used_mb - baseline_mb
-    exceeded = residual > tolerance_mb
+        return {
+            "kind": "startup_isolation",
+            "device_vram_before_load_mb": before_load_mb,
+            "baseline_vram_mb": baseline_mb,
+            "startup_excess_mb": None,
+            "tolerance_mb": tolerance_mb,
+            "checked": False,
+            "exceeded": False,
+        }
+    excess = before_load_mb - baseline_mb
+    exceeded = excess > tolerance_mb
     if exceeded:
         print(
-            f"  [VRAM guard] WARNING: after unloading {model_label}, device VRAM did NOT "
-            f"return to baseline.\n"
-            f"      device now = {used_mb:,.1f} MB, baseline = {baseline_mb:,.1f} MB, "
-            f"residual = {residual:,.1f} MB (tolerance {tolerance_mb:,.1f} MB).\n"
-            f"      The NEXT model's readings may be contaminated by load order — treat this "
-            f"comparison with caution and investigate the unload path."
+            f"  [VRAM isolation] WARNING: {model_label} STARTED CONTAMINATED — "
+            f"before_load {before_load_mb:,.1f} MB vs fresh-context baseline "
+            f"{baseline_mb:,.1f} MB (excess {excess:,.1f} MB > tolerance {tolerance_mb:,.1f} MB). "
+            f"A previous process did not release VRAM — this model's readings are not clean."
         )
     else:
         print(
-            f"  [VRAM guard] OK after {model_label}: residual {residual:,.1f} MB "
-            f"<= tolerance {tolerance_mb:,.1f} MB (device {used_mb:,.1f} MB, baseline {baseline_mb:,.1f} MB)."
+            f"  [VRAM isolation] OK: {model_label} started clean "
+            f"(before_load {before_load_mb:,.1f} MB ~ baseline {baseline_mb:,.1f} MB, "
+            f"excess {excess:,.1f} MB <= tolerance {tolerance_mb:,.1f} MB)."
         )
     return {
-        "model_label": model_label,
-        "device_used_mb": used_mb,
-        "baseline_mb": baseline_mb,
-        "residual_mb": residual,
+        "kind": "startup_isolation",
+        "device_vram_before_load_mb": before_load_mb,
+        "baseline_vram_mb": baseline_mb,
+        "startup_excess_mb": excess,
         "tolerance_mb": tolerance_mb,
+        "checked": True,
         "exceeded": exceeded,
     }
-
-
-def check_vram_residual(baseline_mb, tolerance_mb, model_label):
-    """Read device VRAM via pynvml and run vram_guard_report. Skips (no fabricated
-    reading) when pynvml/CUDA are unavailable."""
-    gpu = GpuProbe()
-    used = gpu.pynvml_used_mb() if gpu.available else None
-    return vram_guard_report(baseline_mb, used, tolerance_mb, model_label)
 
 
 def run_pilot(
@@ -231,27 +240,38 @@ def run_pilot(
         "platform": platform.platform(),
     }
 
-    # SINGLE shared unload path: clears device_map hooks + frees CUDA so the next
-    # model starts from a clean device (fixes the cross-model VRAM leak).
+    # SINGLE shared unload path: clears device_map hooks + frees CUDA. In
+    # subprocess-per-model isolation the real guarantee is that THIS process
+    # exits right after and the OS reclaims all VRAM — so the in-process residual
+    # below is expected to be non-zero (esp. for bnb-4bit) and is NOT a failure.
     release_provider(provider)
 
-    # Post-unload VRAM guard: did the device return to near the pre-first-load
-    # baseline? Recorded in the payload so a clean re-run is verifiable from JSON.
     gpu_after = GpuProbe()
     device_vram_after_unload_mb = gpu_after.pynvml_used_mb() if gpu_after.available else None
     tolerance_mb = float(cfg.get("run.free_vram_tolerance_mb", 500.0) or 500.0)
-    # In subprocess-per-model isolation each run_pilot IS a fresh process, so its
-    # own before-load reading is the fresh-context baseline. Fall back to it when
-    # no explicit baseline was passed. The guard is a sanity check that should now
-    # always pass; if it trips, surface it loudly.
+
+    # The in-process post-unload residual: RECORD it (diagnostic) but do NOT drive
+    # the guard from it — it is harmless because the worker process exits next.
+    in_process_residual_mb = (
+        (device_vram_after_unload_mb - device_vram_before_load_mb)
+        if (device_vram_after_unload_mb is not None and device_vram_before_load_mb is not None)
+        else None
+    )
+
+    # The guard's real invariant: did this worker START clean? Compare its
+    # before-load VRAM to the fresh-context baseline (the parent-supplied first
+    # worker's before-load; for the first/standalone worker, itself -> clean).
     guard_baseline = baseline_vram_mb if baseline_vram_mb is not None else device_vram_before_load_mb
-    guard = vram_guard_report(guard_baseline, device_vram_after_unload_mb, tolerance_mb, model_label)
+    guard = startup_isolation_guard(
+        guard_baseline, device_vram_before_load_mb, tolerance_mb, model_label
+    )
+
     payload["baseline_vram_mb"] = guard_baseline
     payload["device_vram_after_unload_mb"] = device_vram_after_unload_mb
-    payload["vram_residual_mb"] = (
-        (device_vram_after_unload_mb - guard_baseline)
-        if (device_vram_after_unload_mb is not None and guard_baseline is not None)
-        else None
+    payload["in_process_residual_mb"] = in_process_residual_mb
+    payload["in_process_residual_note"] = (
+        "expected non-zero for bnb-4bit; harmless — the worker process exits and "
+        "the OS reclaims VRAM. Isolation is judged by vram_guard (startup), not this."
     )
     payload["free_vram_tolerance_mb"] = tolerance_mb
     payload["vram_guard"] = guard
@@ -303,6 +323,11 @@ def run_pilot_models(
         load_config(config_path).get("run.free_vram_tolerance_mb", 500.0) or 500.0
     )
 
+    # The fresh-context baseline is established by the FIRST worker's before-load
+    # reading, then passed to every later worker so its startup-isolation guard is
+    # judged against a known-clean reference (before_load ~ baseline -> clean).
+    baseline_vram_mb: Optional[float] = None
+
     results: list[PilotResult] = []
     for i, name in enumerate(models):
         print(f"\n{'#'*70}\n# Model {i+1}/{len(models)}: {name}  (worker subprocess)\n{'#'*70}")
@@ -318,6 +343,8 @@ def run_pilot_models(
         ]
         if n is not None:
             cmd += ["--n", str(n)]
+        if baseline_vram_mb is not None:
+            cmd += ["--baseline-vram-mb", repr(float(baseline_vram_mb))]
         rc = subprocess.run(cmd).returncode  # BLOCK: strictly sequential
         if rc != 0:
             raise RuntimeError(
@@ -326,11 +353,17 @@ def run_pilot_models(
         payload = json.loads(out_json.read_text())
         payload["_json_path"] = str(out_json)
         results.append(PilotResult(payload=payload, report=payload.get("_report", "")))
+        # First worker establishes the fresh-context baseline for the rest.
+        if baseline_vram_mb is None:
+            baseline_vram_mb = payload.get("device_vram_before_load_mb")
 
     combined = {
         "kind": "agentmeter_pilot_combined",
         "free_vram_tolerance_mb": tolerance_mb,
-        "note": "Each model ran in its own subprocess; baselines are per-model fresh contexts.",
+        "baseline_vram_mb": baseline_vram_mb,
+        "note": "One subprocess per model; each worker's vram_guard checks that it "
+                "STARTED clean (before_load ~ baseline). in_process_residual_mb is a "
+                "harmless diagnostic — the process exits and the OS reclaims VRAM.",
         "models": [r.payload for r in results],
         "model_labels": [r.payload.get("model_label") for r in results],
     }

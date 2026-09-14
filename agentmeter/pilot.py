@@ -76,6 +76,71 @@ def free_cuda() -> None:
         pass
 
 
+def release_provider(provider) -> None:
+    """SINGLE shared unload path used between models by BOTH run_pilot_models and
+    the Phase 6 run-full runner (do not duplicate this logic elsewhere).
+
+    Drops the model's references via provider.unload() — which, for the HF
+    provider, also clears the accelerate/bitsandbytes device_map hooks that would
+    otherwise pin the weights on the GPU — then aggressively frees CUDA so device
+    VRAM returns to near-baseline before the next model loads.
+    """
+    if provider is not None:
+        try:
+            provider.unload()
+        except Exception:
+            pass
+    free_cuda()
+
+
+def vram_guard_report(baseline_mb, used_mb, tolerance_mb, model_label):
+    """Compare post-unload device VRAM against the pre-first-load baseline.
+
+    Returns a dict describing the check (or None if it could not be performed)
+    and WARNS LOUDLY when the residual exceeds tolerance. Never fabricates a
+    reading: callers pass used_mb=None when pynvml/CUDA are unavailable, and the
+    check is skipped with a clear note instead of inventing a number.
+    """
+    if used_mb is None or baseline_mb is None:
+        print(
+            f"  [VRAM guard] skipped after {model_label}: no device VRAM reading "
+            f"(pynvml unavailable or no CUDA) — cannot verify residual, not fabricating one."
+        )
+        return None
+    residual = used_mb - baseline_mb
+    exceeded = residual > tolerance_mb
+    if exceeded:
+        print(
+            f"  [VRAM guard] WARNING: after unloading {model_label}, device VRAM did NOT "
+            f"return to baseline.\n"
+            f"      device now = {used_mb:,.1f} MB, baseline = {baseline_mb:,.1f} MB, "
+            f"residual = {residual:,.1f} MB (tolerance {tolerance_mb:,.1f} MB).\n"
+            f"      The NEXT model's readings may be contaminated by load order — treat this "
+            f"comparison with caution and investigate the unload path."
+        )
+    else:
+        print(
+            f"  [VRAM guard] OK after {model_label}: residual {residual:,.1f} MB "
+            f"<= tolerance {tolerance_mb:,.1f} MB (device {used_mb:,.1f} MB, baseline {baseline_mb:,.1f} MB)."
+        )
+    return {
+        "model_label": model_label,
+        "device_used_mb": used_mb,
+        "baseline_mb": baseline_mb,
+        "residual_mb": residual,
+        "tolerance_mb": tolerance_mb,
+        "exceeded": exceeded,
+    }
+
+
+def check_vram_residual(baseline_mb, tolerance_mb, model_label):
+    """Read device VRAM via pynvml and run vram_guard_report. Skips (no fabricated
+    reading) when pynvml/CUDA are unavailable."""
+    gpu = GpuProbe()
+    used = gpu.pynvml_used_mb() if gpu.available else None
+    return vram_guard_report(baseline_mb, used, tolerance_mb, model_label)
+
+
 def run_pilot(
     config_path: Optional[str] = None,
     n: Optional[int] = None,
@@ -83,6 +148,7 @@ def run_pilot(
     proj_models: int = 2,
     json_path: Optional[str] = None,
     model_name: Optional[str] = None,
+    baseline_vram_mb: Optional[float] = None,
 ) -> PilotResult:
     cfg = load_config(config_path)
     if model_name:  # override for multi-model runs (same config, swap the model)
@@ -165,8 +231,29 @@ def run_pilot(
         "platform": platform.platform(),
     }
 
-    provider.unload()
-    free_cuda()  # fully release VRAM so the next model (if any) starts clean
+    # SINGLE shared unload path: clears device_map hooks + frees CUDA so the next
+    # model starts from a clean device (fixes the cross-model VRAM leak).
+    release_provider(provider)
+
+    # Post-unload VRAM guard: did the device return to near the pre-first-load
+    # baseline? Recorded in the payload so a clean re-run is verifiable from JSON.
+    gpu_after = GpuProbe()
+    device_vram_after_unload_mb = gpu_after.pynvml_used_mb() if gpu_after.available else None
+    tolerance_mb = float(cfg.get("run.free_vram_tolerance_mb", 500.0) or 500.0)
+    guard = (
+        vram_guard_report(baseline_vram_mb, device_vram_after_unload_mb, tolerance_mb, model_label)
+        if baseline_vram_mb is not None
+        else None
+    )
+    payload["baseline_vram_mb"] = baseline_vram_mb
+    payload["device_vram_after_unload_mb"] = device_vram_after_unload_mb
+    payload["vram_residual_mb"] = (
+        (device_vram_after_unload_mb - baseline_vram_mb)
+        if (device_vram_after_unload_mb is not None and baseline_vram_mb is not None)
+        else None
+    )
+    payload["free_vram_tolerance_mb"] = tolerance_mb
+    payload["vram_guard"] = guard
 
     report = _format_report(payload)
     if json_path:
@@ -206,6 +293,17 @@ def run_pilot_models(
     proj_models = len(models)
     results: list[PilotResult] = []
 
+    # Capture the pre-first-load device VRAM baseline ONCE. Every model's unload
+    # is then checked against THIS baseline (not the model's own before-load,
+    # which is already contaminated if a prior model leaked), so contamination
+    # by load order is detectable from the JSON alone.
+    free_cuda()
+    baseline_gpu = GpuProbe()
+    baseline_vram_mb = baseline_gpu.pynvml_used_mb() if baseline_gpu.available else None
+    tolerance_mb = float(
+        load_config(config_path).get("run.free_vram_tolerance_mb", 500.0) or 500.0
+    )
+
     for i, name in enumerate(models):
         print(f"\n{'#'*70}\n# Model {i+1}/{len(models)}: {name}\n{'#'*70}")
         free_cuda()  # guarantee the previous model is gone before this one loads
@@ -216,6 +314,7 @@ def run_pilot_models(
             proj_models=proj_models,
             json_path=str(out / f"pilot_{_short_name(name)}.json"),
             model_name=name,
+            baseline_vram_mb=baseline_vram_mb,
         )
         print(res.report)
         results.append(res)
@@ -223,6 +322,8 @@ def run_pilot_models(
 
     combined = {
         "kind": "agentmeter_pilot_combined",
+        "baseline_vram_mb": baseline_vram_mb,
+        "free_vram_tolerance_mb": tolerance_mb,
         "models": [r.payload for r in results],
         "model_labels": [r.payload.get("model_label") for r in results],
     }

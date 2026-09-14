@@ -9,6 +9,7 @@ run:
   device: cuda          # in-process on the GPU
   require_gpu: true      # STOP if torch.cuda is unavailable — no silent CPU fallback
   seed: 42
+  free_vram_tolerance_mb: 500   # warn if VRAM doesn't return to baseline between models
 
 model:
   provider: hf

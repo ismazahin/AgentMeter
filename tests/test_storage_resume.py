@@ -251,3 +251,25 @@ def test_changed_hardware_is_refused(tmp_path):
     result = run_full(config_path=cfg_path, fresh=True)
     assert result.resumed is False
     assert result.scenarios_run == len(MODELS) * N_SCEN
+
+
+# --- VRAM isolation: the shared unload routine runs on every model transition --
+
+def test_release_provider_called_per_model_transition(tmp_path, monkeypatch):
+    """The reference-clearing unload path (release_provider) must run once per
+    model, so device VRAM is returned to baseline before the next model loads."""
+    db = tmp_path / "release.db"
+    cfg_path = _write_config(tmp_path, db)
+
+    real_release = runner.release_provider
+    released: list[str] = []
+
+    def spy_release(provider):
+        released.append(getattr(provider, "name", "?"))
+        return real_release(provider)  # still perform the real unload
+
+    monkeypatch.setattr(runner, "release_provider", spy_release)
+    run_full(config_path=cfg_path, fresh=True)
+
+    # One unload per model (both mock models loaded in a fresh full run).
+    assert len(released) == len(MODELS)

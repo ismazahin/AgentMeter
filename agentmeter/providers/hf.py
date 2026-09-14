@@ -155,12 +155,42 @@ class HFProvider(ModelProvider):
             return AutoModelForCausalLM.from_pretrained(self.name, torch_dtype=_dtype, **kwargs)
 
     def unload(self) -> None:
+        """Return device VRAM to near-baseline before the next model loads.
+
+        Setting self.model = None is NOT enough for a device_map / bitsandbytes
+        model: accelerate attaches AlignDevicesHooks to the submodules, and those
+        hooks hold references to the GPU weight tensors (weights_map / tied-params
+        map). If they survive, the weights stay resident and contaminate the next
+        model's VRAM baseline (the leak seen in the 2-model pilot). So: detach the
+        hooks, drop EVERY reference (model/tokenizer), then gc + empty_cache +
+        synchronize.
+        """
+        model = self.model
         self.model = None
         self.tokenizer = None
+
+        if model is not None:
+            # Detach accelerate device_map hooks so the weight tensors they pin
+            # become collectable. No-op (and harmless) for non-device_map models.
+            try:
+                from accelerate.hooks import remove_hook_from_module
+
+                remove_hook_from_module(model, recurse=True)
+            except Exception:
+                pass
+            # Drop accelerate's device map so it does not keep the model alive.
+            try:
+                if hasattr(model, "hf_device_map"):
+                    model.hf_device_map = None
+            except Exception:
+                pass
+        del model
+
         if self.device == "cuda":
             import gc
 
             gc.collect()
+            self._torch.cuda.synchronize()
             self._torch.cuda.empty_cache()
 
     # --- inference ------------------------------------------------------

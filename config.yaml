@@ -7,6 +7,10 @@ run:
   require_gpu: false   # Phases 0-3: false (mock/CPU allowed).
                        # Phase 5 pilot: set true -> STOP if torch.cuda unavailable.
   seed: 42
+  # Post-unload VRAM residual tolerance (MB). Between models the harness checks
+  # that device VRAM returned to near the pre-first-load baseline; if the residual
+  # exceeds this, it WARNS (the next model's readings may be contaminated).
+  free_vram_tolerance_mb: 500
   # Phase 6 `run-full`: models benchmarked SEQUENTIALLY (never in parallel),
   # one loaded at a time. Empty -> falls back to the single model.name below.
   models:

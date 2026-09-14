@@ -35,7 +35,7 @@ from typing import Any, Optional
 from .config import Config, load_config
 from .dataset import DatasetLoader
 from .instrument import GpuProbe, MetricsCollector, make_instrumented_hook
-from .pilot import free_cuda
+from .pilot import check_vram_residual, free_cuda, release_provider
 from .pipeline import Pipeline
 from .providers import get_provider
 from .storage import Storage
@@ -203,6 +203,13 @@ def run_full(
         skipped = 0
         wall_start = time.perf_counter()
 
+        # Pre-first-load device VRAM baseline (captured once). Each model's unload
+        # is checked against it so a cross-model VRAM leak is caught here too.
+        free_cuda()
+        _baseline_gpu = GpuProbe()
+        baseline_vram_mb = _baseline_gpu.pynvml_used_mb() if _baseline_gpu.available else None
+        tolerance_mb = float(cfg.get("run.free_vram_tolerance_mb", 500.0) or 500.0)
+
         for mi, model_name in enumerate(models):
             # Isolation: guarantee the previous model is gone before this loads.
             free_cuda()
@@ -218,6 +225,11 @@ def run_full(
 
             print(f"[{mi+1}/{len(models)}] {label}: loading (running {len(remaining)}/{n_scn} scenario(s))")
             provider = get_provider(cfg)
+            # Record per-model device VRAM before load (verifiable clean baseline).
+            _before_gpu = GpuProbe()
+            dev_before = _before_gpu.pynvml_used_mb() if _before_gpu.available else None
+            if dev_before is not None:
+                print(f"    device VRAM before load: {dev_before:,.1f} MB")
             provider.load()
             gpu = GpuProbe()
             collector = MetricsCollector()
@@ -258,8 +270,11 @@ def run_full(
                     print(f"    {s.scenario_id:<10} -> {pred:<16} "
                           f"(gt={s.held_out_label}, {total_time:.4f}s) [persisted]")
             finally:
-                provider.unload()
-                free_cuda()  # release VRAM before the next model loads
+                # SINGLE shared unload path (clears device_map hooks + frees CUDA),
+                # then verify the device returned to near-baseline before the next
+                # model loads — warn loudly if it did not.
+                release_provider(provider)
+                check_vram_residual(baseline_vram_mb, tolerance_mb, label)
 
         store.finish_run(run_id, status="complete")
         wall_elapsed = time.perf_counter() - wall_start

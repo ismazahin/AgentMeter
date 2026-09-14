@@ -1,11 +1,14 @@
 """Phase 6 — storage + checkpoint/resume tests (mock provider, CPU-only).
 
-No GPU, no HF token, no network. Covers exactly:
+No GPU, no HF token, no network. Each model runs in a WORKER SUBPROCESS (VRAM
+isolation by process); the parent spawns them sequentially. Covers exactly:
   (a) atomicity  — a mid-scenario failure rolls back; no half-written scenario
       is left that resume would skip;
-  (b) resume     — skips already-complete (model, scenario) pairs with no dup rows;
+  (b) resume     — a killed worker leaves its model incomplete; resume re-runs
+      only that model, skipping done scenarios, with no duplicate rows;
   (c) config guard    — a changed config_fingerprint is refused;
-  (d) hardware guard  — a changed hardware_label is refused.
+  (d) hardware guard  — a changed hardware_label is refused;
+  (e) isolation  — run-full spawns exactly one worker subprocess per model.
 """
 from __future__ import annotations
 
@@ -20,6 +23,7 @@ from agentmeter.dataset import DatasetLoader
 from agentmeter.instrument import AgentMetrics
 from agentmeter.runner import (
     ConfigMismatchError,
+    WorkerError,
     config_fingerprint,
     resolve_models,
     run_full,
@@ -35,7 +39,7 @@ _CSV = (
     "443,200,2,1,Port Scanning\n"
 )
 
-MODELS = ["mock/m0", "mock/m1"]
+MODELS = ["mock/m0", "mock/m1", "mock/m2"]
 N_SCEN = 3  # rows in _CSV
 
 
@@ -152,55 +156,46 @@ def test_persist_scenario_is_atomic(tmp_path):
 
 # --- (b) resume skips completed pairs, no duplicates --------------------
 
-def test_resume_skips_completed_without_duplicates(tmp_path, monkeypatch):
+def test_resume_reruns_only_the_incomplete_model(tmp_path, monkeypatch):
+    """Kill a worker mid-model; resume re-runs only that model, no duplicates,
+    no half-written scenarios. The worker runs in a subprocess, so the crash is
+    injected via AGENTMETER_WORKER_CRASH_AFTER_SCENARIOS (inherited by the spawn)."""
     db = tmp_path / "resume.db"
     cfg_path = _write_config(tmp_path, db)
 
-    # Crash partway through the first run: raise inside the pipeline on the
-    # 6th generate() call (well into model 0), leaving model 0 partially done
-    # and model 1 entirely pending.
-    from agentmeter.providers.mock import MockProvider
-
-    real_generate = MockProvider.generate
-    state = {"calls": 0}
-
-    def crashing_generate(self, prompt, system=None, max_new_tokens=None):
-        state["calls"] += 1
-        if state["calls"] == 6:
-            raise RuntimeError("simulated crash mid-run")
-        return real_generate(self, prompt, system=system, max_new_tokens=max_new_tokens)
-
-    monkeypatch.setattr(MockProvider, "generate", crashing_generate)
-    with pytest.raises(RuntimeError, match="simulated crash"):
+    # First model's worker crashes after persisting exactly 1 scenario. The parent
+    # sees the non-zero exit and stops (WorkerError), leaving model 0 partial and
+    # models 1..N never started.
+    monkeypatch.setenv("AGENTMETER_WORKER_CRASH_AFTER_SCENARIOS", "1")
+    with pytest.raises(WorkerError):
         run_full(config_path=cfg_path, fresh=True)
 
-    # After the crash: some pairs complete, run still 'running', and crucially
-    # NO scenario left half-written (every persisted scenario has 4 agent rows).
     store = Storage(db)
-    completed_before = store.completed_pairs(store.find_incomplete_run()["run_id"])
-    assert 0 < len(completed_before) < len(MODELS) * N_SCEN
-    assert store.find_incomplete_run() is not None  # status still 'running'
+    incomplete = store.find_incomplete_run()
+    assert incomplete is not None  # run still 'running'
+    completed_before = store.completed_pairs(incomplete["run_id"])
+    assert len(completed_before) == 1  # exactly one scenario persisted before crash
     store.close()
     _, _, bad = _integrity(db)
-    assert bad == []  # no half-written scenario that resume would skip
+    assert bad == []  # the crashed scenario left NO half-written rows (atomic)
 
-    # Resume (no --fresh, unpatched provider): finishes the rest.
-    monkeypatch.setattr(MockProvider, "generate", real_generate)
+    # Resume (no --fresh, no crash env): the worker for the incomplete model skips
+    # its 1 done scenario and finishes the rest; the other models then run.
+    monkeypatch.delenv("AGENTMETER_WORKER_CRASH_AFTER_SCENARIOS")
     result = run_full(config_path=cfg_path)
 
     assert result.resumed is True
-    assert result.scenarios_skipped == len(completed_before)
-    assert result.scenarios_run == len(MODELS) * N_SCEN - len(completed_before)
+    assert result.scenarios_skipped == 1
+    assert result.scenarios_run == len(MODELS) * N_SCEN - 1
 
     dup_scn, dup_agent, bad = _integrity(db)
     assert dup_scn == [] and dup_agent == [] and bad == []
 
     final = Storage(db)
     counts = final.table_counts()
-    assert counts["scenario_results"] == len(MODELS) * N_SCEN  # 6
-    assert counts["agent_metrics"] == len(MODELS) * N_SCEN * 4  # 24
-    # Run is now marked complete (no incomplete run remains).
-    assert final.find_incomplete_run() is None
+    assert counts["scenario_results"] == len(MODELS) * N_SCEN
+    assert counts["agent_metrics"] == len(MODELS) * N_SCEN * 4
+    assert final.find_incomplete_run() is None  # run marked complete
     final.close()
 
 
@@ -253,23 +248,32 @@ def test_changed_hardware_is_refused(tmp_path):
     assert result.scenarios_run == len(MODELS) * N_SCEN
 
 
-# --- VRAM isolation: the shared unload routine runs on every model transition --
+# --- VRAM isolation: ONE worker subprocess per model, spawned sequentially -----
 
-def test_release_provider_called_per_model_transition(tmp_path, monkeypatch):
-    """The reference-clearing unload path (release_provider) must run once per
-    model, so device VRAM is returned to baseline before the next model loads."""
-    db = tmp_path / "release.db"
+def test_run_full_spawns_one_worker_per_model(tmp_path, monkeypatch):
+    """run-full must spawn exactly one worker subprocess per model (VRAM isolation
+    by process). Each spawn is sequential (the real spawn BLOCKS on subprocess)."""
+    db = tmp_path / "spawn.db"
     cfg_path = _write_config(tmp_path, db)
 
-    real_release = runner.release_provider
-    released: list[str] = []
+    real_spawn = runner._spawn_model_worker
+    spawned: list[tuple[str, str]] = []
 
-    def spy_release(provider):
-        released.append(getattr(provider, "name", "?"))
-        return real_release(provider)  # still perform the real unload
+    def spy_spawn(config_path, model, run_id, n):
+        spawned.append((model, run_id))
+        return real_spawn(config_path, model, run_id, n)  # still run the real worker
 
-    monkeypatch.setattr(runner, "release_provider", spy_release)
+    monkeypatch.setattr(runner, "_spawn_model_worker", spy_spawn)
     run_full(config_path=cfg_path, fresh=True)
 
-    # One unload per model (both mock models loaded in a fresh full run).
-    assert len(released) == len(MODELS)
+    # One worker per model, and all under the same run.
+    assert [m for m, _ in spawned] == MODELS
+    assert len({rid for _, rid in spawned}) == 1
+
+    # Same SQLite row shape as the in-process version produced.
+    final = Storage(db)
+    counts = final.table_counts()
+    assert counts["runs"] == 1
+    assert counts["scenario_results"] == len(MODELS) * N_SCEN
+    assert counts["agent_metrics"] == len(MODELS) * N_SCEN * 4
+    final.close()

@@ -240,16 +240,17 @@ def run_pilot(
     gpu_after = GpuProbe()
     device_vram_after_unload_mb = gpu_after.pynvml_used_mb() if gpu_after.available else None
     tolerance_mb = float(cfg.get("run.free_vram_tolerance_mb", 500.0) or 500.0)
-    guard = (
-        vram_guard_report(baseline_vram_mb, device_vram_after_unload_mb, tolerance_mb, model_label)
-        if baseline_vram_mb is not None
-        else None
-    )
-    payload["baseline_vram_mb"] = baseline_vram_mb
+    # In subprocess-per-model isolation each run_pilot IS a fresh process, so its
+    # own before-load reading is the fresh-context baseline. Fall back to it when
+    # no explicit baseline was passed. The guard is a sanity check that should now
+    # always pass; if it trips, surface it loudly.
+    guard_baseline = baseline_vram_mb if baseline_vram_mb is not None else device_vram_before_load_mb
+    guard = vram_guard_report(guard_baseline, device_vram_after_unload_mb, tolerance_mb, model_label)
+    payload["baseline_vram_mb"] = guard_baseline
     payload["device_vram_after_unload_mb"] = device_vram_after_unload_mb
     payload["vram_residual_mb"] = (
-        (device_vram_after_unload_mb - baseline_vram_mb)
-        if (device_vram_after_unload_mb is not None and baseline_vram_mb is not None)
+        (device_vram_after_unload_mb - guard_baseline)
+        if (device_vram_after_unload_mb is not None and guard_baseline is not None)
         else None
     )
     payload["free_vram_tolerance_mb"] = tolerance_mb
@@ -278,52 +279,58 @@ def run_pilot_models(
     out_dir: str = "results",
     proj_scenarios: int = 1000,
 ) -> list[PilotResult]:
-    """Benchmark several models SEQUENTIALLY in one process (never in parallel).
+    """Benchmark several models SEQUENTIALLY, ONE SUBPROCESS PER MODEL.
 
-    For each model: fully free the GPU, load the model, run the same scenarios
-    with the same config/quantization, save results/pilot_<short>.json, then
-    unload and free VRAM before the next model. Also writes a combined file
-    results/pilot_combined.json. Same pipeline + same scenarios for every model,
-    so any difference is attributable to the model alone (Cara 1).
+    Each model runs in its own worker process (`agentmeter.worker --mode pilot`)
+    that loads exactly one model, measures its own FRESH-context baseline, runs
+    the same scenarios with the same config/quantization, writes
+    results/pilot_<short>.json, then exits — so the OS reclaims all GPU memory and
+    the next model starts clean by construction (fixes the bnb-4bit device_map
+    leak that in-process unload could not). Never two workers at once. The parent
+    aggregates the per-model JSONs into results/pilot_combined.json. Same pipeline
+    + same scenarios for every model, so any difference is attributable to the
+    model alone (Cara 1).
     """
+    import subprocess
+    import sys
     from pathlib import Path
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     proj_models = len(models)
-    results: list[PilotResult] = []
-
-    # Capture the pre-first-load device VRAM baseline ONCE. Every model's unload
-    # is then checked against THIS baseline (not the model's own before-load,
-    # which is already contaminated if a prior model leaked), so contamination
-    # by load order is detectable from the JSON alone.
-    free_cuda()
-    baseline_gpu = GpuProbe()
-    baseline_vram_mb = baseline_gpu.pynvml_used_mb() if baseline_gpu.available else None
+    worker_config = str(load_config(config_path).path)
     tolerance_mb = float(
         load_config(config_path).get("run.free_vram_tolerance_mb", 500.0) or 500.0
     )
 
+    results: list[PilotResult] = []
     for i, name in enumerate(models):
-        print(f"\n{'#'*70}\n# Model {i+1}/{len(models)}: {name}\n{'#'*70}")
-        free_cuda()  # guarantee the previous model is gone before this one loads
-        res = run_pilot(
-            config_path=config_path,
-            n=n,
-            proj_scenarios=proj_scenarios,
-            proj_models=proj_models,
-            json_path=str(out / f"pilot_{_short_name(name)}.json"),
-            model_name=name,
-            baseline_vram_mb=baseline_vram_mb,
-        )
-        print(res.report)
-        results.append(res)
-        free_cuda()  # and free it again before the loop continues
+        print(f"\n{'#'*70}\n# Model {i+1}/{len(models)}: {name}  (worker subprocess)\n{'#'*70}")
+        out_json = out / f"pilot_{_short_name(name)}.json"
+        cmd = [
+            sys.executable, "-m", "agentmeter.worker",
+            "--mode", "pilot",
+            "--model", name,
+            "--config", worker_config,
+            "--out", str(out_json),
+            "--proj-scenarios", str(proj_scenarios),
+            "--proj-models", str(proj_models),
+        ]
+        if n is not None:
+            cmd += ["--n", str(n)]
+        rc = subprocess.run(cmd).returncode  # BLOCK: strictly sequential
+        if rc != 0:
+            raise RuntimeError(
+                f"pilot worker for model {name!r} exited with code {rc}. See its output above."
+            )
+        payload = json.loads(out_json.read_text())
+        payload["_json_path"] = str(out_json)
+        results.append(PilotResult(payload=payload, report=payload.get("_report", "")))
 
     combined = {
         "kind": "agentmeter_pilot_combined",
-        "baseline_vram_mb": baseline_vram_mb,
         "free_vram_tolerance_mb": tolerance_mb,
+        "note": "Each model ran in its own subprocess; baselines are per-model fresh contexts.",
         "models": [r.payload for r in results],
         "model_labels": [r.payload.get("model_label") for r in results],
     }

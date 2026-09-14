@@ -84,6 +84,9 @@ class Storage:
         self.conn = sqlite3.connect(str(self.path))
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON;")
+        # The run-full parent and its per-model worker each hold a connection to
+        # this file; wait rather than fail if the other briefly holds a lock.
+        self.conn.execute("PRAGMA busy_timeout = 5000;")
         self.conn.executescript(_SCHEMA)
         self.conn.commit()
 

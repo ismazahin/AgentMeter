@@ -54,19 +54,28 @@ never fabricates; if a model file is missing it says so.
 python main.py run-full                                   # uses config.yaml
 python main.py --config configs/run_full_mock.yaml run-full --fresh   # 5 mock models, no GPU
 ```
-Interrupt it any time (Ctrl-C, crash, timeout) and re-run the same command: it
-**resumes**, skipping every `(model, scenario)` already persisted and finishing
-the rest. Each scenario's four agent rows + its verdict are written in one atomic
-transaction, so a mid-scenario crash never leaves a half-written scenario.
-`--fresh` abandons any incomplete run and starts clean. It refuses to resume —
-rather than silently corrupt the comparison — if either the **config fingerprint**
-or the **hardware** changed since the incomplete run started (the latter guards
-against e.g. Colab handing out a different GPU on reconnect, which would blend
-VRAM/latency readings across machines). This phase only **persists** the raw rows
-the existing instrumentation collects — it computes no accuracy/SAW aggregates
-(that is Phase 7/8).
+Each model runs in its **own worker subprocess** (`agentmeter.worker`), spawned
+sequentially — one model loaded per process, then the process exits so the OS
+reclaims all GPU memory. This is what makes each model's VRAM readings clean by
+construction: bitsandbytes 4-bit / accelerate `device_map` weights that in-process
+unload could not reliably free are gone the moment the worker exits, so the next
+model starts from a fresh CUDA context. The worker keeps the VRAM guard as a
+sanity check against its own fresh-context baseline (it should always pass now).
 
-Tests (CPU-only, no GPU/token) cover atomicity, resume, and both guards:
+Interrupt it any time (Ctrl-C, crash, killed worker) and re-run the same command:
+it **resumes**, re-running only the incomplete model, skipping every
+`(model, scenario)` already persisted. Each scenario's four agent rows + its
+verdict are written in one atomic transaction, so a killed worker never leaves a
+half-written scenario. `--fresh` abandons any incomplete run and starts clean. It
+refuses to resume — rather than silently corrupt the comparison — if either the
+**config fingerprint** or the **hardware** changed since the incomplete run
+started (the latter guards against e.g. Colab handing out a different GPU on
+reconnect, which would blend VRAM/latency readings across machines). This phase
+only **persists** the raw rows the existing instrumentation collects — it computes
+no accuracy/SAW aggregates (that is Phase 7/8).
+
+Tests (CPU-only, no GPU/token) cover atomicity, resume, both guards, and per-model
+subprocess isolation:
 ```bash
 pip install -r requirements-dev.txt && pytest -q
 ```

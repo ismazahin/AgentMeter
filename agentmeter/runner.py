@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
 import time
 import uuid
 from dataclasses import dataclass
@@ -34,15 +36,36 @@ from typing import Any, Optional
 
 from .config import Config, load_config
 from .dataset import DatasetLoader
-from .instrument import GpuProbe, MetricsCollector, make_instrumented_hook
-from .pilot import check_vram_residual, free_cuda, release_provider
-from .pipeline import Pipeline
-from .providers import get_provider
 from .storage import Storage
 
 
 class ConfigMismatchError(RuntimeError):
     """Raised when an incomplete run's fingerprint differs from current config."""
+
+
+class WorkerError(RuntimeError):
+    """Raised when a per-model worker subprocess exits non-zero."""
+
+
+def _spawn_model_worker(
+    config_path: str, model: str, run_id: str, n: Optional[int]
+) -> int:
+    """Spawn ONE per-model worker (sqlite mode) and BLOCK until it exits.
+
+    Sequential by construction: the parent waits here, so two workers never run
+    at once. Returns the worker's exit code (0 = success, its scenarios persisted
+    atomically; non-zero = crash, model left incomplete for resume).
+    """
+    cmd = [
+        sys.executable, "-m", "agentmeter.worker",
+        "--mode", "sqlite",
+        "--model", model,
+        "--run-id", run_id,
+        "--config", config_path,
+    ]
+    if n is not None:
+        cmd += ["--n", str(n)]
+    return subprocess.run(cmd).returncode
 
 
 @dataclass
@@ -199,84 +222,42 @@ def run_full(
             print(f"Already complete : {len(done)} (model, scenario) pair(s) — will skip")
         print("")
 
-        ran = 0
-        skipped = 0
+        initial_done = len(done)
         wall_start = time.perf_counter()
 
-        # Pre-first-load device VRAM baseline (captured once). Each model's unload
-        # is checked against it so a cross-model VRAM leak is caught here too.
-        free_cuda()
-        _baseline_gpu = GpuProbe()
-        baseline_vram_mb = _baseline_gpu.pynvml_used_mb() if _baseline_gpu.available else None
-        tolerance_mb = float(cfg.get("run.free_vram_tolerance_mb", 500.0) or 500.0)
+        # The exact config file the workers must load (so parent and workers agree
+        # on models, dataset, DB path, quant — everything the fingerprint covers).
+        worker_config = str(cfg.path)
 
+        # SEQUENTIAL subprocess-per-model: each model runs in its own fresh process
+        # so the OS reclaims all GPU memory on exit — clean VRAM by construction.
+        # Never two workers at once.
         for mi, model_name in enumerate(models):
-            # Isolation: guarantee the previous model is gone before this loads.
-            free_cuda()
             cfg.data.setdefault("model", {})["name"] = model_name
             label = model_label(cfg)
 
-            # Skip loading the model entirely if every scenario is already done.
             remaining = [s for s in scenarios if (label, s.scenario_id) not in done]
             if not remaining:
                 print(f"[{mi+1}/{len(models)}] {label}: all {n_scn} scenarios already complete — skipping model")
-                skipped += n_scn
                 continue
 
-            print(f"[{mi+1}/{len(models)}] {label}: loading (running {len(remaining)}/{n_scn} scenario(s))")
-            provider = get_provider(cfg)
-            # Record per-model device VRAM before load (verifiable clean baseline).
-            _before_gpu = GpuProbe()
-            dev_before = _before_gpu.pynvml_used_mb() if _before_gpu.available else None
-            if dev_before is not None:
-                print(f"    device VRAM before load: {dev_before:,.1f} MB")
-            provider.load()
-            gpu = GpuProbe()
-            collector = MetricsCollector()
-            hook = make_instrumented_hook(collector, label, gpu)
-            pipeline = Pipeline(cfg, provider, node_hook=hook)
-
-            try:
-                for s in scenarios:
-                    if (label, s.scenario_id) in done:
-                        skipped += 1
-                        continue
-
-                    offset = len(collector.rows)
-                    state = pipeline.run(s.scenario_id, s.feature_prompt)
-                    new_rows = collector.rows[offset:]
-
-                    verdict = state.get("verdict", {}) or {}
-                    pred = verdict.get("predicted_class", "Unparseable")
-                    ok = pred == s.held_out_label
-
-                    total_time = sum(r.wall_time_s for r in new_rows)
-                    vram_vals = [r.vram_peak_mb for r in new_rows if r.vram_peak_mb is not None]
-                    peak_vram = max(vram_vals) if vram_vals else None  # peak, not sum
-
-                    store.persist_scenario(
-                        run_id=run_id,
-                        model=label,
-                        scenario_id=s.scenario_id,
-                        predicted_label=pred,
-                        held_out_label=s.held_out_label,
-                        correct=ok,
-                        scenario_total_time_s=total_time,
-                        scenario_peak_vram_mb=peak_vram,
-                        agent_rows=new_rows,
-                    )
-                    done.add((label, s.scenario_id))
-                    ran += 1
-                    print(f"    {s.scenario_id:<10} -> {pred:<16} "
-                          f"(gt={s.held_out_label}, {total_time:.4f}s) [persisted]")
-            finally:
-                # SINGLE shared unload path (clears device_map hooks + frees CUDA),
-                # then verify the device returned to near-baseline before the next
-                # model loads — warn loudly if it did not.
-                release_provider(provider)
-                check_vram_residual(baseline_vram_mb, tolerance_mb, label)
+            print(f"[{mi+1}/{len(models)}] {label}: spawning worker (running {len(remaining)}/{n_scn} scenario(s))")
+            rc = _spawn_model_worker(worker_config, model_name, run_id, n)
+            if rc != 0:
+                # A crashed/killed worker leaves this model incomplete; the run row
+                # stays 'running' so a later resume re-runs just this model. Its
+                # already-persisted scenarios are safe (each was atomic).
+                raise WorkerError(
+                    f"worker for model {label!r} exited with code {rc}. Run {run_id} left "
+                    f"incomplete — re-run `run-full` (no --fresh) to resume just this model."
+                )
+            # The worker persisted atomically; refresh completion from the DB.
+            done = store.completed_pairs(run_id)
 
         store.finish_run(run_id, status="complete")
+        final_done = len(done)
+        ran = final_done - initial_done
+        skipped = initial_done
         wall_elapsed = time.perf_counter() - wall_start
 
         report = _format_report(

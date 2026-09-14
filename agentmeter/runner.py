@@ -314,6 +314,22 @@ def _select_run(
             "original config to resume)."
         )
 
+    # Hardware guard: VRAM and latency are hardware-specific, so resuming a run
+    # on a different host than it started on would blend readings across hardware
+    # and corrupt the apples-to-apples comparison (a real risk on the Colab free
+    # tier, which can hand out a different GPU on reconnect). Refuse, don't blend.
+    stored_hw = incomplete["hardware_label"]
+    if stored_hw != hardware:
+        raise ConfigMismatchError(
+            "REFUSING TO RESUME: an incomplete run exists that started on DIFFERENT "
+            f"hardware.\n  incomplete run : {incomplete['run_id']} (hardware {stored_hw!r})\n"
+            f"  current host   : hardware {hardware!r}\n"
+            "VRAM and latency are hardware-specific — resuming across a hardware change "
+            "would blend readings from two machines and corrupt the apples-to-apples "
+            "comparison. Re-run with --fresh to start a new run on this hardware (or "
+            "resume on the original hardware)."
+        )
+
     return incomplete["run_id"], True
 
 

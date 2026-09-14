@@ -1,0 +1,4 @@
+# AgentMeter — dev/test dependencies (CPU-only, no GPU/HF token).
+# Install after requirements.txt:  pip install -r requirements-dev.txt
+# Run the suite:                    pytest -q
+pytest>=7.4

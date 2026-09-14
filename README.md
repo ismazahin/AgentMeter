@@ -58,11 +58,18 @@ Interrupt it any time (Ctrl-C, crash, timeout) and re-run the same command: it
 **resumes**, skipping every `(model, scenario)` already persisted and finishing
 the rest. Each scenario's four agent rows + its verdict are written in one atomic
 transaction, so a mid-scenario crash never leaves a half-written scenario.
-`--fresh` abandons any incomplete run and starts clean. If the config changed
-since an incomplete run (different fingerprint), it refuses to resume rather than
-silently corrupt the comparison. This phase only **persists** the raw rows the
-existing instrumentation collects — it computes no accuracy/SAW aggregates
+`--fresh` abandons any incomplete run and starts clean. It refuses to resume —
+rather than silently corrupt the comparison — if either the **config fingerprint**
+or the **hardware** changed since the incomplete run started (the latter guards
+against e.g. Colab handing out a different GPU on reconnect, which would blend
+VRAM/latency readings across machines). This phase only **persists** the raw rows
+the existing instrumentation collects — it computes no accuracy/SAW aggregates
 (that is Phase 7/8).
+
+Tests (CPU-only, no GPU/token) cover atomicity, resume, and both guards:
+```bash
+pip install -r requirements-dev.txt && pytest -q
+```
 
 Phases 7-10 are intentionally **not** built yet.
 

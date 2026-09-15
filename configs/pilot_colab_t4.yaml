@@ -14,6 +14,7 @@ run:
   require_gpu: true      # STOP if no CUDA — no silent CPU fallback
   seed: 42
   free_vram_tolerance_mb: 500   # warn if VRAM doesn't return to baseline between models
+  cleanup_model_cache_after: true   # delete each model's HF cache after it finishes (avoids Colab disk fill on multi-model runs)
 
 model:
   provider: hf

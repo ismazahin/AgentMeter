@@ -1,0 +1,102 @@
+# Mock/CPU smoke config for the FULL run-full path over the REAL 300-scenario
+# dataset (data/cicids_full_300.csv) with MOCK models — no GPU, no HF, no cost.
+# Identical to configs/run_full_l4.yaml except: mock provider + mock models,
+# require_gpu/cleanup off, throwaway sqlite path. Use it to validate the wiring
+# for free before any paid L4 run:
+#   python main.py --config configs/run_full_mock300.yaml run-full --fresh
+
+run:
+  mode: precompute
+  device: cpu
+  require_gpu: false
+  seed: 42
+  free_vram_tolerance_mb: 500
+  cleanup_model_cache_after: false
+  models:
+  - mock/alpha
+  - mock/beta
+  - mock/gamma
+model:
+  provider: mock
+  name: mistralai/Mistral-7B-Instruct-v0.3
+  hf:
+    token_env: HF_TOKEN
+    dtype: float16
+    device_map: null
+    max_new_tokens: 200
+    temperature: 0.0
+    do_sample: false
+    quantization:
+      load_in_4bit: true
+      load_in_8bit: false
+      bnb_4bit_quant_type: nf4
+      bnb_4bit_use_double_quant: true
+      bnb_4bit_compute_dtype: float16
+  mock:
+    latency_s: 0.0
+dataset:
+  path: data/cicids_full_300.csv
+  label_column: label
+  id_column: null
+  drop_columns: []
+  limit: null
+  max_feature_chars: 4000
+  label_map: {}
+  drop_labels: []
+pipeline:
+  agents:
+  - perceive
+  - reason
+  - decide
+  - act
+  max_new_tokens:
+    perceive: 160
+    reason: 200
+    decide: 12
+    act: 160
+classes:
+- Brute Force
+- Volumetric DDoS
+- Port Scanning
+- DoS Hulk
+- Benign
+mitre:
+  Brute Force: T1110 - Brute Force
+  Volumetric DDoS: T1498 - Network Denial of Service
+  Port Scanning: T1046 - Network Service Discovery
+  DoS Hulk: T1499 - Endpoint Denial of Service
+  Benign: N/A - No adversary technique
+scoring:
+  weights:
+    accuracy: 0.4
+    latency: 0.25
+    vram: 0.2
+    tokens: 0.15
+  targets:
+    accuracy_pct: 80.0
+    latency_s: 5.0
+    vram_mb: 16000.0
+    tokens_total: 1200.0
+  tiers:
+    healthy_min: 80.0
+    degraded_min: 60.0
+  sensitivity_weight_sets:
+    equal:
+      accuracy: 0.25
+      latency: 0.25
+      vram: 0.25
+      tokens: 0.25
+    accuracy_heavy:
+      accuracy: 0.55
+      latency: 0.2
+      vram: 0.15
+      tokens: 0.1
+    efficiency_heavy:
+      accuracy: 0.25
+      latency: 0.3
+      vram: 0.3
+      tokens: 0.15
+storage:
+  sqlite_path: results/agentmeter_mock300.db
+output:
+  results_dir: results

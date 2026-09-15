@@ -1,0 +1,110 @@
+# Phase 6 FULL-RUN config — 5 models x 300 scenarios, in-process on a GPU (Mode A).
+# Target host: 1x NVIDIA L4 (24 GB). INCURS GPU COST.
+#
+# Run on the GPU host:  python main.py --config configs/run_full_l4.yaml run-full
+#
+# Each model runs in its own worker subprocess (sequential, one at a time — the
+# runner enforces this; never parallel), so every model's VRAM readings are clean
+# by construction and its cache is freed after it finishes. Results persist to
+# SQLite and the run is resumable (re-run the same command to continue).
+
+run:
+  mode: precompute
+  device: cuda           # in-process on the GPU (Mode A)
+  require_gpu: true      # STOP if torch.cuda is unavailable — no silent CPU fallback
+  seed: 42
+  free_vram_tolerance_mb: 500        # warn if a worker starts contaminated (should not, per-process isolation)
+  cleanup_model_cache_after: true    # L4 disk safety: free each model's HF cache after it finishes
+  # All 5 models, in this FIXED order. Benchmarked SEQUENTIALLY, one worker per
+  # model — never in parallel (parallelism contaminates VRAM/latency readings).
+  models:
+    - mistralai/Mistral-7B-Instruct-v0.3
+    - meta-llama/Meta-Llama-3-8B-Instruct
+    - Qwen/Qwen2.5-7B-Instruct
+    - microsoft/Phi-3-mini-4k-instruct
+    - google/gemma-2-9b-it
+
+model:
+  provider: hf
+  # model.name is overridden per model from run.models above; kept for validation.
+  name: mistralai/Mistral-7B-Instruct-v0.3
+  hf:
+    token_env: HF_TOKEN
+    dtype: float16
+    device_map: null
+    max_new_tokens: 200
+    temperature: 0.0
+    do_sample: false
+    # 4-bit NF4 for ALL models, IDENTICAL settings — the quant must match across
+    # every model or the model-vs-model comparison is not fair.
+    quantization:
+      load_in_4bit: true
+      load_in_8bit: false
+      bnb_4bit_quant_type: nf4
+      bnb_4bit_use_double_quant: true
+      bnb_4bit_compute_dtype: float16
+  mock:
+    latency_s: 0.0
+
+dataset:
+  path: data/cicids_full_300.csv   # balanced 300-scenario set from build-dataset (78 features + label)
+  label_column: label              # canonical label column; stripped before the model sees the flow
+  id_column: null
+  drop_columns: []
+  limit: null                      # use ALL 300 scenarios
+  max_feature_chars: 4000
+  label_map: {}                    # already canonical in the built dataset
+  drop_labels: []
+
+pipeline:
+  agents:
+    - perceive
+    - reason
+    - decide
+    - act
+  max_new_tokens:
+    perceive: 160
+    reason: 200
+    decide: 12
+    act: 160
+
+classes:
+  - Brute Force
+  - Volumetric DDoS
+  - Port Scanning
+  - DoS Hulk
+  - Benign
+
+mitre:
+  Brute Force: "T1110 - Brute Force"
+  Volumetric DDoS: "T1498 - Network Denial of Service"
+  Port Scanning: "T1046 - Network Service Discovery"
+  DoS Hulk: "T1499 - Endpoint Denial of Service"
+  Benign: "N/A - No adversary technique"
+
+# SAW scoring — copied verbatim from the main config (Phase 8 consumes this).
+# Do not change these numbers here; keep them identical across configs.
+scoring:
+  weights:
+    accuracy: 0.40
+    latency: 0.25
+    vram: 0.20
+    tokens: 0.15
+  targets:
+    accuracy_pct: 80.0
+    latency_s: 5.0
+    vram_mb: 16000.0
+    tokens_total: 1200.0
+  tiers:
+    healthy_min: 80.0
+    degraded_min: 60.0
+  sensitivity_weight_sets:
+    equal: {accuracy: 0.25, latency: 0.25, vram: 0.25, tokens: 0.25}
+    accuracy_heavy: {accuracy: 0.55, latency: 0.20, vram: 0.15, tokens: 0.10}
+    efficiency_heavy: {accuracy: 0.25, latency: 0.30, vram: 0.30, tokens: 0.15}
+
+storage:
+  sqlite_path: results/agentmeter_full_l4.db   # distinct from the mock test DB
+
+output:
+  results_dir: results

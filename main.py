@@ -42,6 +42,14 @@ def main(argv: list[str] | None = None) -> int:
     p_full.add_argument("--proj-scenarios", type=int, default=1000, help="projection: total scenarios")
     p_full.add_argument("--proj-models", type=int, default=None, help="projection: number of models (default: #models)")
 
+    p_data = sub.add_parser(
+        "build-dataset", help="Data-prep: build a balanced N-per-class RAW CSV from the CIC-IDS2017 sources"
+    )
+    p_data.add_argument("--input-dir", type=str, default=None, help="override data_prep.input_dir")
+    p_data.add_argument("--output", type=str, default=None, help="override data_prep.output_path")
+    p_data.add_argument("--seed", type=int, default=None, help="override data_prep.seed")
+    p_data.add_argument("--n-per-class", type=int, default=None, help="override data_prep.n_per_class")
+
     args = parser.parse_args(argv)
 
     if args.command == "check-env":
@@ -98,6 +106,22 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\n{e}\n", file=sys.stderr)
             return 1
         print(result.report)
+        return 0
+
+    if args.command == "build-dataset":
+        from agentmeter.dataprep import build_dataset
+
+        try:
+            build_dataset(
+                config_path=args.config,
+                input_dir=args.input_dir,
+                output_path=args.output,
+                seed=args.seed,
+                n_per_class=args.n_per_class,
+            )
+        except (FileNotFoundError, ValueError) as e:
+            print(f"\n{e}\n", file=sys.stderr)
+            return 1
         return 0
 
     parser.print_help()

@@ -50,6 +50,31 @@ dataset:
   label_map: {}        # e.g. {DoS Hulk: Volumetric DDoS, PortScan: Port Scanning}
   drop_labels: []      # raw labels to exclude entirely, e.g. [DoS Hulk]
 
+# Dataset preparation (`build-dataset`): produce ONE balanced N-per-class CSV
+# from the four official CIC-IDS2017 CSVs, in RAW feature values (no scaling).
+# Data-prep only — nothing here affects the agents/pipeline/schema.
+data_prep:
+  input_dir: data/cicids_raw          # where you place the official CIC-IDS CSVs
+  files:                              # 79-col CIC-IDS2017 sources (same schema)
+    - Tuesday-WorkingHours_pcap_ISCX.csv
+    - Wednesday-workingHours_pcap_ISCX.csv
+    - Friday-WorkingHours-Afternoon-DDos_pcap_ISCX.csv
+    - Friday-WorkingHours-Afternoon-PortScan_pcap_ISCX.csv
+  output_path: data/cicids_full_300.csv
+  label_column: Label                 # normalized name (raw is ' Label' w/ a leading space)
+  output_label_column: label          # canonical label column written to the output
+  seed: 42                            # fixed -> reproducible sampling
+  n_per_class: 60                     # 5 classes x 60 = 300 balanced scenarios
+  # Raw CIC-IDS label -> canonical class. Anything not listed here is DROPPED
+  # (DoS GoldenEye, DoS slowloris, DoS Slowhttptest, Heartbleed).
+  label_map:
+    FTP-Patator: Brute Force
+    SSH-Patator: Brute Force
+    DoS Hulk: DoS Hulk
+    DDoS: Volumetric DDoS
+    PortScan: Port Scanning
+    BENIGN: Benign
+
 pipeline:
   # Agent-count agnostic: the harness measures whatever chain is listed here,
   # in order. Keep it a minimal LINEAR chain (no loops, no governance).

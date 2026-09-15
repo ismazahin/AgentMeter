@@ -7,6 +7,12 @@ run:
   require_gpu: false   # Phases 0-3: false (mock/CPU allowed).
                        # Phase 5 pilot: set true -> STOP if torch.cuda unavailable.
   seed: 42
+  # Opt-in disk hygiene for multi-model runs: when true, each per-model worker
+  # deletes ONLY its own model's Hugging Face cache after persisting results and
+  # before exiting, so weights don't accumulate across models (fixes Colab disk
+  # fill on 5-model runs). DEFAULT false — never deletes unless turned on. A
+  # resumed run simply re-downloads a cleared model (expected, not a bug).
+  cleanup_model_cache_after: false
   # Post-unload VRAM residual tolerance (MB). Between models the harness checks
   # that device VRAM returned to near the pre-first-load baseline; if the residual
   # exceeds this, it WARNS (the next model's readings may be contaminated).

@@ -28,6 +28,89 @@ from .config import load_config
 from .pilot import _gpu_guard, free_cuda, release_provider, startup_isolation_guard
 
 
+def _free_bytes() -> Optional[int]:
+    """Best-effort free disk (bytes) for logging; None if it can't be read."""
+    import shutil
+
+    for p in (os.getcwd(), os.path.expanduser("~"), os.sep):
+        try:
+            return shutil.disk_usage(p).free
+        except Exception:
+            continue
+    return None
+
+
+def _hf_cache_cleanup(model_id: str) -> Optional[dict]:
+    """Delete ONLY this worker's own model from the Hugging Face hub cache.
+
+    Opt-in resource management (harness only): after a worker has finished with
+    and persisted its model, downloaded fp16 weights (~7-16 GB) are dead weight
+    that can fill the disk across a multi-model run. This removes just this one
+    model so the next worker downloads fresh into freed space.
+
+    Safety:
+      - Uses huggingface_hub's scan_cache_dir + delete_revisions (never rm -rf).
+      - Targets ONLY repo_type == 'model' AND repo_id == model_id — never
+        datasets, never other models, never system files.
+      - Absent repo (already gone) is a no-op with a note, not a crash.
+      - Any failure is logged as a WARNING and swallowed: results are already
+        persisted and a stale cache is merely disk.
+
+    Resume note: if a resumed run re-runs a model whose cache was cleared, it
+    simply re-downloads on its next run — expected, not a bug.
+    """
+    try:
+        from huggingface_hub import scan_cache_dir
+    except Exception as e:  # hub not installed (e.g. CPU/mock host)
+        print(f"  [cache cleanup] skipped: huggingface_hub unavailable ({e}).")
+        return None
+
+    try:
+        free_before = _free_bytes()
+        cache = scan_cache_dir()
+        revisions: list[str] = []
+        for repo in cache.repos:
+            if repo.repo_type == "model" and repo.repo_id == model_id:  # this model only
+                revisions = [rev.commit_hash for rev in repo.revisions]
+                break
+        if not revisions:
+            print(f"  [cache cleanup] no cached 'model' entry for {model_id!r} — nothing to delete.")
+            return {"repo_id": model_id, "deleted": False, "freed_bytes": 0}
+
+        strategy = cache.delete_revisions(*revisions)
+        expected = int(getattr(strategy, "expected_freed_size", 0) or 0)
+        strategy.execute()
+        free_after = _free_bytes()
+
+        def _gb(x):
+            return "n/a" if x is None else f"{x / 1e9:.1f} GB"
+
+        print(f"  [cache cleanup] deleted model {model_id!r}: "
+              f"~{expected / 1e9:.2f} GB reclaimed | disk free {_gb(free_before)} -> {_gb(free_after)}.")
+        return {
+            "repo_id": model_id,
+            "deleted": True,
+            "expected_freed_bytes": expected,
+            "free_before_bytes": free_before,
+            "free_after_bytes": free_after,
+        }
+    except Exception as e:
+        print(f"  [cache cleanup] WARNING: cleanup for {model_id!r} failed ({e}); "
+              f"continuing — results are already persisted, a stale cache is harmless.")
+        return None
+
+
+def maybe_cleanup_model_cache(cfg, model_id: str) -> Optional[dict]:
+    """Run the model-cache cleanup only when explicitly opted in via config.
+
+    DEFAULT is OFF (run.cleanup_model_cache_after: false) — never delete unless
+    the user turns it on. Called after persistence, just before the worker exits.
+    """
+    if not bool(cfg.get("run.cleanup_model_cache_after", False)):
+        return None
+    return _hf_cache_cleanup(model_id)
+
+
 def _run_model_sqlite(
     cfg,
     model_name: str,
@@ -167,6 +250,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             baseline_vram_mb=args.baseline_vram_mb,
         )
         print(res.report)
+        # Results are written; opt-in cache cleanup runs last, before exit.
+        maybe_cleanup_model_cache(load_config(args.config), args.model)
         return 0
 
     # sqlite mode
@@ -177,6 +262,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         cfg, args.model, args.run_id, args.n,
         baseline_vram_mb=args.baseline_vram_mb, vram_out=args.vram_out,
     )
+    # Rows are persisted and the provider released; opt-in cache cleanup runs
+    # last, before exit, so the next worker downloads into freed space.
+    maybe_cleanup_model_cache(cfg, args.model)
     return 0
 
 

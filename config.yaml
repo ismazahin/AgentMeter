@@ -55,11 +55,15 @@ dataset:
 # Data-prep only — nothing here affects the agents/pipeline/schema.
 data_prep:
   input_dir: data/cicids_raw          # where you place the official CIC-IDS CSVs
-  files:                              # 79-col CIC-IDS2017 sources (same schema)
-    - Tuesday-WorkingHours_pcap_ISCX.csv
-    - Wednesday-workingHours_pcap_ISCX.csv
-    - Friday-WorkingHours-Afternoon-DDos_pcap_ISCX.csv
-    - Friday-WorkingHours-Afternoon-PortScan_pcap_ISCX.csv
+  # Leave `files` empty to auto-read EVERY .csv in input_dir (sorted; filenames
+  # don't have to match). The label_map below drops any unmapped rows, so extra
+  # CSVs (e.g. Monday/Thursday) are harmless. To pin an exact set instead, list
+  # them here, e.g.:
+  #   - Tuesday-WorkingHours_pcap_ISCX.csv
+  #   - Wednesday-workingHours_pcap_ISCX.csv
+  #   - Friday-WorkingHours-Afternoon-DDos_pcap_ISCX.csv
+  #   - Friday-WorkingHours-Afternoon-PortScan_pcap_ISCX.csv
+  files: []
   output_path: data/cicids_full_300.csv
   label_column: Label                 # normalized name (raw is ' Label' w/ a leading space)
   output_label_column: label          # canonical label column written to the output

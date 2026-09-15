@@ -116,6 +116,22 @@ def test_build_dataset_balanced_finite_and_shaped(tmp_path):
     assert not feats.isna().to_numpy().any()
 
 
+def test_build_dataset_auto_reads_all_csvs_when_files_empty(tmp_path):
+    # With data_prep.files empty, it should read EVERY .csv in input_dir
+    # (filenames need not match), still producing the balanced 300.
+    d = _write_fixture(tmp_path)
+    out = tmp_path / "auto.csv"
+    cfg_path = _write_config(tmp_path, d, out)
+    # blank out the explicit files list in the written config
+    cfg = yaml.safe_load(open(cfg_path))
+    cfg["data_prep"]["files"] = []
+    open(cfg_path, "w").write(yaml.safe_dump(cfg))
+
+    res = build_dataset(config_path=cfg_path)
+    assert res["n_rows"] == 300
+    assert pd.read_csv(out)["label"].value_counts().to_dict() == {c: 60 for c in CANON}
+
+
 def test_build_dataset_is_reproducible(tmp_path):
     d = _write_fixture(tmp_path)
     out = tmp_path / "out.csv"

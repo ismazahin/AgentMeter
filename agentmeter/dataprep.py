@@ -88,21 +88,31 @@ def build_dataset(
     label_map = dict(dp.get("label_map", {}) or {})
     files = list(dp.get("files", []) or [])
 
-    if not files:
-        raise ValueError("data_prep.files is empty — list the CIC-IDS CSV filenames in config.")
     if not label_map:
         raise ValueError("data_prep.label_map is empty — declare the raw->canonical mapping in config.")
 
     # Canonical classes are exactly the distinct label_map targets (declared).
     canonical = sorted(set(label_map.values()))
 
-    paths = [input_dir / f for f in files]
-    missing = [str(p) for p in paths if not p.exists()]
-    if missing:
-        raise FileNotFoundError(
-            "Missing CIC-IDS input file(s):\n  " + "\n  ".join(missing)
-            + f"\nPlace the official CSVs in {input_dir} (see config.data_prep.files)."
-        )
+    # Source files: use the explicit config list when given, otherwise read EVERY
+    # .csv in input_dir (sorted for a deterministic, reproducible order). The
+    # label_map drops any rows whose label isn't mapped, so extra CSVs are safe.
+    if files:
+        paths = [input_dir / f for f in files]
+        missing = [str(p) for p in paths if not p.exists()]
+        if missing:
+            raise FileNotFoundError(
+                "Missing CIC-IDS input file(s):\n  " + "\n  ".join(missing)
+                + f"\nPlace the official CSVs in {input_dir} (see config.data_prep.files), "
+                "or clear data_prep.files to auto-read every .csv in that folder."
+            )
+    else:
+        if not input_dir.is_dir():
+            raise FileNotFoundError(f"Input dir not found: {input_dir}")
+        paths = sorted(input_dir.glob("*.csv"))
+        if not paths:
+            raise FileNotFoundError(f"No .csv files found in {input_dir}")
+        print(f"(data_prep.files empty — auto-reading {len(paths)} .csv file(s) from {input_dir})")
 
     print("=" * 74)
     print("  AgentMeter — build-dataset (RAW CIC-IDS -> balanced, config-driven)")

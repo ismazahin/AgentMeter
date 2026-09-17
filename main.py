@@ -56,6 +56,11 @@ def main(argv: list[str] | None = None) -> int:
     p_an.add_argument("--db", type=str, default=None, help="results SQLite DB (default: config storage.sqlite_path)")
     p_an.add_argument("--out", type=str, default="results/analysis", help="output directory for CSV/JSON")
 
+    p_mv = sub.add_parser(
+        "measure-vram", help="Capture per-model weight footprint (load-and-read only; GPU; no scenarios)"
+    )
+    p_mv.add_argument("--out", type=str, default="results/model_vram.json", help="output JSON path")
+
     args = parser.parse_args(argv)
 
     if args.command == "check-env":
@@ -136,6 +141,16 @@ def main(argv: list[str] | None = None) -> int:
         try:
             run_analysis(config_path=args.config, db_path=args.db, out_dir=args.out)
         except (FileNotFoundError, ValueError) as e:
+            print(f"\n{e}\n", file=sys.stderr)
+            return 1
+        return 0
+
+    if args.command == "measure-vram":
+        from agentmeter.measure import run_measure_vram
+
+        try:
+            run_measure_vram(config_path=args.config, out_path=args.out)
+        except (FileNotFoundError, ValueError, RuntimeError) as e:
             print(f"\n{e}\n", file=sys.stderr)
             return 1
         return 0

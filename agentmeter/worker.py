@@ -111,6 +111,67 @@ def maybe_cleanup_model_cache(cfg, model_id: str) -> Optional[dict]:
     return _hf_cache_cleanup(model_id)
 
 
+def _vram_record(model_id, hardware, quant, before, after) -> dict:
+    """Assemble one model's VRAM measurement record (weight footprint = after - before)."""
+    footprint = (after - before) if (after is not None and before is not None) else None
+    return {
+        "model": model_id,
+        "hardware_label": hardware,
+        "quant": quant,
+        "device_vram_before_load_mb": before,
+        "device_vram_after_load_mb": after,
+        "weight_footprint_mb": footprint,
+    }
+
+
+def _measure_model_vram(cfg, model_name: str, out_json: str) -> None:
+    """Measure ONE model's weight footprint: read device VRAM, load the model at the
+    configured quant, read device VRAM again. NO scenarios, NO pipeline, NO
+    generation — load-and-read only. Uses the exact same provider load path as the
+    real run (HFProvider; 4bit-nf4 -> device_map={"":0}). Enforces require_gpu and
+    refuses to fabricate a reading if pynvml/CUDA is unavailable.
+    """
+    import json as _json
+    from pathlib import Path as _Path
+
+    from .instrument import GpuProbe
+    from .providers import get_provider
+    from .runner import quant_setting
+
+    _gpu_guard(cfg)  # require_gpu; no silent CPU fallback
+    import torch  # available once _gpu_guard passed
+    if not torch.cuda.is_available():
+        raise RuntimeError("measure-vram requires a CUDA GPU (torch.cuda unavailable).")
+
+    cfg.data.setdefault("model", {})["name"] = model_name
+    quant = quant_setting(cfg)
+
+    # Fresh CUDA context; read the device-level baseline BEFORE any weights.
+    free_cuda()
+    gpu = GpuProbe()
+    before = gpu.pynvml_used_mb() if gpu.available else None
+    if before is None:
+        raise RuntimeError("pynvml unavailable — cannot read device VRAM (refusing to fabricate).")
+    hardware = torch.cuda.get_device_name(torch.cuda.current_device())
+
+    provider = get_provider(cfg)   # HFProvider; same 4bit-nf4 device_map load as the run
+    try:
+        provider.load()            # load-and-read ONLY — no scenarios, no generation
+        after = gpu.pynvml_used_mb()
+    finally:
+        release_provider(provider)  # free VRAM before this process exits
+
+    rec = _vram_record(model_name, hardware, quant, before, after)
+    _Path(out_json).write_text(_json.dumps(rec))
+    fp = rec["weight_footprint_mb"]
+    print(f"    {model_name}: before={before:,.1f} MB  after={after:,.1f} MB  "
+          f"weight_footprint={fp:,.1f} MB  on {hardware}  ({quant})")
+
+    # Throwaway capture: always free this model's HF cache so nothing accumulates
+    # on disk across the 5 loads (independent of the cleanup flag).
+    _hf_cache_cleanup(model_name)
+
+
 def _run_model_sqlite(
     cfg,
     model_name: str,
@@ -225,7 +286,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument("--config", type=str, default=None, help="path to config.yaml")
     parser.add_argument("--model", type=str, required=True, help="model id to run")
-    parser.add_argument("--mode", choices=["pilot", "sqlite"], required=True)
+    parser.add_argument("--mode", choices=["pilot", "sqlite", "measure"], required=True)
     parser.add_argument("--n", type=int, default=None, help="scenarios (default: dataset.limit)")
     parser.add_argument("--out", type=str, default=None, help="pilot mode: per-model JSON path")
     parser.add_argument("--run-id", type=str, default=None, help="sqlite mode: run id to persist under")
@@ -252,6 +313,13 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(res.report)
         # Results are written; opt-in cache cleanup runs last, before exit.
         maybe_cleanup_model_cache(load_config(args.config), args.model)
+        return 0
+
+    if args.mode == "measure":
+        if not args.out:
+            parser.error("--out is required in measure mode")
+        cfg = load_config(args.config)
+        _measure_model_vram(cfg, args.model, args.out)
         return 0
 
     # sqlite mode

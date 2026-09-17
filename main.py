@@ -50,6 +50,12 @@ def main(argv: list[str] | None = None) -> int:
     p_data.add_argument("--seed", type=int, default=None, help="override data_prep.seed")
     p_data.add_argument("--n-per-class", type=int, default=None, help="override data_prep.n_per_class")
 
+    p_an = sub.add_parser(
+        "analyze", help="Phase 7+8: accuracy aggregation + SAW score + diagnostics over the results DB (read-only)"
+    )
+    p_an.add_argument("--db", type=str, default=None, help="results SQLite DB (default: config storage.sqlite_path)")
+    p_an.add_argument("--out", type=str, default="results/analysis", help="output directory for CSV/JSON")
+
     args = parser.parse_args(argv)
 
     if args.command == "check-env":
@@ -119,6 +125,16 @@ def main(argv: list[str] | None = None) -> int:
                 seed=args.seed,
                 n_per_class=args.n_per_class,
             )
+        except (FileNotFoundError, ValueError) as e:
+            print(f"\n{e}\n", file=sys.stderr)
+            return 1
+        return 0
+
+    if args.command == "analyze":
+        from agentmeter.analyze import run_analysis
+
+        try:
+            run_analysis(config_path=args.config, db_path=args.db, out_dir=args.out)
         except (FileNotFoundError, ValueError) as e:
             print(f"\n{e}\n", file=sys.stderr)
             return 1

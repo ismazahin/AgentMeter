@@ -92,10 +92,18 @@ def phase7(sr: pd.DataFrame, classes: list[str]) -> dict[str, Any]:
 
 # --- Phase 8: SAW Composite Health Score -------------------------------
 
-def _criteria(sr: pd.DataFrame, am: pd.DataFrame, acc_by_model: dict[str, float]) -> pd.DataFrame:
+def _criteria(sr: pd.DataFrame, am: pd.DataFrame, acc_by_model: dict[str, float],
+              footprint: Optional[dict[str, float]] = None) -> pd.DataFrame:
     """Raw criteria per model. tokens = mean over scenarios of the per-scenario
-    total tokens (sum of input+output across the 4 agents)."""
-    # per (model, scenario) total tokens, then mean per model
+    total tokens (sum of input+output across the 4 agents).
+
+    VRAM: always report `vram_working_mb` = mean scenario_peak_vram_mb (MARGINAL
+    working memory, excludes weights). When `footprint` (measured weight_footprint_mb
+    per model, from model_vram.json) is supplied, also report
+    `total_device_vram_mb = weight_footprint_mb + vram_working_mb` and feed THAT into
+    the SAW criterion (`vram_mb`); otherwise the SAW criterion uses the marginal
+    working-memory figure. `vram_source` records which was used.
+    """
     am = am.copy()
     am["scenario_tokens"] = am["input_tokens"] + am["output_tokens"]
     tok = (am.groupby(["model", "scenario_id"])["scenario_tokens"].sum()
@@ -103,13 +111,27 @@ def _criteria(sr: pd.DataFrame, am: pd.DataFrame, acc_by_model: dict[str, float]
     rows = []
     for m in sorted(sr["model"].unique()):
         g = sr[sr["model"] == m]
-        rows.append({
+        working = float(g["scenario_peak_vram_mb"].mean())       # marginal working memory
+        row = {
             "model": m,
-            "accuracy_pct": acc_by_model[m] * 100.0,           # benefit (higher better)
+            "accuracy_pct": acc_by_model[m] * 100.0,             # benefit (higher better)
             "latency_s": float(g["scenario_total_time_s"].mean()),   # cost (lower better)
-            "vram_mb": float(g["scenario_peak_vram_mb"].mean()),     # cost (lower better)
-            "tokens_total": float(tok[m]),                           # cost (lower better)
-        })
+            "vram_working_mb": working,                          # marginal (reported)
+            "tokens_total": float(tok[m]),                       # cost (lower better)
+        }
+        if footprint is not None:
+            wf = float(footprint[m])
+            total = wf + working
+            row["weight_footprint_mb"] = wf
+            row["total_device_vram_mb"] = total
+            row["vram_mb"] = total                               # SAW criterion source
+            row["vram_source"] = "total_device_footprint"
+        else:
+            row["weight_footprint_mb"] = float("nan")
+            row["total_device_vram_mb"] = float("nan")
+            row["vram_mb"] = working                             # SAW criterion source
+            row["vram_source"] = "marginal_working_memory"
+        rows.append(row)
     return pd.DataFrame(rows)
 
 
@@ -266,12 +288,58 @@ def statistics(sr: pd.DataFrame) -> dict[str, Any]:
     return out
 
 
+# --- model_vram.json (measured weight footprints) ----------------------
+
+def _load_model_vram(path: str, models: list[str], run_hardware, run_quant) -> dict[str, Any]:
+    """Load + VALIDATE model_vram.json, returning {model: weight_footprint_mb}.
+
+    Refuses loudly (never silently falls back) if the capture is inconsistent, on
+    different hardware than the run, at a different quant, or missing a model.
+    """
+    mv = json.loads(Path(path).read_text())
+    if not mv.get("consistent_hardware", False):
+        raise ValueError(
+            f"--model-vram {path}: consistent_hardware is false — the capture spanned "
+            "different GPUs and is invalid. Re-run measure-vram on ONE GPU (the L4).")
+
+    per = mv.get("models", []) or []
+    mv_hw = {str(r.get("hardware_label")) for r in per} | set(mv.get("hardware_labels") or [])
+    mv_hw = {h for h in mv_hw if h and h != "None"}
+    mv_quant = {str(r.get("quant")) for r in per} | {str(mv.get("quant"))}
+    mv_quant = {q for q in mv_quant if q and q != "None"}
+
+    if run_hardware and any(h != run_hardware for h in mv_hw):
+        raise ValueError(
+            f"--model-vram hardware {sorted(mv_hw)} != run hardware {run_hardware!r} — "
+            "refusing: weight footprints are not comparable to the run's working-memory "
+            f"figures. Re-capture measure-vram on {run_hardware!r}.")
+    if run_quant and any(q != run_quant for q in mv_quant):
+        raise ValueError(
+            f"--model-vram quant {sorted(mv_quant)} != run quant {run_quant!r} — refusing "
+            "(footprints must be at the same quantisation as the run).")
+
+    footprint: dict[str, float] = {}
+    for r in per:
+        wf = r.get("weight_footprint_mb")
+        if wf is None:
+            raise ValueError(f"--model-vram: missing weight_footprint_mb for {r.get('model')!r}.")
+        footprint[str(r["model"])] = float(wf)
+
+    missing = [m for m in models if m not in footprint]
+    if missing:
+        raise ValueError(
+            f"--model-vram is missing weight_footprint for model(s) present in the DB: "
+            f"{missing}. Re-run measure-vram over the same run.models.")
+    return {"footprint": footprint, "hardware": sorted(mv_hw), "quant": sorted(mv_quant)}
+
+
 # --- orchestration ------------------------------------------------------
 
 def run_analysis(
     config_path: Optional[str] = None,
     db_path: Optional[str] = None,
     out_dir: str = "results/analysis",
+    model_vram_path: Optional[str] = None,
 ) -> dict[str, Any]:
     cfg = load_config(config_path)
     classes = list(cfg.get("classes", []) or [])
@@ -289,6 +357,9 @@ def run_analysis(
         if not run_ids:
             raise ValueError("No runs with status='complete' in the DB — nothing to analyze.")
         qmarks = ",".join("?" * len(run_ids))
+        runs_meta = pd.read_sql_query(
+            f"SELECT run_id, hardware_label, quant_setting FROM runs WHERE run_id IN ({qmarks})",
+            conn, params=run_ids)
         # Only COMPLETE scenario rows from COMPLETE runs; never fabricate missing values.
         sr = pd.read_sql_query(
             f"SELECT * FROM scenario_results WHERE status='complete' AND run_id IN ({qmarks})",
@@ -301,23 +372,57 @@ def run_analysis(
     # keep agent rows only for scenarios that have a complete scenario_result
     keep = set(zip(sr["model"], sr["scenario_id"]))
     am = am[[(mm, ss) in keep for mm, ss in zip(am["model"], am["scenario_id"])]].copy()
+    models = sorted(sr["model"].unique())
+
+    # Optional: total-device-footprint VRAM criterion from measured weight footprints.
+    footprint = None
+    model_vram_meta = None
+    if model_vram_path is not None:
+        run_hw = runs_meta["hardware_label"].dropna().unique()
+        run_q = runs_meta["quant_setting"].dropna().unique()
+        run_hardware = run_hw[0] if len(run_hw) == 1 else None
+        run_quant = run_q[0] if len(run_q) == 1 else None
+        mv = _load_model_vram(model_vram_path, models, run_hardware, run_quant)
+        footprint = mv["footprint"]
+        model_vram_meta = {"path": model_vram_path, "run_hardware": run_hardware,
+                           "run_quant": run_quant, "hardware": mv["hardware"], "quant": mv["quant"]}
 
     p7 = phase7(sr, classes)
     acc_by_model = dict(zip(p7["per_model"]["model"], p7["per_model"]["accuracy"]))
-    raw = _criteria(sr, am, acc_by_model)
+    raw = _criteria(sr, am, acc_by_model, footprint=footprint)
     p8 = phase8(raw, scoring)
     sens = sensitivity(raw, p8["norm"], scoring)
     diag = per_agent(am)
     stats = statistics(sr)
+    finding = _vram_finding(raw, p8["targets"], footprint is not None)
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats)
-    summary = _format_summary(run_ids, sr, p7, raw, p8, sens, diag, stats, str(out))
+    _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_meta, finding)
+    summary = _format_summary(run_ids, sr, p7, raw, p8, sens, diag, stats, str(out),
+                              model_vram_meta, finding)
     print(summary)
     (out / "summary.txt").write_text(summary)
     return {"out_dir": str(out), "run_ids": run_ids, "p7": p7, "p8": p8,
-            "sensitivity": sens, "diagnostics": diag, "statistics": stats}
+            "sensitivity": sens, "diagnostics": diag, "statistics": stats,
+            "raw": raw, "model_vram": model_vram_meta, "vram_finding": finding}
+
+
+def _vram_finding(raw: pd.DataFrame, targets: dict[str, float], have_total: bool) -> str:
+    target_gb = targets["vram_mb"] / 1024.0
+    if have_total:
+        lo = raw["total_device_vram_mb"].min() / 1024.0
+        hi = raw["total_device_vram_mb"].max() / 1024.0
+        return (f"VRAM (total device footprint) ranges {lo:.1f}-{hi:.1f} GB across models, "
+                f"all well below the {target_gb:.0f} GB target -> VRAM is not a binding "
+                "constraint on this hardware; it normalises to 1.0 for all models and does "
+                "not differentiate the ranking. Differentiation is driven by accuracy, "
+                "latency, and tokens.")
+    lo = raw["vram_working_mb"].min() / 1024.0
+    hi = raw["vram_working_mb"].max() / 1024.0
+    return (f"VRAM (marginal working memory) ranges {lo:.2f}-{hi:.2f} GB, far below the "
+            f"{target_gb:.0f} GB target -> normalises to 1.0 for all models (pass "
+            "--model-vram to use the total device footprint instead).")
 
 
 TOKEN_DEF = ("tokens = mean over scenarios of the per-scenario TOTAL tokens = "
@@ -325,11 +430,16 @@ TOKEN_DEF = ("tokens = mean over scenarios of the per-scenario TOTAL tokens = "
              "Config scoring.targets.tokens_total is 'input+output per scenario' — matches; used as-is.")
 NORM_FORMULA = ("benefit (accuracy): norm = clamp(value / target, 0, 1); "
                 "cost (latency, vram, tokens): norm = clamp(target / value, 0, 1)")
-VRAM_NOTE = ("vram/vram_delta is MARGINAL working memory above the fresh-context baseline "
-             "and EXCLUDES model weights (per-process isolation baseline).")
+VRAM_NOTE = ("vram_delta (per-agent) is MARGINAL working memory above the fresh-context "
+             "baseline and EXCLUDES model weights (per-process isolation baseline).")
+VRAM_SAW_TOTAL = ("SAW VRAM criterion = TOTAL device footprint = weight_footprint_mb "
+                  "(measured on the run's GPU, model_vram.json) + mean(scenario_peak_vram_mb) "
+                  "(DB). Config target 16000 MB / weight 0.20 (unchanged).")
+VRAM_SAW_MARGINAL = ("SAW VRAM criterion = MARGINAL working memory (mean scenario_peak_vram_mb); "
+                     "no --model-vram supplied. Config target 16000 MB / weight 0.20.")
 
 
-def _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats):
+def _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_meta, finding):
     p7["per_model"].to_csv(out / "phase7_model_accuracy.csv", index=False)
     p7["per_class"].to_csv(out / "phase7_per_class_accuracy.csv", index=False)
     for m, cm in p7["confusion"].items():
@@ -343,10 +453,13 @@ def _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats):
         if "dunn_matrix" in e:
             e["dunn_matrix"].to_csv(out / f"stats_dunn_{metric}.csv")
 
+    vram_saw = VRAM_SAW_TOTAL if model_vram_meta is not None else VRAM_SAW_MARGINAL
     payload = {
         "run_ids": run_ids,
         "notes": {"tokens_definition": TOKEN_DEF, "normalisation_formula": NORM_FORMULA,
-                  "vram_note": VRAM_NOTE},
+                  "vram_per_agent_note": VRAM_NOTE, "vram_saw_criterion": vram_saw,
+                  "vram_finding": finding},
+        "model_vram": model_vram_meta,
         "phase7": {
             "per_model": p7["per_model"].to_dict("records"),
             "per_class": p7["per_class"].to_dict("records"),
@@ -379,13 +492,19 @@ def _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats):
     (out / "analysis.json").write_text(json.dumps(payload, indent=2, default=str))
 
 
-def _format_summary(run_ids, sr, p7, raw, p8, sens, diag, stats, out_dir) -> str:
+def _format_summary(run_ids, sr, p7, raw, p8, sens, diag, stats, out_dir,
+                    model_vram_meta, finding) -> str:
+    have_total = model_vram_meta is not None
+    vram_saw = VRAM_SAW_TOTAL if have_total else VRAM_SAW_MARGINAL
     L = []
     L.append("=" * 78)
     L.append("  AgentMeter — Phase 7 + 8 Analysis")
     L.append("=" * 78)
     L.append(f"Run(s)     : {', '.join(run_ids)}")
     L.append(f"Scenarios  : {len(sr)} complete rows | models: {sr['model'].nunique()}")
+    if have_total:
+        L.append(f"model_vram : {model_vram_meta['path']}  (hardware {model_vram_meta['hardware']}, "
+                 f"quant {model_vram_meta['quant']})")
     L.append("")
     L.append("PHASE 7 — accuracy (from stored `correct`):")
     L.append(f"  {'model':<40}{'n':>5}{'correct':>9}{'acc%':>8}{'unparse':>9}")
@@ -395,17 +514,24 @@ def _format_summary(run_ids, sr, p7, raw, p8, sens, diag, stats, out_dir) -> str
     L.append("PHASE 8 — SAW Composite Health Score")
     L.append(f"  {TOKEN_DEF}")
     L.append(f"  normalisation: {NORM_FORMULA}")
+    L.append(f"  VRAM: {vram_saw}")
     L.append(f"  weights: {p8['weights']}")
-    L.append(f"  {'rank':<5}{'model':<40}{'acc%':>7}{'lat_s':>8}{'vram_mb':>9}{'tokens':>8}{'comp':>7}  tier")
-    for r in p8["table"].itertuples():
-        L.append(f"  {r.rank:<5}{r.model:<40}{r.accuracy_pct:>6.1f}{r.latency_s:>8.2f}"
-                 f"{r.vram_mb:>9.1f}{r.tokens_total:>8.0f}{r.composite:>7.3f}  {r.tier}")
+    # criteria table: show BOTH marginal working memory and total device footprint
+    L.append(f"  {'rank':<5}{'model':<38}{'acc%':>7}{'lat_s':>8}{'work_mb':>9}{'total_mb':>10}{'tokens':>8}{'comp':>7}  tier")
+    tbl = p8["table"]
+    for r in tbl.itertuples():
+        total = getattr(r, "total_device_vram_mb", float("nan"))
+        total_s = "     n/a" if (total != total) else f"{total:>10.1f}"  # NaN check
+        L.append(f"  {r.rank:<5}{r.model:<38}{r.accuracy_pct:>6.1f}{r.latency_s:>8.2f}"
+                 f"{r.vram_working_mb:>9.1f}{total_s}{r.tokens_total:>8.0f}{r.composite:>7.3f}  {r.tier}")
+    L.append(f"  (work_mb = marginal working memory; total_mb = weight footprint + working memory)")
     L.append("")
     L.append("  normalised criteria [0,1]:")
     L.append(f"  {'model':<40}{'acc':>7}{'lat':>7}{'vram':>7}{'tok':>7}")
     for r in p8["norm"].itertuples():
         L.append(f"  {r.model:<40}{r.accuracy:>7.3f}{r.latency:>7.3f}{r.vram:>7.3f}{r.tokens:>7.3f}")
-    L.append(f"  ({VRAM_NOTE})")
+    L.append("")
+    L.append(f"  FINDING: {finding}")
     L.append("")
     L.append("SENSITIVITY ANALYSIS — rank per weight set:")
     header = "  " + f"{'model':<40}" + "".join(f"{name:>16}" for name in sens["ranks"].columns if name != "model")

@@ -2,6 +2,7 @@
 data plus a tiny end-to-end run over an in-memory-style temp DB."""
 from __future__ import annotations
 
+import json
 import sqlite3
 
 import pandas as pd
@@ -149,3 +150,64 @@ def test_run_analysis_end_to_end(tmp_path):
     assert set(res["statistics"].keys()) == {"scenario_total_time_s", "scenario_peak_vram_mb"}
     assert (out / "analysis.json").exists()
     assert (out / "phase8_saw.csv").exists()
+
+
+# --- total-device-footprint VRAM criterion (--model-vram) --------------
+
+def _write_model_vram(tmp_path, footprints, *, hardware="L4", quant="4bit-nf4", consistent=True):
+    mv = {
+        "quant": quant, "hardware_labels": sorted({hardware}), "consistent_hardware": consistent,
+        "models": [{"model": m, "hardware_label": hardware, "quant": quant,
+                    "weight_footprint_mb": wf} for m, wf in footprints.items()],
+    }
+    p = tmp_path / "model_vram.json"
+    p.write_text(json.dumps(mv))
+    return str(p)
+
+
+def test_total_footprint_criterion_and_ranking_unchanged(tmp_path):
+    db = tmp_path / "res.db"
+    _make_db(str(db))                     # models A (working mean 104.5) and B (404.5); hardware 'L4'
+    cfg = tmp_path / "cfg.yaml"; _make_cfg(cfg, db)
+    mvp = _write_model_vram(tmp_path, {"A": 2000.0, "B": 3000.0})
+
+    base = analyze.run_analysis(config_path=str(cfg), db_path=str(db), out_dir=str(tmp_path / "base"))
+    tot = analyze.run_analysis(config_path=str(cfg), db_path=str(db), out_dir=str(tmp_path / "tot"),
+                               model_vram_path=mvp)
+
+    r = tot["raw"].set_index("model")
+    # total = measured weight footprint + marginal working memory (mean scenario_peak_vram_mb)
+    assert abs(r.loc["A", "total_device_vram_mb"] - (2000.0 + r.loc["A", "vram_working_mb"])) < 1e-9
+    assert abs(r.loc["B", "total_device_vram_mb"] - (3000.0 + r.loc["B", "vram_working_mb"])) < 1e-9
+    assert (r["vram_source"] == "total_device_footprint").all()
+    # both totals far below the 16 GB target -> vram normalises to 1.0 for all
+    an = tot["p8"]["norm"].set_index("model")["vram"]
+    assert (an == 1.0).all()
+    # ranking identical to the marginal version (robust to marginal-vs-total choice)
+    assert [x.model for x in base["p8"]["table"].itertuples()] == \
+           [x.model for x in tot["p8"]["table"].itertuples()]
+    assert tot["model_vram"]["run_hardware"] == "L4" and tot["model_vram"]["run_quant"] == "4bit-nf4"
+
+
+def test_model_vram_hardware_mismatch_refused(tmp_path):
+    db = tmp_path / "res.db"; _make_db(str(db)); cfg = tmp_path / "cfg.yaml"; _make_cfg(cfg, db)
+    mvp = _write_model_vram(tmp_path, {"A": 2000.0, "B": 3000.0}, hardware="Tesla T4")  # run is 'L4'
+    with pytest.raises(ValueError, match="hardware"):
+        analyze.run_analysis(config_path=str(cfg), db_path=str(db), out_dir=str(tmp_path / "o"),
+                             model_vram_path=mvp)
+
+
+def test_model_vram_inconsistent_hardware_refused(tmp_path):
+    db = tmp_path / "res.db"; _make_db(str(db)); cfg = tmp_path / "cfg.yaml"; _make_cfg(cfg, db)
+    mvp = _write_model_vram(tmp_path, {"A": 2000.0, "B": 3000.0}, consistent=False)
+    with pytest.raises(ValueError, match="consistent_hardware"):
+        analyze.run_analysis(config_path=str(cfg), db_path=str(db), out_dir=str(tmp_path / "o"),
+                             model_vram_path=mvp)
+
+
+def test_model_vram_missing_model_refused(tmp_path):
+    db = tmp_path / "res.db"; _make_db(str(db)); cfg = tmp_path / "cfg.yaml"; _make_cfg(cfg, db)
+    mvp = _write_model_vram(tmp_path, {"A": 2000.0})  # missing model B present in the DB
+    with pytest.raises(ValueError, match="missing weight_footprint"):
+        analyze.run_analysis(config_path=str(cfg), db_path=str(db), out_dir=str(tmp_path / "o"),
+                             model_vram_path=mvp)

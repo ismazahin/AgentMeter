@@ -55,6 +55,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_an.add_argument("--db", type=str, default=None, help="results SQLite DB (default: config storage.sqlite_path)")
     p_an.add_argument("--out", type=str, default="results/analysis", help="output directory for CSV/JSON")
+    p_an.add_argument("--model-vram", type=str, default=None,
+                      help="results/model_vram.json to use TOTAL device footprint for the SAW VRAM criterion")
 
     p_mv = sub.add_parser(
         "measure-vram", help="Capture per-model weight footprint (load-and-read only; GPU; no scenarios)"
@@ -139,7 +141,8 @@ def main(argv: list[str] | None = None) -> int:
         from agentmeter.analyze import run_analysis
 
         try:
-            run_analysis(config_path=args.config, db_path=args.db, out_dir=args.out)
+            run_analysis(config_path=args.config, db_path=args.db, out_dir=args.out,
+                         model_vram_path=args.model_vram)
         except (FileNotFoundError, ValueError) as e:
             print(f"\n{e}\n", file=sys.stderr)
             return 1

@@ -82,6 +82,28 @@
   .badge.Healthy { color: var(--healthy); background: var(--healthy-bg); }
   .badge.Degraded { color: var(--degraded); background: var(--degraded-bg); }
   .badge.Critical { color: var(--critical); background: var(--critical-bg); }
+  .badge.exp { color: var(--sample); background: var(--sample-bg); border: 1px dashed var(--sample-line); margin-left: 6px; }
+  /* Exploratory (pulled) row — visually distinct, never mistaken for the validated set. */
+  tr.exp-row td { background: repeating-linear-gradient(45deg, var(--sample-bg), var(--sample-bg) 8px, transparent 8px, transparent 16px); }
+  tr.exp-row .model { color: var(--sample); }
+  tr.exp-row:hover td { background: var(--sample-bg); }
+  /* Admin pull/eval panel */
+  .admin { display: grid; gap: 12px; }
+  .admin .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .admin label { color: var(--muted); font-size: 13px; }
+  .admin input[type=text] {
+    font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 280px; flex: 1;
+  }
+  .admin input[type=text]:focus { outline: none; border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  button.primary:hover { filter: brightness(1.06); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .progress { background: var(--line); border-radius: 8px; height: 12px; overflow: hidden; display: none; }
+  .progress .fill { height: 100%; width: 0%; background: var(--accent); border-radius: 8px; transition: width .3s ease; }
+  #pull-status { font-size: 13px; color: var(--muted); min-height: 18px; }
+  #pull-status.err { color: var(--critical); }
+  #pull-status.ok { color: var(--loaded); }
   .finding { color: var(--ink); background: var(--accent-soft); border-left: 4px solid var(--accent);
              padding: 12px 14px; border-radius: 8px; margin: 0; }
   .sliders { display: grid; grid-template-columns: 1fr; gap: 14px; }
@@ -122,6 +144,24 @@
     <div class="controls">
       <label><b>Load analysis.json:</b> <input type="file" id="file" accept="application/json,.json"></label>
       <span class="note" style="margin:0">Or drop an <code>analysis.json</code> beside this page to auto-load it.</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Add a model <span class="hint">— admin: pull ONE extra HF model and run it through the same harness (exploratory, NOT part of the validated 5-model study)</span></h2>
+    <div class="admin">
+      <div class="row">
+        <label for="pull-base">ngrok base URL</label>
+        <input type="text" id="pull-base" placeholder="https://xxxx.ngrok-free.app (printed by pull_eval_server.py)" autocomplete="off">
+      </div>
+      <div class="row">
+        <label for="pull-model">HF model id</label>
+        <input type="text" id="pull-model" placeholder="org/Model-Name (≤ 8B params, causal-LM)" autocomplete="off">
+        <button class="primary" id="pull-btn">Pull &amp; evaluate</button>
+      </div>
+      <div class="progress" id="pull-progress"><div class="fill" id="pull-fill"></div></div>
+      <p id="pull-status"></p>
+      <p class="note" style="margin:0">The server validates the size from HF metadata <b>before</b> any download (rejects &gt; 8B), runs all 300 scenarios under the identical harness (4-bit NF4, sequential VRAM isolation) into a <b>separate</b> DB, and appends the result below as <b>exploratory</b>. The locked study, its statistics and canonical rows are never modified.</p>
     </div>
   </div>
 
@@ -773,13 +813,14 @@
 </script>
 
 <script src="saw.js"></script>
+<script src="pull-config.js"></script>
 <script>
 (function () {
   "use strict";
   var CRIT = ["accuracy", "latency", "vram", "tokens"];
   var CRIT_LABEL = { accuracy: "Accuracy", latency: "Latency", vram: "VRAM", tokens: "Tokens" };
 
-  var state = { data: null, weights: null, presets: {}, agentModel: null };
+  var state = { data: null, weights: null, presets: {}, agentModel: null, exploratory: null };
 
   // ---- helpers ----
   function byModel(rows) { var m = {}; (rows || []).forEach(function (r) { m[r.model] = r; }); return m; }
@@ -793,15 +834,34 @@
   // ---- render: SAW table (re-ranked live via saw.js) ----
   function renderSaw() {
     var d = state.data, p8 = d.phase8;
-    var norm = p8.normalised || [];
     var tiers = p8.tiers || { healthy_min: 80, degraded_min: 60 };
-    var ranked = SAW.rankModels(norm, state.weights, tiers); // [{model, composite, rank, tier}]
+
+    // Canonical (validated) normalised rows — NEVER mutated here.
+    var norm = (p8.normalised || []).slice();
     var raw = byModel(p8.saw_table && p8.saw_table.length ? p8.saw_table : p8.raw_criteria);
+
+    // Append the pulled model as an EXPLORATORY row (validated:false), ranked
+    // alongside the others but visually distinct and clearly labelled.
+    var exp = state.exploratory;
+    var expModel = null;
+    if (exp && exp.normalised) {
+      expModel = exp.model || exp.normalised.model;
+      // don't double-add if a canonical row already carries this model id
+      if (!norm.some(function (n) { return n.model === expModel; })) {
+        norm.push(exp.normalised);
+        raw[expModel] = exp.saw_row || exp.raw_criteria || {};
+      }
+    }
+
+    var ranked = SAW.rankModels(norm, state.weights, tiers); // [{model, composite, rank, tier}]
 
     var body = document.getElementById("saw-body");
     body.innerHTML = ranked.map(function (r) {
       var x = raw[r.model] || {};
-      return "<tr>" +
+      var isExp = (r.model === expModel);
+      var badge = '<span class="badge ' + r.tier + '">' + r.tier + "</span>" +
+        (isExp ? '<span class="badge exp" title="Pulled on demand; not part of the validated 5-model study">exploratory</span>' : "");
+      return '<tr class="' + (isExp ? "exp-row" : "") + '">' +
         '<td class="rank l">' + r.rank + "</td>" +
         '<td class="model l">' + esc(r.model) + "</td>" +
         "<td>" + fmtPct(x.accuracy_pct) + "</td>" +
@@ -809,14 +869,18 @@
         "<td>" + fmtGB(x.total_device_vram_mb != null ? x.total_device_vram_mb : x.vram_mb) + "</td>" +
         "<td>" + fmtInt(x.tokens_total) + "</td>" +
         '<td class="comp">' + fmtComp(r.composite) + "</td>" +
-        '<td class="l"><span class="badge ' + r.tier + '">' + r.tier + "</span></td>" +
+        '<td class="l">' + badge + "</td>" +
         "</tr>";
     }).join("");
 
-    document.getElementById("saw-note").textContent =
-      "Composite = Σ weight·normalised-criterion (weights renormalised to sum 1). " +
+    var note = "Composite = Σ weight·normalised-criterion (weights renormalised to sum 1). " +
       "Tier from composite×100 vs thresholds (Healthy ≥ " + tiers.healthy_min +
       ", Degraded ≥ " + tiers.degraded_min + "). Ranking recomputed in-browser via saw.js.";
+    if (expModel) {
+      note += " The exploratory row (" + esc(expModel) + ") is a pulled model, ranked with the " +
+        "same SAW config but EXCLUDED from the validated study and its statistics.";
+    }
+    document.getElementById("saw-note").textContent = note;
   }
 
   // ---- render: sliders + presets ----
@@ -981,16 +1045,141 @@
     if (!f) return;
     var rd = new FileReader();
     rd.onload = function () {
-      try { load(validate(JSON.parse(rd.result)), "loaded", f.name); }
+      try { state.exploratory = null; load(validate(JSON.parse(rd.result)), "loaded", f.name); }
       catch (err) { alert("Could not load " + f.name + ": " + err.message); }
     };
     rd.readAsText(f);
   });
 
+  // ---- admin: pull & evaluate one extra model (Phase 11) ----
+  var pull = { timer: null, running: false };
+
+  function pullCfg() { return (window.PULL_CONFIG || {}); }
+
+  function pullBaseUrl() {
+    var el = document.getElementById("pull-base");
+    var v = (el && el.value ? el.value : (pullCfg().PULL_BASE_URL || "")).trim();
+    return v.replace(/\/+$/, "");   // strip trailing slash(es)
+  }
+
+  function pullMsg(text, cls) {
+    var el = document.getElementById("pull-status");
+    el.className = cls || "";
+    el.textContent = text || "";
+  }
+
+  function setProgress(frac) {
+    var bar = document.getElementById("pull-progress");
+    var fill = document.getElementById("pull-fill");
+    bar.style.display = "block";
+    fill.style.width = Math.max(0, Math.min(100, frac * 100)).toFixed(1) + "%";
+  }
+
+  function pullButtonEnabled(on) {
+    document.getElementById("pull-btn").disabled = !on;
+    pull.running = !on;
+  }
+
+  function stopPolling() { if (pull.timer) { clearInterval(pull.timer); pull.timer = null; } }
+
+  function applyPullResult(merged, label) {
+    // merged = canonical (read-only) + an `exploratory` block. Load the real
+    // canonical it carries AND surface the exploratory row, ranked distinctly.
+    try {
+      state.exploratory = merged.exploratory || null;
+      load(validate(merged), "loaded", label);
+      var m = state.exploratory ? (state.exploratory.model || "model") : "model";
+      pullMsg("✓ Done — " + m + " added below as an exploratory row (not in the validated set).", "ok");
+    } catch (err) {
+      pullMsg("Loaded pull result but could not render it: " + err.message, "err");
+    }
+  }
+
+  function pollStatus(base) {
+    fetch(base + "/status").then(function (r) { return r.json(); }).then(function (s) {
+      var scn = s.scenario || {};
+      var frac = (typeof s.progress === "number") ? s.progress
+                 : (scn.total ? (scn.completed || 0) / scn.total : 0);
+      setProgress(frac);
+      var label = s.state || "…";
+      if (s.state === "pulling") label = "pulling model weights…";
+      else if (s.state === "running") label = "running scenario " + (scn.completed || 0) + " / " + (scn.total || "?");
+      else if (s.state === "validating") label = "validating model size…";
+      else if (s.state === "analyzing") label = "analyzing results…";
+      if (s.state !== "done" && s.state !== "error") pullMsg(label);
+
+      if (s.state === "error") {
+        stopPolling(); pullButtonEnabled(true);
+        pullMsg("Error: " + (s.error || "unknown error"), "err");
+      } else if (s.state === "done") {
+        stopPolling();
+        pullMsg("Fetching merged analysis…");
+        fetch(base + "/analysis").then(function (r) {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        }).then(function (merged) {
+          setProgress(1);
+          applyPullResult(merged, "pull/eval: " + (s.model_id || "model"));
+          pullButtonEnabled(true);
+        }).catch(function (err) {
+          pullMsg("Run finished but /analysis failed: " + err.message, "err");
+          pullButtonEnabled(true);
+        });
+      }
+    }).catch(function (err) {
+      stopPolling(); pullButtonEnabled(true);
+      pullMsg("Lost contact with the server: " + err.message, "err");
+    });
+  }
+
+  function startPull() {
+    if (pull.running) return;
+    var base = pullBaseUrl();
+    var model = (document.getElementById("pull-model").value || "").trim();
+    if (!base) { pullMsg("Set the ngrok base URL first (printed by pull_eval_server.py).", "err"); return; }
+    if (!model) { pullMsg("Enter an HF model id, e.g. org/Model-Name.", "err"); return; }
+    try { localStorage.setItem("agentmeter.pullBase", base); } catch (e) {}
+
+    pullButtonEnabled(false);
+    setProgress(0);
+    pullMsg("Requesting pull & evaluate for " + model + " …");
+    fetch(base + "/pull-eval", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model_id: model })
+    }).then(function (r) {
+      return r.json().then(function (body) { return { ok: r.ok, status: r.status, body: body }; });
+    }).then(function (res) {
+      if (!res.ok) {
+        pullButtonEnabled(true);
+        pullMsg("Rejected (" + res.status + "): " + ((res.body && res.body.error) || "unknown"), "err");
+        return;
+      }
+      pullMsg("Accepted — starting…");
+      pull.timer = setInterval(function () { pollStatus(base); }, pullCfg().POLL_INTERVAL_MS || 3000);
+      pollStatus(base);
+    }).catch(function (err) {
+      pullButtonEnabled(true);
+      pullMsg("Could not reach the server at " + base + ": " + err.message, "err");
+    });
+  }
+
+  function initPullPanel() {
+    var baseEl = document.getElementById("pull-base");
+    var saved = "";
+    try { saved = localStorage.getItem("agentmeter.pullBase") || ""; } catch (e) {}
+    baseEl.value = saved || (pullCfg().PULL_BASE_URL || "");
+    document.getElementById("pull-btn").addEventListener("click", startPull);
+    document.getElementById("pull-model").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") startPull();
+    });
+  }
+
   // ---- boot: bundled sample first, then try to fetch a real analysis.json ----
   function bootSample() {
     try {
       var raw = document.getElementById("bundled-sample").textContent.trim();
+      state.exploratory = null;
       load(validate(JSON.parse(raw)), "sample", "bundled sample_analysis.json");
     } catch (err) {
       document.getElementById("banner").innerHTML =
@@ -998,12 +1187,14 @@
     }
   }
   bootSample();
+  initPullPanel();
   // Optional convenience: if a real analysis.json sits next to this page (served
   // over http, or some browsers allow it over file://), auto-load it.
   try {
     fetch("./analysis.json").then(function (r) {
       if (!r.ok) throw 0; return r.json();
     }).then(function (d) {
+      state.exploratory = null;
       load(validate(d), "loaded", "./analysis.json (auto-loaded)");
     }).catch(function () { /* expected under file:// — keep the sample */ });
   } catch (e) { /* ignore */ }

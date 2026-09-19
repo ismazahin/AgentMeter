@@ -73,11 +73,44 @@ placeholders** (see the `notes.SAMPLE` field) until you load a real
 python scripts/gen_sample_analysis.py
 ```
 
-## Not included
+## Add a model (admin, Phase 11)
 
-The live “proof-of-life” run button (Phase 10 **Part B** — Firebase-backed
-single-scenario execution on a GPU) is intentionally deferred and is **not** part
-of this build. This dashboard only reads and displays existing results.
+The **“Add a model (admin)”** panel pulls **one extra** Hugging Face model and
+runs it through the **same harness** as the locked 5-model study, for a
+side-by-side comparison — **without touching that study**. The run happens on a
+GPU host (e.g. Colab) via [`scripts/pull_eval_server.py`](../scripts/pull_eval_server.py),
+tunnelled with ngrok:
+
+```bash
+pip install -r requirements-gpu.txt   # includes flask + pyngrok
+export NGROK_AUTHTOKEN=...             # your ngrok token
+export HF_TOKEN=...                    # for gated models
+python scripts/pull_eval_server.py     # prints a public ngrok URL
+```
+
+Paste the printed URL into the panel's **ngrok base URL** field (it is never
+hard-coded — see [`pull-config.js`](./pull-config.js); the value is remembered in
+your browser), enter an `org/Model-Name`, and click **Pull & evaluate**. A
+progress bar tracks *validating → pulling → running scenario k/300 → analyzing →
+done*. On completion the pulled model appears in the SAW table as a **striped,
+`exploratory`-badged row**, ranked with the same weights but clearly **not part
+of the validated set**.
+
+Integrity guarantees (enforced in [`agentmeter/pull_eval.py`](../agentmeter/pull_eval.py),
+verified by `tests/test_pull_eval.py`):
+
+- **Size guard** — a model larger than **8B params** (or not a causal-LM text
+  model) is rejected from HF metadata **before any download**.
+- **Separate DB** — each pull writes `results/pulls/agentmeter_pull_<slug>.db`;
+  the locked study DB is **never** written.
+- **Canonical read-only** — the validated results, weights, tiers and
+  **statistics** (Kruskal-Wallis + Dunn) are copied read-only; the pulled model
+  is appended as `exploratory:true` / `validated:false` and **excluded** from the
+  study's statistics.
+- **Same harness** — reuses `runner.run_full` (subprocess-per-model VRAM
+  isolation, sequential, 4-bit NF4, checkpoint/resume) — nothing is
+  reimplemented.
+- **Single-job lock** — only one pull/eval runs at a time.
 
 ## Files
 
@@ -85,4 +118,5 @@ of this build. This dashboard only reads and displays existing results.
 | --- | --- |
 | `index.html` | The dashboard (self-contained; open via `file://`). |
 | `saw.js` | SAW math module — mirrors `analyze._composite` / `_tier`; used by the live slider. |
+| `pull-config.js` | Admin pull/eval endpoint config (ngrok base URL placeholder — never hard-coded). |
 | `sample_analysis.json` | Bundled illustrative sample conforming to the `analysis.json` schema. |

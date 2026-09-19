@@ -1,0 +1,62 @@
+{
+  "quant": "4bit-nf4",
+  "hardware_labels": [
+    "NVIDIA L4"
+  ],
+  "consistent_hardware": true,
+  "free_vram_tolerance_mb": 500.0,
+  "fresh_context_baseline_mb": 664.875,
+  "definition": "weight_footprint_mb = device_vram_after_load_mb - device_vram_before_load_mb; Phase 8 total device footprint = weight_footprint_mb + mean(scenario_peak_vram_mb from the DB).",
+  "models": [
+    {
+      "model": "mistralai/Mistral-7B-Instruct-v0.3",
+      "hardware_label": "NVIDIA L4",
+      "quant": "4bit-nf4",
+      "device_vram_before_load_mb": 664.875,
+      "device_vram_after_load_mb": 4778.875,
+      "weight_footprint_mb": 4114.0,
+      "startup_excess_mb": 0.0,
+      "started_clean": true
+    },
+    {
+      "model": "meta-llama/Meta-Llama-3-8B-Instruct",
+      "hardware_label": "NVIDIA L4",
+      "quant": "4bit-nf4",
+      "device_vram_before_load_mb": 664.875,
+      "device_vram_after_load_mb": 6270.875,
+      "weight_footprint_mb": 5606.0,
+      "startup_excess_mb": 0.0,
+      "started_clean": true
+    },
+    {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "hardware_label": "NVIDIA L4",
+      "quant": "4bit-nf4",
+      "device_vram_before_load_mb": 664.875,
+      "device_vram_after_load_mb": 6156.875,
+      "weight_footprint_mb": 5492.0,
+      "startup_excess_mb": 0.0,
+      "started_clean": true
+    },
+    {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "hardware_label": "NVIDIA L4",
+      "quant": "4bit-nf4",
+      "device_vram_before_load_mb": 664.875,
+      "device_vram_after_load_mb": 3146.875,
+      "weight_footprint_mb": 2482.0,
+      "startup_excess_mb": 0.0,
+      "started_clean": true
+    },
+    {
+      "model": "google/gemma-2-9b-it",
+      "hardware_label": "NVIDIA L4",
+      "quant": "4bit-nf4",
+      "device_vram_before_load_mb": 664.875,
+      "device_vram_after_load_mb": 6646.875,
+      "weight_footprint_mb": 5982.0,
+      "startup_excess_mb": 0.0,
+      "started_clean": true
+    }
+  ]
+}

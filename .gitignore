@@ -10,6 +10,9 @@ env/
 results/
 *.db
 *.sqlite
+# A real/served analysis.json dropped next to the dashboard for auto-load
+# (dashboard/sample_analysis.json is the committed sample and stays tracked).
+dashboard/analysis.json
 
 # HF / model caches
 .cache/

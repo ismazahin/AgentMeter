@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentMeter Dashboard</title>
+<!--
+  AgentMeter results dashboard — Phase 10 Part A (VIEW LAYER ONLY).
+
+  Reads a precomputed analysis.json (produced by `agentmeter/analyze.py`) and
+  displays it. It contains NO detection/pipeline/instrumentation logic and does
+  no measurement of its own. All SAW scoring / re-ranking is delegated to
+  dashboard/saw.js (SAW.composite / SAW.tierOf / SAW.rankModels /
+  SAW.normalizeWeights), which mirrors analyze._composite / _tier exactly.
+
+  Self-contained: open directly via file:// . A bundled SAMPLE renders
+  immediately; load a real analysis.json with the file picker (or drop an
+  analysis.json next to this file and it is fetched on start).
+-->
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2128; --muted: #5b6675;
+    --line: #e2e6ec; --accent: #3b5bdb; --accent-soft: #edf0fe;
+    --bar1: #3b5bdb; --bar2: #12796b;
+    --healthy: #2f9e44; --healthy-bg: #e7f6ec;
+    --degraded: #d9820a; --degraded-bg: #fdf1e0;
+    --critical: #c92a2a; --critical-bg: #fce9e9;
+    --sample: #8a5a00; --sample-bg: #fff4d6; --sample-line: #f0c65a;
+    --loaded: #0b6b5f; --loaded-bg: #e2f6f2; --loaded-line: #7fd3c6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #10141a; --panel: #171c24; --ink: #e6e9ef; --muted: #9aa5b5;
+      --line: #2a323d; --accent: #6b86ff; --accent-soft: #1e2740;
+      --bar1: #6b86ff; --bar2: #3fc7b4;
+      --healthy: #63d888; --healthy-bg: #16351f;
+      --degraded: #f0b657; --degraded-bg: #3a2a10;
+      --critical: #ff7b7b; --critical-bg: #3a1717;
+      --sample: #ffd873; --sample-bg: #33290a; --sample-line: #6b551a;
+      --loaded: #6fe0cf; --loaded-bg: #0f3330; --loaded-line: #1f6156;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
+  header h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: -0.01em; }
+  header p.sub { margin: 0 0 16px; color: var(--muted); }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px 20px; margin: 16px 0;
+  }
+  .panel h2 { margin: 0 0 12px; font-size: 17px; }
+  .panel h2 .hint { font-weight: 400; font-size: 13px; color: var(--muted); }
+  .banner {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+    border: 1px solid; border-radius: 10px; padding: 12px 16px; margin: 4px 0 8px;
+  }
+  .banner.sample { background: var(--sample-bg); border-color: var(--sample-line); color: var(--sample); }
+  .banner.loaded { background: var(--loaded-bg); border-color: var(--loaded-line); color: var(--loaded); }
+  .banner b { font-weight: 700; }
+  .banner .src { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; opacity: .9; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  input[type=file] { font: inherit; color: var(--muted); }
+  select, button {
+    font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer;
+  }
+  button:hover, select:hover { border-color: var(--accent); }
+  button.preset.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 9px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th:first-child, td:first-child, th.l, td.l { text-align: left; }
+  thead th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  tbody tr:hover { background: var(--accent-soft); }
+  .rank { font-weight: 700; color: var(--muted); width: 1%; }
+  .model { font-weight: 600; }
+  .comp { font-weight: 700; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .badge.Healthy { color: var(--healthy); background: var(--healthy-bg); }
+  .badge.Degraded { color: var(--degraded); background: var(--degraded-bg); }
+  .badge.Critical { color: var(--critical); background: var(--critical-bg); }
+  .finding { color: var(--ink); background: var(--accent-soft); border-left: 4px solid var(--accent);
+             padding: 12px 14px; border-radius: 8px; margin: 0; }
+  .sliders { display: grid; grid-template-columns: 1fr; gap: 14px; }
+  @media (min-width: 720px) { .sliders { grid-template-columns: 1fr 1fr; } }
+  .slider-row { display: grid; grid-template-columns: 96px 1fr 118px; gap: 10px; align-items: center; }
+  .slider-row label { color: var(--muted); }
+  .slider-row input[type=range] { width: 100%; accent-color: var(--accent); }
+  .wval { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+  .wval b { color: var(--accent); }
+  .presets { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+  .agent-chart { display: grid; gap: 14px; }
+  .chart-block h3 { margin: 0 0 8px; font-size: 14px; }
+  .chart-block h3 small { color: var(--muted); font-weight: 400; }
+  .barrow { display: grid; grid-template-columns: 80px 1fr 96px; gap: 10px; align-items: center; margin: 6px 0; }
+  .barrow .name { color: var(--muted); font-size: 13px; text-align: left; }
+  .bartrack { background: var(--line); border-radius: 6px; height: 20px; overflow: hidden; }
+  .barfill { height: 100%; border-radius: 6px; }
+  .barfill.wall { background: var(--bar1); }
+  .barfill.vram { background: var(--bar2); }
+  .barval { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+  .legend { display: flex; gap: 16px; color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+  .legend .sw.wall { background: var(--bar1); } .legend .sw.vram { background: var(--bar2); }
+  .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>AgentMeter — Results Dashboard</h1>
+    <p class="sub">Resource-efficiency benchmark of open-source LLMs in a minimal 4-agent pipeline. View layer over <code>analysis.json</code>.</p>
+  </header>
+
+  <div id="banner" class="banner sample"></div>
+
+  <div class="panel">
+    <div class="controls">
+      <label><b>Load analysis.json:</b> <input type="file" id="file" accept="application/json,.json"></label>
+      <span class="note" style="margin:0">Or drop an <code>analysis.json</code> beside this page to auto-load it.</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>SAW ranking <span class="hint">— Simple Additive Weighting composite, re-ranked live from the weights below</span></h2>
+    <table id="saw">
+      <thead>
+        <tr>
+          <th class="l">#</th><th class="l">Model</th>
+          <th>Accuracy</th><th>Latency</th><th>Total device VRAM</th><th>Tokens</th>
+          <th>Composite</th><th class="l">Tier</th>
+        </tr>
+      </thead>
+      <tbody id="saw-body"></tbody>
+    </table>
+    <p class="note" id="saw-note"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Sensitivity — live weights</h2>
+    <div class="presets" id="presets"></div>
+    <div class="sliders" id="sliders"></div>
+    <p class="note" id="wsum"></p>
+  </div>
+
+  <div class="panel">
+    <h2>VRAM finding</h2>
+    <p class="finding" id="finding"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Per-agent diagnostics</h2>
+    <div class="controls" style="margin-bottom:14px">
+      <label>Model: <select id="agent-model"></select></label>
+    </div>
+    <div class="agent-chart">
+      <div class="chart-block">
+        <h3>Mean wall time per agent <small>(seconds)</small></h3>
+        <div id="wall-bars"></div>
+      </div>
+      <div class="chart-block">
+        <h3>Marginal working memory per agent <small>(mean vram_delta, MB — above fresh-context baseline, EXCLUDES model weights; not total device VRAM)</small></h3>
+        <div id="vram-bars"></div>
+      </div>
+      <div class="legend">
+        <span><span class="sw wall"></span>wall time</span>
+        <span><span class="sw vram"></span>marginal working memory</span>
+      </div>
+    </div>
+    <p class="note" id="agent-note"></p>
+  </div>
+</div>
+
+<!-- Bundled illustrative SAMPLE (see notes.SAMPLE inside). Kept in sync with
+     dashboard/sample_analysis.json (both generated by scripts/gen_sample_analysis.py). -->
+<script type="application/json" id="bundled-sample">
+{
+  "run_ids": [
+    "SAMPLE-illustrative"
+  ],
+  "notes": {
+    "SAMPLE": "ILLUSTRATIVE sample. accuracy / composite / rank / tier and the VRAM->1.0 finding are the LOCKED real L4 results. latency & token MAGNITUDES and ALL per-agent numbers are placeholders solved to reproduce the locked composites under default weights; load a real analysis.json to replace them.",
+    "tokens_definition": "tokens = mean over scenarios of the per-scenario TOTAL tokens (sum over the 4 agents of input+output).",
+    "normalisation_formula": "benefit (accuracy): norm = clamp(value/target,0,1); cost (latency,vram,tokens): norm = clamp(target/value,0,1)",
+    "vram_per_agent_note": "vram_delta (per-agent) is MARGINAL working memory above the fresh-context baseline and EXCLUDES model weights.",
+    "vram_saw_criterion": "SAW VRAM criterion = TOTAL device footprint = weight_footprint_mb + mean(scenario_peak_vram_mb). Target 16000 MB / weight 0.20.",
+    "vram_finding": "VRAM (total device footprint) ranges 3.1-6.6 GB across models, all well below the 16 GB target -> VRAM is not a binding constraint on this hardware; it normalises to 1.0 for all models and does not differentiate the ranking. Differentiation is driven by accuracy, latency, and tokens."
+  },
+  "model_vram": {
+    "path": "sample",
+    "run_hardware": "L4",
+    "run_quant": "4bit-nf4",
+    "hardware": "L4",
+    "quant": "4bit-nf4"
+  },
+  "phase7": {
+    "per_model": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "accuracy": 0.267,
+        "n": 300,
+        "n_correct": 80
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "accuracy": 0.333,
+        "n": 300,
+        "n_correct": 100
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "accuracy": 0.183,
+        "n": 300,
+        "n_correct": 55
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "accuracy": 0.26,
+        "n": 300,
+        "n_correct": 78
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "accuracy": 0.207,
+        "n": 300,
+        "n_correct": 62
+      }
+    ],
+    "per_class": [],
+    "confusion": {}
+  },
+  "phase8": {
+    "weights": {
+      "accuracy": 0.4,
+      "latency": 0.25,
+      "vram": 0.2,
+      "tokens": 0.15
+    },
+    "targets": {
+      "accuracy_pct": 80.0,
+      "latency_s": 5.0,
+      "vram_mb": 16000.0,
+      "tokens_total": 1200.0
+    },
+    "tiers": {
+      "healthy_min": 80.0,
+      "degraded_min": 60.0
+    },
+    "raw_criteria": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "accuracy_pct": 26.7,
+        "latency_s": 12.8617,
+        "vram_working_mb": 1300.0,
+        "tokens_total": 3086.82,
+        "weight_footprint_mb": 3900.0,
+        "total_device_vram_mb": 5200.0,
+        "vram_mb": 5200.0,
+        "vram_source": "total_device_footprint"
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "accuracy_pct": 33.3,
+        "latency_s": 20.9424,
+        "vram_working_mb": 1250.0,
+        "tokens_total": 5026.18,
+        "weight_footprint_mb": 3750.0,
+        "total_device_vram_mb": 5000.0,
+        "vram_mb": 5000.0,
+        "vram_source": "total_device_footprint"
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "accuracy_pct": 18.3,
+        "latency_s": 15.8103,
+        "vram_working_mb": 1400.0,
+        "tokens_total": 3794.47,
+        "weight_footprint_mb": 4200.0,
+        "total_device_vram_mb": 5600.0,
+        "vram_mb": 5600.0,
+        "vram_source": "total_device_footprint"
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "accuracy_pct": 26.0,
+        "latency_s": 23.2558,
+        "vram_working_mb": 1650.0,
+        "tokens_total": 5581.4,
+        "weight_footprint_mb": 4950.0,
+        "total_device_vram_mb": 6600.0,
+        "vram_mb": 6600.0,
+        "vram_source": "total_device_footprint"
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "accuracy_pct": 20.7,
+        "latency_s": 18.6047,
+        "vram_working_mb": 775.0,
+        "tokens_total": 4465.12,
+        "weight_footprint_mb": 2325.0,
+        "total_device_vram_mb": 3100.0,
+        "vram_mb": 3100.0,
+        "vram_source": "total_device_footprint"
+      }
+    ],
+    "normalised": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "accuracy": 0.33375000000000005,
+        "latency": 0.38874999999999976,
+        "vram": 1.0,
+        "tokens": 0.38874999999999976
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "accuracy": 0.41625000000000006,
+        "latency": 0.23874999999999993,
+        "vram": 1.0,
+        "tokens": 0.23874999999999993
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "accuracy": 0.22875,
+        "latency": 0.31624999999999986,
+        "vram": 1.0,
+        "tokens": 0.31624999999999986
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "accuracy": 0.325,
+        "latency": 0.2149999999999999,
+        "vram": 1.0,
+        "tokens": 0.2149999999999999
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "accuracy": 0.25875,
+        "latency": 0.26874999999999993,
+        "vram": 1.0,
+        "tokens": 0.26874999999999993
+      }
+    ],
+    "saw_table": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "accuracy_pct": 26.7,
+        "latency_s": 12.8617,
+        "vram_working_mb": 1300.0,
+        "tokens_total": 3086.82,
+        "weight_footprint_mb": 3900.0,
+        "total_device_vram_mb": 5200.0,
+        "vram_mb": 5200.0,
+        "vram_source": "total_device_footprint",
+        "accuracy": 0.33375000000000005,
+        "latency": 0.38874999999999976,
+        "vram": 1.0,
+        "tokens": 0.38874999999999976,
+        "composite": 0.489,
+        "rank": 1,
+        "tier": "Critical"
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "accuracy_pct": 33.3,
+        "latency_s": 20.9424,
+        "vram_working_mb": 1250.0,
+        "tokens_total": 5026.18,
+        "weight_footprint_mb": 3750.0,
+        "total_device_vram_mb": 5000.0,
+        "vram_mb": 5000.0,
+        "vram_source": "total_device_footprint",
+        "accuracy": 0.41625000000000006,
+        "latency": 0.23874999999999993,
+        "vram": 1.0,
+        "tokens": 0.23874999999999993,
+        "composite": 0.462,
+        "rank": 2,
+        "tier": "Critical"
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "accuracy_pct": 18.3,
+        "latency_s": 15.8103,
+        "vram_working_mb": 1400.0,
+        "tokens_total": 3794.47,
+        "weight_footprint_mb": 4200.0,
+        "total_device_vram_mb": 5600.0,
+        "vram_mb": 5600.0,
+        "vram_source": "total_device_footprint",
+        "accuracy": 0.22875,
+        "latency": 0.31624999999999986,
+        "vram": 1.0,
+        "tokens": 0.31624999999999986,
+        "composite": 0.418,
+        "rank": 3,
+        "tier": "Critical"
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "accuracy_pct": 26.0,
+        "latency_s": 23.2558,
+        "vram_working_mb": 1650.0,
+        "tokens_total": 5581.4,
+        "weight_footprint_mb": 4950.0,
+        "total_device_vram_mb": 6600.0,
+        "vram_mb": 6600.0,
+        "vram_source": "total_device_footprint",
+        "accuracy": 0.325,
+        "latency": 0.2149999999999999,
+        "vram": 1.0,
+        "tokens": 0.2149999999999999,
+        "composite": 0.416,
+        "rank": 4,
+        "tier": "Critical"
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "accuracy_pct": 20.7,
+        "latency_s": 18.6047,
+        "vram_working_mb": 775.0,
+        "tokens_total": 4465.12,
+        "weight_footprint_mb": 2325.0,
+        "total_device_vram_mb": 3100.0,
+        "vram_mb": 3100.0,
+        "vram_source": "total_device_footprint",
+        "accuracy": 0.25875,
+        "latency": 0.26874999999999993,
+        "vram": 1.0,
+        "tokens": 0.26874999999999993,
+        "composite": 0.411,
+        "rank": 5,
+        "tier": "Critical"
+      }
+    ]
+  },
+  "sensitivity": {
+    "weight_sets": {
+      "default": {
+        "accuracy": 0.4,
+        "latency": 0.25,
+        "vram": 0.2,
+        "tokens": 0.15
+      },
+      "equal": {
+        "accuracy": 0.25,
+        "latency": 0.25,
+        "vram": 0.25,
+        "tokens": 0.25
+      },
+      "accuracy_heavy": {
+        "accuracy": 0.55,
+        "latency": 0.2,
+        "vram": 0.15,
+        "tokens": 0.1
+      },
+      "efficiency_heavy": {
+        "accuracy": 0.25,
+        "latency": 0.3,
+        "vram": 0.3,
+        "tokens": 0.15
+      }
+    },
+    "ranks": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "default": 1,
+        "equal": 1,
+        "accuracy_heavy": 2,
+        "efficiency_heavy": 1
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "default": 2,
+        "equal": 2,
+        "accuracy_heavy": 1,
+        "efficiency_heavy": 2
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "default": 3,
+        "equal": 3,
+        "accuracy_heavy": 5,
+        "efficiency_heavy": 3
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "default": 4,
+        "equal": 5,
+        "accuracy_heavy": 3,
+        "efficiency_heavy": 5
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "default": 5,
+        "equal": 4,
+        "accuracy_heavy": 4,
+        "efficiency_heavy": 4
+      }
+    ],
+    "scores": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "default": 0.489,
+        "equal": 0.527812,
+        "accuracy_heavy": 0.450187,
+        "efficiency_heavy": 0.558375
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "default": 0.462,
+        "equal": 0.473438,
+        "accuracy_heavy": 0.450562,
+        "efficiency_heavy": 0.5115
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "default": 0.418,
+        "equal": 0.465312,
+        "accuracy_heavy": 0.370687,
+        "efficiency_heavy": 0.4995
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "default": 0.416,
+        "equal": 0.43875,
+        "accuracy_heavy": 0.39325,
+        "efficiency_heavy": 0.478
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "default": 0.411,
+        "equal": 0.449062,
+        "accuracy_heavy": 0.372937,
+        "efficiency_heavy": 0.485625
+      }
+    ],
+    "top_by_set": {
+      "default": "Qwen2.5-7B-Instruct",
+      "equal": "Qwen2.5-7B-Instruct",
+      "accuracy_heavy": "Mistral-7B-Instruct-v0.3",
+      "efficiency_heavy": "Qwen2.5-7B-Instruct"
+    },
+    "top_stable": false,
+    "stable_top_model": null
+  },
+  "per_agent": {
+    "table": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "agent_name": "perceive",
+        "mean_wall_s": 0.476,
+        "mean_ttft_s": 0.1666,
+        "mean_vram_delta_mb": 40.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "agent_name": "reason",
+        "mean_wall_s": 3.0464,
+        "mean_ttft_s": 1.0662,
+        "mean_vram_delta_mb": 120.0,
+        "mean_input_tokens": 260.0,
+        "mean_output_tokens": 120.0
+      },
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "agent_name": "decide",
+        "mean_wall_s": 1.0472,
+        "mean_ttft_s": 0.3665,
+        "mean_vram_delta_mb": 380.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "agent_name": "act",
+        "mean_wall_s": 0.5712,
+        "mean_ttft_s": 0.1999,
+        "mean_vram_delta_mb": 60.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "agent_name": "perceive",
+        "mean_wall_s": 0.475,
+        "mean_ttft_s": 0.1663,
+        "mean_vram_delta_mb": 40.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "agent_name": "reason",
+        "mean_wall_s": 3.04,
+        "mean_ttft_s": 1.064,
+        "mean_vram_delta_mb": 120.0,
+        "mean_input_tokens": 260.0,
+        "mean_output_tokens": 120.0
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "agent_name": "decide",
+        "mean_wall_s": 1.045,
+        "mean_ttft_s": 0.3658,
+        "mean_vram_delta_mb": 380.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "agent_name": "act",
+        "mean_wall_s": 0.57,
+        "mean_ttft_s": 0.1995,
+        "mean_vram_delta_mb": 60.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "agent_name": "perceive",
+        "mean_wall_s": 0.478,
+        "mean_ttft_s": 0.1673,
+        "mean_vram_delta_mb": 40.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "agent_name": "reason",
+        "mean_wall_s": 3.0592,
+        "mean_ttft_s": 1.0707,
+        "mean_vram_delta_mb": 120.0,
+        "mean_input_tokens": 260.0,
+        "mean_output_tokens": 120.0
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "agent_name": "decide",
+        "mean_wall_s": 1.0516,
+        "mean_ttft_s": 0.3681,
+        "mean_vram_delta_mb": 380.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "agent_name": "act",
+        "mean_wall_s": 0.5736,
+        "mean_ttft_s": 0.2008,
+        "mean_vram_delta_mb": 60.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "agent_name": "perceive",
+        "mean_wall_s": 0.483,
+        "mean_ttft_s": 0.169,
+        "mean_vram_delta_mb": 40.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "agent_name": "reason",
+        "mean_wall_s": 3.0912,
+        "mean_ttft_s": 1.0819,
+        "mean_vram_delta_mb": 120.0,
+        "mean_input_tokens": 260.0,
+        "mean_output_tokens": 120.0
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "agent_name": "decide",
+        "mean_wall_s": 1.0626,
+        "mean_ttft_s": 0.3719,
+        "mean_vram_delta_mb": 380.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "agent_name": "act",
+        "mean_wall_s": 0.5796,
+        "mean_ttft_s": 0.2029,
+        "mean_vram_delta_mb": 60.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "agent_name": "perceive",
+        "mean_wall_s": 0.4655,
+        "mean_ttft_s": 0.1629,
+        "mean_vram_delta_mb": 40.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "agent_name": "reason",
+        "mean_wall_s": 2.9792,
+        "mean_ttft_s": 1.0427,
+        "mean_vram_delta_mb": 120.0,
+        "mean_input_tokens": 260.0,
+        "mean_output_tokens": 120.0
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "agent_name": "decide",
+        "mean_wall_s": 1.0241,
+        "mean_ttft_s": 0.3584,
+        "mean_vram_delta_mb": 380.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "agent_name": "act",
+        "mean_wall_s": 0.5586,
+        "mean_ttft_s": 0.1955,
+        "mean_vram_delta_mb": 60.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      }
+    ],
+    "dominant": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "latency_dominant_agent": "reason",
+        "latency_dominant_mean_wall_s": 3.0464,
+        "vram_dominant_agent": "decide",
+        "vram_dominant_mean_vram_delta_mb": 380.0
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "latency_dominant_agent": "reason",
+        "latency_dominant_mean_wall_s": 3.04,
+        "vram_dominant_agent": "decide",
+        "vram_dominant_mean_vram_delta_mb": 380.0
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "latency_dominant_agent": "reason",
+        "latency_dominant_mean_wall_s": 3.0592,
+        "vram_dominant_agent": "decide",
+        "vram_dominant_mean_vram_delta_mb": 380.0
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "latency_dominant_agent": "reason",
+        "latency_dominant_mean_wall_s": 3.0912,
+        "vram_dominant_agent": "decide",
+        "vram_dominant_mean_vram_delta_mb": 380.0
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "latency_dominant_agent": "reason",
+        "latency_dominant_mean_wall_s": 2.9792,
+        "vram_dominant_agent": "decide",
+        "vram_dominant_mean_vram_delta_mb": 380.0
+      }
+    ]
+  },
+  "statistics": {}
+}
+</script>
+
+<script src="saw.js"></script>
+<script>
+(function () {
+  "use strict";
+  var CRIT = ["accuracy", "latency", "vram", "tokens"];
+  var CRIT_LABEL = { accuracy: "Accuracy", latency: "Latency", vram: "VRAM", tokens: "Tokens" };
+
+  var state = { data: null, weights: null, presets: {}, agentModel: null };
+
+  // ---- helpers ----
+  function byModel(rows) { var m = {}; (rows || []).forEach(function (r) { m[r.model] = r; }); return m; }
+  function fmtPct(v) { return (v == null) ? "—" : (+v).toFixed(1) + "%"; }
+  function fmtS(v) { return (v == null) ? "—" : (+v).toFixed(1) + " s"; }
+  function fmtGB(mb) { return (mb == null || isNaN(mb)) ? "—" : (mb / 1024).toFixed(1) + " GB"; }
+  function fmtInt(v) { return (v == null) ? "—" : Math.round(+v).toLocaleString(); }
+  function fmtComp(v) { return (+v).toFixed(3); }
+  function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]; }); }
+
+  // ---- render: SAW table (re-ranked live via saw.js) ----
+  function renderSaw() {
+    var d = state.data, p8 = d.phase8;
+    var norm = p8.normalised || [];
+    var tiers = p8.tiers || { healthy_min: 80, degraded_min: 60 };
+    var ranked = SAW.rankModels(norm, state.weights, tiers); // [{model, composite, rank, tier}]
+    var raw = byModel(p8.saw_table && p8.saw_table.length ? p8.saw_table : p8.raw_criteria);
+
+    var body = document.getElementById("saw-body");
+    body.innerHTML = ranked.map(function (r) {
+      var x = raw[r.model] || {};
+      return "<tr>" +
+        '<td class="rank l">' + r.rank + "</td>" +
+        '<td class="model l">' + esc(r.model) + "</td>" +
+        "<td>" + fmtPct(x.accuracy_pct) + "</td>" +
+        "<td>" + fmtS(x.latency_s) + "</td>" +
+        "<td>" + fmtGB(x.total_device_vram_mb != null ? x.total_device_vram_mb : x.vram_mb) + "</td>" +
+        "<td>" + fmtInt(x.tokens_total) + "</td>" +
+        '<td class="comp">' + fmtComp(r.composite) + "</td>" +
+        '<td class="l"><span class="badge ' + r.tier + '">' + r.tier + "</span></td>" +
+        "</tr>";
+    }).join("");
+
+    document.getElementById("saw-note").textContent =
+      "Composite = Σ weight·normalised-criterion (weights renormalised to sum 1). " +
+      "Tier from composite×100 vs thresholds (Healthy ≥ " + tiers.healthy_min +
+      ", Degraded ≥ " + tiers.degraded_min + "). Ranking recomputed in-browser via saw.js.";
+  }
+
+  // ---- render: sliders + presets ----
+  function renderWeightReadout() {
+    var w = SAW.normalizeWeights(state.weights);
+    CRIT.forEach(function (k) {
+      var el = document.getElementById("wval-" + k);
+      if (el) el.innerHTML = "raw " + (+state.weights[k]).toFixed(2) + " → <b>" + w[k].toFixed(3) + "</b>";
+    });
+    document.getElementById("wsum").textContent =
+      "Live renormalised weights (sum = 1.000): " +
+      CRIT.map(function (k) { return CRIT_LABEL[k] + " " + w[k].toFixed(3); }).join("   ·   ");
+    // preset active-state
+    var active = null;
+    Object.keys(state.presets).forEach(function (name) {
+      var pn = SAW.normalizeWeights(state.presets[name]);
+      if (CRIT.every(function (k) { return Math.abs(pn[k] - w[k]) < 1e-6; })) active = name;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#presets button"), function (b) {
+      b.classList.toggle("active", b.dataset.name === active);
+    });
+  }
+
+  function setWeights(w) {
+    CRIT.forEach(function (k) {
+      state.weights[k] = +w[k] || 0;
+      var s = document.getElementById("slider-" + k);
+      if (s) s.value = state.weights[k];
+    });
+    renderWeightReadout();
+    renderSaw();
+  }
+
+  function buildSliders() {
+    var box = document.getElementById("sliders");
+    box.innerHTML = CRIT.map(function (k) {
+      return '<div class="slider-row">' +
+        "<label>" + CRIT_LABEL[k] + "</label>" +
+        '<input type="range" id="slider-' + k + '" min="0" max="1" step="0.01">' +
+        '<span class="wval" id="wval-' + k + '"></span>' +
+        "</div>";
+    }).join("");
+    CRIT.forEach(function (k) {
+      document.getElementById("slider-" + k).addEventListener("input", function (e) {
+        state.weights[k] = +e.target.value;
+        renderWeightReadout();
+        renderSaw();
+      });
+    });
+  }
+
+  function buildPresets() {
+    var d = state.data;
+    var sets = (d.sensitivity && d.sensitivity.weight_sets) || {};
+    // default first, then the rest in a stable order
+    var order = ["default"].concat(Object.keys(sets).filter(function (n) { return n !== "default"; }));
+    state.presets = {};
+    order.forEach(function (n) { if (sets[n]) state.presets[n] = sets[n]; });
+    if (!state.presets.default) state.presets.default = (d.phase8 && d.phase8.weights) || {};
+
+    var box = document.getElementById("presets");
+    box.innerHTML = "<span class='note' style='margin:0 6px 0 0'>Presets:</span>" +
+      Object.keys(state.presets).map(function (n) {
+        return '<button class="preset" data-name="' + esc(n) + '">' + esc(n) + "</button>";
+      }).join("");
+    Array.prototype.forEach.call(box.querySelectorAll("button"), function (b) {
+      b.addEventListener("click", function () { setWeights(state.presets[b.dataset.name]); });
+    });
+  }
+
+  // ---- render: finding ----
+  function renderFinding() {
+    var notes = state.data.notes || {};
+    document.getElementById("finding").textContent = notes.vram_finding || "(no vram_finding in this file)";
+  }
+
+  // ---- render: per-agent chart ----
+  function agentRowsFor(model) {
+    var t = (state.data.per_agent && state.data.per_agent.table) || [];
+    return t.filter(function (r) { return r.model === model; });
+  }
+  function bars(containerId, rows, valKey, cls, fmt) {
+    var max = 0;
+    rows.forEach(function (r) { max = Math.max(max, +r[valKey] || 0); });
+    var el = document.getElementById(containerId);
+    el.innerHTML = rows.map(function (r) {
+      var v = +r[valKey] || 0;
+      var pct = max > 0 ? (v / max * 100) : 0;
+      return '<div class="barrow">' +
+        '<div class="name">' + esc(r.agent_name) + "</div>" +
+        '<div class="bartrack"><div class="barfill ' + cls + '" style="width:' + pct.toFixed(1) + '%"></div></div>' +
+        '<div class="barval">' + fmt(v) + "</div>" +
+        "</div>";
+    }).join("");
+  }
+  function renderAgents() {
+    var model = state.agentModel;
+    var rows = agentRowsFor(model);
+    bars("wall-bars", rows, "mean_wall_s", "wall", function (v) { return v.toFixed(2) + " s"; });
+    bars("vram-bars", rows, "mean_vram_delta_mb", "vram", function (v) { return Math.round(v) + " MB"; });
+    var dom = ((state.data.per_agent && state.data.per_agent.dominant) || [])
+      .filter(function (r) { return r.model === model; })[0];
+    var note = document.getElementById("agent-note");
+    if (dom) {
+      note.textContent = "Dominant agents for " + model + ": latency → " + dom.latency_dominant_agent +
+        ", marginal working memory → " + dom.vram_dominant_agent +
+        ". (In the real run, reason dominates latency and decide dominates working memory for every model.)";
+    } else { note.textContent = ""; }
+  }
+  function buildAgentSelector() {
+    var t = (state.data.per_agent && state.data.per_agent.table) || [];
+    var models = [];
+    t.forEach(function (r) { if (models.indexOf(r.model) < 0) models.push(r.model); });
+    var sel = document.getElementById("agent-model");
+    sel.innerHTML = models.map(function (m) { return '<option value="' + esc(m) + '">' + esc(m) + "</option>"; }).join("");
+    state.agentModel = models[0] || null;
+    sel.value = state.agentModel;
+    sel.onchange = function () { state.agentModel = sel.value; renderAgents(); };
+  }
+
+  // ---- banner ----
+  function setBanner(kind, sourceLabel) {
+    var b = document.getElementById("banner");
+    b.className = "banner " + (kind === "sample" ? "sample" : "loaded");
+    if (kind === "sample") {
+      b.innerHTML = "<b>⚠ Bundled SAMPLE data</b>" +
+        "<span>Accuracy, composite, rank and tier are the locked real L4 results; " +
+        "latency/token magnitudes and all per-agent numbers are <b>ILLUSTRATIVE placeholders</b>. " +
+        "Load a real <code>analysis.json</code> to replace them.</span>";
+    } else {
+      b.innerHTML = "<b>✓ Loaded analysis.json</b>" +
+        '<span class="src">' + esc(sourceLabel) + "</span>" +
+        "<span>Showing real measured results.</span>";
+    }
+  }
+
+  // ---- load a dataset ----
+  function load(data, kind, sourceLabel) {
+    state.data = data;
+    // seed weights from phase8.weights (default), fall back to equal
+    var w = (data.phase8 && data.phase8.weights) || { accuracy: 0.4, latency: 0.25, vram: 0.2, tokens: 0.15 };
+    state.weights = {}; CRIT.forEach(function (k) { state.weights[k] = +w[k] || 0; });
+    setBanner(kind, sourceLabel);
+    buildPresets();
+    buildSliders();
+    setWeights(state.weights);   // renders readout + SAW table
+    renderFinding();
+    buildAgentSelector();
+    renderAgents();
+  }
+
+  function validate(d) {
+    if (!d || !d.phase8 || !Array.isArray(d.phase8.normalised)) {
+      throw new Error("Not an AgentMeter analysis.json (missing phase8.normalised).");
+    }
+    return d;
+  }
+
+  // ---- wire up file input ----
+  document.getElementById("file").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var rd = new FileReader();
+    rd.onload = function () {
+      try { load(validate(JSON.parse(rd.result)), "loaded", f.name); }
+      catch (err) { alert("Could not load " + f.name + ": " + err.message); }
+    };
+    rd.readAsText(f);
+  });
+
+  // ---- boot: bundled sample first, then try to fetch a real analysis.json ----
+  function bootSample() {
+    try {
+      var raw = document.getElementById("bundled-sample").textContent.trim();
+      load(validate(JSON.parse(raw)), "sample", "bundled sample_analysis.json");
+    } catch (err) {
+      document.getElementById("banner").innerHTML =
+        "<b>Could not parse bundled sample:</b> " + esc(err.message) + " — load an analysis.json manually.";
+    }
+  }
+  bootSample();
+  // Optional convenience: if a real analysis.json sits next to this page (served
+  // over http, or some browsers allow it over file://), auto-load it.
+  try {
+    fetch("./analysis.json").then(function (r) {
+      if (!r.ok) throw 0; return r.json();
+    }).then(function (d) {
+      load(validate(d), "loaded", "./analysis.json (auto-loaded)");
+    }).catch(function () { /* expected under file:// — keep the sample */ });
+  } catch (e) { /* ignore */ }
+})();
+</script>
+</body>
+</html>

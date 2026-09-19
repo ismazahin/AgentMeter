@@ -1,0 +1,592 @@
+{
+  "run_ids": [
+    "SAMPLE-illustrative"
+  ],
+  "notes": {
+    "SAMPLE": "ILLUSTRATIVE sample. accuracy / composite / rank / tier and the VRAM->1.0 finding are the LOCKED real L4 results. latency & token MAGNITUDES and ALL per-agent numbers are placeholders solved to reproduce the locked composites under default weights; load a real analysis.json to replace them.",
+    "tokens_definition": "tokens = mean over scenarios of the per-scenario TOTAL tokens (sum over the 4 agents of input+output).",
+    "normalisation_formula": "benefit (accuracy): norm = clamp(value/target,0,1); cost (latency,vram,tokens): norm = clamp(target/value,0,1)",
+    "vram_per_agent_note": "vram_delta (per-agent) is MARGINAL working memory above the fresh-context baseline and EXCLUDES model weights.",
+    "vram_saw_criterion": "SAW VRAM criterion = TOTAL device footprint = weight_footprint_mb + mean(scenario_peak_vram_mb). Target 16000 MB / weight 0.20.",
+    "vram_finding": "VRAM (total device footprint) ranges 3.1-6.6 GB across models, all well below the 16 GB target -> VRAM is not a binding constraint on this hardware; it normalises to 1.0 for all models and does not differentiate the ranking. Differentiation is driven by accuracy, latency, and tokens."
+  },
+  "model_vram": {
+    "path": "sample",
+    "run_hardware": "L4",
+    "run_quant": "4bit-nf4",
+    "hardware": "L4",
+    "quant": "4bit-nf4"
+  },
+  "phase7": {
+    "per_model": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "accuracy": 0.267,
+        "n": 300,
+        "n_correct": 80
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "accuracy": 0.333,
+        "n": 300,
+        "n_correct": 100
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "accuracy": 0.183,
+        "n": 300,
+        "n_correct": 55
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "accuracy": 0.26,
+        "n": 300,
+        "n_correct": 78
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "accuracy": 0.207,
+        "n": 300,
+        "n_correct": 62
+      }
+    ],
+    "per_class": [],
+    "confusion": {}
+  },
+  "phase8": {
+    "weights": {
+      "accuracy": 0.4,
+      "latency": 0.25,
+      "vram": 0.2,
+      "tokens": 0.15
+    },
+    "targets": {
+      "accuracy_pct": 80.0,
+      "latency_s": 5.0,
+      "vram_mb": 16000.0,
+      "tokens_total": 1200.0
+    },
+    "tiers": {
+      "healthy_min": 80.0,
+      "degraded_min": 60.0
+    },
+    "raw_criteria": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "accuracy_pct": 26.7,
+        "latency_s": 12.8617,
+        "vram_working_mb": 1300.0,
+        "tokens_total": 3086.82,
+        "weight_footprint_mb": 3900.0,
+        "total_device_vram_mb": 5200.0,
+        "vram_mb": 5200.0,
+        "vram_source": "total_device_footprint"
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "accuracy_pct": 33.3,
+        "latency_s": 20.9424,
+        "vram_working_mb": 1250.0,
+        "tokens_total": 5026.18,
+        "weight_footprint_mb": 3750.0,
+        "total_device_vram_mb": 5000.0,
+        "vram_mb": 5000.0,
+        "vram_source": "total_device_footprint"
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "accuracy_pct": 18.3,
+        "latency_s": 15.8103,
+        "vram_working_mb": 1400.0,
+        "tokens_total": 3794.47,
+        "weight_footprint_mb": 4200.0,
+        "total_device_vram_mb": 5600.0,
+        "vram_mb": 5600.0,
+        "vram_source": "total_device_footprint"
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "accuracy_pct": 26.0,
+        "latency_s": 23.2558,
+        "vram_working_mb": 1650.0,
+        "tokens_total": 5581.4,
+        "weight_footprint_mb": 4950.0,
+        "total_device_vram_mb": 6600.0,
+        "vram_mb": 6600.0,
+        "vram_source": "total_device_footprint"
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "accuracy_pct": 20.7,
+        "latency_s": 18.6047,
+        "vram_working_mb": 775.0,
+        "tokens_total": 4465.12,
+        "weight_footprint_mb": 2325.0,
+        "total_device_vram_mb": 3100.0,
+        "vram_mb": 3100.0,
+        "vram_source": "total_device_footprint"
+      }
+    ],
+    "normalised": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "accuracy": 0.33375000000000005,
+        "latency": 0.38874999999999976,
+        "vram": 1.0,
+        "tokens": 0.38874999999999976
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "accuracy": 0.41625000000000006,
+        "latency": 0.23874999999999993,
+        "vram": 1.0,
+        "tokens": 0.23874999999999993
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "accuracy": 0.22875,
+        "latency": 0.31624999999999986,
+        "vram": 1.0,
+        "tokens": 0.31624999999999986
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "accuracy": 0.325,
+        "latency": 0.2149999999999999,
+        "vram": 1.0,
+        "tokens": 0.2149999999999999
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "accuracy": 0.25875,
+        "latency": 0.26874999999999993,
+        "vram": 1.0,
+        "tokens": 0.26874999999999993
+      }
+    ],
+    "saw_table": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "accuracy_pct": 26.7,
+        "latency_s": 12.8617,
+        "vram_working_mb": 1300.0,
+        "tokens_total": 3086.82,
+        "weight_footprint_mb": 3900.0,
+        "total_device_vram_mb": 5200.0,
+        "vram_mb": 5200.0,
+        "vram_source": "total_device_footprint",
+        "accuracy": 0.33375000000000005,
+        "latency": 0.38874999999999976,
+        "vram": 1.0,
+        "tokens": 0.38874999999999976,
+        "composite": 0.489,
+        "rank": 1,
+        "tier": "Critical"
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "accuracy_pct": 33.3,
+        "latency_s": 20.9424,
+        "vram_working_mb": 1250.0,
+        "tokens_total": 5026.18,
+        "weight_footprint_mb": 3750.0,
+        "total_device_vram_mb": 5000.0,
+        "vram_mb": 5000.0,
+        "vram_source": "total_device_footprint",
+        "accuracy": 0.41625000000000006,
+        "latency": 0.23874999999999993,
+        "vram": 1.0,
+        "tokens": 0.23874999999999993,
+        "composite": 0.462,
+        "rank": 2,
+        "tier": "Critical"
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "accuracy_pct": 18.3,
+        "latency_s": 15.8103,
+        "vram_working_mb": 1400.0,
+        "tokens_total": 3794.47,
+        "weight_footprint_mb": 4200.0,
+        "total_device_vram_mb": 5600.0,
+        "vram_mb": 5600.0,
+        "vram_source": "total_device_footprint",
+        "accuracy": 0.22875,
+        "latency": 0.31624999999999986,
+        "vram": 1.0,
+        "tokens": 0.31624999999999986,
+        "composite": 0.418,
+        "rank": 3,
+        "tier": "Critical"
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "accuracy_pct": 26.0,
+        "latency_s": 23.2558,
+        "vram_working_mb": 1650.0,
+        "tokens_total": 5581.4,
+        "weight_footprint_mb": 4950.0,
+        "total_device_vram_mb": 6600.0,
+        "vram_mb": 6600.0,
+        "vram_source": "total_device_footprint",
+        "accuracy": 0.325,
+        "latency": 0.2149999999999999,
+        "vram": 1.0,
+        "tokens": 0.2149999999999999,
+        "composite": 0.416,
+        "rank": 4,
+        "tier": "Critical"
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "accuracy_pct": 20.7,
+        "latency_s": 18.6047,
+        "vram_working_mb": 775.0,
+        "tokens_total": 4465.12,
+        "weight_footprint_mb": 2325.0,
+        "total_device_vram_mb": 3100.0,
+        "vram_mb": 3100.0,
+        "vram_source": "total_device_footprint",
+        "accuracy": 0.25875,
+        "latency": 0.26874999999999993,
+        "vram": 1.0,
+        "tokens": 0.26874999999999993,
+        "composite": 0.411,
+        "rank": 5,
+        "tier": "Critical"
+      }
+    ]
+  },
+  "sensitivity": {
+    "weight_sets": {
+      "default": {
+        "accuracy": 0.4,
+        "latency": 0.25,
+        "vram": 0.2,
+        "tokens": 0.15
+      },
+      "equal": {
+        "accuracy": 0.25,
+        "latency": 0.25,
+        "vram": 0.25,
+        "tokens": 0.25
+      },
+      "accuracy_heavy": {
+        "accuracy": 0.55,
+        "latency": 0.2,
+        "vram": 0.15,
+        "tokens": 0.1
+      },
+      "efficiency_heavy": {
+        "accuracy": 0.25,
+        "latency": 0.3,
+        "vram": 0.3,
+        "tokens": 0.15
+      }
+    },
+    "ranks": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "default": 1,
+        "equal": 1,
+        "accuracy_heavy": 2,
+        "efficiency_heavy": 1
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "default": 2,
+        "equal": 2,
+        "accuracy_heavy": 1,
+        "efficiency_heavy": 2
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "default": 3,
+        "equal": 3,
+        "accuracy_heavy": 5,
+        "efficiency_heavy": 3
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "default": 4,
+        "equal": 5,
+        "accuracy_heavy": 3,
+        "efficiency_heavy": 5
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "default": 5,
+        "equal": 4,
+        "accuracy_heavy": 4,
+        "efficiency_heavy": 4
+      }
+    ],
+    "scores": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "default": 0.489,
+        "equal": 0.527812,
+        "accuracy_heavy": 0.450187,
+        "efficiency_heavy": 0.558375
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "default": 0.462,
+        "equal": 0.473438,
+        "accuracy_heavy": 0.450562,
+        "efficiency_heavy": 0.5115
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "default": 0.418,
+        "equal": 0.465312,
+        "accuracy_heavy": 0.370687,
+        "efficiency_heavy": 0.4995
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "default": 0.416,
+        "equal": 0.43875,
+        "accuracy_heavy": 0.39325,
+        "efficiency_heavy": 0.478
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "default": 0.411,
+        "equal": 0.449062,
+        "accuracy_heavy": 0.372937,
+        "efficiency_heavy": 0.485625
+      }
+    ],
+    "top_by_set": {
+      "default": "Qwen2.5-7B-Instruct",
+      "equal": "Qwen2.5-7B-Instruct",
+      "accuracy_heavy": "Mistral-7B-Instruct-v0.3",
+      "efficiency_heavy": "Qwen2.5-7B-Instruct"
+    },
+    "top_stable": false,
+    "stable_top_model": null
+  },
+  "per_agent": {
+    "table": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "agent_name": "perceive",
+        "mean_wall_s": 0.476,
+        "mean_ttft_s": 0.1666,
+        "mean_vram_delta_mb": 40.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "agent_name": "reason",
+        "mean_wall_s": 3.0464,
+        "mean_ttft_s": 1.0662,
+        "mean_vram_delta_mb": 120.0,
+        "mean_input_tokens": 260.0,
+        "mean_output_tokens": 120.0
+      },
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "agent_name": "decide",
+        "mean_wall_s": 1.0472,
+        "mean_ttft_s": 0.3665,
+        "mean_vram_delta_mb": 380.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "agent_name": "act",
+        "mean_wall_s": 0.5712,
+        "mean_ttft_s": 0.1999,
+        "mean_vram_delta_mb": 60.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "agent_name": "perceive",
+        "mean_wall_s": 0.475,
+        "mean_ttft_s": 0.1663,
+        "mean_vram_delta_mb": 40.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "agent_name": "reason",
+        "mean_wall_s": 3.04,
+        "mean_ttft_s": 1.064,
+        "mean_vram_delta_mb": 120.0,
+        "mean_input_tokens": 260.0,
+        "mean_output_tokens": 120.0
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "agent_name": "decide",
+        "mean_wall_s": 1.045,
+        "mean_ttft_s": 0.3658,
+        "mean_vram_delta_mb": 380.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "agent_name": "act",
+        "mean_wall_s": 0.57,
+        "mean_ttft_s": 0.1995,
+        "mean_vram_delta_mb": 60.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "agent_name": "perceive",
+        "mean_wall_s": 0.478,
+        "mean_ttft_s": 0.1673,
+        "mean_vram_delta_mb": 40.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "agent_name": "reason",
+        "mean_wall_s": 3.0592,
+        "mean_ttft_s": 1.0707,
+        "mean_vram_delta_mb": 120.0,
+        "mean_input_tokens": 260.0,
+        "mean_output_tokens": 120.0
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "agent_name": "decide",
+        "mean_wall_s": 1.0516,
+        "mean_ttft_s": 0.3681,
+        "mean_vram_delta_mb": 380.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "agent_name": "act",
+        "mean_wall_s": 0.5736,
+        "mean_ttft_s": 0.2008,
+        "mean_vram_delta_mb": 60.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "agent_name": "perceive",
+        "mean_wall_s": 0.483,
+        "mean_ttft_s": 0.169,
+        "mean_vram_delta_mb": 40.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "agent_name": "reason",
+        "mean_wall_s": 3.0912,
+        "mean_ttft_s": 1.0819,
+        "mean_vram_delta_mb": 120.0,
+        "mean_input_tokens": 260.0,
+        "mean_output_tokens": 120.0
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "agent_name": "decide",
+        "mean_wall_s": 1.0626,
+        "mean_ttft_s": 0.3719,
+        "mean_vram_delta_mb": 380.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "agent_name": "act",
+        "mean_wall_s": 0.5796,
+        "mean_ttft_s": 0.2029,
+        "mean_vram_delta_mb": 60.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "agent_name": "perceive",
+        "mean_wall_s": 0.4655,
+        "mean_ttft_s": 0.1629,
+        "mean_vram_delta_mb": 40.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "agent_name": "reason",
+        "mean_wall_s": 2.9792,
+        "mean_ttft_s": 1.0427,
+        "mean_vram_delta_mb": 120.0,
+        "mean_input_tokens": 260.0,
+        "mean_output_tokens": 120.0
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "agent_name": "decide",
+        "mean_wall_s": 1.0241,
+        "mean_ttft_s": 0.3584,
+        "mean_vram_delta_mb": 380.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "agent_name": "act",
+        "mean_wall_s": 0.5586,
+        "mean_ttft_s": 0.1955,
+        "mean_vram_delta_mb": 60.0,
+        "mean_input_tokens": 180.0,
+        "mean_output_tokens": 40.0
+      }
+    ],
+    "dominant": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "latency_dominant_agent": "reason",
+        "latency_dominant_mean_wall_s": 3.0464,
+        "vram_dominant_agent": "decide",
+        "vram_dominant_mean_vram_delta_mb": 380.0
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "latency_dominant_agent": "reason",
+        "latency_dominant_mean_wall_s": 3.04,
+        "vram_dominant_agent": "decide",
+        "vram_dominant_mean_vram_delta_mb": 380.0
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "latency_dominant_agent": "reason",
+        "latency_dominant_mean_wall_s": 3.0592,
+        "vram_dominant_agent": "decide",
+        "vram_dominant_mean_vram_delta_mb": 380.0
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "latency_dominant_agent": "reason",
+        "latency_dominant_mean_wall_s": 3.0912,
+        "vram_dominant_agent": "decide",
+        "vram_dominant_mean_vram_delta_mb": 380.0
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "latency_dominant_agent": "reason",
+        "latency_dominant_mean_wall_s": 2.9792,
+        "vram_dominant_agent": "decide",
+        "vram_dominant_mean_vram_delta_mb": 380.0
+      }
+    ]
+  },
+  "statistics": {}
+}

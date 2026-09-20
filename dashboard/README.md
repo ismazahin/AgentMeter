@@ -29,8 +29,10 @@ All scoring/re-ranking is delegated to [`saw.js`](./saw.js), which mirrors
 A simple top nav switches between three views (everything still reads from the
 one loaded `analysis.json`; no server or GPU needed to view precomputed results):
 
-- **Overview** — the "Add a model" admin panel, the SAW ranking table, the live
-  weight sliders, and the VRAM finding.
+- **Overview** — headline **Highlights** cards (Composite Health Score, Accuracy,
+  Latency per scenario as labelled bar charts, best model emphasised), the SAW
+  ranking table, the live weight sliders, the VRAM finding, and the "Add a model"
+  admin panel.
 - **Detailed Analysis** — the study content for a supervisor: per-agent
   diagnostics (with the *reason dominates latency* / *decide dominates marginal
   working memory* findings highlighted per row), the sensitivity table (rank

@@ -159,21 +159,60 @@
   .pill { display: inline-block; padding: 2px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
   .pill.on { color: var(--healthy); background: var(--healthy-bg); }
   .pill.off { color: var(--muted); background: var(--line); }
+
+  /* ===================== professional polish ===================== */
+  :root {
+    --shadow: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.07);
+    --c1: #4a3aa7; --c2: #2a78d6; --c3: #eb6834;   /* composite / accuracy / latency */
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --shadow: 0 1px 2px rgba(0,0,0,.45);
+    --c1: #9085e9; --c2: #3987e5; --c3: #d95926;
+  } }
+  :root[data-theme="dark"] { --shadow: 0 1px 2px rgba(0,0,0,.45); --c1:#9085e9; --c2:#3987e5; --c3:#d95926; }
+  .wrap { max-width: 1120px; }
+  /* top brand bar */
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 6px 0 14px; }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .brand .mark { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: #fff; font-size: 17px; font-weight: 800; }
+  .brand .name { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
+  .brand .name small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); letter-spacing: 0; margin-top: 1px; }
+  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .toolbar .filelabel { font-size: 13px; color: var(--muted); }
+  /* nav as a real tab bar */
+  .nav { gap: 4px; border-bottom: 1px solid var(--line); padding: 0; margin: 2px 0 20px; }
+  .nav button { border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 12px 18px; font-size: 15px; background: transparent; color: var(--muted); }
+  .nav button:hover { color: var(--ink); background: transparent; border-bottom-color: var(--line); }
+  .nav button.active { background: transparent; color: var(--accent); border-bottom-color: var(--accent); }
+  .panel { box-shadow: var(--shadow); }
+  .panel h2 { font-size: 18px; letter-spacing: -0.01em; }
+  .section-label { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 2px 10px; }
+  /* highlight cards (Artificial-Analysis-style) */
+  .highlights { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 780px) { .highlights { grid-template-columns: 1fr 1fr 1fr; } }
+  .hcard { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 14px; box-shadow: var(--shadow); }
+  .hcard .hhead { display: flex; align-items: center; gap: 8px; }
+  .hcard .sq { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+  .hcard h3 { margin: 0; font-size: 16px; font-weight: 700; }
+  .hcard .sub { color: var(--muted); font-size: 12px; margin: 3px 0 4px; }
+  .vbars { display: flex; align-items: flex-end; gap: 8px; height: 168px; padding-top: 8px; }
+  .vbar { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+  .vbar .v { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); margin-bottom: 4px; }
+  .vbar .col { width: 100%; max-width: 40px; border-radius: 6px 6px 0 0; min-height: 3px; }
+  .vbar .col.c1 { background: var(--c1); } .vbar .col.c2 { background: var(--c2); } .vbar .col.c3 { background: var(--c3); }
+  .vbar .m { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.2; margin-top: 8px; word-break: break-word; }
+  .vbar.best .m { color: var(--ink); font-weight: 600; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>AgentMeter — Results Dashboard</h1>
-    <p class="sub">Resource-efficiency benchmark of open-source LLMs in a minimal 4-agent pipeline. View layer over <code>analysis.json</code>.</p>
-  </header>
-
-  <div id="banner" class="banner sample"></div>
-
-  <div class="panel">
-    <div class="controls">
-      <label><b>Load analysis.json:</b> <input type="file" id="file" accept="application/json,.json"></label>
-      <span class="note" style="margin:0">Or drop an <code>analysis.json</code> beside this page to auto-load it.</span>
+  <div class="topbar">
+    <div class="brand">
+      <span class="mark">◪</span>
+      <span class="name">AgentMeter<small>Resource-efficiency benchmark of open-source LLMs in a minimal 4-agent pipeline</small></span>
+    </div>
+    <div class="toolbar">
+      <label class="filelabel">Load results: <input type="file" id="file" accept="application/json,.json"></label>
     </div>
   </div>
 
@@ -183,27 +222,31 @@
     <button data-view="settings">Settings</button>
   </nav>
 
+  <div id="banner" class="banner sample"></div>
+
   <!-- ===================== OVERVIEW ===================== -->
   <section id="view-overview" class="view active">
 
-  <div class="panel">
-    <h2>Add a model <span class="hint">— admin: pull ONE extra HF model and run it through the same harness (exploratory, NOT part of the validated 5-model study)</span></h2>
-    <div class="admin">
-      <div class="row">
-        <label for="pull-base">Server base URL</label>
-        <input type="text" id="pull-base" placeholder="leave EMPTY when opened from the server; set only for file:// (e.g. http://INSTANCE_IP:8000)" autocomplete="off">
-      </div>
-      <div class="row">
-        <label for="pull-model">HF model id</label>
-        <input type="text" id="pull-model" placeholder="org/Model-Name (≤ 8B params, causal-LM)" autocomplete="off">
-        <button class="primary" id="pull-btn">Pull &amp; evaluate</button>
-      </div>
-      <div class="progress" id="pull-progress"><div class="fill" id="pull-fill"></div></div>
-      <p id="pull-status"></p>
-      <p class="note" style="margin:0">Open this dashboard from the pull/eval server (Vast.ai) and the base URL stays <b>empty</b> — the API is same-origin. Only set it when viewing over <code>file://</code>. The server validates the size from HF metadata <b>before</b> any download (rejects &gt; 8B), runs all 300 scenarios under the identical harness (4-bit NF4, sequential VRAM isolation) into a <b>separate</b> DB, and appends the result below as <b>exploratory</b>. The locked study, its statistics and canonical rows are never modified.</p>
+  <div class="section-label">Highlights</div>
+  <div class="highlights">
+    <div class="hcard">
+      <div class="hhead"><span class="sq" style="background:var(--c1)"></span><h3>Composite Health Score</h3></div>
+      <p class="sub">SAW composite ×100 · Higher is better</p>
+      <div class="vbars" id="hc-composite"></div>
+    </div>
+    <div class="hcard">
+      <div class="hhead"><span class="sq" style="background:var(--c2)"></span><h3>Accuracy</h3></div>
+      <p class="sub">Detection accuracy across 300 scenarios · Higher is better</p>
+      <div class="vbars" id="hc-accuracy"></div>
+    </div>
+    <div class="hcard">
+      <div class="hhead"><span class="sq" style="background:var(--c3)"></span><h3>Latency per scenario</h3></div>
+      <p class="sub">Mean wall time per scenario · Lower is better</p>
+      <div class="vbars" id="hc-latency"></div>
     </div>
   </div>
 
+  <div class="section-label">Ranking</div>
   <div class="panel">
     <h2>SAW ranking <span class="hint">— Simple Additive Weighting composite, re-ranked live from the weights below</span></h2>
     <table id="saw">
@@ -229,6 +272,25 @@
   <div class="panel">
     <h2>VRAM finding</h2>
     <p class="finding" id="finding"></p>
+  </div>
+
+  <div class="section-label">Admin</div>
+  <div class="panel">
+    <h2>Add a model <span class="hint">— pull ONE extra HF model and run it through the same harness (exploratory, NOT part of the validated 5-model study)</span></h2>
+    <div class="admin">
+      <div class="row">
+        <label for="pull-base">Server base URL</label>
+        <input type="text" id="pull-base" placeholder="leave EMPTY when opened from the server; set only for file:// (e.g. http://INSTANCE_IP:8000)" autocomplete="off">
+      </div>
+      <div class="row">
+        <label for="pull-model">HF model id</label>
+        <input type="text" id="pull-model" placeholder="org/Model-Name (≤ 8B params, causal-LM)" autocomplete="off">
+        <button class="primary" id="pull-btn">Pull &amp; evaluate</button>
+      </div>
+      <div class="progress" id="pull-progress"><div class="fill" id="pull-fill"></div></div>
+      <p id="pull-status"></p>
+      <p class="note" style="margin:0">Open this dashboard from the pull/eval server (Vast.ai) and the base URL stays <b>empty</b> — the API is same-origin. Only set it when viewing over <code>file://</code>. The server validates the size from HF metadata <b>before</b> any download (rejects &gt; 8B), runs all 300 scenarios under the identical harness (4-bit NF4, sequential VRAM isolation) into a <b>separate</b> DB, and appends the result below as <b>exploratory</b>. The locked study, its statistics and canonical rows are never modified.</p>
+    </div>
   </div>
 
   </section><!-- /overview -->
@@ -973,6 +1035,49 @@
     document.getElementById("saw-note").textContent = note;
   }
 
+  // ---- render: highlight cards (headline bar charts) ----
+  function shortModel(m) {
+    return String(m).split("/").pop()
+      .replace(/-Instruct.*$/i, "").replace(/-it$/i, "").replace(/-chat$/i, "");
+  }
+  function hcardBars(containerId, rows, fmt, higherBetter, colClass) {
+    var el = document.getElementById(containerId);
+    if (!el) return;
+    if (!rows.length) { el.innerHTML = "<span class='note'>(no data)</span>"; return; }
+    var vals = rows.map(function (r) { return +r.value || 0; });
+    var max = Math.max.apply(null, vals.map(Math.abs)) || 1;
+    var best = higherBetter ? Math.max.apply(null, vals) : Math.min.apply(null, vals);
+    el.innerHTML = rows.map(function (r) {
+      var v = +r.value || 0;
+      var h = Math.max(3, Math.round(Math.abs(v) / max * 120));
+      var isBest = (v === best);
+      return '<div class="vbar' + (isBest ? " best" : "") + '">' +
+        '<span class="v">' + fmt(v) + "</span>" +
+        '<div class="col ' + colClass + '" style="height:' + h + "px" + (isBest ? "" : ";opacity:.5") + '"></div>' +
+        '<span class="m">' + esc(shortModel(r.model)) + "</span></div>";
+    }).join("");
+  }
+  function renderHighlights() {
+    var d = state.data; if (!d || !d.phase8) return;
+    var p8 = d.phase8;
+    var norm = p8.normalised || [];
+    var rawMap = byModel(p8.saw_table && p8.saw_table.length ? p8.saw_table : (p8.raw_criteria || []));
+    var tiers = p8.tiers || { healthy_min: 80, degraded_min: 60 };
+    // Composite (×100) under the LIVE weights — stays in sync with the sliders.
+    var ranked = SAW.rankModels(norm, state.weights, tiers);
+    hcardBars("hc-composite",
+      ranked.map(function (r) { return { model: r.model, value: r.composite * 100 }; }),
+      function (v) { return v.toFixed(0); }, true, "c1");
+    // Accuracy (%) — highest first
+    var acc = norm.map(function (n) { return { model: n.model, value: (rawMap[n.model] || {}).accuracy_pct || 0 }; })
+      .sort(function (a, b) { return b.value - a.value; });
+    hcardBars("hc-accuracy", acc, function (v) { return v.toFixed(0) + "%"; }, true, "c2");
+    // Latency (s) — lowest first
+    var lat = norm.map(function (n) { return { model: n.model, value: (rawMap[n.model] || {}).latency_s || 0 }; })
+      .sort(function (a, b) { return a.value - b.value; });
+    hcardBars("hc-latency", lat, function (v) { return v.toFixed(1) + "s"; }, false, "c3");
+  }
+
   // ---- render: sliders + presets ----
   function renderWeightReadout() {
     var w = SAW.normalizeWeights(state.weights);
@@ -1002,6 +1107,7 @@
     });
     renderWeightReadout();
     renderSaw();
+    renderHighlights();
   }
 
   function buildSliders() {
@@ -1018,6 +1124,7 @@
         state.weights[k] = +e.target.value;
         renderWeightReadout();
         renderSaw();
+        renderHighlights();
       });
     });
   }

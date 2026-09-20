@@ -24,6 +24,30 @@ detection code, and does no measurement of its own.
 All scoring/re-ranking is delegated to [`saw.js`](./saw.js), which mirrors
 `analyze._composite` / `_tier` exactly (guaranteed by `tests/test_saw_parity.py`).
 
+### Tabs (presentation view)
+
+A simple top nav switches between three views (everything still reads from the
+one loaded `analysis.json`; no server or GPU needed to view precomputed results):
+
+- **Overview** — the "Add a model" admin panel, the SAW ranking table, the live
+  weight sliders, and the VRAM finding.
+- **Detailed Analysis** — the study content for a supervisor: per-agent
+  diagnostics (with the *reason dominates latency* / *decide dominates marginal
+  working memory* findings highlighted per row), the sensitivity table (rank
+  under each weight set, with rank-stability of the #1 model called out), the
+  Kruskal-Wallis + Dunn statistics for latency and peak VRAM (read-only), and
+  accuracy detail (per-model, plus per-class and confusion matrices when present
+  in the JSON).
+- **Settings** — **status only**. It shows each token as *set* / *not set* and
+  the cost-safety modes (auto-destroy, idle-timeout) read from the server's
+  `GET /settings-status`. It has **no input fields for any token** — secrets live
+  only in the server-side `.env` and never pass through the browser. Over
+  `file://` (no server) it shows "status unavailable".
+
+When you open the dashboard **from the pull/eval server**, dropping the canonical
+`results/analysis/analysis.json` at `dashboard/analysis.json` makes it auto-load
+(the server serves that file); otherwise use **Load analysis.json**.
+
 ## Run it — simplest (no server)
 
 Open the file directly in a browser:

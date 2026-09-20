@@ -129,6 +129,36 @@
   .legend .sw.wall { background: var(--bar1); } .legend .sw.vram { background: var(--bar2); }
   .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
   code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }
+  /* --- nav (Overview / Detailed Analysis / Settings) --- */
+  .nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 4px; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+  .nav button { font: inherit; font-weight: 600; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; cursor: pointer; }
+  .nav button:hover { border-color: var(--accent); color: var(--ink); }
+  .nav button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .view { display: none; }
+  .view.active { display: block; }
+  /* section intro line under a panel heading */
+  .lead { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  /* table cell highlighting for the "dominant" findings + rank-1 */
+  td.hot { background: var(--accent-soft); font-weight: 700; color: var(--accent); }
+  td.rank1 { color: var(--accent); font-weight: 700; }
+  th.hotcol { color: var(--accent); }
+  .subtable { margin: 8px 0 4px; }
+  .subtable caption { text-align: left; color: var(--muted); font-size: 13px; padding: 8px 0 6px; }
+  /* statistics rows */
+  .stat-row { display: grid; grid-template-columns: 200px 1fr; gap: 8px 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .stat-row .k { color: var(--muted); }
+  .sig { font-weight: 700; }
+  .sig.yes { color: var(--healthy); } .sig.no { color: var(--muted); }
+  .matrix { font-size: 12px; }
+  .matrix td, .matrix th { padding: 5px 7px; }
+  /* settings status rows */
+  .status-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  @media (min-width: 640px) { .status-grid { grid-template-columns: 1fr 1fr; } }
+  .status-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .status-item .lbl { color: var(--muted); }
+  .pill { display: inline-block; padding: 2px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .pill.on { color: var(--healthy); background: var(--healthy-bg); }
+  .pill.off { color: var(--muted); background: var(--line); }
 </style>
 </head>
 <body>
@@ -146,6 +176,15 @@
       <span class="note" style="margin:0">Or drop an <code>analysis.json</code> beside this page to auto-load it.</span>
     </div>
   </div>
+
+  <nav class="nav" id="nav">
+    <button data-view="overview" class="active">Overview</button>
+    <button data-view="detailed">Detailed Analysis</button>
+    <button data-view="settings">Settings</button>
+  </nav>
+
+  <!-- ===================== OVERVIEW ===================== -->
+  <section id="view-overview" class="view active">
 
   <div class="panel">
     <h2>Add a model <span class="hint">— admin: pull ONE extra HF model and run it through the same harness (exploratory, NOT part of the validated 5-model study)</span></h2>
@@ -192,27 +231,78 @@
     <p class="finding" id="finding"></p>
   </div>
 
+  </section><!-- /overview -->
+
+  <!-- ===================== DETAILED ANALYSIS ===================== -->
+  <section id="view-detailed" class="view">
+
   <div class="panel">
-    <h2>Per-agent diagnostics</h2>
-    <div class="controls" style="margin-bottom:14px">
-      <label>Model: <select id="agent-model"></select></label>
+    <h2>Per-agent diagnostics <span class="hint">— where latency and working memory are spent inside the 4-agent pipeline</span></h2>
+    <p class="finding" id="pa-finding"></p>
+    <table class="subtable" id="pa-wall-table">
+      <caption>Mean wall time per agent (seconds) — highest per model highlighted</caption>
+    </table>
+    <table class="subtable" id="pa-vram-table" style="margin-top:18px">
+      <caption>Mean marginal working memory per agent (vram_delta, MB — above the fresh-context baseline, EXCLUDES model weights; not total device VRAM)</caption>
+    </table>
+    <div style="margin-top:20px">
+      <div class="controls" style="margin-bottom:14px">
+        <label>Per-model chart: <select id="agent-model"></select></label>
+      </div>
+      <div class="agent-chart">
+        <div class="chart-block">
+          <h3>Mean wall time per agent <small>(seconds)</small></h3>
+          <div id="wall-bars"></div>
+        </div>
+        <div class="chart-block">
+          <h3>Marginal working memory per agent <small>(mean vram_delta, MB — EXCLUDES model weights; not total device VRAM)</small></h3>
+          <div id="vram-bars"></div>
+        </div>
+        <div class="legend">
+          <span><span class="sw wall"></span>wall time</span>
+          <span><span class="sw vram"></span>marginal working memory</span>
+        </div>
+      </div>
+      <p class="note" id="agent-note"></p>
     </div>
-    <div class="agent-chart">
-      <div class="chart-block">
-        <h3>Mean wall time per agent <small>(seconds)</small></h3>
-        <div id="wall-bars"></div>
-      </div>
-      <div class="chart-block">
-        <h3>Marginal working memory per agent <small>(mean vram_delta, MB — above fresh-context baseline, EXCLUDES model weights; not total device VRAM)</small></h3>
-        <div id="vram-bars"></div>
-      </div>
-      <div class="legend">
-        <span><span class="sw wall"></span>wall time</span>
-        <span><span class="sw vram"></span>marginal working memory</span>
-      </div>
-    </div>
-    <p class="note" id="agent-note"></p>
   </div>
+
+  <div class="panel">
+    <h2>Sensitivity analysis <span class="hint">— ranking under each configured weight set (fixed, from the study)</span></h2>
+    <p class="finding" id="sens-finding"></p>
+    <table id="sens-table"></table>
+    <p class="note" id="sens-note"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Statistics <span class="hint">— Kruskal-Wallis omnibus + Dunn post-hoc (read-only; from the study)</span></h2>
+    <p class="finding" id="stats-finding"></p>
+    <div id="stats-body"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Accuracy detail</h2>
+    <p class="lead">Per-model accuracy from the stored <code>correct</code> flag (not recomputed).</p>
+    <table id="acc-table"></table>
+    <div id="acc-perclass" style="margin-top:18px"></div>
+    <div id="acc-confusion" style="margin-top:18px"></div>
+  </div>
+
+  </section><!-- /detailed -->
+
+  <!-- ===================== SETTINGS (STATUS ONLY) ===================== -->
+  <section id="view-settings" class="view">
+  <div class="panel">
+    <h2>Settings <span class="hint">— status only</span></h2>
+    <p class="finding" id="settings-note">Tokens are configured via the server-side <code>.env</code> file for security and are never entered or shown here.</p>
+    <h3 style="margin:6px 0 10px;font-size:14px">Token status</h3>
+    <div class="status-grid" id="settings-tokens"></div>
+    <h3 style="margin:20px 0 10px;font-size:14px">Cost safety</h3>
+    <div class="status-grid" id="settings-cost"></div>
+    <p class="note" id="settings-status"></p>
+  </div>
+  </section><!-- /settings -->
+
 </div>
 
 <!-- Bundled illustrative SAMPLE (see notes.SAMPLE inside). Kept in sync with
@@ -1001,6 +1091,260 @@
     sel.onchange = function () { state.agentModel = sel.value; renderAgents(); };
   }
 
+  // ==== Detailed Analysis (read-only; no recomputation) ====
+  var AGENT_ORDER = ["perceive", "reason", "decide", "act"];
+
+  function modelsInOrder(rows, key) {
+    var out = [];
+    (rows || []).forEach(function (r) { if (out.indexOf(r[key]) < 0) out.push(r[key]); });
+    return out;
+  }
+
+  // per-agent value tables: rows = models, cols = 4 agents; highlight the max per row
+  function agentTable(tableId, valKey, fmt) {
+    var t = (state.data.per_agent && state.data.per_agent.table) || [];
+    var el = document.getElementById(tableId);
+    if (!t.length) { el.innerHTML = '<tbody><tr><td class="l">(no per-agent data in this file)</td></tr></tbody>'; return; }
+    var models = modelsInOrder(t, "model");
+    var byMA = {};
+    t.forEach(function (r) { (byMA[r.model] = byMA[r.model] || {})[r.agent_name] = r; });
+    var head = "<thead><tr><th class='l'>Model</th>" +
+      AGENT_ORDER.map(function (a) { return "<th>" + a + "</th>"; }).join("") + "</tr></thead>";
+    var body = models.map(function (m) {
+      // find the dominant agent (max value) for this model
+      var vals = AGENT_ORDER.map(function (a) { var r = byMA[m] && byMA[m][a]; return r ? (+r[valKey] || 0) : null; });
+      var maxIdx = -1, maxV = -Infinity;
+      vals.forEach(function (v, i) { if (v != null && v > maxV) { maxV = v; maxIdx = i; } });
+      return "<tr><td class='model l'>" + esc(m) + "</td>" +
+        AGENT_ORDER.map(function (a, i) {
+          var v = vals[i];
+          return "<td class='" + (i === maxIdx ? "hot" : "") + "'>" + (v == null ? "—" : fmt(v)) + "</td>";
+        }).join("") + "</tr>";
+    }).join("");
+    el.innerHTML = head + "<tbody>" + body + "</tbody>";
+  }
+
+  function renderPerAgentDetail() {
+    agentTable("pa-wall-table", "mean_wall_s", function (v) { return v.toFixed(2) + " s"; });
+    agentTable("pa-vram-table", "mean_vram_delta_mb", function (v) { return Math.round(v) + " MB"; });
+    // findings from per_agent.dominant if present, else derive from the table
+    var dom = (state.data.per_agent && state.data.per_agent.dominant) || [];
+    var latAgents = {}, vrAgents = {};
+    dom.forEach(function (d) {
+      if (d.latency_dominant_agent) latAgents[d.latency_dominant_agent] = 1;
+      if (d.vram_dominant_agent) vrAgents[d.vram_dominant_agent] = 1;
+    });
+    var el = document.getElementById("pa-finding");
+    if (dom.length) {
+      var lat = Object.keys(latAgents).join(", "), vr = Object.keys(vrAgents).join(", ");
+      el.textContent = "Finding: latency is dominated by the " + (lat || "reason") +
+        " agent, and marginal working memory by the " + (vr || "decide") +
+        " agent — consistent across all models (highlighted below).";
+    } else {
+      el.textContent = "Finding: reason dominates latency; decide dominates marginal working memory (highlighted per row below).";
+    }
+  }
+
+  // Sensitivity: rank of each model under each configured weight set
+  function renderSensitivity() {
+    var s = state.data.sensitivity || {};
+    var ranks = s.ranks || [];
+    var el = document.getElementById("sens-table");
+    if (!ranks.length) { el.innerHTML = "<tbody><tr><td class='l'>(no sensitivity data in this file)</td></tr></tbody>"; }
+    else {
+      var sets = Object.keys(ranks[0]).filter(function (k) { return k !== "model"; });
+      var head = "<thead><tr><th class='l'>Model</th>" +
+        sets.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead>";
+      var body = ranks.map(function (row) {
+        return "<tr><td class='model l'>" + esc(row.model) + "</td>" +
+          sets.map(function (c) {
+            var r = row[c];
+            return "<td class='" + (+r === 1 ? "rank1" : "") + "'>" + (r == null ? "—" : "#" + r) + "</td>";
+          }).join("") + "</tr>";
+      }).join("");
+      el.innerHTML = head + "<tbody>" + body + "</tbody>";
+    }
+    // finding: rank stability of the #1 model
+    var fin = document.getElementById("sens-finding");
+    var top = s.top_by_set || {};
+    if (s.top_stable && s.stable_top_model) {
+      fin.textContent = "Finding: " + s.stable_top_model + " ranks #1 under every weight set — the top result is rank-stable.";
+    } else if (Object.keys(top).length) {
+      fin.textContent = "Top model by weight set: " +
+        Object.keys(top).map(function (k) { return k + " → " + top[k]; }).join("   ·   ") + ".";
+    } else { fin.textContent = ""; }
+    // weight-set composition note
+    var ws = s.weight_sets || {};
+    var note = Object.keys(ws).map(function (name) {
+      var w = ws[name];
+      return name + " {" + CRIT.map(function (k) { return k + ":" + w[k]; }).join(", ") + "}";
+    }).join("   ·   ");
+    document.getElementById("sens-note").textContent = note ? ("Weight sets — " + note) : "";
+  }
+
+  // Statistics: Kruskal-Wallis (+ Dunn) — read-only
+  function fmtP(p) { return (p == null) ? "—" : (p < 1e-4 ? (+p).toExponential(2) : (+p).toFixed(4)); }
+  function metricLabel(m) {
+    return m === "scenario_total_time_s" ? "Latency (per-scenario wall time)"
+         : m === "scenario_peak_vram_mb" ? "Peak VRAM (per-scenario)" : m;
+  }
+  function renderStatistics() {
+    var stats = state.data.statistics || {};
+    var keys = Object.keys(stats);
+    var body = document.getElementById("stats-body");
+    var fin = document.getElementById("stats-finding");
+    if (!keys.length) {
+      body.innerHTML = "<p class='note'>(no statistics block in this file — load a real analysis.json)</p>";
+      fin.textContent = ""; return;
+    }
+    var sigMetrics = [];
+    body.innerHTML = keys.map(function (k) {
+      var e = stats[k];
+      var sig = !!e.significant;
+      if (sig) sigMetrics.push(metricLabel(k).toLowerCase());
+      var rows = "" +
+        "<div class='stat-row'><span class='k'>Metric</span><span>" + esc(metricLabel(k)) + "</span></div>" +
+        "<div class='stat-row'><span class='k'>Test</span><span>" + esc(e.test || "Kruskal-Wallis") + "</span></div>" +
+        "<div class='stat-row'><span class='k'>Statistic (H)</span><span>" + (e.H != null ? (+e.H).toFixed(2) : "—") + "</span></div>" +
+        "<div class='stat-row'><span class='k'>p-value</span><span>" + fmtP(e.p_value) + " (α = " + (e.alpha != null ? e.alpha : 0.05) + ")</span></div>" +
+        "<div class='stat-row'><span class='k'>Result</span><span class='sig " + (sig ? "yes" : "no") + "'>" +
+          (sig ? "SIGNIFICANT — models differ" : "not significant") + "</span></div>" +
+        (e.posthoc ? "<div class='stat-row'><span class='k'>Post-hoc</span><span>" + esc(e.posthoc) + "</span></div>" : "");
+      var dunn = dunnTable(e.dunn_matrix);
+      return "<div style='margin-bottom:18px'><h3 style='font-size:14px;margin:0 0 6px'>" +
+        esc(metricLabel(k)) + "</h3>" + rows + dunn + "</div>";
+    }).join("");
+    fin.textContent = sigMetrics.length
+      ? ("Finding: differences across models are statistically significant for " + sigMetrics.join(" and ") + ".")
+      : "Finding: no statistically significant differences across models in this file.";
+  }
+  function dunnTable(mat) {
+    if (!mat || typeof mat !== "object") return "";
+    var models = Object.keys(mat);
+    if (!models.length) return "";
+    var head = "<tr><th class='l'></th>" + models.map(function (m) { return "<th>" + esc(_short(m)) + "</th>"; }).join("") + "</tr>";
+    var body = models.map(function (r) {
+      return "<tr><td class='l'>" + esc(_short(r)) + "</td>" +
+        models.map(function (c) { var v = mat[r][c]; return "<td>" + (v == null ? "—" : fmtP(v)) + "</td>"; }).join("") + "</tr>";
+    }).join("");
+    return "<table class='matrix subtable'><caption>Dunn post-hoc adjusted p-values (Holm)</caption>" +
+      "<thead>" + head + "</thead><tbody>" + body + "</tbody></table>";
+  }
+  function _short(m) { return String(m).split("/").pop(); }
+
+  // Accuracy detail
+  function renderAccuracy() {
+    var p7 = state.data.phase7 || {};
+    var per = (p7.per_model || []).slice().sort(function (a, b) { return (b.accuracy || 0) - (a.accuracy || 0); });
+    var el = document.getElementById("acc-table");
+    if (!per.length) { el.innerHTML = "<tbody><tr><td class='l'>(no accuracy data in this file)</td></tr></tbody>"; }
+    else {
+      var hasUnparse = per.some(function (r) { return r.n_unparseable != null; });
+      el.innerHTML = "<thead><tr><th class='l'>Model</th><th>N</th><th>Correct</th><th>Accuracy</th>" +
+        (hasUnparse ? "<th>Unparseable</th>" : "") + "</tr></thead><tbody>" +
+        per.map(function (r) {
+          return "<tr><td class='model l'>" + esc(r.model) + "</td>" +
+            "<td>" + (r.n != null ? r.n : "—") + "</td>" +
+            "<td>" + (r.n_correct != null ? r.n_correct : "—") + "</td>" +
+            "<td>" + (r.accuracy != null ? (r.accuracy * 100).toFixed(1) + "%" : "—") + "</td>" +
+            (hasUnparse ? "<td>" + (r.n_unparseable != null ? r.n_unparseable : "—") + "</td>" : "") +
+            "</tr>";
+        }).join("") + "</tbody>";
+    }
+    // per-class breakdown (only if present)
+    var pc = p7.per_class || [];
+    var pcEl = document.getElementById("acc-perclass");
+    if (pc.length) {
+      var classes = modelsInOrder(pc, "class");
+      var models = modelsInOrder(pc, "model");
+      var byMC = {};
+      pc.forEach(function (r) { (byMC[r.model] = byMC[r.model] || {})[r["class"]] = r; });
+      pcEl.innerHTML = "<h3 style='font-size:14px;margin:0 0 8px'>Per-class accuracy</h3>" +
+        "<table><thead><tr><th class='l'>Model</th>" +
+        classes.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+        models.map(function (m) {
+          return "<tr><td class='model l'>" + esc(m) + "</td>" +
+            classes.map(function (c) {
+              var r = byMC[m] && byMC[m][c];
+              var v = r && r.accuracy != null && !isNaN(r.accuracy) ? (r.accuracy * 100).toFixed(0) + "%" : "—";
+              return "<td>" + v + "</td>";
+            }).join("") + "</tr>";
+        }).join("") + "</tbody></table>";
+    } else { pcEl.innerHTML = ""; }
+    // confusion matrices (only if present)
+    var conf = p7.confusion || {};
+    var cEl = document.getElementById("acc-confusion");
+    var cModels = Object.keys(conf);
+    if (cModels.length) {
+      cEl.innerHTML = "<h3 style='font-size:14px;margin:0 0 8px'>Confusion matrices <small class='note'>(rows = true label, cols = predicted)</small></h3>" +
+        cModels.map(function (m) {
+          var cm = conf[m]; var rowsL = Object.keys(cm);
+          var cols = rowsL.length ? Object.keys(cm[rowsL[0]]) : [];
+          return "<table class='matrix subtable'><caption>" + esc(_short(m)) + "</caption>" +
+            "<thead><tr><th class='l'></th>" + cols.map(function (c) { return "<th>" + esc(c) + "</th>"; }).join("") + "</tr></thead><tbody>" +
+            rowsL.map(function (r) {
+              return "<tr><td class='l'>" + esc(r) + "</td>" +
+                cols.map(function (c) { return "<td>" + (cm[r][c] != null ? cm[r][c] : 0) + "</td>"; }).join("") + "</tr>";
+            }).join("") + "</tbody></table>";
+        }).join("");
+    } else { cEl.innerHTML = ""; }
+  }
+
+  // ==== Settings (STATUS ONLY — never any token value) ====
+  function statusItem(label, on, onText, offText) {
+    return "<div class='status-item'><span class='lbl'>" + esc(label) + "</span>" +
+      "<span class='pill " + (on ? "on" : "off") + "'>" + esc(on ? onText : offText) + "</span></div>";
+  }
+  var TOKEN_LABELS = { HF_TOKEN: "HF token", VAST_API_KEY: "Vast API key",
+                       VAST_INSTANCE_ID: "Vast instance id", GITHUB_TOKEN: "GitHub token" };
+  function renderSettings() {
+    var base = (typeof pullBaseUrl === "function") ? pullBaseUrl() : "";
+    var tEl = document.getElementById("settings-tokens");
+    var cEl = document.getElementById("settings-cost");
+    var sEl = document.getElementById("settings-status");
+    if (!base && location.protocol === "file:") {
+      tEl.innerHTML = ""; cEl.innerHTML = "";
+      sEl.textContent = "Status unavailable — open via the server to see live status.";
+      return;
+    }
+    sEl.textContent = "Loading status…";
+    fetch(base + "/settings-status").then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status); return r.json();
+    }).then(function (d) {
+      var toks = d.tokens || {};
+      tEl.innerHTML = Object.keys(TOKEN_LABELS).map(function (k) {
+        return statusItem(TOKEN_LABELS[k], !!toks[k], "set", "not set");
+      }).join("");
+      var cs = d.cost_safety || {};
+      cEl.innerHTML =
+        statusItem("Auto-destroy", !!cs.auto_destroy, "on", "off") +
+        "<div class='status-item'><span class='lbl'>Idle-timeout</span><span class='pill " +
+          (cs.idle_timeout_min ? "on" : "off") + "'>" +
+          (cs.idle_timeout_min ? (cs.idle_timeout_min + " min") : "disabled") + "</span></div>";
+      sEl.textContent = "";
+    }).catch(function (err) {
+      tEl.innerHTML = ""; cEl.innerHTML = "";
+      sEl.textContent = "Status unavailable — open via the server to see live status. (" + err.message + ")";
+    });
+  }
+
+  // ==== nav ====
+  function showView(name) {
+    ["overview", "detailed", "settings"].forEach(function (v) {
+      var sec = document.getElementById("view-" + v);
+      if (sec) sec.classList.toggle("active", v === name);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#nav button"), function (b) {
+      b.classList.toggle("active", b.dataset.view === name);
+    });
+    if (name === "settings") renderSettings();
+  }
+  function initNav() {
+    Array.prototype.forEach.call(document.querySelectorAll("#nav button"), function (b) {
+      b.addEventListener("click", function () { showView(b.dataset.view); });
+    });
+  }
+
   // ---- banner ----
   function setBanner(kind, sourceLabel) {
     var b = document.getElementById("banner");
@@ -1030,6 +1374,11 @@
     renderFinding();
     buildAgentSelector();
     renderAgents();
+    // Detailed Analysis views (read-only, from the loaded analysis.json)
+    renderPerAgentDetail();
+    renderSensitivity();
+    renderStatistics();
+    renderAccuracy();
   }
 
   function validate(d) {
@@ -1193,6 +1542,7 @@
   }
   bootSample();
   initPullPanel();
+  initNav();
   // Optional convenience: if a real analysis.json sits next to this page (served
   // over http, or some browsers allow it over file://), auto-load it.
   try {

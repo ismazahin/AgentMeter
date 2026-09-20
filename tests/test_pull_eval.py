@@ -18,15 +18,19 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import sqlite3
 import threading
 import time
 import types
+from pathlib import Path
 
 import pytest
 import yaml
 
 from agentmeter import pull_eval
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # --- fixtures / helpers -------------------------------------------------
 
@@ -331,3 +335,77 @@ def test_server_serves_dashboard_and_api_same_origin(tmp_path):
     assert busy.status_code == 409
 
     gate.set()   # let the parked job finish/exit
+
+
+# --- presentation demo: Settings STATUS-ONLY + Detailed view (Phase 11) --
+
+def test_settings_status_returns_booleans_never_token_values(tmp_path, monkeypatch):
+    pytest.importorskip("flask")
+    srv = _load_server_module()
+
+    # a real-looking secret in the env — it must NEVER appear in the response
+    secret = "hf_THISMUSTNOTLEAK_0987654321"
+    monkeypatch.setenv("HF_TOKEN", secret)
+    monkeypatch.delenv("VAST_API_KEY", raising=False)
+
+    base = _mock_base_config(tmp_path, tmp_path / "LOCKED.db")
+    mgr = pull_eval.JobManager(base_config=base,
+                               canonical_json=_canonical_json(tmp_path),
+                               info_fetcher=lambda mid: _info(7_000_000_000),
+                               out_dir=str(tmp_path / "pulls"))
+    guard = srv.CostGuard(manager=mgr, auto_destroy=True, idle_timeout_min=30,
+                          instance_id="i", destroy=lambda instance_id=None: None)
+    client = srv.create_app(mgr, guard=guard).test_client()
+
+    r = client.get("/settings-status")
+    assert r.status_code == 200
+    body = r.get_json()
+
+    # tokens are BOOLEANS (set/not-set), never values
+    for var in ("HF_TOKEN", "VAST_API_KEY", "VAST_INSTANCE_ID", "GITHUB_TOKEN"):
+        assert isinstance(body["tokens"][var], bool)
+    assert body["tokens"]["HF_TOKEN"] is True        # set
+    assert body["tokens"]["VAST_API_KEY"] is False   # not set
+
+    # cost-safety modes reported
+    assert body["cost_safety"]["auto_destroy"] is True
+    assert body["cost_safety"]["idle_timeout_min"] == 30
+
+    # the secret value NEVER appears anywhere in the response
+    assert secret not in r.get_data(as_text=True)
+
+
+def test_detailed_view_anchors_present_in_served_index(tmp_path):
+    pytest.importorskip("flask")
+    srv = _load_server_module()
+    base = _mock_base_config(tmp_path, tmp_path / "LOCKED.db")
+    mgr = pull_eval.JobManager(base_config=base,
+                               canonical_json=_canonical_json(tmp_path),
+                               info_fetcher=lambda mid: _info(7_000_000_000),
+                               out_dir=str(tmp_path / "pulls"))
+    html = srv.create_app(mgr).test_client().get("/").get_data(as_text=True)
+
+    # nav + three views
+    for anchor in ('id="view-overview"', 'id="view-detailed"', 'id="view-settings"',
+                   'data-view="detailed"', 'data-view="settings"'):
+        assert anchor in html
+    # detailed-analysis content anchors
+    for anchor in ("Per-agent diagnostics", "Sensitivity analysis", "Statistics",
+                   "Kruskal", "Accuracy detail",
+                   'id="pa-wall-table"', 'id="sens-table"', 'id="stats-body"',
+                   'id="acc-table"'):
+        assert anchor in html
+
+
+def test_no_token_input_fields_in_dashboard():
+    """HARD security rule: the dashboard must have NO <input> for any secret."""
+    html = (REPO_ROOT / "dashboard" / "index.html").read_text()
+    inputs = re.findall(r"<input\b[^>]*>", html, re.IGNORECASE)
+    tokens = ("HF_TOKEN", "VAST_API_KEY", "VAST_INSTANCE_ID", "GITHUB_TOKEN",
+              "token", "secret", "api_key", "apikey")
+    for tag in inputs:
+        low = tag.lower()
+        for tok in tokens:
+            assert tok.lower() not in low, f"forbidden token input field: {tag}"
+    # and no password-type inputs at all
+    assert not any('type="password"' in t.lower() for t in inputs)

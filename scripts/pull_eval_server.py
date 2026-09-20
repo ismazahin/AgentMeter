@@ -110,9 +110,12 @@ class CostGuard:
                 return
 
 DASHBOARD_DIR = REPO_ROOT / "dashboard"
-# Only these dashboard assets are servable (no arbitrary file access).
+# Only these dashboard assets are servable (no arbitrary file access). analysis.json
+# is included so a canonical results file dropped in dashboard/ auto-loads in the
+# served dashboard (the "view real results" path); it is gitignored, never a secret.
 _ALLOWED_ASSETS = {
     "index.html", "saw.js", "pull-config.js", "sample_analysis.json", "README.md",
+    "analysis.json",
 }
 
 
@@ -199,6 +202,19 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
     @app.route("/status", methods=["GET"])
     def status_ep():
         return jsonify(manager.status())
+
+    @app.route("/settings-status", methods=["GET"])
+    def settings_status_ep():
+        # STATUS ONLY — booleans (set/not-set) and cost modes. NEVER a token value.
+        tokens = {var: envtools.token_present(var) for var in envtools.TOKENS}
+        auto = bool(guard.auto_destroy) if guard is not None else False
+        idle_min = (guard.idle_timeout / 60.0) if guard is not None else 0.0
+        return jsonify({
+            "tokens": tokens,                       # {"HF_TOKEN": true/false, ...}
+            "cost_safety": {"auto_destroy": auto, "idle_timeout_min": idle_min},
+            "note": "Tokens are configured via the server-side .env file; their "
+                    "values are never sent to or shown in the browser.",
+        })
 
     @app.route("/analysis", methods=["GET"])
     def analysis_ep():

@@ -103,6 +103,43 @@ hard-coded (see [`pull-config.js`](./pull-config.js); the value is remembered in
 your browser). An optional `--ngrok` flag opens a public tunnel if the mapped port
 is not directly reachable.
 
+### Cost safety — destroy the instance, don't leave it billing
+
+A rented Vast.ai GPU bills for every minute it is **alive**. **Destroy ≠
+stop/pause** — a paused instance *still bills for storage*, so we **destroy**.
+Three layers of protection, outermost first:
+
+1. **Scheduled end / max-duration on the rental (ALWAYS set this).** When you rent
+   the instance on Vast.ai, set a scheduled end / maximum duration. This is the
+   **outer safety net** that kills the box even if every line of code below fails.
+   **Do not skip it** — it is the only layer that survives a wedged process.
+2. **`--idle-timeout MINUTES` self-destroy** (default 30). A background watchdog
+   destroys the instance after that many minutes with **no activity and no running
+   job** — catching a forgotten server, a demo that never happened, or a wedged
+   process. It **never** fires while a run is in progress. `0` disables it.
+3. **`--auto-destroy` after a completed run.** Once a run's results are written to
+   the pull DB **and** the merged analysis JSON is flushed to disk, the instance
+   destroys itself as the **very last** step (logged `results persisted; destroying
+   instance`). Clean automatic shutdown after a demo.
+
+Both self-destroy layers are gated on `--auto-destroy` (**default OFF** — while
+developing/testing, nothing self-destroys). They **degrade safely**: with
+`VAST_API_KEY` or the instance id missing, the server logs a warning and keeps
+running rather than crashing (destroy becomes a no-op — rely on layer 1).
+
+**Rent safely (demo):**
+
+```bash
+# On Vast.ai: set a scheduled end / max-duration when you create the instance. (layer 1)
+export VAST_API_KEY=...          # your Vast.ai API key (never hard-coded)
+export VAST_INSTANCE_ID=...      # or pass --instance-id; else read from Vast env vars
+export HF_TOKEN=...
+python scripts/pull_eval_server.py --auto-destroy --idle-timeout 30   # layers 2 + 3
+```
+
+While **developing**, run with neither flag (`python scripts/pull_eval_server.py`)
+so the box never self-destroys — and still set layer 1 on the rental.
+
 Integrity guarantees (enforced in [`agentmeter/pull_eval.py`](../agentmeter/pull_eval.py),
 verified by `tests/test_pull_eval.py`):
 

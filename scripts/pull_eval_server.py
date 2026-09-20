@@ -37,16 +37,77 @@ Endpoints:
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import socket
 import sys
+import threading
+import time
 from pathlib import Path
 
 # Allow "python scripts/pull_eval_server.py" from the repo root.
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from agentmeter import pull_eval  # noqa: E402
+from agentmeter import pull_eval, vast_shutdown  # noqa: E402
+
+log = logging.getLogger("agentmeter.pull_eval_server")
+
+
+class CostGuard:
+    """Cost-safety coordinator: destroys the Vast.ai instance once a run finishes
+    (results already flushed to disk) or after an idle timeout. Destroy fires at
+    most once, and NEVER while a job is running.
+
+    All destroy paths are gated on `auto_destroy`; with it off nothing self-destroys.
+    """
+
+    def __init__(self, manager, auto_destroy: bool, idle_timeout_min: float,
+                 instance_id=None, destroy=vast_shutdown.destroy_instance):
+        self.manager = manager
+        self.auto_destroy = bool(auto_destroy)
+        self.idle_timeout = float(idle_timeout_min) * 60.0   # seconds; 0 disables
+        self.instance_id = instance_id
+        self._destroy = destroy
+        self.last_activity = time.time()
+        self._lock = threading.Lock()
+        self._destroyed = False
+
+    def touch(self) -> None:
+        self.last_activity = time.time()
+
+    def _fire(self, message: str) -> bool:
+        with self._lock:
+            if self._destroyed:
+                return False
+            self._destroyed = True
+        log.warning(message)
+        return self._destroy(instance_id=self.instance_id)
+
+    def on_complete(self, state) -> None:
+        """Fired by JobManager AFTER a run's merged analysis is flushed to disk.
+        This is the very last step: results are already safely persisted."""
+        self.touch()
+        if self.auto_destroy:
+            self._fire("results persisted; destroying instance")
+
+    def watchdog(self, stop: threading.Event, poll: float = None) -> None:
+        """Destroy the instance after `idle_timeout` of no activity and no running
+        job. No-op unless auto-destroy is on and a positive timeout is set."""
+        if not self.auto_destroy or self.idle_timeout <= 0:
+            return
+        interval = poll if poll else min(30.0, max(5.0, self.idle_timeout / 4.0))
+        while not stop.wait(interval):
+            # NEVER destroy while a job is running (a 300-scenario run is long);
+            # treat an active job as activity so the idle clock restarts after it.
+            if self.manager.snapshot().is_active():
+                self.touch()
+                continue
+            if time.time() - self.last_activity >= self.idle_timeout:
+                self._fire(
+                    f"idle for >= {self.idle_timeout/60:.0f} min with no running "
+                    "job; destroying instance")
+                return
 
 DASHBOARD_DIR = REPO_ROOT / "dashboard"
 # Only these dashboard assets are servable (no arbitrary file access).
@@ -64,10 +125,19 @@ def _manual_cors(resp):
     return resp
 
 
-def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_DIR):
+def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_DIR,
+               guard: "CostGuard" = None):
     from flask import Flask, jsonify, request, send_from_directory
 
     app = Flask(__name__, static_folder=None)
+
+    # Every request counts as activity, so the idle watchdog only fires on a truly
+    # quiet server (registered first so it always runs).
+    @app.after_request
+    def _bump_activity(resp):  # noqa: ANN001
+        if guard is not None:
+            guard.touch()
+        return resp
 
     # Prefer flask-cors; fall back to manual headers if it is not installed. The
     # dashboard is served SAME-ORIGIN from this app, so CORS is only a fallback
@@ -187,6 +257,26 @@ def _print_startup(port: int) -> None:
     print("=" * 72, flush=True)
 
 
+def _log_safety_modes(args, instance_id) -> None:
+    """State plainly, at startup, which cost-safety modes are active."""
+    print("-" * 72)
+    if not args.auto_destroy:
+        print("  Cost safety : auto-destroy OFF (dev/test mode — never self-destroys).")
+        print("                Remember to set a scheduled end when you RENT the box.")
+    else:
+        have_key = bool(vast_shutdown.get_api_key())
+        idle = ("disabled" if args.idle_timeout <= 0
+                else f"{args.idle_timeout:.0f} min")
+        print(f"  Cost safety : auto-destroy ON  (destroy after a run; idle timeout {idle}).")
+        print(f"                instance id : {instance_id or 'UNKNOWN'} | "
+              f"VAST_API_KEY : {'present' if have_key else 'MISSING'}")
+        if not have_key or not instance_id:
+            print("  WARNING     : credentials/instance id missing — self-destroy will "
+                  "NO-OP. Set VAST_API_KEY and the instance id, and always set a "
+                  "scheduled end on Vast as the outer safety net.")
+    print("-" * 72, flush=True)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description="AgentMeter pull/eval server (Vast.ai): serves the dashboard "
@@ -201,19 +291,43 @@ def main(argv=None) -> int:
     ap.add_argument("--ngrok", action="store_true",
                     help="also open a public ngrok tunnel (optional; Vast.ai's "
                          "mapped port is usually directly reachable without it)")
+    ap.add_argument("--auto-destroy", action="store_true",
+                    help="DESTROY this Vast.ai instance after a run completes / on "
+                         "idle timeout (cost safety). DEFAULT OFF — never destroys "
+                         "while developing.")
+    ap.add_argument("--idle-timeout", type=float, default=30.0,
+                    help="minutes of inactivity (and no running job) before "
+                         "self-destroy when --auto-destroy is set; 0 disables.")
+    ap.add_argument("--instance-id", default=None,
+                    help="Vast.ai instance id to destroy (else read from "
+                         "VAST_INSTANCE_ID / Vast env vars).")
     args = ap.parse_args(argv)
+
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
     canonical = Path(args.canonical)
     if not canonical.exists():
         print(f"WARNING: canonical analysis not found at {canonical}. /analysis will "
               "fail until the locked study analysis.json exists.", file=sys.stderr)
 
+    instance_id = args.instance_id or vast_shutdown.get_instance_id()
+    guard = CostGuard(manager=None, auto_destroy=args.auto_destroy,
+                      idle_timeout_min=args.idle_timeout, instance_id=instance_id)
     manager = pull_eval.JobManager(
-        base_config=args.config, canonical_json=args.canonical, n=args.n
+        base_config=args.config, canonical_json=args.canonical, n=args.n,
+        on_complete=guard.on_complete,
     )
-    app = create_app(manager)
+    guard.manager = manager
+    app = create_app(manager, guard=guard)
 
     _print_startup(args.port)
+    _log_safety_modes(args, instance_id)
+
+    if args.auto_destroy and args.idle_timeout > 0:
+        stop = threading.Event()
+        threading.Thread(target=guard.watchdog, args=(stop,), daemon=True).start()
+
     if args.ngrok:
         try:
             url = _open_tunnel(args.port)

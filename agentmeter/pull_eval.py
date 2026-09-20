@@ -383,6 +383,19 @@ def merged_analysis(
 
 # --- progress (read the pull DB; never touch the runner) ----------------
 
+def _flush_json(path: str | Path, payload: dict) -> None:
+    """Write JSON and fsync it to disk, so the file is durable before any
+    subsequent action (e.g. auto-destroy) can run."""
+    import os
+
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with open(p, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, indent=2, default=str)
+        fh.flush()
+        os.fsync(fh.fileno())
+
+
 def count_completed(db_path: str | Path) -> int:
     """Complete scenario_results rows in a pull DB (0 if the DB is absent yet)."""
     db = Path(db_path)
@@ -413,6 +426,7 @@ class JobState:
     state: str = "idle"        # idle|validating|pulling|running|analyzing|done|error
     model_id: Optional[str] = None
     db_path: Optional[str] = None
+    analysis_path: Optional[str] = None   # where the merged analysis JSON was flushed
     total: int = 0
     error: Optional[str] = None
     started_at: Optional[float] = None
@@ -435,6 +449,7 @@ class JobManager:
         run_full: Optional[Callable[..., Any]] = None,
         n: Optional[int] = None,
         out_dir: str | Path = PULLS_DIR,
+        on_complete: Optional[Callable[["JobState"], None]] = None,
     ):
         self.base_config = str(base_config)
         self.canonical_json = str(canonical_json)
@@ -443,6 +458,9 @@ class JobManager:
         self.run_full = run_full
         self.n = n
         self.out_dir = str(out_dir)
+        # Fired ONCE after a job reaches "done" and the merged analysis JSON has
+        # been flushed to disk — the server uses it for auto-destroy (last step).
+        self.on_complete = on_complete
         self._lock = threading.Lock()
         self._state = JobState()
         self._thread: Optional[threading.Thread] = None
@@ -514,9 +532,24 @@ class JobManager:
 
             self._set(state="analyzing")
             merged = merged_analysis(self.canonical_json, db_path, cfg_path, model_id)
-            self._set(state="done", analysis=merged, finished_at=time.time())
+            # Flush the merged analysis to disk BEFORE marking done, so results are
+            # durably persisted before any auto-destroy can run.
+            analysis_path = str(Path(db_path).with_name(
+                f"analysis_{model_slug(model_id)}.json"))
+            _flush_json(analysis_path, merged)
+            self._set(state="done", analysis=merged, analysis_path=analysis_path,
+                      finished_at=time.time())
         except Exception as e:  # noqa: BLE001 — surface any failure via /status
             self._set(state="error", error=str(e), finished_at=time.time())
+            return
+        # Completion hook runs LAST, only on success, after the JSON is on disk.
+        if self.on_complete is not None:
+            try:
+                self.on_complete(self.snapshot())
+            except Exception:  # noqa: BLE001 — a hook must never corrupt state
+                import logging
+                logging.getLogger("agentmeter.pull_eval").exception(
+                    "on_complete hook raised (ignored).")
 
     def _monitor(self, db_path: str, stop: threading.Event) -> None:
         """Flip pulling -> running once the first scenario is persisted."""

@@ -49,7 +49,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from agentmeter import pull_eval, vast_shutdown  # noqa: E402
+from agentmeter import envtools, pull_eval, vast_shutdown  # noqa: E402
 
 log = logging.getLogger("agentmeter.pull_eval_server")
 
@@ -305,6 +305,11 @@ def main(argv=None) -> int:
 
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+    # Load tokens from .env (if present) so I don't paste them each run. Existing
+    # environment values win; nothing is hard-coded and no value is ever logged.
+    envtools.load_env()
+    envtools.log_token_status()
 
     canonical = Path(args.canonical)
     if not canonical.exists():

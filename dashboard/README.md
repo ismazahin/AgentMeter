@@ -103,6 +103,30 @@ hard-coded (see [`pull-config.js`](./pull-config.js); the value is remembered in
 your browser). An optional `--ngrok` flag opens a public tunnel if the mapped port
 is not directly reachable.
 
+### Tokens (.env) — fill once, never commit
+
+Fill tokens **once** in a local `.env` instead of pasting them each run:
+
+```bash
+cp .env.example .env    # then edit .env and fill the slots you need
+```
+
+The server loads `.env` on startup (via `python-dotenv`, with a builtin parser
+fallback) into the environment; existing environment values always win. **`.env`
+(and `.env.local`) are gitignored — only the empty `.env.example` template is
+committed.** No token value is ever hard-coded or written to logs (the startup
+banner shows each token as `set` / `not set`, never its value).
+
+| Var | Needed for | Required? |
+| --- | --- | --- |
+| `HF_TOKEN` | pulling **gated/private** HF models (Llama, Gemma…) | Only for gated/private models — **public models, including the canonical 5, need none** |
+| `VAST_API_KEY` | the server's self-destroy (`--auto-destroy` / idle) | Only if you use auto-destroy |
+| `VAST_INSTANCE_ID` | identify this instance to destroy | Optional — falls back to Vast's own env vars |
+| `GITHUB_TOKEN` | `git clone` a **private** repo on the box | Only for a manual private clone (not auto-wired) |
+
+If `HF_TOKEN` is missing when you pull a gated model, the server logs a clear
+`set HF_TOKEN` message and keeps running — it never crashes or prints the token.
+
 ### Cost safety — destroy the instance, don't leave it billing
 
 A rented Vast.ai GPU bills for every minute it is **alive**. **Destroy ≠

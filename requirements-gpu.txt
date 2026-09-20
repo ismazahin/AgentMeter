@@ -13,3 +13,4 @@ bitsandbytes>=0.43    # 4-bit/8-bit quantization (e.g. to fit a 7-8B model on a 
 flask>=3.0            # serves dashboard/index.html + the /pull-eval /status /analysis API
 flask-cors>=4.0       # permissive CORS fallback so a file:// dashboard can also reach the API
 pyngrok>=7.0          # OPTIONAL public tunnel (--ngrok); Vast.ai's mapped port is usually reachable
+python-dotenv>=1.0    # load tokens from a local .env (copy .env.example); optional — a builtin parser is the fallback

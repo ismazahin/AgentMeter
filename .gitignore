@@ -20,8 +20,10 @@ hf_cache/
 *.safetensors
 *.bin
 
-# Secrets — NEVER commit a token
+# Secrets — NEVER commit a token. .env.example is the committed placeholder.
 .env
+.env.local
+.env.*.local
 *.token
 
 # OS / editor

@@ -41,7 +41,7 @@ from typing import Any, Callable, Optional
 import pandas as pd
 import yaml
 
-from . import analyze, runner
+from . import analyze, envtools, runner
 from .config import PROJECT_ROOT, load_config
 
 # --- constants ---------------------------------------------------------
@@ -513,8 +513,16 @@ class JobManager:
 
     def _run(self, model_id: str) -> None:
         try:
+            # Source tokens from .env so a gated pull + the worker subprocess get
+            # HF_TOKEN without pasting it (existing env wins; no value is logged).
+            envtools.load_env()
+
             validate_model(model_id, max_params=self.max_params,
                             info_fetcher=self.info_fetcher)
+
+            # Gated/private pull path: warn clearly (never crash) if HF_TOKEN is
+            # missing. Public models still pull fine without it.
+            envtools.hf_token_hint()
 
             cfg_path, db_path = build_pull_config(self.base_config, model_id,
                                                   out_dir=self.out_dir)

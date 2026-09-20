@@ -78,23 +78,30 @@ python scripts/gen_sample_analysis.py
 The **“Add a model (admin)”** panel pulls **one extra** Hugging Face model and
 runs it through the **same harness** as the locked 5-model study, for a
 side-by-side comparison — **without touching that study**. The run happens on a
-GPU host (e.g. Colab) via [`scripts/pull_eval_server.py`](../scripts/pull_eval_server.py),
-tunnelled with ngrok:
+**Vast.ai GPU instance** via [`scripts/pull_eval_server.py`](../scripts/pull_eval_server.py),
+which **serves this dashboard and the API from one origin** (so the API calls are
+same-origin — no CORS, no tunnel needed):
 
 ```bash
-pip install -r requirements-gpu.txt   # includes flask + pyngrok
-export NGROK_AUTHTOKEN=...             # your ngrok token
-export HF_TOKEN=...                    # for gated models
-python scripts/pull_eval_server.py     # prints a public ngrok URL
+pip install -r requirements.txt -r requirements-gpu.txt   # flask + flask-cors
+export HF_TOKEN=...                                        # for gated models
+python scripts/pull_eval_server.py                         # binds 0.0.0.0:8000
 ```
 
-Paste the printed URL into the panel's **ngrok base URL** field (it is never
-hard-coded — see [`pull-config.js`](./pull-config.js); the value is remembered in
-your browser), enter an `org/Model-Name`, and click **Pull & evaluate**. A
-progress bar tracks *validating → pulling → running scenario k/300 → analyzing →
-done*. On completion the pulled model appears in the SAW table as a **striped,
-`exploratory`-badged row**, ranked with the same weights but clearly **not part
-of the validated set**.
+It prints the exact URL to open (`http://<instance-ip>:<mapped-port>/`, using the
+instance's Vast.ai port mapping). Open **that** URL, leave the **Server base URL**
+field **empty** (same-origin), enter an `org/Model-Name`, and click **Pull &
+evaluate**. A progress bar tracks *validating → pulling → running scenario k/300 →
+analyzing → done*. On completion the pulled model appears in the SAW table as a
+**striped, `exploratory`-badged row**, ranked with the same weights but clearly
+**not part of the validated set**.
+
+Viewing this file over `file://` instead? Set the **Server base URL** to the
+instance address (e.g. `http://203.0.113.7:8000`) — the server enables permissive
+CORS as a fallback so that still works. The base URL is configurable and never
+hard-coded (see [`pull-config.js`](./pull-config.js); the value is remembered in
+your browser). An optional `--ngrok` flag opens a public tunnel if the mapped port
+is not directly reachable.
 
 Integrity guarantees (enforced in [`agentmeter/pull_eval.py`](../agentmeter/pull_eval.py),
 verified by `tests/test_pull_eval.py`):

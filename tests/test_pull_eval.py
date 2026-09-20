@@ -1,4 +1,4 @@
-"""Phase 11 — pull/eval verify suite (CPU, no GPU / no ngrok / no network).
+"""Phase 11 — pull/eval verify suite (CPU, no GPU / no server / no network).
 
 Covers the integrity guarantees of agentmeter/pull_eval.py with a MOCK provider
 and an INJECTED HF-metadata fetcher:
@@ -257,3 +257,77 @@ def test_merged_analysis_marks_exploratory_and_preserves_canonical(tmp_path):
 
     # source canonical file on disk is untouched by the read
     assert json.loads(open(canonical_path).read()) == CANONICAL
+
+
+# --- server: dashboard + API served SAME-ORIGIN (Vast.ai) ---------------
+
+def _load_server_module():
+    import importlib.util
+    from pathlib import Path
+    path = Path(__file__).resolve().parents[1] / "scripts" / "pull_eval_server.py"
+    spec = importlib.util.spec_from_file_location("pull_eval_server", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_server_serves_dashboard_and_api_same_origin(tmp_path):
+    pytest.importorskip("flask")
+    srv = _load_server_module()
+
+    locked = tmp_path / "LOCKED.db"
+    base = _mock_base_config(tmp_path, locked)
+    gate = threading.Event()
+
+    def blocking_run_full(config_path, n=None, fresh=False):
+        gate.wait(5.0)   # keep any started job parked; never touches merged_analysis
+        return None
+
+    # size-aware fetcher: models whose id says "big" report > 8B
+    fetch = lambda mid: _info(13_000_000_000 if "big" in mid else 7_000_000_000)
+    mgr = pull_eval.JobManager(
+        base_config=base, canonical_json=_canonical_json(tmp_path),
+        info_fetcher=fetch, run_full=blocking_run_full,
+        out_dir=str(tmp_path / "pulls"),
+    )
+    client = srv.create_app(mgr).test_client()
+
+    # (1) dashboard served at the root — SAME origin as the API
+    r = client.get("/")
+    assert r.status_code == 200
+    assert b"AgentMeter" in r.data and b"Add a model" in r.data
+
+    # (2) static assets served too
+    assert b"SAW" in client.get("/saw.js").data
+    assert b"PULL_CONFIG" in client.get("/pull-config.js").data
+    assert client.get("/sample_analysis.json").status_code == 200
+
+    # (3) no arbitrary file access — only the allow-listed assets
+    assert client.get("/secret.txt").status_code == 404
+    assert client.get("/agentmeter/pull_eval.py").status_code == 404
+
+    # (4) API works with RELATIVE (same-origin) paths
+    assert client.get("/health").get_json() == {"ok": True}
+    assert client.get("/status").get_json()["state"] == "idle"
+    assert client.get("/analysis").status_code == 404   # nothing run yet
+
+    # (5) CORS fallback present for the file:// case (Origin: null). flask-cors
+    # reflects the request origin; the manual fallback returns "*" — both permit it.
+    r = client.get("/status", headers={"Origin": "null"})
+    assert r.headers.get("Access-Control-Allow-Origin") in ("*", "null")
+
+    # (6) size guard enforced through the API (before any job starts)
+    rej = client.post("/pull-eval", json={"model_id": "org/too-big"})
+    assert rej.status_code == 400 and "8B" in (rej.get_json().get("error") or "")
+
+    # (7) a valid pull is accepted same-origin, then the single-job lock holds
+    ok = client.post("/pull-eval", json={"model_id": "org/ok-7b"})
+    assert ok.status_code == 200 and ok.get_json()["accepted"] is True
+    for _ in range(200):
+        if mgr.snapshot().is_active():
+            break
+        time.sleep(0.01)
+    busy = client.post("/pull-eval", json={"model_id": "org/second"})
+    assert busy.status_code == 409
+
+    gate.set()   # let the parked job finish/exit

@@ -1,18 +1,23 @@
 /* AgentMeter dashboard — admin pull/eval endpoint configuration (PLACEHOLDER).
  *
- * The pull/eval server (scripts/pull_eval_server.py) prints a fresh public ngrok
- * URL every time it starts, so the base URL is NEVER hard-coded. Two ways to set
- * it, in priority order:
+ * The pull/eval server (scripts/pull_eval_server.py) SERVES this dashboard and the
+ * API from the SAME origin on a Vast.ai GPU instance. When you open the dashboard
+ * from that server (http://<instance-ip>:<port>/), the API calls are same-origin,
+ * so the base URL stays EMPTY and no CORS is involved.
  *
- *   1. Type/paste it into the "ngrok base URL" field in the dashboard's admin
- *      panel at runtime (it is remembered in this browser via localStorage).
- *   2. Edit PULL_BASE_URL below to a default (leave "" to require step 1).
+ * You only need a base URL when viewing this file directly over file:// (e.g. to
+ * browse precomputed results locally) and want the admin panel to reach a remote
+ * server. Two ways to set it, in priority order:
  *
- * Example: window.PULL_CONFIG = { PULL_BASE_URL: "https://abcd-1-2-3-4.ngrok-free.app" };
+ *   1. Type/paste it into the "Server base URL" field in the admin panel at
+ *      runtime (remembered in this browser via localStorage).
+ *   2. Edit PULL_BASE_URL below to a default (leave "" for same-origin).
+ *
+ * Example (file:// only): window.PULL_CONFIG = { PULL_BASE_URL: "http://203.0.113.7:8000" };
  */
 window.PULL_CONFIG = {
-  // Leave blank — paste the ngrok URL printed by pull_eval_server.py into the
-  // admin panel field. Set a value here only if you want a baked-in default.
+  // Leave blank — same-origin when served by pull_eval_server.py. Set a value
+  // here (or in the admin panel field) only for file:// viewing of a remote server.
   PULL_BASE_URL: "",
   // How often the dashboard polls /status while a pull/eval runs (ms).
   POLL_INTERVAL_MS: 3000

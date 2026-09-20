@@ -25,7 +25,7 @@ Hard integrity rules enforced here (see the phase spec):
   * Single-job lock: only one pull/eval runs at a time.
 
 This module is import/seam-friendly so it can be verified on CPU with a mock
-provider and an injected model-info fetcher (no GPU, no network, no ngrok).
+provider and an injected model-info fetcher (no GPU, no network, no server).
 """
 from __future__ import annotations
 

@@ -9,5 +9,7 @@ sentencepiece>=0.2
 pynvml>=11.5
 bitsandbytes>=0.43    # 4-bit/8-bit quantization (e.g. to fit a 7-8B model on a 15GB T4)
 # Phase 11 — admin model-pull + on-demand eval server (scripts/pull_eval_server.py).
-flask>=3.0            # tiny HTTP surface for /pull-eval /status /analysis
-pyngrok>=7.0          # public tunnel to the Colab GPU host (URL printed, never hard-coded)
+# Runs on a Vast.ai GPU instance: serves the dashboard AND the API from one origin.
+flask>=3.0            # serves dashboard/index.html + the /pull-eval /status /analysis API
+flask-cors>=4.0       # permissive CORS fallback so a file:// dashboard can also reach the API
+pyngrok>=7.0          # OPTIONAL public tunnel (--ngrok); Vast.ai's mapped port is usually reachable

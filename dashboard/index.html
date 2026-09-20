@@ -151,8 +151,8 @@
     <h2>Add a model <span class="hint">— admin: pull ONE extra HF model and run it through the same harness (exploratory, NOT part of the validated 5-model study)</span></h2>
     <div class="admin">
       <div class="row">
-        <label for="pull-base">ngrok base URL</label>
-        <input type="text" id="pull-base" placeholder="https://xxxx.ngrok-free.app (printed by pull_eval_server.py)" autocomplete="off">
+        <label for="pull-base">Server base URL</label>
+        <input type="text" id="pull-base" placeholder="leave EMPTY when opened from the server; set only for file:// (e.g. http://INSTANCE_IP:8000)" autocomplete="off">
       </div>
       <div class="row">
         <label for="pull-model">HF model id</label>
@@ -161,7 +161,7 @@
       </div>
       <div class="progress" id="pull-progress"><div class="fill" id="pull-fill"></div></div>
       <p id="pull-status"></p>
-      <p class="note" style="margin:0">The server validates the size from HF metadata <b>before</b> any download (rejects &gt; 8B), runs all 300 scenarios under the identical harness (4-bit NF4, sequential VRAM isolation) into a <b>separate</b> DB, and appends the result below as <b>exploratory</b>. The locked study, its statistics and canonical rows are never modified.</p>
+      <p class="note" style="margin:0">Open this dashboard from the pull/eval server (Vast.ai) and the base URL stays <b>empty</b> — the API is same-origin. Only set it when viewing over <code>file://</code>. The server validates the size from HF metadata <b>before</b> any download (rejects &gt; 8B), runs all 300 scenarios under the identical harness (4-bit NF4, sequential VRAM isolation) into a <b>separate</b> DB, and appends the result below as <b>exploratory</b>. The locked study, its statistics and canonical rows are never modified.</p>
     </div>
   </div>
 
@@ -1134,11 +1134,16 @@
 
   function startPull() {
     if (pull.running) return;
+    // Empty base -> same-origin relative paths (dashboard served BY the server).
+    // Only file:// needs an explicit base URL to reach the server cross-origin.
     var base = pullBaseUrl();
     var model = (document.getElementById("pull-model").value || "").trim();
-    if (!base) { pullMsg("Set the ngrok base URL first (printed by pull_eval_server.py).", "err"); return; }
+    if (!base && location.protocol === "file:") {
+      pullMsg("Opened via file:// — set the server base URL (e.g. http://INSTANCE_IP:8000), or open the dashboard from the server instead.", "err");
+      return;
+    }
     if (!model) { pullMsg("Enter an HF model id, e.g. org/Model-Name.", "err"); return; }
-    try { localStorage.setItem("agentmeter.pullBase", base); } catch (e) {}
+    try { if (base) localStorage.setItem("agentmeter.pullBase", base); } catch (e) {}
 
     pullButtonEnabled(false);
     setProgress(0);

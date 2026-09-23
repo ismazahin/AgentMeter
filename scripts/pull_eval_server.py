@@ -129,10 +129,22 @@ def _manual_cors(resp):
 
 
 def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_DIR,
-               guard: "CostGuard" = None):
+               guard: "CostGuard" = None, app_store=None,
+               app_db_path: Path = None):
     from flask import Flask, jsonify, request, send_from_directory
 
+    from agentmeter import appdb, crud_api
+
     app = Flask(__name__, static_folder=None)
+
+    # Metadata DB (Phase 12 CRUD) — opened LAZILY on first CRUD use, so serving the
+    # dashboard / pull API never creates it. Separate from the locked study DB.
+    _store_holder = {"store": app_store}
+
+    def get_store():
+        if _store_holder["store"] is None:
+            _store_holder["store"] = appdb.AppStore(app_db_path or appdb.DEFAULT_APP_DB)
+        return _store_holder["store"]
 
     # Every request counts as activity, so the idle watchdog only fires on a truly
     # quiet server (registered first so it always runs).
@@ -144,18 +156,18 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
 
     # Prefer flask-cors; fall back to manual headers if it is not installed. The
     # dashboard is served SAME-ORIGIN from this app, so CORS is only a fallback
-    # for the file:// case.
+    # for the file:// case (permissive across all routes, including CRUD).
     try:
         from flask_cors import CORS
 
-        CORS(app, resources={r"/pull-eval": {"origins": "*"},
-                             r"/status": {"origins": "*"},
-                             r"/analysis": {"origins": "*"},
-                             r"/health": {"origins": "*"}})
+        CORS(app)
     except Exception:  # noqa: BLE001 — flask-cors optional
         @app.after_request
         def after(resp):  # noqa: ANN001
             return _manual_cors(resp)
+
+    # Phase 12 — CRUD routes for sessions / presets / notes.
+    crud_api.register_crud(app, get_store)
 
     # --- dashboard (same-origin) ---------------------------------------
     @app.route("/", methods=["GET"])
@@ -317,6 +329,9 @@ def main(argv=None) -> int:
     ap.add_argument("--instance-id", default=None,
                     help="Vast.ai instance id to destroy (else read from "
                          "VAST_INSTANCE_ID / Vast env vars).")
+    ap.add_argument("--app-db", default=None,
+                    help="metadata DB for CRUD (sessions/presets/notes); default "
+                         "results/agentmeter_app.db (separate from the locked study DB).")
     args = ap.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO,
@@ -340,7 +355,7 @@ def main(argv=None) -> int:
         on_complete=guard.on_complete,
     )
     guard.manager = manager
-    app = create_app(manager, guard=guard)
+    app = create_app(manager, guard=guard, app_db_path=args.app_db)
 
     _print_startup(args.port)
     _log_safety_modes(args, instance_id)

@@ -40,6 +40,15 @@ one loaded `analysis.json`; no server or GPU needed to view precomputed results)
   Kruskal-Wallis + Dunn statistics for latency and peak VRAM (read-only), and
   accuracy detail (per-model, plus per-class and confusion matrices when present
   in the JSON).
+- **Sessions** — data management (CRUD) served by the app, stored in a **separate
+  metadata DB** (`results/agentmeter_app.db`), never the locked study DB. Import an
+  `analysis.json` as a named **session** (its summary is extracted once and kept
+  read-only — the study numbers are never edited), open a session to render it
+  across the other tabs, rename or delete it, and attach **notes**. The
+  **Saved weight presets** panel (under the Overview sensitivity sliders) saves the
+  live weights as a named preset and loads them back; the four builtins
+  (default/equal/accuracy_heavy/efficiency_heavy) are load-only. Requires the
+  server (same-origin); over `file://` it is read-only.
 - **Settings** — **status only**. It shows each token as *set* / *not set* and
   the cost-safety modes (auto-destroy, idle-timeout) read from the server's
   `GET /settings-status`. It has **no input fields for any token** — secrets live

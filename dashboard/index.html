@@ -202,6 +202,24 @@
   .vbar .col.c1 { background: var(--c1); } .vbar .col.c2 { background: var(--c2); } .vbar .col.c3 { background: var(--c3); }
   .vbar .m { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.2; margin-top: 8px; word-break: break-word; }
   .vbar.best .m { color: var(--ink); font-weight: 600; }
+  /* CRUD blocks (presets / sessions / notes) */
+  .crud-block { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 16px; }
+  .crud-h3 { font-size: 14px; font-weight: 700; margin: 0 0 12px; }
+  .crud-h3 .hint { font-weight: 400; font-size: 12px; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 6px 5px 12px; font-size: 13px; background: var(--panel); }
+  .chip .cname { font-weight: 600; }
+  .chip .cw { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .chip button { border: none; background: transparent; padding: 3px 8px; border-radius: 999px; font-size: 12px; color: var(--accent); cursor: pointer; }
+  .chip button:hover { background: var(--accent-soft); }
+  .chip button.danger { color: var(--critical); }
+  .chip .builtin { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+  .rowact button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 5px 12px; font-size: 13px; cursor: pointer; margin-left: 6px; }
+  .rowact button:hover { border-color: var(--accent); }
+  .rowact button.danger:hover { border-color: var(--critical); color: var(--critical); }
+  .note-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .note-item .nbody { flex: 1; }
+  .note-item .nmeta { color: var(--muted); font-size: 11px; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -219,6 +237,7 @@
   <nav class="nav" id="nav">
     <button data-view="overview" class="active">Overview</button>
     <button data-view="detailed">Detailed Analysis</button>
+    <button data-view="sessions">Sessions</button>
     <button data-view="settings">Settings</button>
   </nav>
 
@@ -267,6 +286,16 @@
     <div class="presets" id="presets"></div>
     <div class="sliders" id="sliders"></div>
     <p class="note" id="wsum"></p>
+
+    <div class="crud-block" id="saved-presets-block">
+      <h3 class="crud-h3">Saved weight presets <span class="hint">— save the live weights, load them back later</span></h3>
+      <div class="row" style="margin-bottom:10px">
+        <input type="text" id="preset-name" placeholder="Preset name (e.g. my-weighting)" autocomplete="off">
+        <button class="primary" id="preset-save-btn">Save current weights</button>
+      </div>
+      <div id="preset-list" class="chips"></div>
+      <p class="note" id="preset-msg"></p>
+    </div>
   </div>
 
   <div class="panel">
@@ -351,6 +380,45 @@
   </div>
 
   </section><!-- /detailed -->
+
+  <!-- ===================== SESSIONS (CRUD) ===================== -->
+  <section id="view-sessions" class="view">
+  <div class="panel" id="crud-unavailable" style="display:none">
+    <h2>Sessions</h2>
+    <p class="finding">Saved sessions, presets and notes are stored by the server. Open this dashboard <b>from the pull/eval server</b> (or set the server base URL in the Overview → Add a model panel) to manage them. Over <code>file://</code> this is read-only.</p>
+  </div>
+
+  <div id="crud-live" style="display:none">
+    <div class="panel">
+      <h2>Import a session <span class="hint">— save an analysis.json as a named session (read-only once stored)</span></h2>
+      <div class="row">
+        <input type="text" id="sess-name" placeholder="Session name" autocomplete="off">
+        <label class="filelabel">analysis.json <input type="file" id="sess-file" accept="application/json,.json"></label>
+        <button class="primary" id="sess-import-btn">Import session</button>
+      </div>
+      <p class="note" id="sess-import-msg"></p>
+    </div>
+
+    <div class="panel">
+      <h2>Saved sessions</h2>
+      <table id="sess-table"></table>
+      <p class="note" id="sess-list-msg"></p>
+    </div>
+
+    <div class="panel" id="open-session-panel" style="display:none">
+      <h2>Open session: <span id="open-sess-name"></span></h2>
+      <p class="lead" id="open-sess-summary"></p>
+      <p class="note">Its analysis is now loaded across the Overview and Detailed Analysis tabs (read-only).</p>
+      <h3 class="crud-h3">Notes</h3>
+      <div class="row" style="margin-bottom:10px">
+        <input type="text" id="note-input" placeholder="Add a note / annotation" autocomplete="off">
+        <button class="primary" id="note-add-btn">Add note</button>
+      </div>
+      <div id="note-list"></div>
+      <p class="note" id="note-msg"></p>
+    </div>
+  </div>
+  </section><!-- /sessions -->
 
   <!-- ===================== SETTINGS (STATUS ONLY) ===================== -->
   <section id="view-settings" class="view">
@@ -1435,9 +1503,187 @@
     });
   }
 
+  // ==== CRUD: sessions / presets / notes (Phase 12) ====
+  var CRUD = (function () {
+    var WKEY = { accuracy: "w_accuracy", latency: "w_latency", vram: "w_vram", tokens: "w_tokens" };
+    var openSessionId = null;
+
+    function base() { return (typeof pullBaseUrl === "function") ? pullBaseUrl() : ""; }
+    function available() { return !(location.protocol === "file:" && !base()); }
+
+    function j(method, path, payload) {
+      var opts = { method: method, headers: {} };
+      if (payload !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(payload); }
+      return fetch(base() + path, opts).then(function (r) {
+        return r.text().then(function (t) {
+          var d = {}; try { d = t ? JSON.parse(t) : {}; } catch (e) {}
+          if (!r.ok) throw new Error((d && d.error) || ("HTTP " + r.status));
+          return d;
+        });
+      });
+    }
+
+    function setMsg(id, text, cls) { var el = document.getElementById(id); if (el) { el.className = "note" + (cls ? " " + cls : ""); el.textContent = text || ""; } }
+
+    // ---- presets ----
+    function currentWeights() {
+      return { w_accuracy: +state.weights.accuracy || 0, w_latency: +state.weights.latency || 0,
+               w_vram: +state.weights.vram || 0, w_tokens: +state.weights.tokens || 0 };
+    }
+    function refreshPresets() {
+      var block = document.getElementById("saved-presets-block");
+      if (!block) return;
+      if (!available()) { document.getElementById("preset-list").innerHTML =
+        "<span class='note'>Connect via the server to save/load presets.</span>"; return; }
+      j("GET", "/presets").then(function (d) { renderPresets(d.presets || []); })
+        .catch(function (e) { setMsg("preset-msg", "Could not load presets: " + e.message, "err"); });
+    }
+    function renderPresets(list) {
+      var el = document.getElementById("preset-list");
+      el.innerHTML = list.map(function (p) {
+        var w = [p.w_accuracy, p.w_latency, p.w_vram, p.w_tokens].map(function (x) { return (+x).toFixed(2); }).join("/");
+        var actions = '<button data-act="load" data-id="' + p.id + '">Load</button>';
+        if (p.is_builtin) actions += '<span class="builtin">builtin</span>';
+        else actions += '<button data-act="update" data-id="' + p.id + '">Update</button>' +
+                        '<button class="danger" data-act="delete" data-id="' + p.id + '">Delete</button>';
+        return '<span class="chip"><span class="cname">' + esc(p.name) + '</span>' +
+          '<span class="cw">' + w + '</span>' + actions + '</span>';
+      }).join("");
+      Array.prototype.forEach.call(el.querySelectorAll("button"), function (b) {
+        b.addEventListener("click", function () {
+          var id = +b.dataset.id, act = b.dataset.act;
+          var p = list.filter(function (x) { return x.id === id; })[0];
+          if (act === "load") { setWeights({ accuracy: p.w_accuracy, latency: p.w_latency, vram: p.w_vram, tokens: p.w_tokens }); setMsg("preset-msg", "Loaded preset '" + p.name + "' into the sliders.", "ok"); }
+          else if (act === "update") { j("PATCH", "/presets/" + id, currentWeights()).then(function () { setMsg("preset-msg", "Updated '" + p.name + "'.", "ok"); refreshPresets(); }).catch(function (e) { setMsg("preset-msg", e.message, "err"); }); }
+          else if (act === "delete") { if (!confirm("Delete preset '" + p.name + "'?")) return; j("DELETE", "/presets/" + id).then(function () { setMsg("preset-msg", "Deleted '" + p.name + "'.", "ok"); refreshPresets(); }).catch(function (e) { setMsg("preset-msg", e.message, "err"); }); }
+        });
+      });
+    }
+    function savePreset() {
+      var name = (document.getElementById("preset-name").value || "").trim();
+      if (!name) { setMsg("preset-msg", "Enter a preset name.", "err"); return; }
+      var payload = currentWeights(); payload.name = name;
+      j("POST", "/presets", payload).then(function () {
+        document.getElementById("preset-name").value = "";
+        setMsg("preset-msg", "Saved preset '" + name + "'.", "ok"); refreshPresets();
+      }).catch(function (e) { setMsg("preset-msg", e.message, "err"); });
+    }
+
+    // ---- sessions ----
+    function refreshSessions() {
+      var live = available();
+      document.getElementById("crud-unavailable").style.display = live ? "none" : "block";
+      document.getElementById("crud-live").style.display = live ? "block" : "none";
+      if (!live) return;
+      j("GET", "/sessions").then(function (d) { renderSessions(d.sessions || []); })
+        .catch(function (e) { setMsg("sess-list-msg", "Could not load sessions: " + e.message, "err"); });
+    }
+    function renderSessions(list) {
+      var el = document.getElementById("sess-table");
+      if (!list.length) { el.innerHTML = "<tbody><tr><td class='l'>No saved sessions yet — import an analysis.json above.</td></tr></tbody>"; return; }
+      el.innerHTML = "<thead><tr><th class='l'>Name</th><th class='l'>Top model</th><th>Models</th><th class='l'>Created</th><th class='l'></th></tr></thead><tbody>" +
+        list.map(function (s) {
+          var sm = s.summary || {};
+          return "<tr><td class='model l'>" + esc(s.name) + "</td>" +
+            "<td class='l'>" + esc(sm.top_model || "—") + "</td>" +
+            "<td>" + (sm.model_count != null ? sm.model_count : "—") + "</td>" +
+            "<td class='l'>" + esc((s.created_at || "").replace("T", " ").replace("+00:00", "")) + "</td>" +
+            "<td class='l rowact'>" +
+              '<button data-act="open" data-id="' + s.id + '">Open</button>' +
+              '<button data-act="rename" data-id="' + s.id + '">Rename</button>' +
+              '<button class="danger" data-act="delete" data-id="' + s.id + '">Delete</button>' +
+            "</td></tr>";
+        }).join("") + "</tbody>";
+      Array.prototype.forEach.call(el.querySelectorAll("button"), function (b) {
+        b.addEventListener("click", function () {
+          var id = +b.dataset.id, act = b.dataset.act;
+          var s = list.filter(function (x) { return x.id === id; })[0];
+          if (act === "open") openSession(id);
+          else if (act === "rename") {
+            var nn = prompt("Rename session:", s.name); if (nn == null) return;
+            j("PATCH", "/sessions/" + id, { name: nn }).then(function () { setMsg("sess-list-msg", "Renamed.", "ok"); refreshSessions(); }).catch(function (e) { setMsg("sess-list-msg", e.message, "err"); });
+          } else if (act === "delete") {
+            if (!confirm("Delete session '" + s.name + "' and its notes?")) return;
+            j("DELETE", "/sessions/" + id).then(function () { if (openSessionId === id) { openSessionId = null; document.getElementById("open-session-panel").style.display = "none"; } setMsg("sess-list-msg", "Deleted.", "ok"); refreshSessions(); }).catch(function (e) { setMsg("sess-list-msg", e.message, "err"); });
+          }
+        });
+      });
+    }
+    function openSession(id) {
+      j("GET", "/sessions/" + id).then(function (s) {
+        openSessionId = id;
+        state.exploratory = null;
+        load(validate(s.analysis), "loaded", "session: " + s.name);
+        document.getElementById("open-session-panel").style.display = "block";
+        document.getElementById("open-sess-name").textContent = s.name;
+        var sm = s.summary || {};
+        document.getElementById("open-sess-summary").textContent =
+          "Imported " + (s.source_filename || "analysis.json") + " · " + (sm.model_count || 0) +
+          " models · top: " + (sm.top_model || "—");
+        refreshNotes();
+        setMsg("sess-list-msg", "Opened '" + s.name + "' — see the Overview / Detailed Analysis tabs.", "ok");
+      }).catch(function (e) { setMsg("sess-list-msg", e.message, "err"); });
+    }
+    function importSession() {
+      var name = (document.getElementById("sess-name").value || "").trim();
+      var f = document.getElementById("sess-file").files[0];
+      if (!name) { setMsg("sess-import-msg", "Enter a session name.", "err"); return; }
+      if (!f) { setMsg("sess-import-msg", "Choose an analysis.json file.", "err"); return; }
+      var rd = new FileReader();
+      rd.onload = function () {
+        var a; try { a = validate(JSON.parse(rd.result)); } catch (e) { setMsg("sess-import-msg", "Not a valid analysis.json: " + e.message, "err"); return; }
+        j("POST", "/sessions", { name: name, analysis: a, source_filename: f.name }).then(function () {
+          document.getElementById("sess-name").value = ""; document.getElementById("sess-file").value = "";
+          setMsg("sess-import-msg", "Imported session '" + name + "'.", "ok"); refreshSessions();
+        }).catch(function (e) { setMsg("sess-import-msg", e.message, "err"); });
+      };
+      rd.readAsText(f);
+    }
+
+    // ---- notes ----
+    function refreshNotes() {
+      if (openSessionId == null) return;
+      j("GET", "/sessions/" + openSessionId + "/notes").then(function (d) { renderNotes(d.notes || []); })
+        .catch(function (e) { setMsg("note-msg", e.message, "err"); });
+    }
+    function renderNotes(list) {
+      var el = document.getElementById("note-list");
+      el.innerHTML = list.length ? list.map(function (n) {
+        return '<div class="note-item"><div class="nbody">' + esc(n.body) +
+          '<div class="nmeta">' + esc((n.updated_at || "").replace("T", " ").replace("+00:00", "")) + '</div></div>' +
+          '<div class="rowact"><button data-act="edit" data-id="' + n.id + '">Edit</button>' +
+          '<button class="danger" data-act="delete" data-id="' + n.id + '">Delete</button></div></div>';
+      }).join("") : "<span class='note'>No notes yet.</span>";
+      Array.prototype.forEach.call(el.querySelectorAll("button"), function (b) {
+        b.addEventListener("click", function () {
+          var id = +b.dataset.id, act = b.dataset.act;
+          var n = list.filter(function (x) { return x.id === id; })[0];
+          if (act === "edit") { var nb = prompt("Edit note:", n.body); if (nb == null) return; j("PATCH", "/notes/" + id, { body: nb }).then(refreshNotes).catch(function (e) { setMsg("note-msg", e.message, "err"); }); }
+          else if (act === "delete") { if (!confirm("Delete this note?")) return; j("DELETE", "/notes/" + id).then(refreshNotes).catch(function (e) { setMsg("note-msg", e.message, "err"); }); }
+        });
+      });
+    }
+    function addNote() {
+      if (openSessionId == null) return;
+      var body = (document.getElementById("note-input").value || "").trim();
+      if (!body) { setMsg("note-msg", "Enter a note.", "err"); return; }
+      j("POST", "/notes", { session_id: openSessionId, body: body }).then(function () {
+        document.getElementById("note-input").value = ""; setMsg("note-msg", "", ""); refreshNotes();
+      }).catch(function (e) { setMsg("note-msg", e.message, "err"); });
+    }
+
+    function init() {
+      var sb = document.getElementById("preset-save-btn"); if (sb) sb.addEventListener("click", savePreset);
+      var ib = document.getElementById("sess-import-btn"); if (ib) ib.addEventListener("click", importSession);
+      var nb = document.getElementById("note-add-btn"); if (nb) nb.addEventListener("click", addNote);
+      refreshPresets();
+    }
+    return { init: init, refreshSessions: refreshSessions, refreshPresets: refreshPresets };
+  })();
+
   // ==== nav ====
   function showView(name) {
-    ["overview", "detailed", "settings"].forEach(function (v) {
+    ["overview", "detailed", "sessions", "settings"].forEach(function (v) {
       var sec = document.getElementById("view-" + v);
       if (sec) sec.classList.toggle("active", v === name);
     });
@@ -1445,6 +1691,7 @@
       b.classList.toggle("active", b.dataset.view === name);
     });
     if (name === "settings") renderSettings();
+    if (name === "sessions") CRUD.refreshSessions();
   }
   function initNav() {
     Array.prototype.forEach.call(document.querySelectorAll("#nav button"), function (b) {
@@ -1650,6 +1897,7 @@
   bootSample();
   initPullPanel();
   initNav();
+  CRUD.init();
   // Optional convenience: if a real analysis.json sits next to this page (served
   // over http, or some browsers allow it over file://), auto-load it.
   try {

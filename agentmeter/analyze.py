@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import math
 import sqlite3
 from pathlib import Path
 from typing import Any, Optional
@@ -33,6 +34,27 @@ from scipy.stats import norm as _normdist
 from .config import load_config
 
 ALPHA = 0.05  # significance level for the Kruskal-Wallis omnibus test
+
+
+def _json_clean(obj):
+    """Make a payload strict-JSON safe: NaN/Infinity floats -> None (JSON `null`).
+
+    Python's json emits `NaN`/`Infinity`, which are INVALID JSON that browsers
+    (JSON.parse) reject. Non-finite values here are already 'missing' (e.g.
+    weight_footprint_mb when no --model-vram was supplied), so null is correct.
+    Finite numbers are left byte-for-byte unchanged.
+    """
+    if isinstance(obj, dict):
+        return {k: _json_clean(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_clean(v) for v in obj]
+    if isinstance(obj, str) or obj is None or isinstance(obj, bool):
+        return obj
+    try:
+        f = float(obj)
+    except (TypeError, ValueError):
+        return obj
+    return None if (math.isnan(f) or math.isinf(f)) else obj
 
 
 # --- DB access (read-only) ---------------------------------------------
@@ -520,7 +542,9 @@ def _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_
             out / "advanced_latency_cov.csv", index=False)
         pd.DataFrame(advanced_section["throughput"]).to_csv(
             out / "advanced_throughput.csv", index=False)
-    (out / "analysis.json").write_text(json.dumps(payload, indent=2, default=str))
+    # Strict-JSON safe (NaN/Inf -> null) so the dashboard's JSON.parse accepts it.
+    (out / "analysis.json").write_text(
+        json.dumps(_json_clean(payload), indent=2, default=str, allow_nan=False))
 
 
 def _format_summary(run_ids, sr, p7, raw, p8, sens, diag, stats, out_dir,

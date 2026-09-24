@@ -150,6 +150,12 @@ def test_run_analysis_end_to_end(tmp_path):
     assert set(res["statistics"].keys()) == {"scenario_total_time_s", "scenario_peak_vram_mb"}
     assert (out / "analysis.json").exists()
     assert (out / "phase8_saw.csv").exists()
+    # analysis.json must be STRICT valid JSON (no NaN/Infinity) so the browser
+    # dashboard's JSON.parse accepts it.
+    text = (out / "analysis.json").read_text()
+    assert "NaN" not in text and "Infinity" not in text
+    json.loads(text, parse_constant=lambda c: (_ for _ in ()).throw(
+        ValueError(f"non-finite constant {c!r} in analysis.json")))
 
 
 # --- total-device-footprint VRAM criterion (--model-vram) --------------

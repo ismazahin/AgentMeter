@@ -54,6 +54,21 @@ never fabricates; if a model file is missing it says so.
 python main.py run-full                                   # uses config.yaml
 python main.py --config configs/run_full_mock.yaml run-full --fresh   # 5 mock models, no GPU
 ```
+
+**One-click full run (wrappers, no new logic):** `run_full.bat` (Windows) /
+`./run_full.sh` (Linux) just wrap
+`python main.py --config configs/run_full_l4.yaml run-full` with a short banner
+and an end pause.
+
+**Live single-scenario demo (Phase 15):** load ONE of the fixed 5 models (4-bit
+NF4, GPU) and stream ONE scenario through the real instrumented 4-agent pipeline,
+printing the chain-of-thought step by step and the per-agent + end-to-end latency,
+VRAM and tokens, plus predicted vs true class. Writes **nothing** to any DB and
+runs **one** scenario per invocation (require_gpu enforced — no CPU fallback):
+```bash
+python scripts/demo_run.py --model Qwen/Qwen2.5-7B-Instruct --class "Port Scanning"
+python scripts/demo_run.py --model Qwen/Qwen2.5-7B-Instruct --scenario row_0042
+```
 Each model runs in its **own worker subprocess** (`agentmeter.worker`), spawned
 sequentially — one model loaded per process, then the process exits so the OS
 reclaims all GPU memory. This is what makes each model's VRAM readings clean by

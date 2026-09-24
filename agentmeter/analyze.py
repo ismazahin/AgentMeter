@@ -400,10 +400,15 @@ def run_analysis(
     from . import analyze_by_class
     per_class_section = analyze_by_class.aggregate_per_class(sr, am, classes)
 
+    # Phase 14 — read-only analytical expansion (Pareto, CoV, prefill/decode,
+    # throughput, misclassification cost). Also purely additive.
+    from . import analyze_advanced
+    advanced_section = analyze_advanced.aggregate_advanced(sr, am)
+
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_meta,
-                   finding, per_class_section)
+                   finding, per_class_section, advanced_section)
     summary = _format_summary(run_ids, sr, p7, raw, p8, sens, diag, stats, str(out),
                               model_vram_meta, finding)
     print(summary)
@@ -446,7 +451,7 @@ VRAM_SAW_MARGINAL = ("SAW VRAM criterion = MARGINAL working memory (mean scenari
 
 
 def _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_meta,
-                   finding, per_class_section=None):
+                   finding, per_class_section=None, advanced_section=None):
     p7["per_model"].to_csv(out / "phase7_model_accuracy.csv", index=False)
     p7["per_class"].to_csv(out / "phase7_per_class_accuracy.csv", index=False)
     for m, cm in p7["confusion"].items():
@@ -505,6 +510,16 @@ def _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_
         pca = per_class_section.get("per_agent", [])
         if pca:
             pd.DataFrame(pca).to_csv(out / "per_class_per_agent.csv", index=False)
+    # Phase 14 — additive `advanced` section, appended after per_class so every
+    # earlier key stays byte-for-byte unchanged.
+    if advanced_section is not None:
+        payload["advanced"] = advanced_section
+        pd.DataFrame(advanced_section["pareto"]["points"]).to_csv(
+            out / "advanced_pareto.csv", index=False)
+        pd.DataFrame(advanced_section["latency_cov"]).to_csv(
+            out / "advanced_latency_cov.csv", index=False)
+        pd.DataFrame(advanced_section["throughput"]).to_csv(
+            out / "advanced_throughput.csv", index=False)
     (out / "analysis.json").write_text(json.dumps(payload, indent=2, default=str))
 
 

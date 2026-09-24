@@ -901,5 +901,398 @@
       }
     ],
     "per_agent": []
+  },
+  "advanced": {
+    "note": "ILLUSTRATIVE advanced sample derived from the bundled figures. Real values come from a loaded analysis.json's advanced section (analyze.py). Resource/measurement framing only.",
+    "pareto": {
+      "note": "Accuracy (higher better) vs mean latency / mean tokens (lower better). pareto_latency/pareto_tokens flag the non-dominated models.",
+      "points": [
+        {
+          "model": "Qwen2.5-7B-Instruct",
+          "accuracy": 0.267,
+          "accuracy_pct": 26.7,
+          "mean_latency_s": 12.862,
+          "mean_tokens": 3086.8,
+          "n": 300,
+          "pareto_latency": true,
+          "pareto_tokens": true
+        },
+        {
+          "model": "Mistral-7B-Instruct-v0.3",
+          "accuracy": 0.33299999999999996,
+          "accuracy_pct": 33.3,
+          "mean_latency_s": 20.942,
+          "mean_tokens": 5026.2,
+          "n": 300,
+          "pareto_latency": true,
+          "pareto_tokens": true
+        },
+        {
+          "model": "Meta-Llama-3-8B-Instruct",
+          "accuracy": 0.183,
+          "accuracy_pct": 18.3,
+          "mean_latency_s": 15.81,
+          "mean_tokens": 3794.5,
+          "n": 300,
+          "pareto_latency": false,
+          "pareto_tokens": false
+        },
+        {
+          "model": "gemma-2-9b-it",
+          "accuracy": 0.26,
+          "accuracy_pct": 26.0,
+          "mean_latency_s": 23.256,
+          "mean_tokens": 5581.4,
+          "n": 300,
+          "pareto_latency": false,
+          "pareto_tokens": false
+        },
+        {
+          "model": "Phi-3-mini-4k-instruct",
+          "accuracy": 0.207,
+          "accuracy_pct": 20.7,
+          "mean_latency_s": 18.605,
+          "mean_tokens": 4465.1,
+          "n": 300,
+          "pareto_latency": false,
+          "pareto_tokens": false
+        }
+      ]
+    },
+    "latency_cov": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "n": 300,
+        "mean_latency_s": 12.862,
+        "std_latency_s": 3.601,
+        "cov": 0.28
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "n": 300,
+        "mean_latency_s": 20.942,
+        "std_latency_s": 8.586,
+        "cov": 0.41
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "n": 300,
+        "mean_latency_s": 15.81,
+        "std_latency_s": 5.534,
+        "cov": 0.35
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "n": 300,
+        "mean_latency_s": 23.256,
+        "std_latency_s": 10.93,
+        "cov": 0.47
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "n": 300,
+        "mean_latency_s": 18.605,
+        "std_latency_s": 5.767,
+        "cov": 0.31
+      }
+    ],
+    "prefill_decode": {
+      "per_model": [
+        {
+          "model": "Qwen2.5-7B-Instruct",
+          "n": 300,
+          "mean_prefill_s": 1.799,
+          "mean_decode_s": 3.342
+        },
+        {
+          "model": "Mistral-7B-Instruct-v0.3",
+          "n": 300,
+          "mean_prefill_s": 1.796,
+          "mean_decode_s": 3.334
+        },
+        {
+          "model": "Meta-Llama-3-8B-Instruct",
+          "n": 300,
+          "mean_prefill_s": 1.807,
+          "mean_decode_s": 3.356
+        },
+        {
+          "model": "gemma-2-9b-it",
+          "n": 300,
+          "mean_prefill_s": 1.826,
+          "mean_decode_s": 3.391
+        },
+        {
+          "model": "Phi-3-mini-4k-instruct",
+          "n": 300,
+          "mean_prefill_s": 1.76,
+          "mean_decode_s": 3.268
+        }
+      ],
+      "per_agent": [
+        {
+          "model": "Qwen2.5-7B-Instruct",
+          "agent_name": "perceive",
+          "n": 300,
+          "mean_prefill_s": 0.167,
+          "mean_decode_s": 0.309
+        },
+        {
+          "model": "Qwen2.5-7B-Instruct",
+          "agent_name": "reason",
+          "n": 300,
+          "mean_prefill_s": 1.066,
+          "mean_decode_s": 1.98
+        },
+        {
+          "model": "Qwen2.5-7B-Instruct",
+          "agent_name": "decide",
+          "n": 300,
+          "mean_prefill_s": 0.366,
+          "mean_decode_s": 0.681
+        },
+        {
+          "model": "Qwen2.5-7B-Instruct",
+          "agent_name": "act",
+          "n": 300,
+          "mean_prefill_s": 0.2,
+          "mean_decode_s": 0.371
+        },
+        {
+          "model": "Mistral-7B-Instruct-v0.3",
+          "agent_name": "perceive",
+          "n": 300,
+          "mean_prefill_s": 0.166,
+          "mean_decode_s": 0.309
+        },
+        {
+          "model": "Mistral-7B-Instruct-v0.3",
+          "agent_name": "reason",
+          "n": 300,
+          "mean_prefill_s": 1.064,
+          "mean_decode_s": 1.976
+        },
+        {
+          "model": "Mistral-7B-Instruct-v0.3",
+          "agent_name": "decide",
+          "n": 300,
+          "mean_prefill_s": 0.366,
+          "mean_decode_s": 0.679
+        },
+        {
+          "model": "Mistral-7B-Instruct-v0.3",
+          "agent_name": "act",
+          "n": 300,
+          "mean_prefill_s": 0.2,
+          "mean_decode_s": 0.37
+        },
+        {
+          "model": "Meta-Llama-3-8B-Instruct",
+          "agent_name": "perceive",
+          "n": 300,
+          "mean_prefill_s": 0.167,
+          "mean_decode_s": 0.311
+        },
+        {
+          "model": "Meta-Llama-3-8B-Instruct",
+          "agent_name": "reason",
+          "n": 300,
+          "mean_prefill_s": 1.071,
+          "mean_decode_s": 1.989
+        },
+        {
+          "model": "Meta-Llama-3-8B-Instruct",
+          "agent_name": "decide",
+          "n": 300,
+          "mean_prefill_s": 0.368,
+          "mean_decode_s": 0.684
+        },
+        {
+          "model": "Meta-Llama-3-8B-Instruct",
+          "agent_name": "act",
+          "n": 300,
+          "mean_prefill_s": 0.201,
+          "mean_decode_s": 0.373
+        },
+        {
+          "model": "gemma-2-9b-it",
+          "agent_name": "perceive",
+          "n": 300,
+          "mean_prefill_s": 0.169,
+          "mean_decode_s": 0.314
+        },
+        {
+          "model": "gemma-2-9b-it",
+          "agent_name": "reason",
+          "n": 300,
+          "mean_prefill_s": 1.082,
+          "mean_decode_s": 2.009
+        },
+        {
+          "model": "gemma-2-9b-it",
+          "agent_name": "decide",
+          "n": 300,
+          "mean_prefill_s": 0.372,
+          "mean_decode_s": 0.691
+        },
+        {
+          "model": "gemma-2-9b-it",
+          "agent_name": "act",
+          "n": 300,
+          "mean_prefill_s": 0.203,
+          "mean_decode_s": 0.377
+        },
+        {
+          "model": "Phi-3-mini-4k-instruct",
+          "agent_name": "perceive",
+          "n": 300,
+          "mean_prefill_s": 0.163,
+          "mean_decode_s": 0.303
+        },
+        {
+          "model": "Phi-3-mini-4k-instruct",
+          "agent_name": "reason",
+          "n": 300,
+          "mean_prefill_s": 1.043,
+          "mean_decode_s": 1.937
+        },
+        {
+          "model": "Phi-3-mini-4k-instruct",
+          "agent_name": "decide",
+          "n": 300,
+          "mean_prefill_s": 0.358,
+          "mean_decode_s": 0.666
+        },
+        {
+          "model": "Phi-3-mini-4k-instruct",
+          "agent_name": "act",
+          "n": 300,
+          "mean_prefill_s": 0.196,
+          "mean_decode_s": 0.363
+        }
+      ]
+    },
+    "throughput": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "n": 300,
+        "total_output_tokens": 72000.0,
+        "total_decode_s": 1002.48,
+        "tokens_per_s": 71.82,
+        "mean_output_tokens": 240.0,
+        "mean_decode_s": 3.342
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "n": 300,
+        "total_output_tokens": 72000.0,
+        "total_decode_s": 1000.32,
+        "tokens_per_s": 71.98,
+        "mean_output_tokens": 240.0,
+        "mean_decode_s": 3.334
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "n": 300,
+        "total_output_tokens": 72000.0,
+        "total_decode_s": 1006.65,
+        "tokens_per_s": 71.52,
+        "mean_output_tokens": 240.0,
+        "mean_decode_s": 3.356
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "n": 300,
+        "total_output_tokens": 72000.0,
+        "total_decode_s": 1017.21,
+        "tokens_per_s": 70.78,
+        "mean_output_tokens": 240.0,
+        "mean_decode_s": 3.391
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "n": 300,
+        "total_output_tokens": 72000.0,
+        "total_decode_s": 980.37,
+        "tokens_per_s": 73.44,
+        "mean_output_tokens": 240.0,
+        "mean_decode_s": 3.268
+      }
+    ],
+    "misclass_cost": {
+      "note": "RESOURCE cost when right vs wrong \u2014 cost comparison only, not a detection ranking.",
+      "rows": [
+        {
+          "model": "Qwen2.5-7B-Instruct",
+          "group": "correct",
+          "n": 80,
+          "mean_latency_s": 12.219,
+          "mean_tokens": 2839.9
+        },
+        {
+          "model": "Qwen2.5-7B-Instruct",
+          "group": "incorrect",
+          "n": 220,
+          "mean_latency_s": 14.148,
+          "mean_tokens": 3549.8
+        },
+        {
+          "model": "Mistral-7B-Instruct-v0.3",
+          "group": "correct",
+          "n": 100,
+          "mean_latency_s": 19.895,
+          "mean_tokens": 4624.1
+        },
+        {
+          "model": "Mistral-7B-Instruct-v0.3",
+          "group": "incorrect",
+          "n": 200,
+          "mean_latency_s": 23.037,
+          "mean_tokens": 5780.1
+        },
+        {
+          "model": "Meta-Llama-3-8B-Instruct",
+          "group": "correct",
+          "n": 55,
+          "mean_latency_s": 15.02,
+          "mean_tokens": 3490.9
+        },
+        {
+          "model": "Meta-Llama-3-8B-Instruct",
+          "group": "incorrect",
+          "n": 245,
+          "mean_latency_s": 17.391,
+          "mean_tokens": 4363.6
+        },
+        {
+          "model": "gemma-2-9b-it",
+          "group": "correct",
+          "n": 78,
+          "mean_latency_s": 22.093,
+          "mean_tokens": 5134.9
+        },
+        {
+          "model": "gemma-2-9b-it",
+          "group": "incorrect",
+          "n": 222,
+          "mean_latency_s": 25.581,
+          "mean_tokens": 6418.6
+        },
+        {
+          "model": "Phi-3-mini-4k-instruct",
+          "group": "correct",
+          "n": 62,
+          "mean_latency_s": 17.674,
+          "mean_tokens": 4107.9
+        },
+        {
+          "model": "Phi-3-mini-4k-instruct",
+          "group": "incorrect",
+          "n": 238,
+          "mean_latency_s": 20.465,
+          "mean_tokens": 5134.9
+        }
+      ]
+    }
   }
 }

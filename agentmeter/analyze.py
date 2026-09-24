@@ -396,16 +396,22 @@ def run_analysis(
     stats = statistics(sr)
     finding = _vram_finding(raw, p8["targets"], footprint is not None)
 
+    # Phase 13 — per-attack-class RESOURCE breakdown (READ-ONLY, purely additive).
+    from . import analyze_by_class
+    per_class_section = analyze_by_class.aggregate_per_class(sr, am, classes)
+
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
-    _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_meta, finding)
+    _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_meta,
+                   finding, per_class_section)
     summary = _format_summary(run_ids, sr, p7, raw, p8, sens, diag, stats, str(out),
                               model_vram_meta, finding)
     print(summary)
     (out / "summary.txt").write_text(summary)
     return {"out_dir": str(out), "run_ids": run_ids, "p7": p7, "p8": p8,
             "sensitivity": sens, "diagnostics": diag, "statistics": stats,
-            "raw": raw, "model_vram": model_vram_meta, "vram_finding": finding}
+            "raw": raw, "model_vram": model_vram_meta, "vram_finding": finding,
+            "per_class": per_class_section}
 
 
 def _vram_finding(raw: pd.DataFrame, targets: dict[str, float], have_total: bool) -> str:
@@ -439,7 +445,8 @@ VRAM_SAW_MARGINAL = ("SAW VRAM criterion = MARGINAL working memory (mean scenari
                      "no --model-vram supplied. Config target 16000 MB / weight 0.20.")
 
 
-def _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_meta, finding):
+def _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_meta,
+                   finding, per_class_section=None):
     p7["per_model"].to_csv(out / "phase7_model_accuracy.csv", index=False)
     p7["per_class"].to_csv(out / "phase7_per_class_accuracy.csv", index=False)
     for m, cm in p7["confusion"].items():
@@ -489,6 +496,15 @@ def _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_
             for metric, e in stats.items()
         },
     }
+    # Phase 13 — additive `per_class` section appended LAST so every existing key
+    # above is byte-for-byte unchanged.
+    if per_class_section is not None:
+        payload["per_class"] = per_class_section
+        pd.DataFrame(per_class_section.get("table", [])).to_csv(
+            out / "per_class_resource.csv", index=False)
+        pca = per_class_section.get("per_agent", [])
+        if pca:
+            pd.DataFrame(pca).to_csv(out / "per_class_per_agent.csv", index=False)
     (out / "analysis.json").write_text(json.dumps(payload, indent=2, default=str))
 
 

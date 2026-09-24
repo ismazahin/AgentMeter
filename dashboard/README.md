@@ -37,9 +37,12 @@ one loaded `analysis.json`; no server or GPU needed to view precomputed results)
   diagnostics (with the *reason dominates latency* / *decide dominates marginal
   working memory* findings highlighted per row), the sensitivity table (rank
   under each weight set, with rank-stability of the #1 model called out), the
-  Kruskal-Wallis + Dunn statistics for latency and peak VRAM (read-only), and
+  Kruskal-Wallis + Dunn statistics for latency and peak VRAM (read-only),
   accuracy detail (per-model, plus per-class and confusion matrices when present
-  in the JSON).
+  in the JSON), and a **Resource cost per attack class** panel (from the
+  `per_class` section) — mean/median latency, VRAM and tokens per attack class,
+  by model and metric, framing *where resource cost concentrates by class* (a
+  measurement view, not a per-class detection ranking).
 - **Sessions** — data management (CRUD) served by the app, stored in a **separate
   metadata DB** (`results/agentmeter_app.db`), never the locked study DB. Import an
   `analysis.json` as a named **session** (its summary is extracted once and kept

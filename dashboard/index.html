@@ -359,6 +359,21 @@
   </div>
 
   <div class="panel">
+    <h2>Resource cost per attack class <span class="hint">— where latency, VRAM and tokens concentrate across classes (measurement, not detection quality)</span></h2>
+    <div class="controls" style="margin-bottom:14px">
+      <label>Model: <select id="pc-model"></select></label>
+      <label style="margin-left:14px">Metric: <select id="pc-metric">
+        <option value="mean_latency_s">Latency (s)</option>
+        <option value="mean_vram_mb">VRAM — marginal working memory (MB)</option>
+        <option value="mean_tokens">Tokens (input+output)</option>
+      </select></label>
+    </div>
+    <div id="pc-bars"></div>
+    <table id="pc-table" style="margin-top:18px"></table>
+    <p class="note" id="pc-note"></p>
+  </div>
+
+  <div class="panel">
     <h2>Sensitivity analysis <span class="hint">— ranking under each configured weight set (fixed, from the study)</span></h2>
     <p class="finding" id="sens-finding"></p>
     <table id="sens-table"></table>
@@ -1028,7 +1043,320 @@
       }
     ]
   },
-  "statistics": {}
+  "statistics": {},
+  "per_class": {
+    "note": "ILLUSTRATIVE per-class resource sample. Real magnitudes come from a loaded analysis.json's per_class section (analyze.py). RESOURCE cost per attack class (not detection quality); accuracy is plain context.",
+    "classes": [
+      "Brute Force",
+      "Volumetric DDoS",
+      "Port Scanning",
+      "DoS Hulk",
+      "Benign"
+    ],
+    "table": [
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "class": "Brute Force",
+        "n": 60,
+        "mean_latency_s": 12.219,
+        "median_latency_s": 12.097,
+        "mean_vram_mb": 1300.0,
+        "median_vram_mb": 1300.0,
+        "mean_tokens": 3025.08,
+        "median_tokens": 2994.83,
+        "accuracy": 0.294
+      },
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "class": "Volumetric DDoS",
+        "n": 60,
+        "mean_latency_s": 14.148,
+        "median_latency_s": 14.007,
+        "mean_vram_mb": 1365.0,
+        "median_vram_mb": 1365.0,
+        "mean_tokens": 3457.24,
+        "median_tokens": 3422.67,
+        "accuracy": 0.24
+      },
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "class": "Port Scanning",
+        "n": 60,
+        "mean_latency_s": 15.434,
+        "median_latency_s": 15.28,
+        "mean_vram_mb": 1404.0,
+        "median_vram_mb": 1404.0,
+        "mean_tokens": 3765.92,
+        "median_tokens": 3728.26,
+        "accuracy": 0.28
+      },
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "class": "DoS Hulk",
+        "n": 60,
+        "mean_latency_s": 14.791,
+        "median_latency_s": 14.643,
+        "mean_vram_mb": 1378.0,
+        "median_vram_mb": 1378.0,
+        "mean_tokens": 3395.5,
+        "median_tokens": 3361.55,
+        "accuracy": 0.227
+      },
+      {
+        "model": "Qwen2.5-7B-Instruct",
+        "class": "Benign",
+        "n": 60,
+        "mean_latency_s": 10.289,
+        "median_latency_s": 10.186,
+        "mean_vram_mb": 1235.0,
+        "median_vram_mb": 1235.0,
+        "mean_tokens": 2407.72,
+        "median_tokens": 2383.64,
+        "accuracy": 0.32
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "class": "Brute Force",
+        "n": 60,
+        "mean_latency_s": 19.895,
+        "median_latency_s": 19.696,
+        "mean_vram_mb": 1250.0,
+        "median_vram_mb": 1250.0,
+        "mean_tokens": 4925.66,
+        "median_tokens": 4876.4,
+        "accuracy": 0.366
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "class": "Volumetric DDoS",
+        "n": 60,
+        "mean_latency_s": 23.037,
+        "median_latency_s": 22.807,
+        "mean_vram_mb": 1312.5,
+        "median_vram_mb": 1312.5,
+        "mean_tokens": 5629.32,
+        "median_tokens": 5573.03,
+        "accuracy": 0.3
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "class": "Port Scanning",
+        "n": 60,
+        "mean_latency_s": 25.131,
+        "median_latency_s": 24.88,
+        "mean_vram_mb": 1350.0,
+        "median_vram_mb": 1350.0,
+        "mean_tokens": 6131.94,
+        "median_tokens": 6070.62,
+        "accuracy": 0.35
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "class": "DoS Hulk",
+        "n": 60,
+        "mean_latency_s": 24.084,
+        "median_latency_s": 23.843,
+        "mean_vram_mb": 1325.0,
+        "median_vram_mb": 1325.0,
+        "mean_tokens": 5528.8,
+        "median_tokens": 5473.51,
+        "accuracy": 0.283
+      },
+      {
+        "model": "Mistral-7B-Instruct-v0.3",
+        "class": "Benign",
+        "n": 60,
+        "mean_latency_s": 16.754,
+        "median_latency_s": 16.586,
+        "mean_vram_mb": 1187.5,
+        "median_vram_mb": 1187.5,
+        "mean_tokens": 3920.42,
+        "median_tokens": 3881.22,
+        "accuracy": 0.4
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "class": "Brute Force",
+        "n": 60,
+        "mean_latency_s": 15.02,
+        "median_latency_s": 14.87,
+        "mean_vram_mb": 1400.0,
+        "median_vram_mb": 1400.0,
+        "mean_tokens": 3718.58,
+        "median_tokens": 3681.39,
+        "accuracy": 0.201
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "class": "Volumetric DDoS",
+        "n": 60,
+        "mean_latency_s": 17.391,
+        "median_latency_s": 17.217,
+        "mean_vram_mb": 1470.0,
+        "median_vram_mb": 1470.0,
+        "mean_tokens": 4249.81,
+        "median_tokens": 4207.31,
+        "accuracy": 0.165
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "class": "Port Scanning",
+        "n": 60,
+        "mean_latency_s": 18.972,
+        "median_latency_s": 18.782,
+        "mean_vram_mb": 1512.0,
+        "median_vram_mb": 1512.0,
+        "mean_tokens": 4629.25,
+        "median_tokens": 4582.96,
+        "accuracy": 0.192
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "class": "DoS Hulk",
+        "n": 60,
+        "mean_latency_s": 18.182,
+        "median_latency_s": 18.0,
+        "mean_vram_mb": 1484.0,
+        "median_vram_mb": 1484.0,
+        "mean_tokens": 4173.92,
+        "median_tokens": 4132.18,
+        "accuracy": 0.156
+      },
+      {
+        "model": "Meta-Llama-3-8B-Instruct",
+        "class": "Benign",
+        "n": 60,
+        "mean_latency_s": 12.648,
+        "median_latency_s": 12.522,
+        "mean_vram_mb": 1330.0,
+        "median_vram_mb": 1330.0,
+        "mean_tokens": 2959.69,
+        "median_tokens": 2930.09,
+        "accuracy": 0.22
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "class": "Brute Force",
+        "n": 60,
+        "mean_latency_s": 22.093,
+        "median_latency_s": 21.872,
+        "mean_vram_mb": 1650.0,
+        "median_vram_mb": 1650.0,
+        "mean_tokens": 5469.77,
+        "median_tokens": 5415.07,
+        "accuracy": 0.286
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "class": "Volumetric DDoS",
+        "n": 60,
+        "mean_latency_s": 25.581,
+        "median_latency_s": 25.325,
+        "mean_vram_mb": 1732.5,
+        "median_vram_mb": 1732.5,
+        "mean_tokens": 6251.17,
+        "median_tokens": 6188.66,
+        "accuracy": 0.234
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "class": "Port Scanning",
+        "n": 60,
+        "mean_latency_s": 27.907,
+        "median_latency_s": 27.628,
+        "mean_vram_mb": 1782.0,
+        "median_vram_mb": 1782.0,
+        "mean_tokens": 6809.31,
+        "median_tokens": 6741.22,
+        "accuracy": 0.273
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "class": "DoS Hulk",
+        "n": 60,
+        "mean_latency_s": 26.744,
+        "median_latency_s": 26.477,
+        "mean_vram_mb": 1749.0,
+        "median_vram_mb": 1749.0,
+        "mean_tokens": 6139.54,
+        "median_tokens": 6078.14,
+        "accuracy": 0.221
+      },
+      {
+        "model": "gemma-2-9b-it",
+        "class": "Benign",
+        "n": 60,
+        "mean_latency_s": 18.605,
+        "median_latency_s": 18.419,
+        "mean_vram_mb": 1567.5,
+        "median_vram_mb": 1567.5,
+        "mean_tokens": 4353.49,
+        "median_tokens": 4309.96,
+        "accuracy": 0.312
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "class": "Brute Force",
+        "n": 60,
+        "mean_latency_s": 17.674,
+        "median_latency_s": 17.497,
+        "mean_vram_mb": 775.0,
+        "median_vram_mb": 775.0,
+        "mean_tokens": 4375.82,
+        "median_tokens": 4332.06,
+        "accuracy": 0.228
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "class": "Volumetric DDoS",
+        "n": 60,
+        "mean_latency_s": 20.465,
+        "median_latency_s": 20.26,
+        "mean_vram_mb": 813.8,
+        "median_vram_mb": 813.8,
+        "mean_tokens": 5000.93,
+        "median_tokens": 4950.92,
+        "accuracy": 0.186
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "class": "Port Scanning",
+        "n": 60,
+        "mean_latency_s": 22.326,
+        "median_latency_s": 22.103,
+        "mean_vram_mb": 837.0,
+        "median_vram_mb": 837.0,
+        "mean_tokens": 5447.45,
+        "median_tokens": 5392.98,
+        "accuracy": 0.217
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "class": "DoS Hulk",
+        "n": 60,
+        "mean_latency_s": 21.395,
+        "median_latency_s": 21.181,
+        "mean_vram_mb": 821.5,
+        "median_vram_mb": 821.5,
+        "mean_tokens": 4911.63,
+        "median_tokens": 4862.51,
+        "accuracy": 0.176
+      },
+      {
+        "model": "Phi-3-mini-4k-instruct",
+        "class": "Benign",
+        "n": 60,
+        "mean_latency_s": 14.884,
+        "median_latency_s": 14.735,
+        "mean_vram_mb": 736.2,
+        "median_vram_mb": 736.2,
+        "mean_tokens": 3482.79,
+        "median_tokens": 3447.96,
+        "accuracy": 0.248
+      }
+    ],
+    "per_agent": []
+  }
 }
 </script>
 
@@ -1040,7 +1368,7 @@
   var CRIT = ["accuracy", "latency", "vram", "tokens"];
   var CRIT_LABEL = { accuracy: "Accuracy", latency: "Latency", vram: "VRAM", tokens: "Tokens" };
 
-  var state = { data: null, weights: null, presets: {}, agentModel: null, exploratory: null };
+  var state = { data: null, weights: null, presets: {}, agentModel: null, exploratory: null, pcModel: null };
 
   // ---- helpers ----
   function byModel(rows) { var m = {}; (rows || []).forEach(function (r) { m[r.model] = r; }); return m; }
@@ -1465,6 +1793,83 @@
     } else { cEl.innerHTML = ""; }
   }
 
+  // ==== Per-attack-class RESOURCE breakdown (read-only) ====
+  var PC_METRIC_FMT = {
+    mean_latency_s: function (v) { return v.toFixed(2) + " s"; },
+    mean_vram_mb: function (v) { return Math.round(v) + " MB"; },
+    mean_tokens: function (v) { return Math.round(v).toLocaleString(); }
+  };
+  var PC_METRIC_LABEL = { mean_latency_s: "latency", mean_vram_mb: "VRAM (marginal working memory)", mean_tokens: "tokens" };
+
+  function pcRows() { return (state.data.per_class && state.data.per_class.table) || []; }
+  function pcClasses() {
+    var pcs = state.data.per_class || {};
+    if (pcs.classes && pcs.classes.length) return pcs.classes;
+    var seen = []; pcRows().forEach(function (r) { if (seen.indexOf(r["class"]) < 0) seen.push(r["class"]); });
+    return seen;
+  }
+  function buildPcSelector() {
+    var rows = pcRows();
+    var sel = document.getElementById("pc-model");
+    if (!sel) return;
+    if (!rows.length) { sel.innerHTML = ""; state.pcModel = null; return; }
+    var models = []; rows.forEach(function (r) { if (models.indexOf(r.model) < 0) models.push(r.model); });
+    sel.innerHTML = models.map(function (m) { return '<option value="' + esc(m) + '">' + esc(m) + "</option>"; }).join("");
+    state.pcModel = models[0];
+    sel.value = state.pcModel;
+    sel.onchange = function () { state.pcModel = sel.value; renderPerClass(); };
+    var msel = document.getElementById("pc-metric");
+    if (msel && !msel._wired) { msel._wired = true; msel.onchange = renderPerClass; }
+  }
+  function renderPerClass() {
+    var barsEl = document.getElementById("pc-bars");
+    var tblEl = document.getElementById("pc-table");
+    var noteEl = document.getElementById("pc-note");
+    if (!barsEl) return;
+    var rows = pcRows();
+    if (!rows.length) {
+      barsEl.innerHTML = "<span class='note'>(no per-class data in this file — produced by analyze.py as the <code>per_class</code> section)</span>";
+      tblEl.innerHTML = ""; noteEl.textContent = ""; return;
+    }
+    var model = state.pcModel;
+    var metric = (document.getElementById("pc-metric") || {}).value || "mean_latency_s";
+    var fmt = PC_METRIC_FMT[metric] || function (v) { return "" + v; };
+    var classes = pcClasses();
+    var byClass = {}; rows.forEach(function (r) { if (r.model === model) byClass[r["class"]] = r; });
+
+    // horizontal bars: the selected metric across the 5 classes (highest = where cost concentrates)
+    var vals = classes.map(function (c) { var r = byClass[c]; return (r && r[metric] != null) ? +r[metric] : 0; });
+    var max = Math.max.apply(null, vals.concat([0])) || 1;
+    var maxIdx = vals.indexOf(Math.max.apply(null, vals));
+    barsEl.innerHTML = classes.map(function (c, i) {
+      var r = byClass[c]; var v = (r && r[metric] != null) ? +r[metric] : null;
+      var pct = (v != null && max) ? (v / max * 100) : 0;
+      return '<div class="barrow" style="grid-template-columns:150px 1fr 96px"><div class="name">' + esc(c) + "</div>" +
+        '<div class="bartrack"><div class="barfill ' + (i === maxIdx ? "wall" : "vram") + '" style="width:' + pct.toFixed(1) + '%"></div></div>' +
+        '<div class="barval">' + (v == null ? "—" : fmt(v)) + "</div></div>";
+    }).join("");
+
+    // full table: every resource metric per class (+ accuracy as plain context)
+    tblEl.innerHTML = "<thead><tr><th class='l'>Class</th><th>n</th><th>Mean latency</th><th>Median latency</th>" +
+      "<th>Mean VRAM</th><th>Mean tokens</th><th>Accuracy</th></tr></thead><tbody>" +
+      classes.map(function (c) {
+        var r = byClass[c] || {};
+        function num(v, f) { return (v == null) ? "—" : f(v); }
+        return "<tr><td class='model l'>" + esc(c) + "</td>" +
+          "<td>" + (r.n != null ? r.n : "—") + "</td>" +
+          "<td>" + num(r.mean_latency_s, function (v) { return v.toFixed(2) + " s"; }) + "</td>" +
+          "<td>" + num(r.median_latency_s, function (v) { return v.toFixed(2) + " s"; }) + "</td>" +
+          "<td>" + num(r.mean_vram_mb, function (v) { return Math.round(v) + " MB"; }) + "</td>" +
+          "<td>" + num(r.mean_tokens, function (v) { return Math.round(v).toLocaleString(); }) + "</td>" +
+          "<td>" + num(r.accuracy, function (v) { return (v * 100).toFixed(0) + "%"; }) + "</td></tr>";
+      }).join("") + "</tbody>";
+
+    var top = classes[maxIdx];
+    noteEl.textContent = "Resource cost per attack class for " + model + " — highest " +
+      (PC_METRIC_LABEL[metric] || metric) + " on the " + (top || "—") +
+      " class. This shows WHERE resource cost concentrates by class; accuracy is shown as plain context, not a ranking.";
+  }
+
   // ==== Settings (STATUS ONLY — never any token value) ====
   function statusItem(label, on, onText, offText) {
     return "<div class='status-item'><span class='lbl'>" + esc(label) + "</span>" +
@@ -1733,6 +2138,8 @@
     renderSensitivity();
     renderStatistics();
     renderAccuracy();
+    buildPcSelector();
+    renderPerClass();
   }
 
   function validate(d) {

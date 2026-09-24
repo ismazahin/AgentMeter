@@ -468,6 +468,12 @@
 
   <div id="crud-live" style="display:none">
     <div class="panel">
+      <h2>Local results <span class="hint">— result JSON files found under <code>results/</code> on the server (read-only)</span></h2>
+      <table id="local-table"></table>
+      <p class="note" id="local-msg"></p>
+    </div>
+
+    <div class="panel">
       <h2>Import a session <span class="hint">— save an analysis.json as a named session (read-only once stored)</span></h2>
       <div class="row">
         <input type="text" id="sess-name" placeholder="Session name" autocomplete="off">
@@ -2602,8 +2608,44 @@
       document.getElementById("crud-unavailable").style.display = live ? "none" : "block";
       document.getElementById("crud-live").style.display = live ? "block" : "none";
       if (!live) return;
+      loadLocal();
       j("GET", "/sessions").then(function (d) { renderSessions(d.sessions || []); })
         .catch(function (e) { setMsg("sess-list-msg", "Could not load sessions: " + e.message, "err"); });
+    }
+
+    // ---- local results (Phase 16: read-only discovery under results/) ----
+    function loadLocal() {
+      j("GET", "/api/local-sessions").then(function (d) { renderLocal(d.files || []); })
+        .catch(function (e) { setMsg("local-msg", "Could not list local results: " + e.message, "err"); });
+    }
+    function fmtBytes(n) {
+      if (n == null) return "—";
+      if (n < 1024) return n + " B";
+      if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+      return (n / 1048576).toFixed(1) + " MB";
+    }
+    function renderLocal(files) {
+      var el = document.getElementById("local-table");
+      if (!files.length) { el.innerHTML = "<tbody><tr><td class='l'>No result JSON files under results/ on the server.</td></tr></tbody>"; return; }
+      el.innerHTML = "<thead><tr><th class='l'>File</th><th>Size</th><th class='l'>Modified</th><th class='l'></th></tr></thead><tbody>" +
+        files.map(function (f) {
+          return "<tr><td class='model l'>" + esc(f.name) + "</td>" +
+            "<td>" + fmtBytes(f.size) + "</td>" +
+            "<td class='l'>" + esc((f.modified || "").replace("T", " ").replace("+00:00", "")) + "</td>" +
+            "<td class='l rowact'><button data-name=\"" + esc(f.name) + "\">Load</button></td></tr>";
+        }).join("") + "</tbody>";
+      Array.prototype.forEach.call(el.querySelectorAll("button"), function (b) {
+        b.addEventListener("click", function () { openLocal(b.dataset.name); });
+      });
+    }
+    function openLocal(name) {
+      j("GET", "/api/local-sessions/" + name.split("/").map(encodeURIComponent).join("/"))
+        .then(function (data) {
+          state.exploratory = null;
+          load(validate(data), "loaded", "results/" + name);
+          setMsg("local-msg", "Loaded results/" + name + " — see the Overview / Detailed Analysis tabs.", "ok");
+        })
+        .catch(function (e) { setMsg("local-msg", "Could not load " + name + ": " + e.message, "err"); });
     }
     function renderSessions(list) {
       var el = document.getElementById("sess-table");

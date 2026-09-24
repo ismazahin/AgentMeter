@@ -130,12 +130,17 @@ def _manual_cors(resp):
 
 def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_DIR,
                guard: "CostGuard" = None, app_store=None,
-               app_db_path: Path = None):
+               app_db_path: Path = None, local_results_dir: Path = None):
+    import json as _json
+
     from flask import Flask, jsonify, request, send_from_directory
 
-    from agentmeter import appdb, crud_api
+    from agentmeter import appdb, crud_api, local_sessions
 
     app = Flask(__name__, static_folder=None)
+
+    # Phase 16 — read-only discovery of result JSON files under results/.
+    local = local_sessions.LocalSessions(local_results_dir or (REPO_ROOT / "results"))
 
     # Metadata DB (Phase 12 CRUD) — opened LAZILY on first CRUD use, so serving the
     # dashboard / pull API never creates it. Separate from the locked study DB.
@@ -168,6 +173,22 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
 
     # Phase 12 — CRUD routes for sessions / presets / notes.
     crud_api.register_crud(app, get_store)
+
+    # Phase 16 — read-only discovery of result JSON files under results/.
+    @app.route("/api/local-sessions", methods=["GET"])
+    def local_sessions_list():
+        return jsonify({"files": local.list()})
+
+    @app.route("/api/local-sessions/<path:name>", methods=["GET"])
+    def local_sessions_get(name):
+        try:
+            return jsonify(local.read_json(name))
+        except FileNotFoundError:
+            return jsonify({"error": "not found"}), 404
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        except _json.JSONDecodeError:
+            return jsonify({"error": "file is not valid JSON"}), 400
 
     # --- dashboard (same-origin) ---------------------------------------
     @app.route("/", methods=["GET"])
@@ -332,6 +353,9 @@ def main(argv=None) -> int:
     ap.add_argument("--app-db", default=None,
                     help="metadata DB for CRUD (sessions/presets/notes); default "
                          "results/agentmeter_app.db (separate from the locked study DB).")
+    ap.add_argument("--results-dir", default=None,
+                    help="directory scanned READ-ONLY for local result JSON files "
+                         "(default results/).")
     args = ap.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO,
@@ -355,7 +379,8 @@ def main(argv=None) -> int:
         on_complete=guard.on_complete,
     )
     guard.manager = manager
-    app = create_app(manager, guard=guard, app_db_path=args.app_db)
+    app = create_app(manager, guard=guard, app_db_path=args.app_db,
+                     local_results_dir=args.results_dir)
 
     _print_startup(args.port)
     _log_safety_modes(args, instance_id)

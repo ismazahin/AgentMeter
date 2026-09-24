@@ -56,8 +56,11 @@ one loaded `analysis.json`; no server or GPU needed to view precomputed results)
   across the other tabs, rename or delete it, and attach **notes**. The
   **Saved weight presets** panel (under the Overview sensitivity sliders) saves the
   live weights as a named preset and loads them back; the four builtins
-  (default/equal/accuracy_heavy/efficiency_heavy) are load-only. Requires the
-  server (same-origin); over `file://` it is read-only.
+  (default/equal/accuracy_heavy/efficiency_heavy) are load-only. A **Local results**
+  list shows the result `*.json` files found under `results/` on the server
+  (`GET /api/local-sessions`, read-only, allow-listed to `results/`); clicking one
+  loads it into the dashboard without the file picker. Requires the server
+  (same-origin); over `file://` it is hidden and manual import stays available.
 - **Settings** — **status only**. It shows each token as *set* / *not set* and
   the cost-safety modes (auto-destroy, idle-timeout) read from the server's
   `GET /settings-status`. It has **no input fields for any token** — secrets live

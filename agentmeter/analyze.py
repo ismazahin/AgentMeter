@@ -31,9 +31,42 @@ import pandas as pd
 from scipy.stats import kruskal, rankdata
 from scipy.stats import norm as _normdist
 
-from .config import load_config
+from .config import PROJECT_ROOT, load_config
 
 ALPHA = 0.05  # significance level for the Kruskal-Wallis omnibus test
+
+# The LOCKED validation study DB — the tool's validated baseline (5 canonical
+# models on CIC-IDS2017). An analysis is "validated" ONLY when it was produced
+# from exactly this DB; anything else is a user/custom run, flagged non_validated.
+LOCKED_STUDY_DB = (PROJECT_ROOT / "results" / "agentmeter_full_l4.db").resolve()
+
+
+def _provenance(db: Path, cfg) -> dict[str, Any]:
+    """Classify an analysis as the validated baseline vs a user/custom run.
+
+    Determination is by the RESULTS DB: only the locked study DB yields the
+    validated baseline. Any other DB (e.g. a user config's results/user_runs/*.db)
+    is flagged non_validated so it can never be mistaken for, or merged into, the
+    canonical validation numbers.
+    """
+    try:
+        resolved = db.resolve()
+    except OSError:
+        resolved = db
+    validated = resolved == LOCKED_STUDY_DB
+    return {
+        "validated_study": validated,
+        "non_validated": not validated,
+        "run_kind": "validated_study" if validated else "user_run",
+        "db_path": str(db),
+        "config_path": str(getattr(cfg, "path", "")) or None,
+        "note": (
+            "Validated baseline: the locked 5-model CIC-IDS2017 study."
+            if validated else
+            "USER/CUSTOM RUN — NOT the validated baseline. These numbers are "
+            "exploratory (resource efficiency only); they do not change the locked "
+            "SAW ranking or statistics and must not be merged into them."),
+    }
 
 
 def _json_clean(obj):
@@ -427,18 +460,21 @@ def run_analysis(
     from . import analyze_advanced
     advanced_section = analyze_advanced.aggregate_advanced(sr, am)
 
+    # Phase 19 — provenance: is this the validated baseline, or a user/custom run?
+    provenance = _provenance(db, cfg)
+
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_meta,
-                   finding, per_class_section, advanced_section)
+                   finding, per_class_section, advanced_section, provenance)
     summary = _format_summary(run_ids, sr, p7, raw, p8, sens, diag, stats, str(out),
-                              model_vram_meta, finding)
+                              model_vram_meta, finding, provenance)
     print(summary)
     (out / "summary.txt").write_text(summary)
     return {"out_dir": str(out), "run_ids": run_ids, "p7": p7, "p8": p8,
             "sensitivity": sens, "diagnostics": diag, "statistics": stats,
             "raw": raw, "model_vram": model_vram_meta, "vram_finding": finding,
-            "per_class": per_class_section}
+            "per_class": per_class_section, "provenance": provenance}
 
 
 def _vram_finding(raw: pd.DataFrame, targets: dict[str, float], have_total: bool) -> str:
@@ -473,7 +509,8 @@ VRAM_SAW_MARGINAL = ("SAW VRAM criterion = MARGINAL working memory (mean scenari
 
 
 def _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_meta,
-                   finding, per_class_section=None, advanced_section=None):
+                   finding, per_class_section=None, advanced_section=None,
+                   provenance=None):
     p7["per_model"].to_csv(out / "phase7_model_accuracy.csv", index=False)
     p7["per_class"].to_csv(out / "phase7_per_class_accuracy.csv", index=False)
     for m, cm in p7["confusion"].items():
@@ -542,19 +579,28 @@ def _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_
             out / "advanced_latency_cov.csv", index=False)
         pd.DataFrame(advanced_section["throughput"]).to_csv(
             out / "advanced_throughput.csv", index=False)
+    # Phase 19 — additive `provenance` block, appended LAST so every earlier key
+    # stays byte-for-byte unchanged. Flags a user/custom run as non_validated.
+    if provenance is not None:
+        payload["provenance"] = provenance
     # Strict-JSON safe (NaN/Inf -> null) so the dashboard's JSON.parse accepts it.
     (out / "analysis.json").write_text(
         json.dumps(_json_clean(payload), indent=2, default=str, allow_nan=False))
 
 
 def _format_summary(run_ids, sr, p7, raw, p8, sens, diag, stats, out_dir,
-                    model_vram_meta, finding) -> str:
+                    model_vram_meta, finding, provenance=None) -> str:
     have_total = model_vram_meta is not None
     vram_saw = VRAM_SAW_TOTAL if have_total else VRAM_SAW_MARGINAL
     L = []
     L.append("=" * 78)
     L.append("  AgentMeter — Phase 7 + 8 Analysis")
     L.append("=" * 78)
+    if provenance is not None and provenance.get("non_validated"):
+        L.append("  *** USER/CUSTOM RUN — NOT the validated baseline (non_validated) ***")
+        L.append("  These are exploratory resource numbers; they do NOT change the locked")
+        L.append("  study's SAW ranking or statistics.")
+        L.append("-" * 78)
     L.append(f"Run(s)     : {', '.join(run_ids)}")
     L.append(f"Scenarios  : {len(sr)} complete rows | models: {sr['model'].nunique()}")
     if have_total:

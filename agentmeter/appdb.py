@@ -117,6 +117,23 @@ CREATE TABLE IF NOT EXISTS note (
     updated_at  TEXT NOT NULL,
     FOREIGN KEY (session_id) REFERENCES session(id) ON DELETE CASCADE
 );
+
+-- Phase 19 — tags for organising sessions. Names are unique case-insensitively.
+CREATE TABLE IF NOT EXISTS tag (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tag_name_nocase ON tag (name COLLATE NOCASE);
+
+CREATE TABLE IF NOT EXISTS session_tag (
+    session_id  INTEGER NOT NULL,
+    tag_id      INTEGER NOT NULL,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (session_id, tag_id),
+    FOREIGN KEY (session_id) REFERENCES session(id) ON DELETE CASCADE,
+    FOREIGN KEY (tag_id)     REFERENCES tag(id)     ON DELETE CASCADE
+);
 """
 
 
@@ -181,12 +198,30 @@ class AppStore:
             sid = cur.lastrowid
         return self.get_session(sid, include_analysis=True)
 
-    def list_sessions(self) -> list[dict[str, Any]]:
-        rows = self.conn.execute(
-            "SELECT id, name, created_at, updated_at, source_filename, summary, "
-            "analysis_ref FROM session ORDER BY datetime(created_at) DESC, id DESC"
-        ).fetchall()
-        return [self._session_meta(r) for r in rows]
+    def list_sessions(self, tag: Optional[str | int] = None) -> list[dict[str, Any]]:
+        """List session metadata (newest first), each with its `tags`. If `tag`
+        (a tag id or name) is given, only sessions carrying that tag are returned."""
+        if tag is not None:
+            trow = self._find_tag(tag)
+            if trow is None:
+                return []                      # unknown tag -> no sessions match
+            rows = self.conn.execute(
+                "SELECT s.id, s.name, s.created_at, s.updated_at, s.source_filename, "
+                "s.summary, s.analysis_ref FROM session s "
+                "JOIN session_tag st ON st.session_id = s.id WHERE st.tag_id = ? "
+                "ORDER BY datetime(s.created_at) DESC, s.id DESC", (trow["id"],)).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT id, name, created_at, updated_at, source_filename, summary, "
+                "analysis_ref FROM session ORDER BY datetime(created_at) DESC, id DESC"
+            ).fetchall()
+        tags_by_session = self._all_session_tags()
+        out = []
+        for r in rows:
+            meta = self._session_meta(r)
+            meta["tags"] = tags_by_session.get(r["id"], [])
+            out.append(meta)
+        return out
 
     def get_session(self, session_id: int, include_analysis: bool = True) -> dict[str, Any]:
         row = self.conn.execute("SELECT * FROM session WHERE id = ?",
@@ -194,6 +229,7 @@ class AppStore:
         if row is None:
             raise NotFound(f"session {session_id} not found")
         out = self._session_meta(row)
+        out["tags"] = self.list_session_tags(session_id)
         if include_analysis:
             out["analysis"] = json.loads(row["analysis_json"])
         return out
@@ -213,8 +249,9 @@ class AppStore:
 
     def delete_session(self, session_id: int) -> None:
         with self._lock, self.conn:
-            # explicit note cleanup (independent of PRAGMA cascade support)
+            # explicit child cleanup (independent of PRAGMA cascade support)
             self.conn.execute("DELETE FROM note WHERE session_id = ?", (session_id,))
+            self.conn.execute("DELETE FROM session_tag WHERE session_id = ?", (session_id,))
             cur = self.conn.execute("DELETE FROM session WHERE id = ?", (session_id,))
             if cur.rowcount == 0:
                 raise NotFound(f"session {session_id} not found")
@@ -352,3 +389,102 @@ class AppStore:
     def _note_row(self, row: sqlite3.Row) -> dict[str, Any]:
         return {"id": row["id"], "session_id": row["session_id"], "body": row["body"],
                 "created_at": row["created_at"], "updated_at": row["updated_at"]}
+
+    # ================= tags (Phase 19) =================
+    @staticmethod
+    def _clean_tag_name(name: str) -> str:
+        n = (name or "").strip()
+        if not n:
+            raise ValueError("tag name is required and must be non-empty")
+        if len(n) > 64:
+            raise ValueError("tag name must be 64 characters or fewer")
+        return n
+
+    def _tag_row(self, row: sqlite3.Row) -> dict[str, Any]:
+        return {"id": row["id"], "name": row["name"], "created_at": row["created_at"]}
+
+    def _find_tag(self, ref: str | int) -> Optional[sqlite3.Row]:
+        """Look up a tag by id (int / digit-string) or by name (case-insensitive)."""
+        if isinstance(ref, int) or (isinstance(ref, str) and ref.isdigit()):
+            return self.conn.execute("SELECT * FROM tag WHERE id = ?", (int(ref),)).fetchone()
+        return self.conn.execute(
+            "SELECT * FROM tag WHERE name = ? COLLATE NOCASE", (str(ref).strip(),)).fetchone()
+
+    def get_or_create_tag(self, name: str) -> dict[str, Any]:
+        """Return the tag with this name, creating it if new (case-insensitive)."""
+        n = self._clean_tag_name(name)
+        with self._lock, self.conn:
+            row = self.conn.execute(
+                "SELECT * FROM tag WHERE name = ? COLLATE NOCASE", (n,)).fetchone()
+            if row is not None:
+                return self._tag_row(row)
+            cur = self.conn.execute(
+                "INSERT INTO tag (name, created_at) VALUES (?, ?)", (n, _now()))
+            tid = cur.lastrowid
+        return self.get_tag(tid)
+
+    def get_tag(self, tag_id: int) -> dict[str, Any]:
+        row = self.conn.execute("SELECT * FROM tag WHERE id = ?", (tag_id,)).fetchone()
+        if row is None:
+            raise NotFound(f"tag {tag_id} not found")
+        return self._tag_row(row)
+
+    def list_tags(self) -> list[dict[str, Any]]:
+        """All tags with how many sessions carry each (for filter menus)."""
+        rows = self.conn.execute(
+            "SELECT t.id, t.name, t.created_at, "
+            "  (SELECT COUNT(*) FROM session_tag st WHERE st.tag_id = t.id) AS session_count "
+            "FROM tag t ORDER BY t.name COLLATE NOCASE").fetchall()
+        return [{"id": r["id"], "name": r["name"], "created_at": r["created_at"],
+                 "session_count": r["session_count"]} for r in rows]
+
+    def delete_tag(self, tag_id: int) -> None:
+        """Delete a tag and remove it from every session (never touches analyses)."""
+        with self._lock, self.conn:
+            if self.conn.execute("SELECT 1 FROM tag WHERE id = ?", (tag_id,)).fetchone() is None:
+                raise NotFound(f"tag {tag_id} not found")
+            self.conn.execute("DELETE FROM session_tag WHERE tag_id = ?", (tag_id,))
+            self.conn.execute("DELETE FROM tag WHERE id = ?", (tag_id,))
+
+    def list_session_tags(self, session_id: int) -> list[dict[str, Any]]:
+        rows = self.conn.execute(
+            "SELECT t.id, t.name, t.created_at FROM tag t "
+            "JOIN session_tag st ON st.tag_id = t.id WHERE st.session_id = ? "
+            "ORDER BY t.name COLLATE NOCASE", (session_id,)).fetchall()
+        return [self._tag_row(r) for r in rows]
+
+    def _all_session_tags(self) -> dict[int, list[dict[str, Any]]]:
+        rows = self.conn.execute(
+            "SELECT st.session_id AS sid, t.id, t.name, t.created_at FROM session_tag st "
+            "JOIN tag t ON t.id = st.tag_id ORDER BY t.name COLLATE NOCASE").fetchall()
+        out: dict[int, list[dict[str, Any]]] = {}
+        for r in rows:
+            out.setdefault(r["sid"], []).append(
+                {"id": r["id"], "name": r["name"], "created_at": r["created_at"]})
+        return out
+
+    def add_session_tag(self, session_id: int, name: str) -> dict[str, Any]:
+        """Attach a tag (by name, created on demand) to a session. Idempotent.
+        Returns the session's full tag list."""
+        if self.conn.execute("SELECT 1 FROM session WHERE id = ?",
+                             (session_id,)).fetchone() is None:
+            raise NotFound(f"session {session_id} not found")
+        tag = self.get_or_create_tag(name)
+        with self._lock, self.conn:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO session_tag (session_id, tag_id, created_at) "
+                "VALUES (?, ?, ?)", (session_id, tag["id"], _now()))
+        return {"session_id": session_id, "tags": self.list_session_tags(session_id)}
+
+    def remove_session_tag(self, session_id: int, tag_id: int) -> dict[str, Any]:
+        """Detach a tag from a session (the tag itself is left intact)."""
+        if self.conn.execute("SELECT 1 FROM session WHERE id = ?",
+                             (session_id,)).fetchone() is None:
+            raise NotFound(f"session {session_id} not found")
+        with self._lock, self.conn:
+            cur = self.conn.execute(
+                "DELETE FROM session_tag WHERE session_id = ? AND tag_id = ?",
+                (session_id, tag_id))
+            if cur.rowcount == 0:
+                raise NotFound(f"tag {tag_id} is not on session {session_id}")
+        return {"session_id": session_id, "tags": self.list_session_tags(session_id)}

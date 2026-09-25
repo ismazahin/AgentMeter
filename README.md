@@ -141,3 +141,52 @@ See [`config.yaml`](config.yaml). Key switches:
 - `run.require_gpu`: `false` for Phases 0-3, `true` for the Phase 5 pilot.
 - `dataset.limit`: pilot uses 5-10 scenarios.
 - `scoring.weights`: SAW weights (Accuracy 40 / Latency 25 / VRAM 20 / Token 15).
+
+## The validated study vs. custom runs
+
+AgentMeter is a measurement **tool**, not a single result. It ships with one
+**validated baseline** — the locked study of the 5 canonical models on
+CIC-IDS2017 — and it can also benchmark **any other config** you point it at.
+The two are kept strictly separate so a custom run can never contaminate the
+validated numbers.
+
+**The locked validation study (read-only baseline):**
+
+- Config: [`configs/run_full_l4.yaml`](configs/run_full_l4.yaml) (never edited).
+- Results DB: `results/agentmeter_full_l4.db` (**read-only**; never written or
+  re-run by tooling).
+- Its analysis is the validated SAW ranking + statistics.
+
+**Custom / reconfigurable runs (kept separate, flagged non-validated):**
+
+1. Build a config without hand-editing YAML — the dashboard **Config builder**
+   panel (Phase 18), or copy `configs/run_full_l4.yaml`. Generated configs land
+   in `configs/user/<name>.yaml` and set
+   `storage.sqlite_path: results/user_runs/<name>.db` — a **separate per-config
+   DB**, never the locked study DB.
+2. Run it (a GPU/operator action — there is deliberately **no web button** that
+   triggers a run):
+
+   ```bash
+   python main.py --config configs/user/<name>.yaml run-full     # writes results/user_runs/<name>.db
+   python main.py --config configs/user/<name>.yaml analyze --out results/analysis_<name>
+   ```
+
+3. The resulting `analysis.json` carries a `provenance` block:
+
+   ```json
+   "provenance": { "run_kind": "user_run", "non_validated": true,
+                   "validated_study": false, "db_path": "results/user_runs/<name>.db" }
+   ```
+
+   `analyze` classifies a run as the validated baseline **only** when it reads
+   the locked study DB; every other DB is flagged `non_validated: true`. The
+   analysis summary prints a `USER/CUSTOM RUN — NOT the validated baseline`
+   banner, and the dashboard shows a distinct warning banner when such an
+   analysis is loaded. Custom runs still measure **resource efficiency only** —
+   they never change the locked SAW ranking or statistics, and are never merged
+   into them.
+
+Sessions imported into the dashboard can be organised with **tags** (Phase 19):
+add/remove tags per session and filter the session list by tag. Tags live in
+the separate app-metadata DB (`results/agentmeter_app.db`), never the study DB.

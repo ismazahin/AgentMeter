@@ -170,6 +170,99 @@ def test_note_requires_existing_session_and_body(store):
         store.create_note(s["id"], "   ")
 
 
+# --- tags (Phase 19) ---------------------------------------------------
+
+def test_tag_crud_and_session_link_roundtrip(store):
+    s1 = store.create_session("S1", ANALYSIS)
+    s2 = store.create_session("S2", ANALYSIS)
+
+    # add tags (created on demand); adding is idempotent + case-insensitive dedupe
+    r = store.add_session_tag(s1["id"], "L4")
+    assert [t["name"] for t in r["tags"]] == ["L4"]
+    store.add_session_tag(s1["id"], "baseline")
+    store.add_session_tag(s1["id"], "l4")          # same tag as "L4" (case-insensitive)
+    tags1 = store.list_session_tags(s1["id"])
+    assert sorted(t["name"] for t in tags1) == ["L4", "baseline"]
+
+    # a tag is a shared object: reused across sessions, not duplicated
+    store.add_session_tag(s2["id"], "L4")
+    all_tags = store.list_tags()
+    assert sorted(t["name"] for t in all_tags) == ["L4", "baseline"]
+    l4 = next(t for t in all_tags if t["name"] == "L4")
+    assert l4["session_count"] == 2
+
+    # sessions now carry their tags in list/get output
+    assert store.get_session(s1["id"])["tags"]
+    metas = {m["id"]: m for m in store.list_sessions()}
+    assert [t["name"] for t in metas[s2["id"]]["tags"]] == ["L4"]
+
+    # filter sessions by tag (id or name)
+    ids = {m["id"] for m in store.list_sessions(tag="L4")}
+    assert ids == {s1["id"], s2["id"]}
+    assert {m["id"] for m in store.list_sessions(tag="baseline")} == {s1["id"]}
+    assert {m["id"] for m in store.list_sessions(tag=l4["id"])} == {s1["id"], s2["id"]}
+    assert store.list_sessions(tag="nope") == []      # unknown tag -> empty
+
+    # remove a tag from one session (the tag object survives, still on s2)
+    store.remove_session_tag(s1["id"], l4["id"])
+    assert {m["id"] for m in store.list_sessions(tag="L4")} == {s2["id"]}
+    with pytest.raises(appdb.NotFound):
+        store.remove_session_tag(s1["id"], l4["id"])  # already removed
+
+    # deleting a tag detaches it everywhere
+    store.delete_tag(l4["id"])
+    assert store.list_sessions(tag="L4") == []
+    assert [t["name"] for t in store.list_tags()] == ["baseline"]
+
+
+def test_tag_validation_and_notfound(store):
+    s = store.create_session("S", ANALYSIS)
+    with pytest.raises(ValueError):
+        store.get_or_create_tag("   ")
+    with pytest.raises(appdb.NotFound):
+        store.add_session_tag(99999, "x")            # unknown session
+    with pytest.raises(appdb.NotFound):
+        store.delete_tag(99999)
+
+
+def test_deleting_session_removes_its_tag_links(store):
+    s = store.create_session("S", ANALYSIS)
+    store.add_session_tag(s["id"], "temp")
+    tag = next(t for t in store.list_tags() if t["name"] == "temp")
+    store.delete_session(s["id"])
+    # the tag object remains but no longer references the deleted session
+    remaining = next(t for t in store.list_tags() if t["name"] == "temp")
+    assert remaining["session_count"] == 0
+
+
+def test_http_tag_crud(tmp_path):
+    client, _ = _crud_client(tmp_path)
+    sid = client.post("/sessions", json={"name": "S", "analysis": ANALYSIS}).get_json()["id"]
+
+    # create + attach a tag to the session (201)
+    r = client.post(f"/sessions/{sid}/tags", json={"name": "prod"})
+    assert r.status_code == 201
+    assert [t["name"] for t in r.get_json()["tags"]] == ["prod"]
+
+    # tags collection + session-scoped tags
+    assert [t["name"] for t in client.get("/tags").get_json()["tags"]] == ["prod"]
+    assert [t["name"] for t in client.get(f"/sessions/{sid}/tags").get_json()["tags"]] == ["prod"]
+
+    # session list filtered by tag
+    assert len(client.get("/sessions?tag=prod").get_json()["sessions"]) == 1
+    assert len(client.get("/sessions?tag=absent").get_json()["sessions"]) == 0
+
+    tid = client.get("/tags").get_json()["tags"][0]["id"]
+    # remove from session
+    assert client.delete(f"/sessions/{sid}/tags/{tid}").status_code == 200
+    assert client.get(f"/sessions/{sid}/tags").get_json()["tags"] == []
+    # delete the tag entirely
+    assert client.delete(f"/tags/{tid}").status_code == 200
+    assert client.get("/tags").get_json()["tags"] == []
+    # empty name rejected
+    assert client.post(f"/sessions/{sid}/tags", json={"name": "  "}).status_code == 400
+
+
 # --- the locked study DB is never touched ------------------------------
 
 def test_appstore_refuses_locked_db():
@@ -199,6 +292,12 @@ def test_crud_never_opens_locked_db(tmp_path, monkeypatch):
                                           "w_vram": 0, "w_tokens": 0})
         n = s.create_note(sess["id"], "note")
         s.update_note(n["id"], "note2")
+        # tag flow (Phase 19)
+        s.add_session_tag(sess["id"], "L4")
+        s.list_sessions(tag="L4")
+        t = next(x for x in s.list_tags() if x["name"] == "L4")
+        s.remove_session_tag(sess["id"], t["id"])
+        s.delete_tag(t["id"])
         s.delete_note(n["id"])
         s.delete_preset(p["id"])
         s.delete_session(sess["id"])

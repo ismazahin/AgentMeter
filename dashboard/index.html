@@ -274,6 +274,19 @@
     padding: 14px; overflow: auto; max-height: 460px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 12.5px; line-height: 1.5; white-space: pre; color: var(--ink); }
   .cfg-yaml.locked { border-color: var(--accent); }
+  /* session tags */
+  .tagchip { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px;
+    background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent);
+    border-radius: 999px; padding: 1px 7px; margin: 2px 3px 2px 0; white-space: nowrap; }
+  .tagchip .tag-x { cursor: pointer; font-weight: 700; opacity: 0.75; }
+  .tagchip .tag-x:hover { opacity: 1; }
+  .tagcell .addtag { font-size: 11.5px; color: var(--muted); background: transparent;
+    border: 1px dashed var(--line); border-radius: 999px; padding: 1px 8px; cursor: pointer; }
+  .tagcell .addtag:hover { border-color: var(--accent); color: var(--accent); }
+  .banner.unvalidated { background: #fbeee0; border-color: #e08a3c; color: #7a4410; }
+  :root[data-theme="dark"] .banner.unvalidated { background: #3a2a15; border-color: #e08a3c; color: #f0c088; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .banner.unvalidated {
+    background: #3a2a15; border-color: #e08a3c; color: #f0c088; } }
 </style>
 </head>
 <body>
@@ -526,7 +539,13 @@
     </div>
 
     <div class="panel">
-      <h2>Saved sessions</h2>
+      <h2>Saved sessions <span class="hint">— tag sessions to organise them; filter by tag</span></h2>
+      <div class="controls" id="tag-filter-bar" style="margin-bottom:10px">
+        <label>Filter by tag:
+          <select id="sess-tag-filter"><option value="">All sessions</option></select>
+        </label>
+        <span class="note" id="tag-filter-msg" style="margin:0 0 0 10px"></span>
+      </div>
       <table id="sess-table"></table>
       <p class="note" id="sess-list-msg"></p>
     </div>
@@ -2757,14 +2776,45 @@
     }
 
     // ---- sessions ----
+    var tagFilter = "";   // current tag filter (tag id as string; "" = all)
     function refreshSessions() {
       var live = available();
       document.getElementById("crud-unavailable").style.display = live ? "none" : "block";
       document.getElementById("crud-live").style.display = live ? "block" : "none";
       if (!live) return;
       loadLocal();
-      j("GET", "/sessions").then(function (d) { renderSessions(d.sessions || []); })
+      loadTagFilter();
+      var q = tagFilter ? ("?tag=" + encodeURIComponent(tagFilter)) : "";
+      j("GET", "/sessions" + q).then(function (d) { renderSessions(d.sessions || []); })
         .catch(function (e) { setMsg("sess-list-msg", "Could not load sessions: " + e.message, "err"); });
+    }
+
+    // ---- tags (Phase 19) ----
+    function loadTagFilter() {
+      j("GET", "/tags").then(function (d) {
+        var tags = d.tags || [];
+        var sel = document.getElementById("sess-tag-filter");
+        if (!sel) return;
+        var cur = tagFilter;
+        sel.innerHTML = '<option value="">All sessions</option>' + tags.map(function (t) {
+          return '<option value="' + t.id + '"' + (String(t.id) === cur ? " selected" : "") +
+            ">" + esc(t.name) + " (" + t.session_count + ")</option>";
+        }).join("");
+        if (!sel._wired) {
+          sel._wired = true;
+          sel.addEventListener("change", function () { tagFilter = sel.value; refreshSessions(); });
+        }
+      }).catch(function () { /* tags optional */ });
+    }
+    function addTagToSession(id, name) {
+      j("POST", "/sessions/" + id + "/tags", { name: name }).then(function () {
+        setMsg("sess-list-msg", "Tag added.", "ok"); refreshSessions();
+      }).catch(function (e) { setMsg("sess-list-msg", e.message, "err"); });
+    }
+    function removeTagFromSession(sid, tid) {
+      j("DELETE", "/sessions/" + sid + "/tags/" + tid).then(function () {
+        setMsg("sess-list-msg", "Tag removed.", "ok"); refreshSessions();
+      }).catch(function (e) { setMsg("sess-list-msg", e.message, "err"); });
     }
 
     // ---- local results (Phase 16: read-only discovery under results/) ----
@@ -2801,15 +2851,28 @@
         })
         .catch(function (e) { setMsg("local-msg", "Could not load " + name + ": " + e.message, "err"); });
     }
+    function tagsCellHtml(s) {
+      var chips = (s.tags || []).map(function (t) {
+        return '<span class="tagchip">' + esc(t.name) +
+          '<span class="tag-x" data-act="untag" data-id="' + s.id + '" data-tid="' + t.id +
+          '" title="Remove tag">×</span></span>';
+      }).join("");
+      return "<td class='l tagcell'>" + chips +
+        '<button class="addtag" data-act="addtag" data-id="' + s.id + '">+ tag</button></td>';
+    }
     function renderSessions(list) {
       var el = document.getElementById("sess-table");
-      if (!list.length) { el.innerHTML = "<tbody><tr><td class='l'>No saved sessions yet — import an analysis.json above.</td></tr></tbody>"; return; }
-      el.innerHTML = "<thead><tr><th class='l'>Name</th><th class='l'>Top model</th><th>Models</th><th class='l'>Created</th><th class='l'></th></tr></thead><tbody>" +
+      if (!list.length) {
+        var empty = tagFilter ? "No sessions carry this tag." : "No saved sessions yet — import an analysis.json above.";
+        el.innerHTML = "<tbody><tr><td class='l'>" + empty + "</td></tr></tbody>"; return;
+      }
+      el.innerHTML = "<thead><tr><th class='l'>Name</th><th class='l'>Top model</th><th>Models</th><th class='l'>Tags</th><th class='l'>Created</th><th class='l'></th></tr></thead><tbody>" +
         list.map(function (s) {
           var sm = s.summary || {};
           return "<tr><td class='model l'>" + esc(s.name) + "</td>" +
             "<td class='l'>" + esc(sm.top_model || "—") + "</td>" +
             "<td>" + (sm.model_count != null ? sm.model_count : "—") + "</td>" +
+            tagsCellHtml(s) +
             "<td class='l'>" + esc((s.created_at || "").replace("T", " ").replace("+00:00", "")) + "</td>" +
             "<td class='l rowact'>" +
               '<button data-act="open" data-id="' + s.id + '">Open</button>' +
@@ -2817,12 +2880,18 @@
               '<button class="danger" data-act="delete" data-id="' + s.id + '">Delete</button>' +
             "</td></tr>";
         }).join("") + "</tbody>";
-      Array.prototype.forEach.call(el.querySelectorAll("button"), function (b) {
+      Array.prototype.forEach.call(el.querySelectorAll("button, .tag-x"), function (b) {
         b.addEventListener("click", function () {
           var id = +b.dataset.id, act = b.dataset.act;
           var s = list.filter(function (x) { return x.id === id; })[0];
           if (act === "open") openSession(id);
-          else if (act === "rename") {
+          else if (act === "addtag") {
+            var tn = prompt("Add a tag to '" + s.name + "':", ""); if (tn == null) return;
+            tn = tn.trim(); if (!tn) return;
+            addTagToSession(id, tn);
+          } else if (act === "untag") {
+            removeTagFromSession(id, +b.dataset.tid);
+          } else if (act === "rename") {
             var nn = prompt("Rename session:", s.name); if (nn == null) return;
             j("PATCH", "/sessions/" + id, { name: nn }).then(function () { setMsg("sess-list-msg", "Renamed.", "ok"); refreshSessions(); }).catch(function (e) { setMsg("sess-list-msg", e.message, "err"); });
           } else if (act === "delete") {
@@ -3290,6 +3359,17 @@
   // ---- banner ----
   function setBanner(kind, sourceLabel) {
     var b = document.getElementById("banner");
+    // Phase 19 — a loaded analysis flagged non_validated (a user/custom run) gets a
+    // distinct warning banner so it is never mistaken for the validated baseline.
+    var prov = (state.data && state.data.provenance) || null;
+    if (kind !== "sample" && prov && prov.non_validated) {
+      b.className = "banner unvalidated";
+      b.innerHTML = "<b>⚠ USER / CUSTOM RUN — not the validated baseline</b>" +
+        '<span class="src">' + esc(sourceLabel) + "</span>" +
+        "<span>Exploratory resource numbers from a custom config. These do <b>not</b> " +
+        "change the locked study's SAW ranking or statistics.</span>";
+      return;
+    }
     b.className = "banner " + (kind === "sample" ? "sample" : "loaded");
     if (kind === "sample") {
       b.innerHTML = "<b>⚠ Bundled SAMPLE data</b>" +
@@ -3297,9 +3377,11 @@
         "latency/token magnitudes and all per-agent numbers are <b>ILLUSTRATIVE placeholders</b>. " +
         "Load a real <code>analysis.json</code> to replace them.</span>";
     } else {
+      var kindtxt = (prov && prov.validated_study)
+        ? "<span>Showing the <b>validated baseline</b> study results.</span>"
+        : "<span>Showing real measured results.</span>";
       b.innerHTML = "<b>✓ Loaded analysis.json</b>" +
-        '<span class="src">' + esc(sourceLabel) + "</span>" +
-        "<span>Showing real measured results.</span>";
+        '<span class="src">' + esc(sourceLabel) + "</span>" + kindtxt;
     }
   }
 

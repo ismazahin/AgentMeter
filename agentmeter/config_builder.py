@@ -249,8 +249,10 @@ def build_config(
             "tiers": ti,
         },
         "storage": {
-            # A user run writes to its OWN DB, never the locked study DB.
-            "sqlite_path": f"results/agentmeter_user_{slugify(name)}.db",
+            # A user/custom run writes to its OWN DB under results/user_runs/, kept
+            # STRICTLY separate from the locked study DB (results/agentmeter_full_l4.db).
+            # analyze() flags any analysis from a non-locked DB as non_validated.
+            "sqlite_path": f"results/user_runs/{slugify(name)}.db",
         },
         "output": {"results_dir": "results"},
     }

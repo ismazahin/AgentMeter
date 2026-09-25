@@ -42,7 +42,9 @@ def register_crud(app, get_store: Callable[[], "appdb.AppStore"]) -> None:
     @app.route("/sessions", methods=["GET", "POST"])
     def sessions_collection():
         if request.method == "GET":
-            return jsonify({"sessions": get_store().list_sessions()})
+            # optional ?tag=<id|name> filter
+            tag = request.args.get("tag")
+            return jsonify({"sessions": get_store().list_sessions(tag=tag or None)})
         b = body()
         return handle(lambda: (jsonify(get_store().create_session(
             name=b.get("name", ""),
@@ -68,6 +70,32 @@ def register_crud(app, get_store: Callable[[], "appdb.AppStore"]) -> None:
     @app.route("/sessions/<int:sid>/notes", methods=["GET"])
     def session_notes(sid):
         return handle(lambda: jsonify({"notes": get_store().list_notes(sid)}))
+
+    # ---------------- tags (Phase 19) ----------------
+    @app.route("/tags", methods=["GET", "POST"])
+    def tags_collection():
+        if request.method == "GET":
+            return jsonify({"tags": get_store().list_tags()})
+        b = body()
+        return handle(lambda: (jsonify(get_store().get_or_create_tag(b.get("name", ""))), 201))
+
+    @app.route("/tags/<int:tid>", methods=["DELETE"])
+    def tag_item(tid):
+        def _del():
+            get_store().delete_tag(tid)
+            return jsonify({"deleted": tid})
+        return handle(_del)
+
+    @app.route("/sessions/<int:sid>/tags", methods=["GET", "POST"])
+    def session_tags(sid):
+        if request.method == "GET":
+            return handle(lambda: jsonify({"tags": get_store().list_session_tags(sid)}))
+        b = body()
+        return handle(lambda: (jsonify(get_store().add_session_tag(sid, b.get("name", ""))), 201))
+
+    @app.route("/sessions/<int:sid>/tags/<int:tid>", methods=["DELETE"])
+    def session_tag_item(sid, tid):
+        return handle(lambda: jsonify(get_store().remove_session_tag(sid, tid)))
 
     # ---------------- weight presets ----------------
     @app.route("/presets", methods=["GET", "POST"])

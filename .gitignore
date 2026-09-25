@@ -14,6 +14,10 @@ results/
 # (dashboard/sample_analysis.json is the committed sample and stays tracked).
 dashboard/analysis.json
 
+# Config builder output (Phase 18) — user-generated run configs. Keep the
+# directory (.gitkeep) but not the generated configs.
+configs/user/*.yaml
+
 # HF / model caches
 .cache/
 hf_cache/

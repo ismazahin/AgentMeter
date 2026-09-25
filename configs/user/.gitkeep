@@ -1,0 +1,4 @@
+# Config builder (Phase 18) writes generated user configs here.
+# These are user artifacts: generated *.yaml files are gitignored; this
+# .gitkeep keeps the directory present. The locked study config lives at
+# configs/run_full_l4.yaml and is NEVER written here.

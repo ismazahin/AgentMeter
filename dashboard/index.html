@@ -256,6 +256,24 @@
   .cmp-slot .empty { font-size: 12px; color: var(--muted); }
   td.cmp-best { color: var(--accent); font-weight: 700; background: var(--accent-soft); }
   #cmp-table td.model, #cmp-table th.l { text-align: left; }
+  /* config builder */
+  .cfg-grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 640px) { .cfg-grid { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 900px) { .cfg-grid { grid-template-columns: 1fr 1fr 1fr; } }
+  .cfg-grid label, .cfg-weights label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .cfg-grid input, .cfg-grid select, .cfg-weights input, .cfg-ta {
+    font: inherit; font-size: 13px; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; width: 100%; box-sizing: border-box; }
+  .cfg-ta { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize: vertical; }
+  .cfg-weights { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .cfg-weights label { width: 110px; }
+  .cfg-wsum { font-size: 13px; font-weight: 700; padding-bottom: 8px; }
+  .cfg-wsum.ok { color: var(--loaded); }
+  .cfg-wsum.bad { color: #c0392b; }
+  .cfg-yaml { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px; overflow: auto; max-height: 460px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px; line-height: 1.5; white-space: pre; color: var(--ink); }
+  .cfg-yaml.locked { border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -275,6 +293,7 @@
     <button data-view="detailed">Detailed Analysis</button>
     <button data-view="sessions">Sessions</button>
     <button data-view="compare">Compare</button>
+    <button data-view="config">Config builder</button>
     <button data-view="settings">Settings</button>
   </nav>
 
@@ -550,6 +569,93 @@
     </div>
   </div>
   </section><!-- /compare -->
+
+  <!-- ===================== CONFIG BUILDER ===================== -->
+  <section id="view-config" class="view">
+  <div class="panel">
+    <h2>Config builder <span class="hint">— generate a run config (YAML) without hand-editing. Builds a file only; never starts a run.</span></h2>
+    <p class="finding" id="cfg-scope">This writes a config to <code>configs/user/&lt;name&gt;.yaml</code>. It does <b>not</b> run inference or use a GPU, and it can <b>never</b> overwrite the locked study config (<code>configs/run_full_l4.yaml</code>) or the root <code>config.yaml</code>. Scope: models, dataset, SAW weights, targets, tiers, agent token budgets.</p>
+    <p class="note" id="cfg-offline" style="display:none">Config builder needs the AgentMeter server (same-origin API). Open this dashboard from a running <code>pull_eval_server.py</code>, or set the server URL in the pull panel.</p>
+
+    <div class="cfg-grid">
+      <label>Config name
+        <input type="text" id="cfg-name" placeholder="my-experiment" value="my-experiment">
+      </label>
+      <label>Dataset path
+        <input type="text" id="cfg-dataset" placeholder="data/cicids_full_300.csv" value="data/cicids_full_300.csv">
+      </label>
+      <label>Provider
+        <select id="cfg-provider">
+          <option value="hf" selected>hf (real models, GPU)</option>
+          <option value="mock">mock (CPU, no GPU)</option>
+        </select>
+      </label>
+    </div>
+
+    <h3 style="margin:18px 0 6px;font-size:14px">Models
+      <span class="hint">— one HF id per line. The validated study uses the fixed 5 below.</span></h3>
+    <textarea id="cfg-models" rows="5" class="cfg-ta" spellcheck="false"></textarea>
+    <div class="controls" style="margin-top:6px">
+      <button class="ghost" id="cfg-use-study">Use the validated study's 5 models</button>
+    </div>
+
+    <h3 style="margin:18px 0 6px;font-size:14px">SAW weights
+      <span class="hint">— must sum to 1.00</span></h3>
+    <div class="cfg-weights" id="cfg-weights">
+      <label>Accuracy <input type="number" step="0.01" min="0" data-w="accuracy" value="0.40"></label>
+      <label>Latency <input type="number" step="0.01" min="0" data-w="latency" value="0.25"></label>
+      <label>VRAM <input type="number" step="0.01" min="0" data-w="vram" value="0.20"></label>
+      <label>Tokens <input type="number" step="0.01" min="0" data-w="tokens" value="0.15"></label>
+      <span class="cfg-wsum" id="cfg-wsum"></span>
+    </div>
+
+    <h3 style="margin:18px 0 6px;font-size:14px">Targets
+      <span class="hint">— normalisation reference values</span></h3>
+    <div class="cfg-grid">
+      <label>Accuracy (%) <input type="number" step="1" min="0" data-t="accuracy_pct" value="80"></label>
+      <label>Latency (s) <input type="number" step="0.1" min="0" data-t="latency_s" value="5"></label>
+      <label>VRAM (MB) <input type="number" step="100" min="0" data-t="vram_mb" value="16000"></label>
+      <label>Tokens total <input type="number" step="10" min="0" data-t="tokens_total" value="1200"></label>
+    </div>
+
+    <h3 style="margin:18px 0 6px;font-size:14px">Tiers
+      <span class="hint">— composite thresholds (0–100)</span></h3>
+    <div class="cfg-grid">
+      <label>Healthy min <input type="number" step="1" min="0" max="100" data-tier="healthy_min" value="80"></label>
+      <label>Degraded min <input type="number" step="1" min="0" max="100" data-tier="degraded_min" value="60"></label>
+    </div>
+
+    <h3 style="margin:18px 0 6px;font-size:14px">Agent token budgets
+      <span class="hint">— max_new_tokens per pipeline agent</span></h3>
+    <div class="cfg-grid">
+      <label>Perceive <input type="number" step="1" min="1" data-agent="perceive" value="160"></label>
+      <label>Reason <input type="number" step="1" min="1" data-agent="reason" value="200"></label>
+      <label>Decide <input type="number" step="1" min="1" data-agent="decide" value="12"></label>
+      <label>Act <input type="number" step="1" min="1" data-agent="act" value="160"></label>
+    </div>
+
+    <div class="controls" style="margin-top:18px">
+      <button class="ghost" id="cfg-preview-btn">Preview YAML</button>
+      <button class="primary" id="cfg-save-btn">Save config</button>
+      <span class="note" id="cfg-msg" style="margin:0 0 0 12px"></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Generated config <span class="hint">— review &amp; download</span></h2>
+    <div class="exportbar" id="cfg-preview-bar" style="display:none">
+      <span class="lbl" id="cfg-preview-path"></span>
+      <button class="ghost" id="cfg-download-btn">Download .yaml</button>
+    </div>
+    <pre class="cfg-yaml" id="cfg-yaml">Fill in the form and click <b>Preview YAML</b> or <b>Save config</b>.</pre>
+  </div>
+
+  <div class="panel">
+    <h2>Locked study config <span class="hint">— validated study, not editable here</span></h2>
+    <p class="note">This is the config behind the locked results. It is shown read-only for reference; the builder will never write to it.</p>
+    <pre class="cfg-yaml locked" id="cfg-locked">Loading locked config…</pre>
+  </div>
+  </section><!-- /config -->
 
   <!-- ===================== SETTINGS (STATUS ONLY) ===================== -->
   <section id="view-settings" class="view">
@@ -2997,9 +3103,161 @@
     return { init: init, refresh: refresh };
   })();
 
+  // ==== Config builder (Phase 18) — generate a run config; never starts a run ====
+  var CONFIG = (function () {
+    var STUDY = [
+      "mistralai/Mistral-7B-Instruct-v0.3",
+      "meta-llama/Meta-Llama-3-8B-Instruct",
+      "Qwen/Qwen2.5-7B-Instruct",
+      "microsoft/Phi-3-mini-4k-instruct",
+      "google/gemma-2-9b-it"
+    ];
+    var lastYaml = "", lastName = "config.yaml", loadedLocked = false;
+
+    function base() { return (typeof pullBaseUrl === "function") ? pullBaseUrl() : ""; }
+    function live() { return !(location.protocol === "file:" && !base()); }
+    function $(id) { return document.getElementById(id); }
+
+    function readWeights() {
+      var w = {};
+      Array.prototype.forEach.call(document.querySelectorAll("#cfg-weights input[data-w]"), function (el) {
+        w[el.dataset.w] = parseFloat(el.value);
+      });
+      return w;
+    }
+    function collect(kind, sel) {
+      var out = {};
+      Array.prototype.forEach.call(document.querySelectorAll(sel), function (el) {
+        var v = parseFloat(el.value);
+        if (!isNaN(v)) out[el.dataset[kind]] = v;
+      });
+      return out;
+    }
+    function models() {
+      return ($("cfg-models").value || "").split(/\r?\n/).map(function (s) { return s.trim(); })
+        .filter(function (s) { return s.length; });
+    }
+    function payload() {
+      return {
+        name: $("cfg-name").value,
+        provider: $("cfg-provider").value,
+        dataset_path: $("cfg-dataset").value,
+        models: models(),
+        weights: readWeights(),
+        targets: collect("t", "#view-config input[data-t]"),
+        tiers: collect("tier", "#view-config input[data-tier]"),
+        agent_tokens: collect("agent", "#view-config input[data-agent]")
+      };
+    }
+
+    function updateWsum() {
+      var w = readWeights(), sum = 0, ok = true;
+      Object.keys(w).forEach(function (k) { if (isNaN(w[k])) ok = false; else sum += w[k]; });
+      var el = $("cfg-wsum");
+      var good = ok && Math.abs(sum - 1.0) < 1e-6;
+      el.textContent = "sum = " + (isNaN(sum) ? "?" : sum.toFixed(2)) + (good ? " ✓" : " (must be 1.00)");
+      el.className = "cfg-wsum " + (good ? "ok" : "bad");
+      return good;
+    }
+
+    function setMsg(text, bad) {
+      var el = $("cfg-msg");
+      el.textContent = text || "";
+      el.style.color = bad ? "#c0392b" : "var(--loaded)";
+    }
+
+    function showYaml(yaml, path) {
+      lastYaml = yaml;
+      $("cfg-yaml").textContent = yaml;
+      if (path) {
+        lastName = path.split("/").pop();
+        $("cfg-preview-path").textContent = "Saved: " + path;
+        $("cfg-preview-bar").style.display = "flex";
+      }
+    }
+
+    function post(path, cb) {
+      if (!live()) { setMsg("Server not available — start pull_eval_server.py.", true); return; }
+      fetch(base() + path, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload())
+      }).then(function (r) {
+        return r.json().then(function (d) { return { ok: r.ok, d: d }; });
+      }).then(function (res) {
+        if (!res.ok) { setMsg(res.d.error || "rejected", true); return; }
+        cb(res.d);
+      }).catch(function (e) { setMsg("request failed: " + e.message, true); });
+    }
+
+    function preview() {
+      if (!updateWsum()) { setMsg("Fix the SAW weights (must sum to 1.00).", true); return; }
+      post("/api/preview-config", function (d) {
+        showYaml(d.yaml, null);
+        $("cfg-preview-bar").style.display = "none";
+        setMsg("Preview generated — nothing written.");
+      });
+    }
+    function save() {
+      if (!updateWsum()) { setMsg("Fix the SAW weights (must sum to 1.00).", true); return; }
+      post("/api/build-config", function (d) {
+        showYaml(d.yaml, d.path);
+        setMsg("Saved to " + d.path);
+      });
+    }
+    function download() {
+      if (!lastYaml) return;
+      var blob = new Blob([lastYaml], { type: "text/yaml" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = lastName || "config.yaml";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    }
+
+    function loadLocked() {
+      if (loadedLocked || !live()) {
+        if (!live()) $("cfg-locked").textContent = "(server not available — locked config preview needs the AgentMeter server)";
+        return;
+      }
+      fetch(base() + "/api/locked-config").then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status); return r.json();
+      }).then(function (d) {
+        $("cfg-locked").textContent = d.yaml;
+        loadedLocked = true;
+      }).catch(function (e) {
+        $("cfg-locked").textContent = "(could not load locked config: " + e.message + ")";
+      });
+    }
+
+    function refresh() {
+      var off = !live();
+      $("cfg-offline").style.display = off ? "block" : "none";
+      $("cfg-save-btn").disabled = off;
+      $("cfg-preview-btn").disabled = off;
+      updateWsum();
+      loadLocked();
+    }
+
+    function init() {
+      $("cfg-models").value = STUDY.join("\n");
+      $("cfg-use-study").addEventListener("click", function () {
+        $("cfg-models").value = STUDY.join("\n"); setMsg("Loaded the validated study's 5 models.");
+      });
+      $("cfg-preview-btn").addEventListener("click", preview);
+      $("cfg-save-btn").addEventListener("click", save);
+      $("cfg-download-btn").addEventListener("click", download);
+      Array.prototype.forEach.call(document.querySelectorAll("#cfg-weights input[data-w]"), function (el) {
+        el.addEventListener("input", updateWsum);
+      });
+      updateWsum();
+    }
+
+    return { init: init, refresh: refresh };
+  })();
+
   // ==== nav ====
   function showView(name) {
-    ["overview", "detailed", "sessions", "compare", "settings"].forEach(function (v) {
+    ["overview", "detailed", "sessions", "compare", "config", "settings"].forEach(function (v) {
       var sec = document.getElementById("view-" + v);
       if (sec) sec.classList.toggle("active", v === name);
     });
@@ -3009,6 +3267,7 @@
     if (name === "settings") renderSettings();
     if (name === "sessions") CRUD.refreshSessions();
     if (name === "compare") COMPARE.refresh();
+    if (name === "config") CONFIG.refresh();
   }
   function initNav() {
     Array.prototype.forEach.call(document.querySelectorAll("#nav button"), function (b) {
@@ -3220,6 +3479,7 @@
   CRUD.init();
   initExport();
   COMPARE.init();
+  CONFIG.init();
   // Optional convenience: if a real analysis.json sits next to this page (served
   // over http, or some browsers allow it over file://), auto-load it.
   try {

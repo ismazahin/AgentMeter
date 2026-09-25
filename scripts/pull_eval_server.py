@@ -135,7 +135,7 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
 
     from flask import Flask, jsonify, request, send_from_directory
 
-    from agentmeter import appdb, crud_api, local_sessions
+    from agentmeter import appdb, config_builder, crud_api, local_sessions
 
     app = Flask(__name__, static_folder=None)
 
@@ -189,6 +189,82 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
             return jsonify({"error": str(e)}), 400
         except _json.JSONDecodeError:
             return jsonify({"error": "file is not valid JSON"}), 400
+
+    # Phase 18 — config builder. Writes a VALID run config to configs/user/ from
+    # UI inputs; NEVER touches the locked study config or root config, and NEVER
+    # starts a run (config generation only, no GPU work here).
+    def _rel(path):
+        """Repo-relative path when possible, else the absolute path (used only for
+        display in the JSON response)."""
+        try:
+            return str(Path(path).relative_to(REPO_ROOT))
+        except ValueError:
+            return str(path)
+
+    @app.route("/api/locked-config", methods=["GET"])
+    def locked_config_ep():
+        """Read-only preview of the locked, validated study config (reference)."""
+        path = config_builder.LOCKED_STUDY_CONFIG
+        try:
+            text = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            return jsonify({"error": "locked study config not found"}), 404
+        return jsonify({
+            "name": path.name,
+            "path": _rel(path),
+            "yaml": text,
+            "locked": True,
+            "note": "Validated study config — read-only reference, not editable here.",
+        })
+
+    @app.route("/api/build-config", methods=["POST", "OPTIONS"])
+    def build_config_ep():
+        if request.method == "OPTIONS":
+            return ("", 204)
+        body = request.get_json(silent=True) or {}
+        try:
+            path, config = config_builder.build_and_write(
+                name=body.get("name", ""),
+                models=body.get("models"),
+                dataset_path=body.get("dataset_path", ""),
+                weights=body.get("weights"),
+                targets=body.get("targets"),
+                tiers=body.get("tiers"),
+                agent_tokens=body.get("agent_tokens"),
+                provider=body.get("provider", "hf"),
+                overwrite=bool(body.get("overwrite", True)),
+            )
+        except config_builder.ConfigBuildError as e:
+            return jsonify({"error": str(e)}), 400
+        return jsonify({
+            "saved": True,
+            "path": _rel(path),
+            "name": path.name,
+            "yaml": config_builder.to_yaml(config),
+            "config": config,
+        })
+
+    @app.route("/api/preview-config", methods=["POST", "OPTIONS"])
+    def preview_config_ep():
+        """Validate + render YAML WITHOUT writing (live preview / weight check)."""
+        if request.method == "OPTIONS":
+            return ("", 204)
+        body = request.get_json(silent=True) or {}
+        try:
+            config = config_builder.build_config(
+                name=body.get("name", "preview"),
+                models=body.get("models"),
+                dataset_path=body.get("dataset_path", ""),
+                weights=body.get("weights"),
+                targets=body.get("targets"),
+                tiers=body.get("tiers"),
+                agent_tokens=body.get("agent_tokens"),
+                provider=body.get("provider", "hf"),
+            )
+        except config_builder.ConfigBuildError as e:
+            return jsonify({"error": str(e), "valid": False}), 400
+        return jsonify({"valid": True, "yaml": config_builder.to_yaml(config),
+                        "config": config})
 
     # --- dashboard (same-origin) ---------------------------------------
     @app.route("/", methods=["GET"])

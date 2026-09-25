@@ -401,11 +401,19 @@ def test_no_token_input_fields_in_dashboard():
     """HARD security rule: the dashboard must have NO <input> for any secret."""
     html = (REPO_ROOT / "dashboard" / "index.html").read_text()
     inputs = re.findall(r"<input\b[^>]*>", html, re.IGNORECASE)
-    tokens = ("HF_TOKEN", "VAST_API_KEY", "VAST_INSTANCE_ID", "GITHUB_TOKEN",
-              "token", "secret", "api_key", "apikey")
+    # Explicit secret identifiers are forbidden on ANY input, unconditionally.
+    secret_names = ("hf_token", "vast_api_key", "vast_instance_id", "github_token",
+                    "secret", "api_key", "apikey")
+    # The generic word "token" is also a credential smell — BUT the config builder
+    # legitimately has numeric metric fields for the SAW "tokens" dimension and the
+    # per-agent token budgets. Those are numbers, never a place to type a secret, so
+    # the generic check skips type="number" inputs. A credential field is never a
+    # number input, so this keeps the guard strong where it matters.
     for tag in inputs:
         low = tag.lower()
-        for tok in tokens:
-            assert tok.lower() not in low, f"forbidden token input field: {tag}"
+        for name in secret_names:
+            assert name not in low, f"forbidden secret input field: {tag}"
+        if 'type="number"' not in low:
+            assert "token" not in low, f"forbidden token input field: {tag}"
     # and no password-type inputs at all
     assert not any('type="password"' in t.lower() for t in inputs)

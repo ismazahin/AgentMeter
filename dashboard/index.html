@@ -3182,6 +3182,18 @@
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload())
       }).then(function (r) {
+        // The endpoint always answers JSON. An HTML body (Flask's 404/405 page)
+        // means this server predates the config builder — usually an old
+        // pull_eval_server.py still running; restarting it registers the route.
+        var ct = r.headers.get("content-type") || "";
+        if (ct.indexOf("application/json") === -1) {
+          return r.text().then(function () {
+            throw new Error(r.status === 404 || r.status === 405
+              ? "the server has no " + path + " route — restart pull_eval_server.py "
+                + "so it loads the config builder (Phase 18)."
+              : "server returned a non-JSON response (HTTP " + r.status + ").");
+          });
+        }
         return r.json().then(function (d) { return { ok: r.ok, d: d }; });
       }).then(function (res) {
         if (!res.ok) { setMsg(res.d.error || "rejected", true); return; }

@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AgentMeter Dashboard</title>
+<!-- UI typeface (Inter) + monospace for numerics. Loaded from Google Fonts when
+     served over http; degrades to the system-ui / mono stacks over file://. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <!--
   AgentMeter results dashboard — Phase 10 Part A (VIEW LAYER ONLY).
 
@@ -287,29 +292,207 @@
   :root[data-theme="dark"] .banner.unvalidated { background: #3a2a15; border-color: #e08a3c; color: #f0c088; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .banner.unvalidated {
     background: #3a2a15; border-color: #e08a3c; color: #f0c088; } }
+
+  /* ============================================================
+     PHASE 20 — visual redesign (look & feel only; overrides above)
+     A restrained developer-tool / observability aesthetic:
+     neutral surfaces, one accent, hairline borders, dense tables,
+     monospace numerics, a persistent left sidebar. No logic touched.
+     ============================================================ */
+  :root {
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    /* Light: crisp near-black text on cool-neutral surfaces */
+    --bg: #f4f5f7; --panel: #ffffff; --panel-2: #fafbfc; --sidebar-bg: #ffffff;
+    --ink: #15181e; --ink-2: #3a414c; --muted: #69707d;
+    --line: #e6e8ec; --line-strong: #d3d7de;
+    --accent: #4b56d2; --accent-2: #3a44c0; --accent-soft: #eceffb; --accent-ink: #ffffff;
+    --bar1: #4b56d2; --bar2: #0f9488;
+    --healthy: #12855a; --healthy-bg: #e6f4ec;
+    --degraded: #b26a00; --degraded-bg: #fbf0dd;
+    --critical: #c02b2b; --critical-bg: #fbe9e9;
+    --sample: #8a5a00; --sample-bg: #fbf3dc; --sample-line: #ecc65f;
+    --loaded: #0b6b5f; --loaded-bg: #e2f4f0; --loaded-line: #7fd3c6;
+    --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 2px rgba(16,24,40,.06);
+    --c1: #4b56d2; --c2: #0f9488; --c3: #d97706;
+    --radius: 6px; --radius-lg: 10px;
+    --sb-w: 236px;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    /* Dark: near-black chrome, hairline borders, muted text */
+    --bg: #0b0d11; --panel: #14171d; --panel-2: #171b22; --sidebar-bg: #0f1216;
+    --ink: #e8eaf0; --ink-2: #b9c0cc; --muted: #8b93a2;
+    --line: #23272f; --line-strong: #2e343d;
+    --accent: #818cf8; --accent-2: #99a2fb; --accent-soft: #1b2036; --accent-ink: #0b0d11;
+    --bar1: #818cf8; --bar2: #2dd4bf;
+    --healthy: #4ade80; --healthy-bg: #14311f;
+    --degraded: #f0b657; --degraded-bg: #3a2a10;
+    --critical: #ff8080; --critical-bg: #3a1717;
+    --sample: #ffd873; --sample-bg: #2e2609; --sample-line: #5f4c17;
+    --loaded: #6fe0cf; --loaded-bg: #0f302c; --loaded-line: #1f6156;
+    --shadow: 0 1px 2px rgba(0,0,0,.5); --c1: #818cf8; --c2: #2dd4bf; --c3: #f59e0b;
+  } }
+  :root[data-theme="dark"] {
+    --bg: #0b0d11; --panel: #14171d; --panel-2: #171b22; --sidebar-bg: #0f1216;
+    --ink: #e8eaf0; --ink-2: #b9c0cc; --muted: #8b93a2;
+    --line: #23272f; --line-strong: #2e343d;
+    --accent: #818cf8; --accent-2: #99a2fb; --accent-soft: #1b2036; --accent-ink: #0b0d11;
+    --bar1: #818cf8; --bar2: #2dd4bf;
+    --healthy: #4ade80; --healthy-bg: #14311f;
+    --degraded: #f0b657; --degraded-bg: #3a2a10;
+    --critical: #ff8080; --critical-bg: #3a1717;
+    --sample: #ffd873; --sample-bg: #2e2609; --sample-line: #5f4c17;
+    --loaded: #6fe0cf; --loaded-bg: #0f302c; --loaded-line: #1f6156;
+    --shadow: 0 1px 2px rgba(0,0,0,.5); --c1: #818cf8; --c2: #2dd4bf; --c3: #f59e0b;
+  }
+
+  body { font-family: var(--sans); font-size: 14px; -webkit-font-smoothing: antialiased; }
+
+  /* ---- app shell: persistent left sidebar + scrolling main ---- */
+  .app { display: grid; grid-template-columns: var(--sb-w) minmax(0, 1fr); min-height: 100vh; }
+  .sidebar {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    background: var(--sidebar-bg); border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; gap: 6px; padding: 18px 12px;
+  }
+  .main { min-width: 0; max-width: 1160px; padding: 26px 30px 72px; }
+  .sidebar .brand { padding: 4px 8px 14px; gap: 10px; }
+  .sidebar .brand .mark {
+    width: 30px; height: 30px; border-radius: 8px; background: var(--accent);
+    color: var(--accent-ink); display: inline-grid; place-items: center; box-shadow: none;
+  }
+  .sidebar .brand .name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+  .sidebar .brand .name small { font-size: 11px; font-weight: 400; color: var(--muted); margin-top: 2px; }
+
+  /* nav as a vertical rail with clear active state */
+  .sidebar .nav { display: flex; flex-direction: column; gap: 2px; border: none; padding: 0; margin: 0; }
+  .sidebar .nav button {
+    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+    font: 500 13.5px/1 var(--sans); color: var(--ink-2); background: transparent;
+    border: none; border-radius: var(--radius); padding: 9px 10px; cursor: pointer;
+  }
+  .sidebar .nav button .nav-i {
+    width: 17px; height: 17px; flex: none; fill: none; stroke: currentColor;
+    stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: .8;
+  }
+  .sidebar .nav button:hover { background: var(--accent-soft); color: var(--ink); border: none; }
+  .sidebar .nav button.active { background: var(--accent-soft); color: var(--accent); border: none; }
+  .sidebar .nav button.active .nav-i { opacity: 1; }
+  .sidefoot { margin-top: auto; padding: 12px 8px 4px; border-top: 1px solid var(--line); }
+  .sidefoot .filelabel { display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; color: var(--muted); }
+  .sidefoot input[type=file] { font-size: 11.5px; }
+  .sidefoot input[type=file]::file-selector-button {
+    font: inherit; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 5px 10px; margin-right: 8px; cursor: pointer; }
+
+  /* ---- surfaces & type ---- */
+  .panel { border-radius: var(--radius-lg); border: 1px solid var(--line); padding: 18px 20px; box-shadow: none; }
+  .panel h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
+  .panel h2 .hint { font-weight: 400; font-size: 12.5px; }
+  .section-label { color: var(--muted); }
+  .lead { font-size: 12.5px; }
+  code { font-family: var(--mono); }
+
+  /* ---- controls ---- */
+  select, button, .admin input[type=text], .cfg-grid input, .cfg-grid select,
+  .cfg-weights input, input[type=text] {
+    border-radius: var(--radius); border-color: var(--line-strong);
+  }
+  button, select { font-size: 13px; }
+  button:hover, select:hover { border-color: var(--accent); }
+  select:focus, button:focus-visible, input:focus, textarea:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button.primary:hover { background: var(--accent-2); border-color: var(--accent-2); filter: none; }
+  button.ghost, .rowact button, .nav-tab { border-color: var(--line-strong); }
+
+  /* ---- tables: dense, zebra, aligned, monospace numerics ---- */
+  .panel table { font-variant-numeric: tabular-nums; }
+  .panel th, .panel td { padding: 8px 11px; border-bottom: 1px solid var(--line); }
+  .panel thead th {
+    font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--muted); background: var(--panel-2); border-bottom: 1px solid var(--line-strong);
+    position: sticky; top: 0; }
+  .panel tbody td { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); }
+  .panel tbody td.l, .panel tbody td.model, .panel tbody td:first-child,
+  .panel tbody td .tagchip, .panel tbody td.rowact { font-family: var(--sans); }
+  .panel tbody td.model { color: var(--ink); font-weight: 600; }
+  .panel tbody tr:nth-child(even) td { background: var(--panel-2); }
+  .panel tbody tr:hover td { background: var(--accent-soft); }
+  td.cmp-best { background: var(--accent-soft); color: var(--accent); }
+  td.hot, td.rank1 { background: var(--accent-soft); }
+
+  /* ---- badges / pills / chips ---- */
+  .badge, .pill { border-radius: 5px; font-weight: 600; font-size: 11px; letter-spacing: .01em; }
+  .chip { border-radius: var(--radius); border-color: var(--line-strong); }
+  .tagchip { border-radius: 5px; background: var(--accent-soft); border-color: transparent; color: var(--accent); font-weight: 500; }
+  .tagcell .addtag { border-radius: 5px; }
+  .finding { border-radius: var(--radius); border-left-width: 3px; }
+  .banner { border-radius: var(--radius-lg); }
+
+  /* ---- highlight cards: sharper, flatter ---- */
+  .hcard { border-radius: var(--radius-lg); box-shadow: none; padding: 16px 16px 12px; }
+  .hcard h3 { font-size: 14px; }
+  .vbar .v { font-family: var(--mono); }
+
+  /* ---- charts: muted grid, single accent emphasis ---- */
+  .scatter .gridln { opacity: .45; }
+  .scatter .axlabel, .scatter .tick { font-family: var(--mono); font-size: 10.5px; }
+  .scatter .dot.front { fill: var(--accent); }
+  .scatter .frontline { stroke: var(--accent); }
+  .barval, .gseg .gval, .wval, .cfg-wsum { font-family: var(--mono); }
+  .progress { height: 8px; border-radius: 999px; }
+  .progress .fill { border-radius: 999px; }
+
+  /* ---- responsive: collapse the sidebar to a top rail on narrow screens ---- */
+  @media (max-width: 720px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; flex-direction: column; border-right: none; border-bottom: 1px solid var(--line); }
+    .sidebar .nav { flex-direction: row; flex-wrap: wrap; }
+    .sidebar .nav button { width: auto; }
+    .sidefoot { margin-top: 8px; }
+    .main { padding: 18px 16px 56px; }
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="topbar">
+<div class="app">
+  <aside class="sidebar">
     <div class="brand">
-      <span class="mark">◪</span>
-      <span class="name">AgentMeter<small>Resource-efficiency benchmark of open-source LLMs in a minimal 4-agent pipeline</small></span>
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 4-6"/></svg>
+      </span>
+      <span class="name">AgentMeter<small>LLM resource-efficiency benchmark</small></span>
     </div>
-    <div class="toolbar">
-      <label class="filelabel">Load results: <input type="file" id="file" accept="application/json,.json"></label>
+
+    <nav class="nav" id="nav" aria-label="Views">
+      <button data-view="overview" class="active">
+        <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+        <span>Overview</span></button>
+      <button data-view="detailed">
+        <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M13 16V8"/><path d="M18 16v-3"/></svg>
+        <span>Detailed Analysis</span></button>
+      <button data-view="sessions">
+        <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
+        <span>Sessions</span></button>
+      <button data-view="compare">
+        <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><path d="M12 3v18"/><path d="M5 8H3l2-3 2 3H5v8"/><path d="M19 16h2l-2 3-2-3h2V8"/></svg>
+        <span>Compare</span></button>
+      <button data-view="config">
+        <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19 12a7 7 0 00-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 00-1.7-1L14.5 2h-5l-.3 2.5a7 7 0 00-1.7 1l-2.4-1-2 3.5L2.1 11a7 7 0 000 2l-2 1.5 2 3.5 2.4-1a7 7 0 001.7 1L9.5 22h5l.3-2.5a7 7 0 001.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"/></svg>
+        <span>Config builder</span></button>
+      <button data-view="settings">
+        <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+        <span>Settings</span></button>
+    </nav>
+
+    <div class="sidefoot">
+      <label class="filelabel">Load results.json
+        <input type="file" id="file" accept="application/json,.json"></label>
     </div>
-  </div>
+  </aside>
 
-  <nav class="nav" id="nav">
-    <button data-view="overview" class="active">Overview</button>
-    <button data-view="detailed">Detailed Analysis</button>
-    <button data-view="sessions">Sessions</button>
-    <button data-view="compare">Compare</button>
-    <button data-view="config">Config builder</button>
-    <button data-view="settings">Settings</button>
-  </nav>
-
+  <main class="main">
   <div id="banner" class="banner sample"></div>
 
   <!-- ===================== OVERVIEW ===================== -->
@@ -688,7 +871,7 @@
     <p class="note" id="settings-status"></p>
   </div>
   </section><!-- /settings -->
-
+  </main>
 </div>
 
 <!-- Bundled illustrative SAMPLE (see notes.SAMPLE inside). Kept in sync with

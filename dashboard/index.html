@@ -241,6 +241,21 @@
   .fill-a { background: var(--c2); } .fill-b { background: var(--c3); }
   .glegend { display: flex; gap: 16px; color: var(--muted); font-size: 12px; margin: 6px 0 2px; }
   .glegend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
+  /* Compare workspace + export */
+  button.ghost { font: inherit; font-size: 13px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+  button.ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .exportbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+  .exportbar .lbl { color: var(--muted); font-size: 13px; margin-right: 4px; }
+  .cmp-slots { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  @media (min-width: 720px) { .cmp-slots { grid-template-columns: 1fr 1fr 1fr; } }
+  .cmp-slot { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--panel); }
+  .cmp-slot h4 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 700; }
+  .cmp-slot select, .cmp-slot input[type=file] { width: 100%; font: inherit; font-size: 13px; margin-bottom: 8px; }
+  .cmp-slot select { color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  .cmp-slot .loaded { font-size: 12px; color: var(--loaded); }
+  .cmp-slot .empty { font-size: 12px; color: var(--muted); }
+  td.cmp-best { color: var(--accent); font-weight: 700; background: var(--accent-soft); }
+  #cmp-table td.model, #cmp-table th.l { text-align: left; }
 </style>
 </head>
 <body>
@@ -259,6 +274,7 @@
     <button data-view="overview" class="active">Overview</button>
     <button data-view="detailed">Detailed Analysis</button>
     <button data-view="sessions">Sessions</button>
+    <button data-view="compare">Compare</button>
     <button data-view="settings">Settings</button>
   </nav>
 
@@ -300,6 +316,13 @@
       <tbody id="saw-body"></tbody>
     </table>
     <p class="note" id="saw-note"></p>
+    <div class="exportbar">
+      <span class="lbl">Export this session:</span>
+      <button class="ghost" id="exp-saw-csv">SAW CSV</button>
+      <button class="ghost" id="exp-agent-csv">Per-agent CSV</button>
+      <button class="ghost" id="exp-class-csv">Per-class CSV</button>
+      <button class="ghost" id="exp-print">Print report</button>
+    </div>
   </div>
 
   <div class="panel">
@@ -503,6 +526,30 @@
     </div>
   </div>
   </section><!-- /sessions -->
+
+  <!-- ===================== COMPARE (multi-session workspace) ===================== -->
+  <section id="view-compare" class="view">
+  <div class="panel">
+    <h2>Compare sessions <span class="hint">— pick 2–3 saved sessions and see resource cost + SAW composite side-by-side (read-only)</span></h2>
+    <div class="cmp-slots" id="cmp-slots"></div>
+    <div class="controls" style="margin-top:14px">
+      <label>Metric: <select id="cmp-metric">
+        <option value="composite">SAW composite</option>
+        <option value="accuracy_pct">Accuracy (%)</option>
+        <option value="latency_s">Mean latency (s)</option>
+        <option value="vram">VRAM (GB)</option>
+        <option value="tokens_total">Tokens</option>
+      </select></label>
+      <span class="note" id="cmp-msg" style="margin:0 0 0 12px"></span>
+    </div>
+    <table id="cmp-table" style="margin-top:16px"></table>
+    <div class="exportbar" id="cmp-export" style="display:none">
+      <span class="lbl">Export comparison:</span>
+      <button class="ghost" id="cmp-csv-btn">Comparison CSV</button>
+      <button class="ghost" id="cmp-print-btn">Print comparison</button>
+    </div>
+  </div>
+  </section><!-- /compare -->
 
   <!-- ===================== SETTINGS (STATUS ONLY) ===================== -->
   <section id="view-settings" class="view">
@@ -1824,6 +1871,7 @@
 </script>
 
 <script src="saw.js"></script>
+<script src="report.js"></script>
 <script src="pull-config.js"></script>
 <script>
 (function () {
@@ -2750,9 +2798,208 @@
     return { init: init, refreshSessions: refreshSessions, refreshPresets: refreshPresets };
   })();
 
+  // ==== export helpers (offline, no external services) ====
+  function downloadText(filename, text, mime) {
+    try {
+      var blob = new Blob([text], { type: (mime || "text/csv") + ";charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 0);
+    } catch (e) { alert("Export failed: " + e.message); }
+  }
+  function printReport(html) {
+    var w = window.open("", "_blank");
+    if (!w) { alert("Pop-up blocked — allow pop-ups to print the report."); return; }
+    w.document.open(); w.document.write(html); w.document.close(); w.focus();
+    setTimeout(function () { try { w.print(); } catch (e) {} }, 350);
+  }
+  function currentTitle() {
+    var ids = (state.data && state.data.run_ids) || [];
+    return ids.length ? ids.join(", ") : "session";
+  }
+  function initExport() {
+    function guard(fn) { return function () { if (!state.data) { alert("Load a session first."); return; } fn(); }; }
+    var map = {
+      "exp-saw-csv": guard(function () { downloadText("agentmeter_saw.csv", REPORT.sawCsv(state.data)); }),
+      "exp-agent-csv": guard(function () { downloadText("agentmeter_per_agent.csv", REPORT.perAgentCsv(state.data)); }),
+      "exp-class-csv": guard(function () { downloadText("agentmeter_per_class.csv", REPORT.perClassCsv(state.data)); }),
+      "exp-print": guard(function () { printReport(REPORT.reportHtml(state.data, currentTitle())); })
+    };
+    Object.keys(map).forEach(function (id) {
+      var el = document.getElementById(id); if (el) el.addEventListener("click", map[id]);
+    });
+  }
+
+  // ==== Compare workspace (multi-session, read-only) ====
+  var COMPARE = (function () {
+    var N = 3;
+    var slots = [];                 // [{data, label}]
+    var sources = [];               // [{key,label,kind,ref}]
+    for (var i = 0; i < N; i++) slots.push({ data: null, label: "" });
+
+    function base() { return (typeof pullBaseUrl === "function") ? pullBaseUrl() : ""; }
+    function live() { return !(location.protocol === "file:" && !base()); }
+    function jget(path) {
+      return fetch(base() + path).then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status); return r.json();
+      });
+    }
+
+    function refresh() {
+      // rebuild the source list: current session + (live) saved sessions + local results
+      sources = [];
+      if (state.data) sources.push({ key: "current", label: "Current loaded session", kind: "current" });
+      var done = function () { renderSlots(); render(); };
+      if (!live()) { done(); return; }
+      Promise.all([
+        jget("/sessions").then(function (d) { return d.sessions || []; }).catch(function () { return []; }),
+        jget("/api/local-sessions").then(function (d) { return d.files || []; }).catch(function () { return []; })
+      ]).then(function (res) {
+        (res[0] || []).forEach(function (s) {
+          sources.push({ key: "session:" + s.id, label: "Session: " + s.name, kind: "session", ref: s.id }); });
+        (res[1] || []).forEach(function (f) {
+          sources.push({ key: "local:" + f.name, label: "results/" + f.name, kind: "local", ref: f.name }); });
+        done();
+      }).catch(done);
+    }
+
+    function optionsHtml(selKey) {
+      var opts = ['<option value="">— none —</option>'];
+      sources.forEach(function (s) {
+        opts.push('<option value="' + esc(s.key) + '"' + (s.key === selKey ? " selected" : "") + ">" + esc(s.label) + "</option>");
+      });
+      return opts.join("");
+    }
+    function renderSlots() {
+      var box = document.getElementById("cmp-slots");
+      box.innerHTML = slots.map(function (sl, i) {
+        var status = sl.data ? ('<span class="loaded">✓ ' + esc(sl.label || "loaded") + "</span>")
+                             : '<span class="empty">empty</span>';
+        return '<div class="cmp-slot"><h4>Session ' + (i + 1) + "</h4>" +
+          '<select data-slot="' + i + '" class="cmp-src">' + optionsHtml(sl.srcKey) + "</select>" +
+          '<input type="file" data-slot="' + i + '" class="cmp-file" accept="application/json,.json">' +
+          status + "</div>";
+      }).join("");
+      Array.prototype.forEach.call(box.querySelectorAll(".cmp-src"), function (sel) {
+        sel.addEventListener("change", function () { pickSource(+sel.dataset.slot, sel.value); });
+      });
+      Array.prototype.forEach.call(box.querySelectorAll(".cmp-file"), function (inp) {
+        inp.addEventListener("change", function (e) { pickFile(+inp.dataset.slot, e.target.files[0]); });
+      });
+    }
+
+    function setSlot(i, data, label, srcKey) {
+      try { data = validate(data); } catch (e) { setMsgC("Slot " + (i + 1) + ": " + e.message, true); return; }
+      slots[i] = { data: data, label: label, srcKey: srcKey };
+      renderSlots(); render();
+    }
+    function pickSource(i, key) {
+      if (!key) { slots[i] = { data: null, label: "" }; renderSlots(); render(); return; }
+      var src = sources.filter(function (s) { return s.key === key; })[0];
+      if (!src) return;
+      if (src.kind === "current") { setSlot(i, state.data, "current session", key); return; }
+      var p = src.kind === "session" ? jget("/sessions/" + src.ref).then(function (s) { return s.analysis; })
+                                     : jget("/api/local-sessions/" + src.ref.split("/").map(encodeURIComponent).join("/"));
+      p.then(function (d) { setSlot(i, d, src.label, key); })
+       .catch(function (e) { setMsgC("Slot " + (i + 1) + ": " + e.message, true); });
+    }
+    function pickFile(i, f) {
+      if (!f) return;
+      var rd = new FileReader();
+      rd.onload = function () {
+        try { setSlot(i, JSON.parse(rd.result), f.name, null); }
+        catch (e) { setMsgC("Slot " + (i + 1) + ": not valid JSON", true); }
+      };
+      rd.readAsText(f);
+    }
+
+    function filled() {
+      return slots.filter(function (s) { return s.data; })
+                  .map(function (s) { return { label: s.label || "session", data: s.data }; });
+    }
+    function setMsgC(t, err) { var el = document.getElementById("cmp-msg"); el.className = "note" + (err ? " err" : ""); el.textContent = t || ""; }
+
+    function fmtMetric(v, key) {
+      if (v == null || isNaN(v)) return "—";
+      if (key === "composite") return (+v).toFixed(3);
+      if (key === "accuracy_pct") return (+v).toFixed(1) + "%";
+      if (key === "latency_s") return (+v).toFixed(2) + " s";
+      if (key === "vram") return (+v / 1024).toFixed(1) + " GB";
+      if (key === "tokens_total") return Math.round(v).toLocaleString();
+      return String(v);
+    }
+    function render() {
+      var f = filled();
+      var tbl = document.getElementById("cmp-table");
+      var exp = document.getElementById("cmp-export");
+      if (f.length < 2) {
+        tbl.innerHTML = "<tbody><tr><td class='l'>Pick at least 2 sessions above to compare.</td></tr></tbody>";
+        exp.style.display = "none";
+        if (f.length === 0) setMsgC("");
+        return;
+      }
+      var metric = (document.getElementById("cmp-metric") || {}).value || "composite";
+      var cmp = REPORT.compareSessions(f);
+      var head = "<thead><tr><th class='l'>Model</th>" +
+        cmp.sessions.map(function (s) {
+          return "<th>" + esc(s.label) + "<br><span class='note' style='font-weight:400'>top: " + esc(s.top || "—") + "</span></th>";
+        }).join("") + "</tr></thead>";
+      var body = cmp.rows.map(function (row) {
+        var bestIdx = row.best[metric];
+        return "<tr><td class='model l'>" + esc(row.model) + "</td>" +
+          row.cells.map(function (c, i) {
+            var v = REPORT.metricValue(c, metric);
+            return "<td class='" + (i === bestIdx ? "cmp-best" : "") + "'>" + fmtMetric(v, metric) + "</td>";
+          }).join("") + "</tr>";
+      }).join("");
+      tbl.innerHTML = head + "<tbody>" + body + "</tbody>";
+      exp.style.display = "flex";
+      var better = REPORT.HIGHER_BETTER[metric] ? "higher" : "lower";
+      setMsgC("Best value per model highlighted (" + better + " is better). Composites/tiers are read verbatim from each session's analysis.json (same SAW config).");
+    }
+
+    function init() {
+      var m = document.getElementById("cmp-metric"); if (m) m.addEventListener("change", render);
+      var csv = document.getElementById("cmp-csv-btn");
+      if (csv) csv.addEventListener("click", function () {
+        var f = filled(); if (f.length < 2) return;
+        downloadText("agentmeter_comparison.csv", REPORT.comparisonCsv(f));
+      });
+      var pr = document.getElementById("cmp-print-btn");
+      if (pr) pr.addEventListener("click", function () {
+        var f = filled(); if (f.length < 2) return;
+        printReport(comparisonReportHtml(f));
+      });
+    }
+    // a small print report for the comparison (reuses each session's report body is overkill;
+    // build a compact composite table)
+    function comparisonReportHtml(f) {
+      var cmp = REPORT.compareSessions(f);
+      function esch(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]; }); }
+      var head = "<tr><th>Model</th>" + cmp.sessions.map(function (s) { return "<th>" + esch(s.label) + " (composite)</th>"; }).join("") + "</tr>";
+      var rows = cmp.rows.map(function (r) {
+        return "<tr><td class='l'>" + esch(r.model) + "</td>" + r.cells.map(function (c) {
+          var v = REPORT.metricValue(c, "composite"); return "<td>" + (v == null ? "—" : (+v).toFixed(3)) + "</td>";
+        }).join("") + "</tr>";
+      }).join("");
+      return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>AgentMeter comparison</title>" +
+        "<style>body{font:14px/1.5 system-ui,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#1c2128;}" +
+        "h1{font-size:20px;} table{width:100%;border-collapse:collapse;} th,td{border-bottom:1px solid #e2e6ec;padding:6px 8px;text-align:right;}" +
+        "th:first-child,td:first-child,.l{text-align:left;} thead th{color:#5b6675;font-size:12px;text-transform:uppercase;}</style></head><body>" +
+        "<h1>AgentMeter — session comparison (SAW composite)</h1>" +
+        "<p style='color:#5b6675'>Sessions: " + cmp.sessions.map(function (s) { return esch(s.label) + " (top: " + esch(s.top || "—") + ")"; }).join(" · ") +
+        " · generated " + new Date().toISOString().slice(0, 19).replace("T", " ") + " UTC</p>" +
+        "<table><thead>" + head + "</thead><tbody>" + rows + "</tbody></table>" +
+        "<p style='color:#8a8f98;font-size:12px;margin-top:24px'>Resource-efficiency composite (read-only). Not a detection-quality ranking.</p></body></html>";
+    }
+
+    return { init: init, refresh: refresh };
+  })();
+
   // ==== nav ====
   function showView(name) {
-    ["overview", "detailed", "sessions", "settings"].forEach(function (v) {
+    ["overview", "detailed", "sessions", "compare", "settings"].forEach(function (v) {
       var sec = document.getElementById("view-" + v);
       if (sec) sec.classList.toggle("active", v === name);
     });
@@ -2761,6 +3008,7 @@
     });
     if (name === "settings") renderSettings();
     if (name === "sessions") CRUD.refreshSessions();
+    if (name === "compare") COMPARE.refresh();
   }
   function initNav() {
     Array.prototype.forEach.call(document.querySelectorAll("#nav button"), function (b) {
@@ -2970,6 +3218,8 @@
   initPullPanel();
   initNav();
   CRUD.init();
+  initExport();
+  COMPARE.init();
   // Optional convenience: if a real analysis.json sits next to this page (served
   // over http, or some browsers allow it over file://), auto-load it.
   try {

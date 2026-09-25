@@ -114,8 +114,8 @@ DASHBOARD_DIR = REPO_ROOT / "dashboard"
 # is included so a canonical results file dropped in dashboard/ auto-loads in the
 # served dashboard (the "view real results" path); it is gitignored, never a secret.
 _ALLOWED_ASSETS = {
-    "index.html", "saw.js", "pull-config.js", "sample_analysis.json", "README.md",
-    "analysis.json",
+    "index.html", "saw.js", "report.js", "pull-config.js", "sample_analysis.json",
+    "README.md", "analysis.json",
 }
 
 

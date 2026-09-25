@@ -61,6 +61,18 @@ one loaded `analysis.json`; no server or GPU needed to view precomputed results)
   (`GET /api/local-sessions`, read-only, allow-listed to `results/`); clicking one
   loads it into the dashboard without the file picker. Requires the server
   (same-origin); over `file://` it is hidden and manual import stays available.
+- **Compare** — a read-only multi-session workspace: pick 2–3 sessions (the
+  current one, saved sessions, local `results/` files, or uploaded `analysis.json`)
+  and see resource cost + SAW composite **side-by-side**, aligned per model, with
+  the best value per model highlighted and a metric toggle (composite / accuracy /
+  latency / VRAM / tokens). Composites/tiers are read verbatim from each file (same
+  SAW config; `saw.js` is reused for any recomputation). Works over `file://` using
+  the current session + uploaded files.
+- **Export** — offline, no external services. On the Overview SAW panel: **SAW CSV**,
+  **Per-agent CSV**, **Per-class CSV** (each exact from the loaded `analysis.json`)
+  and **Print report** (a clean print-to-PDF summary: findings, SAW ranking,
+  statistics, per-agent diagnostics). The Compare view exports a **Comparison CSV**
+  and a **Print comparison**. All export logic lives in [`report.js`](./report.js).
 - **Settings** — **status only**. It shows each token as *set* / *not set* and
   the cost-safety modes (auto-destroy, idle-timeout) read from the server's
   `GET /settings-status`. It has **no input fields for any token** — secrets live

@@ -453,6 +453,58 @@
     .sidefoot { margin-top: 8px; }
     .main { padding: 18px 16px 56px; }
   }
+
+  /* ============================================================
+     PHASE 21 — onboarding & in-context help (help text/UI only)
+     Tab intros, "?" info popovers, first-visit hint, glossary.
+     No logic/data/analysis touched.
+     ============================================================ */
+  .tab-intro {
+    color: var(--ink-2); font-size: 12.5px; line-height: 1.55; margin: 2px 2px 16px;
+    max-width: 760px; }
+  .tab-intro b { color: var(--ink); font-weight: 600; }
+
+  .help { position: relative; display: inline-flex; vertical-align: middle; margin-left: 6px; }
+  .help-btn {
+    width: 17px; height: 17px; padding: 0; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--line-strong); background: var(--panel-2); color: var(--muted);
+    font: 600 11px/1 var(--sans); display: inline-grid; place-items: center; }
+  .help-btn:hover, .help-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+  .help-pop {
+    position: absolute; top: calc(100% + 7px); left: 0; z-index: 60;
+    width: 300px; max-width: 78vw; box-sizing: border-box;
+    background: var(--panel); color: var(--ink-2);
+    border: 1px solid var(--line-strong); border-radius: var(--radius-lg);
+    box-shadow: 0 8px 28px rgba(16,24,40,.16); padding: 12px 14px;
+    font: 400 12.5px/1.55 var(--sans); text-transform: none; letter-spacing: 0; white-space: normal; }
+  .help-pop[hidden] { display: none; }
+  .help-pop.flip { left: auto; right: 0; }
+  .help-pop b { color: var(--ink); font-weight: 600; }
+  .help-pop .g { display: block; margin-top: 6px; color: var(--muted); font-size: 11.5px; }
+
+  /* first-visit hint */
+  .getting-started {
+    display: flex; align-items: flex-start; gap: 14px; margin: 0 0 16px;
+    background: var(--accent-soft); border: 1px solid var(--accent); border-radius: var(--radius-lg);
+    padding: 13px 15px; }
+  .getting-started[hidden] { display: none; }
+  .getting-started .gs-body { font-size: 12.5px; line-height: 1.55; color: var(--ink-2); flex: 1; }
+  .getting-started .gs-body b { color: var(--ink); font-weight: 600; }
+  .getting-started .gs-q { display: inline-grid; place-items: center; width: 15px; height: 15px;
+    border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); font-size: 10px;
+    font-weight: 700; vertical-align: middle; }
+  .getting-started .gs-x {
+    flex: none; font: 600 12px/1 var(--sans); color: var(--accent-ink); background: var(--accent);
+    border: 1px solid var(--accent); border-radius: var(--radius); padding: 7px 12px; cursor: pointer; }
+  .getting-started .gs-x:hover { background: var(--accent-2); border-color: var(--accent-2); }
+
+  /* glossary */
+  .glossary { margin: 4px 0 0; }
+  .glossary div { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; line-height: 1.5; }
+  .glossary div:last-child { border-bottom: none; }
+  .glossary dt, .glossary .term { font-weight: 600; color: var(--ink); }
+  .glossary .term { font-family: var(--sans); }
+  .glossary .def { color: var(--ink-2); }
 </style>
 </head>
 <body>
@@ -493,25 +545,36 @@
   </aside>
 
   <main class="main">
+  <div id="getting-started" class="getting-started" hidden>
+    <div class="gs-body"><b>New here?</b> Start on <b>Overview</b> for the model ranking, open
+      <b>Detailed Analysis</b> for the breakdowns, and click any <span class="gs-q">?</span> to learn
+      what a metric means. AgentMeter measures <b>resource efficiency</b> — speed, memory and token
+      use — with accuracy as one factor; it does not claim to pick the single "best" threat detector.</div>
+    <button id="gs-dismiss" class="gs-x" type="button">Got it</button>
+  </div>
   <div id="banner" class="banner sample"></div>
 
   <!-- ===================== OVERVIEW ===================== -->
   <section id="view-overview" class="view active">
 
+  <p class="tab-intro"><b>Overview — your starting point.</b> It ranks the benchmarked models by one
+    overall efficiency score and lets you change how much each factor (accuracy, speed, memory, tokens)
+    counts using the sliders. The ranking re-computes live in your browser.</p>
+
   <div class="section-label">Highlights</div>
   <div class="highlights">
     <div class="hcard">
-      <div class="hhead"><span class="sq" style="background:var(--c1)"></span><h3>Composite Health Score</h3></div>
+      <div class="hhead"><span class="sq" style="background:var(--c1)"></span><h3>Composite Health Score</h3><span class="help"><button class="help-btn" type="button" data-help="hc-composite" aria-label="What is this?">?</button></span></div>
       <p class="sub">SAW composite ×100 · Higher is better</p>
       <div class="vbars" id="hc-composite"></div>
     </div>
     <div class="hcard">
-      <div class="hhead"><span class="sq" style="background:var(--c2)"></span><h3>Accuracy</h3></div>
+      <div class="hhead"><span class="sq" style="background:var(--c2)"></span><h3>Accuracy</h3><span class="help"><button class="help-btn" type="button" data-help="hc-accuracy" aria-label="What is this?">?</button></span></div>
       <p class="sub">Detection accuracy across 300 scenarios · Higher is better</p>
       <div class="vbars" id="hc-accuracy"></div>
     </div>
     <div class="hcard">
-      <div class="hhead"><span class="sq" style="background:var(--c3)"></span><h3>Latency per scenario</h3></div>
+      <div class="hhead"><span class="sq" style="background:var(--c3)"></span><h3>Latency per scenario</h3><span class="help right"><button class="help-btn" type="button" data-help="hc-latency" aria-label="What is this?">?</button></span></div>
       <p class="sub">Mean wall time per scenario · Lower is better</p>
       <div class="vbars" id="hc-latency"></div>
     </div>
@@ -519,7 +582,7 @@
 
   <div class="section-label">Ranking</div>
   <div class="panel">
-    <h2>SAW ranking <span class="hint">— Simple Additive Weighting composite, re-ranked live from the weights below</span></h2>
+    <h2>SAW ranking <span class="hint">— Simple Additive Weighting composite, re-ranked live from the weights below</span><span class="help"><button class="help-btn" type="button" data-help="saw" aria-label="What is this?">?</button></span></h2>
     <table id="saw">
       <thead>
         <tr>
@@ -541,7 +604,7 @@
   </div>
 
   <div class="panel">
-    <h2>Sensitivity — live weights</h2>
+    <h2>Sensitivity — live weights<span class="help"><button class="help-btn" type="button" data-help="sens-live" aria-label="What is this?">?</button></span></h2>
     <div class="presets" id="presets"></div>
     <div class="sliders" id="sliders"></div>
     <p class="note" id="wsum"></p>
@@ -558,13 +621,13 @@
   </div>
 
   <div class="panel">
-    <h2>VRAM finding</h2>
+    <h2>VRAM finding<span class="help"><button class="help-btn" type="button" data-help="vram-finding" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="finding"></p>
   </div>
 
   <div class="section-label">Admin</div>
   <div class="panel">
-    <h2>Add a model <span class="hint">— pull ONE extra HF model and run it through the same harness (exploratory, NOT part of the validated 5-model study)</span></h2>
+    <h2>Add a model <span class="hint">— pull ONE extra HF model and run it through the same harness (exploratory, NOT part of the validated 5-model study)</span><span class="help right"><button class="help-btn" type="button" data-help="addmodel" aria-label="What is this?">?</button></span></h2>
     <div class="admin">
       <div class="row">
         <label for="pull-base">Server base URL</label>
@@ -586,8 +649,12 @@
   <!-- ===================== DETAILED ANALYSIS ===================== -->
   <section id="view-detailed" class="view">
 
+  <p class="tab-intro"><b>Detailed Analysis — the breakdowns behind the ranking.</b> Read-only views of the
+    same loaded results: where time and memory go inside the pipeline, how stable the ranking is, statistical
+    tests, per-class costs, and efficiency trade-offs. Hover any <b>?</b> to learn how to read a chart.</p>
+
   <div class="panel">
-    <h2>Per-agent diagnostics <span class="hint">— where latency and working memory are spent inside the 4-agent pipeline</span></h2>
+    <h2>Per-agent diagnostics <span class="hint">— where latency and working memory are spent inside the 4-agent pipeline</span><span class="help"><button class="help-btn" type="button" data-help="peragent" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="pa-finding"></p>
     <table class="subtable" id="pa-wall-table">
       <caption>Mean wall time per agent (seconds) — highest per model highlighted</caption>
@@ -618,7 +685,7 @@
   </div>
 
   <div class="panel">
-    <h2>Resource cost per attack class <span class="hint">— where latency, VRAM and tokens concentrate across classes (measurement, not detection quality)</span></h2>
+    <h2>Resource cost per attack class <span class="hint">— where latency, VRAM and tokens concentrate across classes (measurement, not detection quality)</span><span class="help"><button class="help-btn" type="button" data-help="perclass" aria-label="What is this?">?</button></span></h2>
     <div class="controls" style="margin-bottom:14px">
       <label>Model: <select id="pc-model"></select></label>
       <label style="margin-left:14px">Metric: <select id="pc-metric">
@@ -633,20 +700,20 @@
   </div>
 
   <div class="panel">
-    <h2>Sensitivity analysis <span class="hint">— ranking under each configured weight set (fixed, from the study)</span></h2>
+    <h2>Sensitivity analysis <span class="hint">— ranking under each configured weight set (fixed, from the study)</span><span class="help"><button class="help-btn" type="button" data-help="sensitivity" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="sens-finding"></p>
     <table id="sens-table"></table>
     <p class="note" id="sens-note"></p>
   </div>
 
   <div class="panel">
-    <h2>Statistics <span class="hint">— Kruskal-Wallis omnibus + Dunn post-hoc (read-only; from the study)</span></h2>
+    <h2>Statistics <span class="hint">— Kruskal-Wallis omnibus + Dunn post-hoc (read-only; from the study)</span><span class="help"><button class="help-btn" type="button" data-help="statistics" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="stats-finding"></p>
     <div id="stats-body"></div>
   </div>
 
   <div class="panel">
-    <h2>Accuracy detail</h2>
+    <h2>Accuracy detail<span class="help"><button class="help-btn" type="button" data-help="accuracy" aria-label="What is this?">?</button></span></h2>
     <p class="lead">Per-model accuracy from the stored <code>correct</code> flag (not recomputed).</p>
     <table id="acc-table"></table>
     <div id="acc-perclass" style="margin-top:18px"></div>
@@ -656,7 +723,7 @@
   <div class="section-label">Chapter 4 — analytical expansion <span class="hint" style="text-transform:none;letter-spacing:0;font-weight:400">(read-only, from the loaded results)</span></div>
 
   <div class="panel">
-    <h2>Pareto frontier <span class="hint">— accuracy vs resource cost; the non-dominated models form the front</span></h2>
+    <h2>Pareto frontier <span class="hint">— accuracy vs resource cost; the non-dominated models form the front</span><span class="help"><button class="help-btn" type="button" data-help="pareto" aria-label="What is this?">?</button></span></h2>
     <div class="pareto-grid">
       <div><h3 class="crud-h3">Accuracy vs mean latency</h3><div id="pareto-latency"></div></div>
       <div><h3 class="crud-h3">Accuracy vs mean tokens</h3><div id="pareto-tokens"></div></div>
@@ -665,25 +732,25 @@
   </div>
 
   <div class="panel">
-    <h2>Latency stability (CoV) <span class="hint">— std ÷ mean of end-to-end latency; lower = more predictable</span></h2>
+    <h2>Latency stability (CoV) <span class="hint">— std ÷ mean of end-to-end latency; lower = more predictable</span><span class="help"><button class="help-btn" type="button" data-help="cov" aria-label="What is this?">?</button></span></h2>
     <div id="cov-bars"></div>
     <table id="cov-table" style="margin-top:16px"></table>
   </div>
 
   <div class="panel">
-    <h2>Prefill vs decode <span class="hint">— mean TTFT (prefill) vs wall − TTFT (decode); where temporal cost concentrates</span></h2>
+    <h2>Prefill vs decode <span class="hint">— mean TTFT (prefill) vs wall − TTFT (decode); where temporal cost concentrates</span><span class="help"><button class="help-btn" type="button" data-help="prefill" aria-label="What is this?">?</button></span></h2>
     <div id="pd-bars"></div>
     <p class="note" id="pd-note"></p>
   </div>
 
   <div class="panel">
-    <h2>Output throughput <span class="hint">— output tokens ÷ generation (decode) seconds</span></h2>
+    <h2>Output throughput <span class="hint">— output tokens ÷ generation (decode) seconds</span><span class="help"><button class="help-btn" type="button" data-help="throughput" aria-label="What is this?">?</button></span></h2>
     <div id="tp-bars"></div>
     <table id="tp-table" style="margin-top:16px"></table>
   </div>
 
   <div class="panel">
-    <h2>Misclassification resource cost <span class="hint">— cost when right vs wrong (resource comparison only, not a detection ranking)</span></h2>
+    <h2>Misclassification resource cost <span class="hint">— cost when right vs wrong (resource comparison only, not a detection ranking)</span><span class="help"><button class="help-btn" type="button" data-help="misclass" aria-label="What is this?">?</button></span></h2>
     <div class="controls" style="margin-bottom:14px">
       <label>Metric: <select id="mc-metric">
         <option value="mean_latency_s">Mean latency (s)</option>
@@ -699,6 +766,9 @@
 
   <!-- ===================== SESSIONS (CRUD) ===================== -->
   <section id="view-sessions" class="view">
+  <p class="tab-intro"><b>Sessions — save and organise results.</b> Import an <code>analysis.json</code> as a
+    named session, add tags to group runs, and reopen any session to load it into the Overview and Detailed
+    Analysis tabs. Stored results are read-only once saved. (Needs the AgentMeter server.)</p>
   <div class="panel" id="crud-unavailable" style="display:none">
     <h2>Sessions</h2>
     <p class="finding">Saved sessions, presets and notes are stored by the server. Open this dashboard <b>from the pull/eval server</b> (or set the server base URL in the Overview → Add a model panel) to manage them. Over <code>file://</code> this is read-only.</p>
@@ -750,8 +820,11 @@
 
   <!-- ===================== COMPARE (multi-session workspace) ===================== -->
   <section id="view-compare" class="view">
+  <p class="tab-intro"><b>Compare — put runs side by side.</b> Pick 2–3 saved sessions (for example the same
+    models on different GPUs) to see how their resource cost and scores differ, then export the comparison.
+    Read-only — it changes no numbers.</p>
   <div class="panel">
-    <h2>Compare sessions <span class="hint">— pick 2–3 saved sessions and see resource cost + SAW composite side-by-side (read-only)</span></h2>
+    <h2>Compare sessions <span class="hint">— pick 2–3 saved sessions and see resource cost + SAW composite side-by-side (read-only)</span><span class="help"><button class="help-btn" type="button" data-help="compare" aria-label="What is this?">?</button></span></h2>
     <div class="cmp-slots" id="cmp-slots"></div>
     <div class="controls" style="margin-top:14px">
       <label>Metric: <select id="cmp-metric">
@@ -774,6 +847,9 @@
 
   <!-- ===================== CONFIG BUILDER ===================== -->
   <section id="view-config" class="view">
+  <p class="tab-intro"><b>Config builder — set up a custom run without editing YAML.</b> Fill in the form to
+    generate a configuration file for your own choice of models, dataset and weights. It only <b>writes a
+    file</b> — it never starts a run or uses a GPU, and it can't touch the locked validated study.</p>
   <div class="panel">
     <h2>Config builder <span class="hint">— generate a run config (YAML) without hand-editing. Builds a file only; never starts a run.</span></h2>
     <p class="finding" id="cfg-scope">This writes a config to <code>configs/user/&lt;name&gt;.yaml</code>. It does <b>not</b> run inference or use a GPU, and it can <b>never</b> overwrite the locked study config (<code>configs/run_full_l4.yaml</code>) or the root <code>config.yaml</code>. Scope: models, dataset, SAW weights, targets, tiers, agent token budgets.</p>
@@ -861,6 +937,8 @@
 
   <!-- ===================== SETTINGS (STATUS ONLY) ===================== -->
   <section id="view-settings" class="view">
+  <p class="tab-intro"><b>Settings — read-only status.</b> Shows which API tokens the server has configured
+    (set / not set) and the cost-safety options. No secrets are ever entered or displayed here.</p>
   <div class="panel">
     <h2>Settings <span class="hint">— status only</span></h2>
     <p class="finding" id="settings-note">Tokens are configured via the server-side <code>.env</code> file for security and are never entered or shown here.</p>
@@ -869,6 +947,21 @@
     <h3 style="margin:20px 0 10px;font-size:14px">Cost safety</h3>
     <div class="status-grid" id="settings-cost"></div>
     <p class="note" id="settings-status"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Glossary <span class="hint">— key terms in plain language</span></h2>
+    <div class="glossary" id="glossary">
+      <div><span class="term">SAW composite score</span> — <span class="def">one 0–1 number blending accuracy, latency, memory and tokens by the chosen weights; higher is better.</span></div>
+      <div><span class="term">Tier</span> — <span class="def">a health label from the score ×100: Healthy (≥ 80), Degraded (≥ 60), Critical (below 60).</span></div>
+      <div><span class="term">Latency</span> — <span class="def">wall-clock time to process one scenario end-to-end through all four agents; lower is better.</span></div>
+      <div><span class="term">TTFT (time to first token)</span> — <span class="def">how long until the model starts producing output — the "prefill" part of a response.</span></div>
+      <div><span class="term">VRAM (working memory)</span> — <span class="def">GPU memory used while running, excluding the model's fixed weights; lower is better.</span></div>
+      <div><span class="term">Tokens</span> — <span class="def">chunks of text the model reads and writes; fewer usually means cheaper and faster.</span></div>
+      <div><span class="term">Zero-shot</span> — <span class="def">the model gets only instructions, no worked examples; it must classify unseen network flows directly.</span></div>
+      <div><span class="term">CoV (coefficient of variation)</span> — <span class="def">spread ÷ average of latency; lower means more consistent, predictable response times.</span></div>
+      <div><span class="term">Pareto front</span> — <span class="def">the models where you can't improve one metric without worsening another — the best available trade-offs.</span></div>
+    </div>
   </div>
   </section><!-- /settings -->
   </main>
@@ -3539,6 +3632,85 @@
     });
   }
 
+  // ==== Phase 21 — in-context help (help text only; no logic/data touched) ====
+  // Plain-language explanations for the "?" info buttons. Kept in sync with what
+  // the code actually computes: this measures RESOURCE EFFICIENCY (accuracy is one
+  // factor); it never ranks detection quality, remediates, or alerts.
+  var HELP_TEXT = {
+    "hc-composite": "The overall efficiency score (SAW composite) for each model, shown ×100. It blends accuracy, speed, memory and token use into one number. <b>Higher is better</b>; the tallest bar is the top-ranked model.",
+    "hc-accuracy": "How often each model's final verdict matched the true label, across all scenarios. <b>Higher is better.</b> <span class=\"g\">These are zero-shot open-source models on a hard task, so accuracy is modest — that's an honest measured finding, not a failure.</span>",
+    "hc-latency": "Average wall-clock time to process one scenario through all four agents. <b>Lower is better.</b> <span class=\"g\">Differences here usually drive the ranking more than memory does.</span>",
+    "saw": "Ranks the models by one overall score that combines accuracy, speed (latency), memory (VRAM) and token usage. <b>Higher is better.</b> Use the sliders below to change how much each factor matters — the table re-ranks instantly. <span class=\"g\">It measures resource efficiency, not which model is the 'best' threat detector.</span>",
+    "sens-live": "Drag a slider to change how much each factor counts, then watch the ranking above update live. Ask questions like 'if I cared more about speed, would the order change?'. <span class=\"g\">Weights are automatically re-normalised to sum to 1.</span>",
+    "vram-finding": "A plain-language note about memory use in this run. On this hardware every model sits far below the memory target, so VRAM doesn't separate them — the ranking is driven mainly by accuracy, latency and tokens.",
+    "addmodel": "Optional: pull one extra Hugging Face model and run it through the same pipeline for a side-by-side look. <span class=\"g\">It is exploratory and clearly marked — it never joins or changes the validated 5-model study.</span>",
+    "peragent": "Shows where time and memory are spent inside the 4-step pipeline (Perceive → Reason → Decide → Act). Taller bars mean that step costs more. <span class=\"g\">It reveals which step is the bottleneck for each model.</span>",
+    "perclass": "Average latency, memory and tokens broken down by attack class (e.g. Port Scanning, Benign). It shows where resource cost concentrates across categories. <span class=\"g\">This is a cost breakdown only — not a judgement of how well each class is detected.</span>",
+    "sensitivity": "The same ranking recomputed under several fixed weighting schemes (equal, accuracy-heavy, efficiency-heavy). <b>If a model stays on top across all of them, the ranking is robust</b> to how you weight the factors.",
+    "statistics": "A statistical test (Kruskal-Wallis) checks whether the models' per-scenario latency and memory really differ or could just be noise. <b>A small p-value means the differences are real</b>; the Dunn table shows which specific model pairs differ.",
+    "accuracy": "Per-model accuracy plus a confusion matrix (true label vs predicted). Use it to see not just how often a model is right, but what it confuses. <span class=\"g\">Low accuracy here is an honest measured result for zero-shot models on this task.</span>",
+    "pareto": "Plots accuracy against a resource cost (latency or tokens). Models on the <b>front</b> (toward the upper-left) are the best available trade-offs — nothing beats them on both at once. Points behind the front are dominated by a better option.",
+    "cov": "Coefficient of variation = spread ÷ average of end-to-end latency. <b>Lower is better</b> — more predictable, consistent response times; higher means the model is sometimes much slower than usual.",
+    "prefill": "Splits each response's time into prefill (time to the first token, TTFT) and decode (generating the rest). <span class=\"g\">It shows whether a model's time goes mostly into reading the prompt or into writing the answer.</span>",
+    "throughput": "Output tokens produced per second of generation. <b>Higher means the model writes its answer faster</b> once it starts. It's a raw speed measure, independent of how long the answer is.",
+    "misclass": "Compares the resource cost (latency, tokens) when a model is right vs when it's wrong. It answers 'do wrong answers cost more?'. <span class=\"g\">A cost comparison only — not a measure of detection quality.</span>",
+    "compare": "Line up 2–3 saved sessions to see how their resource cost and scores differ — e.g. the same models on different GPUs. Pick a metric to compare; the best value in each row is highlighted. <span class=\"g\">Read-only: it changes no numbers.</span>"
+  };
+
+  function closeHelp() {
+    Array.prototype.forEach.call(document.querySelectorAll(".help-pop:not([hidden])"), function (p) {
+      p.setAttribute("hidden", ""); p.classList.remove("flip");
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.help-btn[aria-expanded="true"]'), function (b) {
+      b.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function initHelp() {
+    // Build each popover from HELP_TEXT (once), next to its "?" button.
+    Array.prototype.forEach.call(document.querySelectorAll(".help-btn"), function (btn) {
+      var key = btn.getAttribute("data-help");
+      if (!key || !HELP_TEXT[key] || btn.parentNode.querySelector(".help-pop")) return;
+      var pop = document.createElement("span");
+      pop.className = "help-pop"; pop.setAttribute("role", "tooltip");
+      pop.hidden = true; pop.innerHTML = HELP_TEXT[key];
+      btn.parentNode.appendChild(pop);
+    });
+    // One delegated handler: toggle on button click, close on outside click.
+    document.addEventListener("click", function (e) {
+      var btn = e.target.closest && e.target.closest(".help-btn");
+      if (btn) {
+        var pop = btn.parentNode.querySelector(".help-pop");
+        var willOpen = pop && pop.hasAttribute("hidden");
+        closeHelp();
+        if (willOpen) {
+          pop.removeAttribute("hidden");
+          btn.setAttribute("aria-expanded", "true");
+          // flip to the right edge if it would overflow the viewport
+          var r = pop.getBoundingClientRect();
+          if (r.right > window.innerWidth - 8) pop.classList.add("flip");
+        }
+        e.stopPropagation();
+        return;
+      }
+      if (!(e.target.closest && e.target.closest(".help-pop"))) closeHelp();
+    });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeHelp(); });
+  }
+
+  function initGettingStarted() {
+    var box = document.getElementById("getting-started");
+    var btn = document.getElementById("gs-dismiss");
+    if (!box || !btn) return;
+    var dismissed = false;
+    try { dismissed = localStorage.getItem("am_gs_dismissed") === "1"; } catch (e) { /* storage blocked */ }
+    if (!dismissed) box.hidden = false;
+    btn.addEventListener("click", function () {
+      box.hidden = true;
+      try { localStorage.setItem("am_gs_dismissed", "1"); } catch (e) { /* ignore */ }
+    });
+  }
+
   // ---- banner ----
   function setBanner(kind, sourceLabel) {
     var b = document.getElementById("banner");
@@ -3757,6 +3929,8 @@
   initExport();
   COMPARE.init();
   CONFIG.init();
+  initHelp();
+  initGettingStarted();
   // Optional convenience: if a real analysis.json sits next to this page (served
   // over http, or some browsers allow it over file://), auto-load it.
   try {

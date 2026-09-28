@@ -9,7 +9,10 @@ threat-detection pipelines.
 
 ## Status
 
-Built incrementally, phase by phase. Currently: **Phase 0 (skeleton + env check)**.
+Built incrementally, phase by phase. The **core study harness (Phases 0–8)** is
+complete, and the project has grown into a reusable **tool** around one locked,
+validated study (see *The validated study vs. custom runs* below), with an
+interactive dashboard and supporting tooling on top.
 
 | Phase | Deliverable | State |
 |-------|-------------|-------|
@@ -17,9 +20,14 @@ Built incrementally, phase by phase. Currently: **Phase 0 (skeleton + env check)
 | 1 | Dataset loader + data isolation + prompt builder | ✅ |
 | 2 | Minimal 4-agent LangGraph pipeline (linear) | ✅ |
 | 3 | Per-agent instrumentation (time, tokens, VRAM) | ✅ |
-| 4 | HF in-process model adapter (Mode A) | ✅ (code + offline smoke) |
-| 5 | **Pilot run** (1 model, 5-10 scenarios) | ✅ code ready — run on Colab (T4) or HF Space (L4) |
+| 4 | HF in-process model adapter (Mode A) | ✅ |
+| 5 | Pilot run (1 model, few scenarios) | ✅ |
 | 6 | Full-run orchestrator + SQLite persistence + checkpoint/resume | ✅ |
+| 7–8 | Accuracy aggregation + SAW composite + sensitivity + statistics (Kruskal-Wallis/Dunn) | ✅ |
+| 9–10 | HTML report + Gradio compare app + interactive dashboard (in-browser SAW) | ✅ |
+| 11–16 | Pull/eval server, cost-safety, `.env` tokens, CRUD (sessions/presets/notes), per-class + advanced analysis, live demo, local-session discovery | ✅ |
+| 17–22 | Compare workspace + report export, config builder, session tags + reconfigurable-run separation, dashboard redesign, in-context help, Hugging Face metadata context | ✅ |
+| 23 | Package organised into role subpackages (see `agentmeter/README.md`) | ✅ |
 
 **Running the pilot (needs a GPU):**
 - **Google Colab (free T4, 15 GB):** open `notebooks/agentmeter_pilot_colab.ipynb`
@@ -102,7 +110,36 @@ subprocess isolation:
 pip install -r requirements-dev.txt && pytest -q
 ```
 
-Phases 7-10 are intentionally **not** built yet.
+## Repository structure
+
+```
+AgentMeter/
+├── main.py               CLI entry point (check-env, load-data, run-pipeline, bench,
+│                         pilot, run-full, build-dataset, analyze, measure-vram)
+├── config.yaml           Mock/dev default config (NOT the study — see configs/)
+├── pyproject.toml        Project metadata + pytest config
+├── requirements*.txt     Dependencies: base / -gpu / -dev / -demo
+│
+├── agentmeter/           The library, grouped by role (see agentmeter/README.md):
+│   ├── config.py         config loader
+│   ├── db/               databases: storage (study results), appdb (app metadata)
+│   ├── data/             dataset loading + dataset prep
+│   ├── pipeline/         the 4-agent process + instrumentation
+│   ├── providers/        model backends (mock / Hugging Face)
+│   ├── run/              execution: runner, worker, pilot, measure
+│   ├── analysis/         accuracy + SAW + per-class + advanced analysis
+│   ├── server/           web/API layer (pull-eval, CRUD, config builder, HF metadata)
+│   └── util/             env/token helpers, env check, Vast.ai shutdown
+│
+├── configs/              run configs — run_full_l4.yaml is the LOCKED study; user/ holds generated ones
+├── dashboard/            self-contained results dashboard (HTML/CSS/JS + saw.js/report.js)
+├── scripts/              server + helper scripts (pull_eval_server.py, report.py, demo_run.py, …)
+├── tests/                pytest suite (CPU only)
+├── data/                 datasets (cicids_full_300.csv is the study dataset)
+├── notebooks/            Colab pilot notebook
+├── space/                Hugging Face Space setup
+└── results/              OUTPUT ONLY (gitignored): .db files, analysis.json, reports
+```
 
 ## Design rules (hard constraints)
 

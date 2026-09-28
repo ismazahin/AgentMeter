@@ -1,0 +1,40 @@
+# AgentMeter — project metadata & tooling config.
+# Dependencies are kept in the requirements*.txt files (see README); this file
+# provides standard packaging metadata and centralises the pytest/tool config.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentmeter"
+version = "0.0.0"
+description = "Benchmarking open-source LLM resource efficiency in a minimal 4-agent threat-detection pipeline."
+readme = "README.md"
+requires-python = ">=3.10"
+# Core CPU dependencies (mirror of requirements.txt). Extras for GPU / dev / demo
+# are declared below; the requirements*.txt files remain the canonical install path.
+dependencies = [
+    "PyYAML>=6.0",
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "langgraph>=0.2",
+    "langchain-core>=0.3",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+demo = ["gradio>=4.0", "pandas>=2.0"]
+gpu = [
+    "torch>=2.1", "transformers>=4.40", "accelerate>=0.30", "huggingface_hub>=0.23",
+    "sentencepiece>=0.2", "pynvml>=11.5", "bitsandbytes>=0.43",
+    "flask>=3.0", "flask-cors>=4.0", "pyngrok>=7.0", "python-dotenv>=1.0",
+]
+
+[tool.setuptools.packages.find]
+# Only ship the library package; scripts/tests/configs are not installed.
+include = ["agentmeter*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

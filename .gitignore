@@ -34,3 +34,8 @@ hf_cache/
 .DS_Store
 .idea/
 .vscode/
+
+# Generated outputs that belong under results/, never at the repo root
+/pilot_report.html
+/model_vram.json
+*.worker_vram.json

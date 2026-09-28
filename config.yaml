@@ -51,7 +51,7 @@ dataset:
   limit: 10            # pilot: 5-10 scenarios. null = all rows.
   max_feature_chars: 4000  # safety cap on feature-prompt length
   # Ground-truth normalization for real datasets (applied to the held-out label
-  # in memory only — the model never sees it). Maps raw CSV labels onto the 6
+  # in memory only — the model never sees it). Maps raw CSV labels onto the 5
   # canonical classes. Declare any mapping in the thesis.
   label_map: {}        # e.g. {DoS Hulk: Volumetric DDoS, PortScan: Port Scanning}
   drop_labels: []      # raw labels to exclude entirely, e.g. [DoS Hulk]

@@ -19,7 +19,7 @@ import platform
 import sys
 from dataclasses import dataclass, field
 
-from .config import Config, load_config
+from ..config import Config, load_config
 
 # (module_name, human_label, phase_group)
 CPU_DEPS = [

@@ -17,8 +17,8 @@ from __future__ import annotations
 import re
 from typing import Callable
 
-from .config import Config
-from .providers.base import ModelProvider
+from ..config import Config
+from ..providers.base import ModelProvider
 
 # System prompts define each agent's role. The mock keys off the role word;
 # the real HF model is steered by them too. "Be concise" bounds the free-text

@@ -31,7 +31,7 @@ import pandas as pd
 from scipy.stats import kruskal, rankdata
 from scipy.stats import norm as _normdist
 
-from .config import PROJECT_ROOT, load_config
+from ..config import PROJECT_ROOT, load_config
 
 ALPHA = 0.05  # significance level for the Kruskal-Wallis omnibus test
 

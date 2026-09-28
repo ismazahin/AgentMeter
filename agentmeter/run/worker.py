@@ -24,7 +24,7 @@ import os
 import sys
 from typing import Optional
 
-from .config import load_config
+from ..config import load_config
 from .pilot import _gpu_guard, free_cuda, release_provider, startup_isolation_guard
 
 
@@ -134,8 +134,8 @@ def _measure_model_vram(cfg, model_name: str, out_json: str) -> None:
     import json as _json
     from pathlib import Path as _Path
 
-    from .instrument import GpuProbe
-    from .providers import get_provider
+    from ..pipeline.instrument import GpuProbe
+    from ..providers import get_provider
     from .runner import quant_setting
 
     _gpu_guard(cfg)  # require_gpu; no silent CPU fallback
@@ -186,12 +186,12 @@ def _run_model_sqlite(
     respawn after a crash finishes only what is left — each scenario is persisted
     atomically (all four agent rows + its verdict in one transaction).
     """
-    from .dataset import DatasetLoader
-    from .instrument import GpuProbe, MetricsCollector, make_instrumented_hook
-    from .pipeline import Pipeline
-    from .providers import get_provider
+    from ..data.dataset import DatasetLoader
+    from ..pipeline.instrument import GpuProbe, MetricsCollector, make_instrumented_hook
+    from ..pipeline import Pipeline
+    from ..providers import get_provider
     from .runner import model_label
-    from .storage import Storage
+    from ..db.storage import Storage
 
     _gpu_guard(cfg)  # no silent CPU fallback for HF runs
     cfg.data.setdefault("model", {})["name"] = model_name
@@ -281,7 +281,7 @@ def _run_model_sqlite(
 
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="agentmeter.worker",
+        prog="agentmeter.run.worker",
         description="Run exactly ONE model in a fresh process (VRAM isolation).",
     )
     parser.add_argument("--config", type=str, default=None, help="path to config.yaml")

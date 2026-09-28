@@ -34,7 +34,7 @@ from typing import Any, Optional
 import numpy as np
 import pandas as pd
 
-from .config import PROJECT_ROOT, load_config
+from ..config import PROJECT_ROOT, load_config
 
 
 def _resolve(p: str | Path) -> Path:

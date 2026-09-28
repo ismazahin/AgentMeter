@@ -21,7 +21,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from .config import PROJECT_ROOT
+from ..config import PROJECT_ROOT
 
 DEFAULT_APP_DB = PROJECT_ROOT / "results" / "agentmeter_app.db"
 # The locked study DB — this module must NEVER open it (guard below).

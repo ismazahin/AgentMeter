@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
-from .instrument import AgentMetrics
+from ..pipeline.instrument import AgentMetrics
 
 
 def _now() -> str:

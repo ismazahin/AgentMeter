@@ -66,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "check-env":
-        from agentmeter.env_check import check_environment, format_report
+        from agentmeter.util.env_check import check_environment, format_report
         from agentmeter.config import load_config
 
         report = check_environment(load_config(args.config))
@@ -83,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
         return _bench(args.n, args.json, args.proj_scenarios, args.proj_models, args.config)
 
     if args.command == "pilot":
-        from agentmeter.pilot import run_pilot
+        from agentmeter.run.pilot import run_pilot
 
         try:
             result = run_pilot(
@@ -102,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "run-full":
-        from agentmeter.runner import ConfigMismatchError, run_full
+        from agentmeter.run.runner import ConfigMismatchError, run_full
 
         try:
             result = run_full(
@@ -122,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "build-dataset":
-        from agentmeter.dataprep import build_dataset
+        from agentmeter.data.dataprep import build_dataset
 
         try:
             build_dataset(
@@ -138,7 +138,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "analyze":
-        from agentmeter.analyze import run_analysis
+        from agentmeter.analysis.analyze import run_analysis
 
         try:
             run_analysis(config_path=args.config, db_path=args.db, out_dir=args.out,
@@ -149,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "measure-vram":
-        from agentmeter.measure import run_measure_vram
+        from agentmeter.run.measure import run_measure_vram
 
         try:
             run_measure_vram(config_path=args.config, out_path=args.out)
@@ -164,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
 
 def _load_data(show: int, config_path: str | None = None) -> int:
     from agentmeter.config import load_config
-    from agentmeter.dataset import DatasetLoader
+    from agentmeter.data.dataset import DatasetLoader
 
     cfg = load_config(config_path)
     loader = DatasetLoader(cfg)
@@ -201,7 +201,7 @@ def _load_data(show: int, config_path: str | None = None) -> int:
 
 def _run_pipeline(n: int, config_path: str | None = None) -> int:
     from agentmeter.config import load_config
-    from agentmeter.dataset import DatasetLoader
+    from agentmeter.data.dataset import DatasetLoader
     from agentmeter.pipeline import Pipeline
     from agentmeter.providers import get_provider
 
@@ -247,8 +247,8 @@ def _bench(n, json_path, proj_scenarios, proj_models, config_path: str | None = 
     from pathlib import Path
 
     from agentmeter.config import load_config
-    from agentmeter.dataset import DatasetLoader
-    from agentmeter.instrument import GpuProbe, MetricsCollector, make_instrumented_hook
+    from agentmeter.data.dataset import DatasetLoader
+    from agentmeter.pipeline.instrument import GpuProbe, MetricsCollector, make_instrumented_hook
     from agentmeter.pipeline import Pipeline
     from agentmeter.providers import get_provider
 

@@ -24,7 +24,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
-from .config import load_config
+from ..config import load_config
 from .pilot import _gpu_guard
 from .runner import quant_setting, resolve_models
 
@@ -48,7 +48,7 @@ def _require_cuda(cfg) -> None:
 def _spawn_measure_worker(config_path: str, model: str, out_json: str) -> int:
     """Spawn ONE per-model measure worker and BLOCK until it exits (sequential)."""
     cmd = [
-        sys.executable, "-m", "agentmeter.worker",
+        sys.executable, "-m", "agentmeter.run.worker",
         "--mode", "measure",
         "--model", model,
         "--out", out_json,

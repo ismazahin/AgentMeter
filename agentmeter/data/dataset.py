@@ -18,7 +18,7 @@ from typing import Any
 
 import pandas as pd
 
-from .config import Config
+from ..config import Config
 
 
 @dataclass

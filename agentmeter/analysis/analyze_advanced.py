@@ -224,7 +224,7 @@ def run_advanced(config_path: Optional[str] = None,
                  db_path: Optional[str] = None) -> dict[str, Any]:
     """Read the locked results DB READ-ONLY and return the `advanced` section."""
     from . import analyze
-    from .config import load_config
+    from ..config import load_config
 
     cfg = load_config(config_path)
     if db_path is None:

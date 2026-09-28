@@ -23,11 +23,11 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from .config import Config, load_config
-from .dataset import DatasetLoader
-from .instrument import GpuProbe, MetricsCollector, make_instrumented_hook
-from .pipeline import Pipeline
-from .providers import get_provider
+from ..config import Config, load_config
+from ..data.dataset import DatasetLoader
+from ..pipeline.instrument import GpuProbe, MetricsCollector, make_instrumented_hook
+from ..pipeline import Pipeline
+from ..providers import get_provider
 
 
 @dataclass
@@ -333,7 +333,7 @@ def run_pilot_models(
         print(f"\n{'#'*70}\n# Model {i+1}/{len(models)}: {name}  (worker subprocess)\n{'#'*70}")
         out_json = out / f"pilot_{_short_name(name)}.json"
         cmd = [
-            sys.executable, "-m", "agentmeter.worker",
+            sys.executable, "-m", "agentmeter.run.worker",
             "--mode", "pilot",
             "--model", name,
             "--config", worker_config,

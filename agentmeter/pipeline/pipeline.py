@@ -12,8 +12,8 @@ from typing import Any, Callable, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from .agents import AGENT_REGISTRY
-from .config import Config
-from .providers.base import ModelProvider
+from ..config import Config
+from ..providers.base import ModelProvider
 
 
 class PipelineState(TypedDict, total=False):

@@ -41,8 +41,10 @@ from typing import Any, Callable, Optional
 import pandas as pd
 import yaml
 
-from . import analyze, envtools, runner
-from .config import PROJECT_ROOT, load_config
+from ..analysis import analyze
+from ..util import envtools
+from ..run import runner
+from ..config import PROJECT_ROOT, load_config
 
 # --- constants ---------------------------------------------------------
 
@@ -571,7 +573,7 @@ class JobManager:
     def _resolve_total(self, cfg_path: str) -> int:
         """How many scenarios this run will cover (dataset size, capped by n)."""
         try:
-            from .dataset import DatasetLoader
+            from ..data.dataset import DatasetLoader
             cfg = load_config(cfg_path)
             scenarios = DatasetLoader(cfg).load()
             total = len(scenarios)

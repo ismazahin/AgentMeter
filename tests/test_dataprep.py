@@ -13,8 +13,8 @@ import pytest
 import yaml
 
 from agentmeter.config import load_config
-from agentmeter.dataprep import build_dataset
-from agentmeter.dataset import DatasetLoader
+from agentmeter.data.dataprep import build_dataset
+from agentmeter.data.dataset import DatasetLoader
 
 # CIC-IDS-style schema: most feature names carry a leading space; label is ' Label'.
 COLS = [" Destination Port", " Flow Duration", " Flow Bytes/s", "SYN Flag Count", " Label"]

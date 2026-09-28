@@ -19,16 +19,16 @@ import yaml
 
 from agentmeter import runner
 from agentmeter.config import load_config
-from agentmeter.dataset import DatasetLoader
-from agentmeter.instrument import AgentMetrics
-from agentmeter.runner import (
+from agentmeter.data.dataset import DatasetLoader
+from agentmeter.pipeline.instrument import AgentMetrics
+from agentmeter.run.runner import (
     ConfigMismatchError,
     WorkerError,
     config_fingerprint,
     resolve_models,
     run_full,
 )
-from agentmeter.storage import Storage
+from agentmeter.db.storage import Storage
 
 # --- fixtures / helpers -------------------------------------------------
 

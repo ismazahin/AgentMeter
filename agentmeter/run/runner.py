@@ -34,9 +34,9 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from .config import Config, load_config
-from .dataset import DatasetLoader
-from .storage import Storage
+from ..config import Config, load_config
+from ..data.dataset import DatasetLoader
+from ..db.storage import Storage
 
 
 class ConfigMismatchError(RuntimeError):
@@ -65,7 +65,7 @@ def _spawn_model_worker(
     persisted atomically; non-zero = crash, model left incomplete for resume).
     """
     cmd = [
-        sys.executable, "-m", "agentmeter.worker",
+        sys.executable, "-m", "agentmeter.run.worker",
         "--mode", "sqlite",
         "--model", model,
         "--run-id", run_id,

@@ -15,7 +15,7 @@ import json
 
 import yaml
 
-from agentmeter.pilot import run_pilot, startup_isolation_guard
+from agentmeter.run.pilot import run_pilot, startup_isolation_guard
 
 
 def test_clean_start_is_not_flagged(capsys):

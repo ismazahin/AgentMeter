@@ -111,7 +111,7 @@ def run_per_class(config_path: Optional[str] = None,
     """Read the locked results DB READ-ONLY and return the per_class section.
     Reuses analyze's read-only connection; never writes anything."""
     from . import analyze  # local import to avoid a cycle at module load
-    from .config import load_config
+    from ..config import load_config
 
     cfg = load_config(config_path)
     classes = list(cfg.get("classes", []) or [])

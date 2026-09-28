@@ -76,12 +76,12 @@ def run_demo(
 ) -> dict[str, Any]:
     """Run ONE scenario through the real instrumented pipeline. Returns a summary
     dict. Writes nothing to any DB. `get_provider` is injectable for CPU tests."""
-    from agentmeter.dataset import DatasetLoader
-    from agentmeter.instrument import GpuProbe, MetricsCollector, make_instrumented_hook
-    from agentmeter.pilot import _gpu_guard, release_provider
+    from agentmeter.data.dataset import DatasetLoader
+    from agentmeter.pipeline.instrument import GpuProbe, MetricsCollector, make_instrumented_hook
+    from agentmeter.run.pilot import _gpu_guard, release_provider
     from agentmeter.pipeline import Pipeline
     from agentmeter.providers import get_provider as default_get_provider
-    from agentmeter.runner import model_label, resolve_models
+    from agentmeter.run.runner import model_label, resolve_models
 
     cfg = load_config(config_path)
 

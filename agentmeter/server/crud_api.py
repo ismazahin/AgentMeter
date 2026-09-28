@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from . import appdb
+from ..db import appdb
 
 
 def register_crud(app, get_store: Callable[[], "appdb.AppStore"]) -> None:

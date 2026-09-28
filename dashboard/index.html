@@ -505,6 +505,7 @@
   .glossary dt, .glossary .term { font-weight: 600; color: var(--ink); }
   .glossary .term { font-family: var(--sans); }
   .glossary .def { color: var(--ink-2); }
+  .mc-un { color: var(--muted); font-style: italic; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -601,6 +602,13 @@
       <button class="ghost" id="exp-class-csv">Per-class CSV</button>
       <button class="ghost" id="exp-print">Print report</button>
     </div>
+  </div>
+
+  <div class="section-label">Model context</div>
+  <div class="panel">
+    <h2>Reference metadata from Hugging Face Hub <span class="hint">— context only, not part of the score</span><span class="help"><button class="help-btn" type="button" data-help="modelctx" aria-label="What is this?">?</button></span></h2>
+    <table id="mc-table"></table>
+    <p class="note" id="mc-note">Loading model metadata…</p>
   </div>
 
   <div class="panel">
@@ -3625,6 +3633,7 @@
     if (name === "sessions") CRUD.refreshSessions();
     if (name === "compare") COMPARE.refresh();
     if (name === "config") CONFIG.refresh();
+    if (name === "overview") MODELCTX.load();
   }
   function initNav() {
     Array.prototype.forEach.call(document.querySelectorAll("#nav button"), function (b) {
@@ -3654,7 +3663,8 @@
     "prefill": "Splits each response's time into prefill (time to the first token, TTFT) and decode (generating the rest). <span class=\"g\">It shows whether a model's time goes mostly into reading the prompt or into writing the answer.</span>",
     "throughput": "Output tokens produced per second of generation. <b>Higher means the model writes its answer faster</b> once it starts. It's a raw speed measure, independent of how long the answer is.",
     "misclass": "Compares the resource cost (latency, tokens) when a model is right vs when it's wrong. It answers 'do wrong answers cost more?'. <span class=\"g\">A cost comparison only — not a measure of detection quality.</span>",
-    "compare": "Line up 2–3 saved sessions to see how their resource cost and scores differ — e.g. the same models on different GPUs. Pick a metric to compare; the best value in each row is highlighted. <span class=\"g\">Read-only: it changes no numbers.</span>"
+    "compare": "Line up 2–3 saved sessions to see how their resource cost and scores differ — e.g. the same models on different GPUs. Pick a metric to compare; the best value in each row is highlighted. <span class=\"g\">Read-only: it changes no numbers.</span>",
+    "modelctx": "Live reference facts about each model, pulled from the Hugging Face Hub — size, downloads, likes, license and last update. <b>This is context only</b>, not part of the score and never used to re-rank models. <span class=\"g\">If the Hub is unreachable it simply shows as unavailable; the rest of the dashboard is unaffected.</span>"
   };
 
   function closeHelp() {
@@ -3697,6 +3707,56 @@
     });
     document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeHelp(); });
   }
+
+  // ==== Phase 22 — Model context (HF Hub metadata; external, read-only) ====
+  var MODELCTX = (function () {
+    var loaded = false;
+    function base() { return (typeof pullBaseUrl === "function") ? pullBaseUrl() : ""; }
+    function live() { return !(location.protocol === "file:" && !base()); }
+    function num(n) { return (n == null) ? "—" : Number(n).toLocaleString(); }
+    function shortId(id) { var p = String(id).split("/"); return p[p.length - 1]; }
+    function fmtDate(s) { return s ? String(s).slice(0, 10) : "—"; }
+
+    function render(models) {
+      var el = document.getElementById("mc-table");
+      if (!el) return;
+      el.innerHTML = "<thead><tr><th class='l'>Model</th><th>Params</th><th>Downloads</th>" +
+        "<th>Likes</th><th class='l'>License</th><th class='l'>Updated</th></tr></thead><tbody>" +
+        models.map(function (m) {
+          if (m.status === "unavailable") {
+            return "<tr><td class='model l'>" + esc(shortId(m.model)) + "</td>" +
+              "<td colspan='5' class='l'><span class='mc-un'>metadata unavailable</span></td></tr>";
+          }
+          var stale = m.status === "stale" ? " <span class='mc-un'>(cached)</span>" : "";
+          return "<tr><td class='model l'>" + esc(shortId(m.model)) + stale + "</td>" +
+            "<td>" + (m.params_b != null ? m.params_b + " B" : "—") + "</td>" +
+            "<td>" + num(m.downloads) + "</td>" +
+            "<td>" + num(m.likes) + "</td>" +
+            "<td class='l'>" + esc(m.license || "—") + "</td>" +
+            "<td class='l'>" + esc(fmtDate(m.last_modified)) + "</td></tr>";
+        }).join("") + "</tbody>";
+    }
+
+    function load() {
+      if (loaded) return;
+      var note = document.getElementById("mc-note");
+      if (!live()) {
+        if (note) note.textContent = "Reference metadata needs the AgentMeter server (Hugging Face Hub is fetched server-side). The rest of the dashboard is unaffected.";
+        loaded = true; return;
+      }
+      fetch(base() + "/api/model-metadata").then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status); return r.json();
+      }).then(function (d) {
+        render(d.models || []);
+        loaded = true;
+        if (note) note.textContent = "Source: Hugging Face Hub (live, cached). Context only — not part of the ranking.";
+      }).catch(function () {
+        if (note) note.textContent = "Reference metadata unavailable (Hugging Face Hub unreachable). The rest of the dashboard is unaffected.";
+        loaded = true;
+      });
+    }
+    return { load: load };
+  })();
 
   function initGettingStarted() {
     var box = document.getElementById("getting-started");
@@ -3931,6 +3991,7 @@
   CONFIG.init();
   initHelp();
   initGettingStarted();
+  MODELCTX.load();
   // Optional convenience: if a real analysis.json sits next to this page (served
   // over http, or some browsers allow it over file://), auto-load it.
   try {

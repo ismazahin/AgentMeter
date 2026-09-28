@@ -134,6 +134,15 @@ CREATE TABLE IF NOT EXISTS session_tag (
     FOREIGN KEY (session_id) REFERENCES session(id) ON DELETE CASCADE,
     FOREIGN KEY (tag_id)     REFERENCES tag(id)     ON DELETE CASCADE
 );
+
+-- Phase 22 — cache for Hugging Face Hub model metadata (external CONTEXT only,
+-- never study data). Lives in this SEPARATE app DB, never the locked study DB.
+CREATE TABLE IF NOT EXISTS hf_metadata_cache (
+    model_id    TEXT PRIMARY KEY,
+    fetched_at  REAL NOT NULL,
+    status      TEXT NOT NULL,
+    payload     TEXT NOT NULL      -- JSON of the cleaned metadata dict
+);
 """
 
 
@@ -488,3 +497,28 @@ class AppStore:
             if cur.rowcount == 0:
                 raise NotFound(f"tag {tag_id} is not on session {session_id}")
         return {"session_id": session_id, "tags": self.list_session_tags(session_id)}
+
+    # ================= HF metadata cache (Phase 22) =================
+    def hf_cache_get(self, model_id: str) -> Optional[dict[str, Any]]:
+        """Return {'fetched_at','status','data'} for a model, or None if absent."""
+        row = self.conn.execute(
+            "SELECT fetched_at, status, payload FROM hf_metadata_cache WHERE model_id = ?",
+            (model_id,)).fetchone()
+        if row is None:
+            return None
+        try:
+            data = json.loads(row["payload"])
+        except (ValueError, TypeError):
+            return None
+        return {"fetched_at": row["fetched_at"], "status": row["status"], "data": data}
+
+    def hf_cache_set(self, model_id: str, entry: dict[str, Any]) -> None:
+        """Upsert a cache entry (entry = {'fetched_at','status','data'})."""
+        with self._lock, self.conn:
+            self.conn.execute(
+                "INSERT INTO hf_metadata_cache (model_id, fetched_at, status, payload) "
+                "VALUES (?, ?, ?, ?) ON CONFLICT(model_id) DO UPDATE SET "
+                "fetched_at = excluded.fetched_at, status = excluded.status, "
+                "payload = excluded.payload",
+                (model_id, float(entry.get("fetched_at", 0.0)),
+                 str(entry.get("status", "ok")), json.dumps(entry.get("data", {}))))

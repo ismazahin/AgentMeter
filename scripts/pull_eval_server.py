@@ -135,7 +135,7 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
 
     from flask import Flask, jsonify, request, send_from_directory
 
-    from agentmeter import appdb, config_builder, crud_api, local_sessions
+    from agentmeter import appdb, config_builder, crud_api, hf_metadata, local_sessions
 
     app = Flask(__name__, static_folder=None)
 
@@ -189,6 +189,25 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
             return jsonify({"error": str(e)}), 400
         except _json.JSONDecodeError:
             return jsonify({"error": "file is not valid JSON"}), 400
+
+    # Phase 22 — Hugging Face Hub model metadata (external CONTEXT only; cached in
+    # the SEPARATE app DB; degrades gracefully; never a study number).
+    def _hf_cache():
+        try:
+            return hf_metadata.make_store_cache(get_store())
+        except Exception:  # noqa: BLE001 — cache is optional; never break the panel
+            return None
+
+    @app.route("/api/model-metadata", methods=["GET"])
+    def model_metadata_ep():
+        model = (request.args.get("model") or "").strip()
+        token = hf_metadata.token_from_env()
+        cache = _hf_cache()
+        if model:
+            return jsonify(hf_metadata.get_metadata(model, cache=cache, token=token))
+        # batch: the 5 canonical study models
+        return jsonify({"models": hf_metadata.get_many(
+            hf_metadata.CANONICAL_MODELS, cache=cache, token=token)})
 
     # Phase 18 — config builder. Writes a VALID run config to configs/user/ from
     # UI inputs; NEVER touches the locked study config or root config, and NEVER

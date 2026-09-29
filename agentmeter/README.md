@@ -68,3 +68,14 @@ live under `results/` (path set by `storage.sqlite_path` in the config, not hard
 | `db/appdb.py`   | `results/agentmeter_app.db`   | App metadata: sessions, presets, notes, tags, HF cache |
 
 `.db` files are gitignored — they live on your machine, not in the repo.
+
+## Relationships (see the ER diagram)
+
+- **Study DB:** `runs` 1─<`scenario_results` and `runs` 1─<`agent_metrics` (FK `run_id`);
+  `scenario_results` 1─<`agent_metrics` on the composite key `(run_id, model, scenario_id)` —
+  enforced at the application level, atomic per scenario (both tables written in one transaction),
+  not a DB-level FK. The study DB schema is **locked** and never migrated.
+- **App DB:** `session` 1─<`note`; `session` N─M `tag` via `session_tag`. `session.source_run_id`
+  is a **weak, unenforced** reference to a `runs.run_id` in the *separate* study DB, recorded from
+  an imported analysis' `run_ids`; it may be NULL and may point at a run not present locally. The
+  app layer never opens the study DB to resolve it.

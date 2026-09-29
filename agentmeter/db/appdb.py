@@ -85,6 +85,23 @@ def summarize_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
     return {"model_count": len(models), "top_model": top_model, "tiers": tiers}
 
 
+def source_run_id_of(analysis: dict[str, Any]) -> Optional[str]:
+    """Best-effort WEAK reference: the study run this imported analysis came from.
+
+    Reads the analysis' `run_ids` (the field analyze.py writes) and returns the first
+    one as a plain string, or None if absent. This is a LOGICAL cross-database
+    reference to a runs.run_id in the SEPARATE study DB — never enforced, never
+    assumed to resolve to a locally present run.
+    """
+    if not isinstance(analysis, dict):
+        return None
+    run_ids = analysis.get("run_ids")
+    if isinstance(run_ids, (list, tuple)) and run_ids:
+        first = run_ids[0]
+        return str(first) if first is not None else None
+    return None
+
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS session (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -94,7 +111,10 @@ CREATE TABLE IF NOT EXISTS session (
     source_filename TEXT,
     summary         TEXT,            -- small JSON blob (read-only, from import)
     analysis_ref    TEXT,            -- original path/name of the imported analysis.json
-    analysis_json   TEXT NOT NULL    -- stored copy of the imported analysis (read-only)
+    analysis_json   TEXT NOT NULL,   -- stored copy of the imported analysis (read-only)
+    source_run_id   TEXT             -- Phase 23: WEAK/logical ref to a runs.run_id in the
+                                     -- SEPARATE study DB (from the imported analysis' run_ids).
+                                     -- NOT an enforced FK; may point at a run not present locally.
 );
 
 CREATE TABLE IF NOT EXISTS weight_preset (
@@ -163,9 +183,20 @@ class AppStore:
         self.conn.execute("PRAGMA foreign_keys = ON;")
         self.conn.execute("PRAGMA busy_timeout = 5000;")
         self.conn.executescript(_SCHEMA)
+        self._migrate()
         self.conn.commit()
         self._lock = threading.Lock()
         self._seed_builtins()
+
+    def _migrate(self) -> None:
+        """Idempotent, additive migrations for an app DB created by an older version.
+        Only ever touches this app DB (self.conn) — never the locked study DB.
+
+        Phase 23: add session.source_run_id if it is missing. Safe to run repeatedly.
+        """
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(session)")}
+        if "source_run_id" not in cols:
+            self.conn.execute("ALTER TABLE session ADD COLUMN source_run_id TEXT")
 
     def close(self) -> None:
         self.conn.close()
@@ -197,13 +228,15 @@ class AppStore:
             raise ValueError("analysis must be an object containing a 'phase8' block "
                              "(an AgentMeter analysis.json)")
         summary = summarize_analysis(analysis)
+        source_run_id = source_run_id_of(analysis)   # weak ref; None if absent
         now = _now()
         with self._lock, self.conn:
             cur = self.conn.execute(
                 "INSERT INTO session (name, created_at, updated_at, source_filename, "
-                "summary, analysis_ref, analysis_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "summary, analysis_ref, analysis_json, source_run_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (name, now, now, source_filename, json.dumps(summary),
-                 analysis_ref or source_filename, json.dumps(analysis)))
+                 analysis_ref or source_filename, json.dumps(analysis), source_run_id))
             sid = cur.lastrowid
         return self.get_session(sid, include_analysis=True)
 
@@ -216,13 +249,13 @@ class AppStore:
                 return []                      # unknown tag -> no sessions match
             rows = self.conn.execute(
                 "SELECT s.id, s.name, s.created_at, s.updated_at, s.source_filename, "
-                "s.summary, s.analysis_ref FROM session s "
+                "s.summary, s.analysis_ref, s.source_run_id FROM session s "
                 "JOIN session_tag st ON st.session_id = s.id WHERE st.tag_id = ? "
                 "ORDER BY datetime(s.created_at) DESC, s.id DESC", (trow["id"],)).fetchall()
         else:
             rows = self.conn.execute(
                 "SELECT id, name, created_at, updated_at, source_filename, summary, "
-                "analysis_ref FROM session ORDER BY datetime(created_at) DESC, id DESC"
+                "analysis_ref, source_run_id FROM session ORDER BY datetime(created_at) DESC, id DESC"
             ).fetchall()
         tags_by_session = self._all_session_tags()
         out = []
@@ -266,12 +299,14 @@ class AppStore:
                 raise NotFound(f"session {session_id} not found")
 
     def _session_meta(self, row: sqlite3.Row) -> dict[str, Any]:
+        keys = row.keys()
         return {
             "id": row["id"], "name": row["name"],
             "created_at": row["created_at"], "updated_at": row["updated_at"],
             "source_filename": row["source_filename"],
             "summary": json.loads(row["summary"]) if row["summary"] else None,
             "analysis_ref": row["analysis_ref"],
+            "source_run_id": (row["source_run_id"] if "source_run_id" in keys else None),
         }
 
     # ================= weight presets =================

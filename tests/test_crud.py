@@ -95,6 +95,68 @@ def test_delete_session_cascades_notes(store):
         store.get_note(n["id"])
 
 
+# --- source_run_id: weak cross-DB reference (Phase 23) -----------------
+
+def test_source_run_id_populated_and_nullable(store):
+    # ANALYSIS carries run_ids ["run_locked"] -> stored as the weak reference
+    s = store.create_session("has run", ANALYSIS)
+    assert s["source_run_id"] == "run_locked"
+
+    import copy
+    a = copy.deepcopy(ANALYSIS)
+    a.pop("run_ids", None)
+    s2 = store.create_session("no run", a)
+    assert s2["source_run_id"] is None            # absent -> NULL, never fabricated
+
+    # surfaces in list + get output too
+    by_name = {x["name"]: x["source_run_id"] for x in store.list_sessions()}
+    assert by_name["has run"] == "run_locked" and by_name["no run"] is None
+    assert store.get_session(s["id"])["source_run_id"] == "run_locked"
+
+
+def test_source_run_id_extractor():
+    assert appdb.source_run_id_of({"run_ids": ["r1", "r2"]}) == "r1"
+    assert appdb.source_run_id_of({"run_ids": []}) is None
+    assert appdb.source_run_id_of({}) is None
+    assert appdb.source_run_id_of(None) is None
+
+
+def test_migration_adds_source_run_id_to_old_db_idempotently(tmp_path, monkeypatch):
+    """An app DB created before Phase 23 (no source_run_id column) gains it on open,
+    twice is safe, and the locked study DB is never opened."""
+    dbp = tmp_path / "old_app.db"
+    conn = sqlite3.connect(dbp)
+    conn.execute(
+        "CREATE TABLE session (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, "
+        "created_at TEXT NOT NULL, updated_at TEXT NOT NULL, source_filename TEXT, "
+        "summary TEXT, analysis_ref TEXT, analysis_json TEXT NOT NULL)")
+    conn.execute("INSERT INTO session (name, created_at, updated_at, analysis_json) "
+                 "VALUES ('legacy', 't', 't', '{}')")
+    conn.commit(); conn.close()
+
+    real = sqlite3.connect
+    def spy(target, *a, **k):
+        if "agentmeter_full_l4.db" in str(target):
+            raise AssertionError("migration opened the locked study DB")
+        return real(target, *a, **k)
+    monkeypatch.setattr(appdb.sqlite3, "connect", spy)
+
+    s = appdb.AppStore(dbp)
+    try:
+        cols = {r["name"] for r in s.conn.execute("PRAGMA table_info(session)")}
+        assert "source_run_id" in cols                 # column added
+        assert s.list_sessions()[0]["source_run_id"] is None   # old row stays NULL
+    finally:
+        s.close()
+
+    # reopen -> idempotent (ALTER not re-attempted; no error)
+    s2 = appdb.AppStore(dbp)
+    try:
+        assert "source_run_id" in {r["name"] for r in s2.conn.execute("PRAGMA table_info(session)")}
+    finally:
+        s2.close()
+
+
 # --- weight presets ----------------------------------------------------
 
 def test_builtins_seeded_and_readonly(store):

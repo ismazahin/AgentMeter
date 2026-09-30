@@ -933,6 +933,15 @@
       <span class="lbl" id="cfg-preview-path"></span>
       <button class="ghost" id="cfg-download-btn">Download .yaml</button>
     </div>
+    <div class="exportbar" id="cfg-runner-bar" style="display:none">
+      <span class="lbl">Run it later:</span>
+      <button class="ghost" id="cfg-runner-bat">Download runner (.bat)</button>
+      <button class="ghost" id="cfg-runner-sh">Download runner (.sh)</button>
+    </div>
+    <p class="note" id="cfg-runner-note" style="display:none">Download this, put it in the
+      AgentMeter folder, and double-click to run. Requires a GPU and the Python environment set up.
+      It wraps <code>python main.py --config configs/user/&lt;name&gt;.yaml run-full</code> — the dashboard
+      never runs it. Results appear in <b>Local results</b> afterward.</p>
     <pre class="cfg-yaml" id="cfg-yaml">Fill in the form and click <b>Preview YAML</b> or <b>Save config</b>.</pre>
   </div>
 
@@ -3465,7 +3474,7 @@
       "microsoft/Phi-3-mini-4k-instruct",
       "google/gemma-2-9b-it"
     ];
-    var lastYaml = "", lastName = "config.yaml", loadedLocked = false;
+    var lastYaml = "", lastName = "config.yaml", lastConfigStem = "", loadedLocked = false;
 
     function base() { return (typeof pullBaseUrl === "function") ? pullBaseUrl() : ""; }
     function live() { return !(location.protocol === "file:" && !base()); }
@@ -3524,9 +3533,27 @@
       $("cfg-yaml").textContent = yaml;
       if (path) {
         lastName = path.split("/").pop();
+        lastConfigStem = lastName.replace(/\.yaml$/i, "");
         $("cfg-preview-path").textContent = "Saved: " + path;
         $("cfg-preview-bar").style.display = "flex";
+        // runner is offered only for a SAVED user config (needs a real file)
+        $("cfg-runner-bar").style.display = "flex";
+        $("cfg-runner-note").style.display = "block";
+      } else {
+        // a preview is not written, so there is nothing to make a runner for
+        $("cfg-runner-bar").style.display = "none";
+        $("cfg-runner-note").style.display = "none";
       }
+    }
+
+    function downloadRunner(osKind) {
+      if (!lastConfigStem) return;
+      if (!live()) { setMsg("Server not available — start pull_eval_server.py.", true); return; }
+      var url = base() + "/api/config-runner?name=" + encodeURIComponent(lastConfigStem) + "&os=" + osKind;
+      var a = document.createElement("a");
+      a.href = url; a.rel = "noopener"; a.download = "";  // filename from Content-Disposition
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setMsg("Downloading runner (" + (osKind === "win" ? ".bat" : ".sh") + ") — put it in the AgentMeter folder and double-click.");
     }
 
     function post(path, cb) {
@@ -3611,6 +3638,8 @@
       $("cfg-preview-btn").addEventListener("click", preview);
       $("cfg-save-btn").addEventListener("click", save);
       $("cfg-download-btn").addEventListener("click", download);
+      $("cfg-runner-bat").addEventListener("click", function () { downloadRunner("win"); });
+      $("cfg-runner-sh").addEventListener("click", function () { downloadRunner("unix"); });
       Array.prototype.forEach.call(document.querySelectorAll("#cfg-weights input[data-w]"), function (el) {
         el.addEventListener("input", updateWsum);
       });

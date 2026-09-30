@@ -133,7 +133,7 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
                app_db_path: Path = None, local_results_dir: Path = None):
     import json as _json
 
-    from flask import Flask, jsonify, request, send_from_directory
+    from flask import Flask, Response, jsonify, request, send_from_directory
 
     from agentmeter import appdb, config_builder, crud_api, hf_metadata, local_sessions
 
@@ -284,6 +284,21 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
             return jsonify({"error": str(e), "valid": False}), 400
         return jsonify({"valid": True, "yaml": config_builder.to_yaml(config),
                         "config": config})
+
+    # Phase 28 — download a double-click runner (.bat/.sh) for a USER config. This
+    # only GENERATES and returns a FILE; it never runs anything and never triggers a
+    # run from the browser. Running happens when the user double-clicks the file.
+    @app.route("/api/config-runner", methods=["GET"])
+    def config_runner_ep():
+        name = request.args.get("name", "")
+        os_kind = (request.args.get("os", "win") or "win").lower()
+        try:
+            filename, content = config_builder.runner_script(name, os_kind)
+        except config_builder.ConfigBuildError as e:
+            return jsonify({"error": str(e)}), 400
+        resp = Response(content, mimetype="application/octet-stream")
+        resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+        return resp
 
     # --- dashboard (same-origin) ---------------------------------------
     @app.route("/", methods=["GET"])

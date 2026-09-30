@@ -937,6 +937,7 @@
       <span class="lbl">Run it later:</span>
       <button class="ghost" id="cfg-runner-bat">Download runner (.bat)</button>
       <button class="ghost" id="cfg-runner-sh">Download runner (.sh)</button>
+      <span class="note" id="cfg-runner-msg" style="margin-left:12px"></span>
     </div>
     <p class="note" id="cfg-runner-note" style="display:none">Download this, put it in the
       AgentMeter folder, and double-click to run. Requires a GPU and the Python environment set up.
@@ -3546,10 +3547,16 @@
       }
     }
 
+    function runnerMsg(text, isErr) {
+      var el = $("cfg-runner-msg");
+      if (el) { el.textContent = text; el.style.color = isErr ? "var(--bad, #d33)" : ""; }
+      setMsg(text, isErr);   // also mirror to the main config-builder status line
+    }
     function downloadRunner(osKind) {
       if (!lastConfigStem) return;
-      if (!live()) { setMsg("Server not available — start pull_eval_server.py.", true); return; }
       var ext = osKind === "win" ? ".bat" : ".sh";
+      if (!live()) { runnerMsg("Server not available — start pull_eval_server.py, then reload.", true); return; }
+      runnerMsg("Preparing runner (" + ext + ")…", false);
       var url = base() + "/api/config-runner?name=" + encodeURIComponent(lastConfigStem) + "&os=" + osKind;
       // Fetch first so we can DETECT an old server (no route -> JSON 404) and tell the
       // user to restart it, instead of the browser silently saving a failed
@@ -3574,8 +3581,8 @@
         a.download = res.fname;
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-        setMsg("Downloaded " + res.fname + " — put it in the AgentMeter folder and double-click.");
-      }).catch(function (e) { setMsg("Runner download failed: " + e.message, true); });
+        runnerMsg("Downloaded " + res.fname + " — put it in the AgentMeter folder and double-click.", false);
+      }).catch(function (e) { runnerMsg("Runner download failed: " + e.message, true); });
     }
 
     function post(path, cb) {

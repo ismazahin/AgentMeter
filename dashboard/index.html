@@ -3549,11 +3549,33 @@
     function downloadRunner(osKind) {
       if (!lastConfigStem) return;
       if (!live()) { setMsg("Server not available — start pull_eval_server.py.", true); return; }
+      var ext = osKind === "win" ? ".bat" : ".sh";
       var url = base() + "/api/config-runner?name=" + encodeURIComponent(lastConfigStem) + "&os=" + osKind;
-      var a = document.createElement("a");
-      a.href = url; a.rel = "noopener"; a.download = "";  // filename from Content-Disposition
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setMsg("Downloading runner (" + (osKind === "win" ? ".bat" : ".sh") + ") — put it in the AgentMeter folder and double-click.");
+      // Fetch first so we can DETECT an old server (no route -> JSON 404) and tell the
+      // user to restart it, instead of the browser silently saving a failed
+      // "config-runner.json". On success we download the real file via a blob.
+      fetch(url).then(function (r) {
+        var ct = r.headers.get("content-type") || "";
+        if (!r.ok || ct.indexOf("application/json") !== -1) {
+          return r.text().then(function () {
+            throw new Error(r.status === 404
+              ? "this server has no /api/config-runner route — restart pull_eval_server.py so it loads the runner (Phase 28)."
+              : "server rejected the runner (HTTP " + r.status + ").");
+          });
+        }
+        var cd = r.headers.get("content-disposition") || "";
+        var m = cd.match(/filename="([^"]+)"/);
+        var fname = m ? m[1] : ("run_" + lastConfigStem + ext);
+        return r.blob().then(function (b) { return { blob: b, fname: fname }; });
+      }).then(function (res) {
+        if (!res) return;
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(res.blob);
+        a.download = res.fname;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+        setMsg("Downloaded " + res.fname + " — put it in the AgentMeter folder and double-click.");
+      }).catch(function (e) { setMsg("Runner download failed: " + e.message, true); });
     }
 
     function post(path, cb) {

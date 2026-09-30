@@ -114,6 +114,55 @@ def test_source_run_id_populated_and_nullable(store):
     assert store.get_session(s["id"])["source_run_id"] == "run_locked"
 
 
+# --- preset_id: real FK session -> weight_preset (Phase 24) --------------
+
+def test_session_preset_id_create_and_validate(store):
+    p = store.create_preset("mine", {"w_accuracy": 0.5, "w_latency": 0.2,
+                                     "w_vram": 0.2, "w_tokens": 0.1})
+    s = store.create_session("with preset", ANALYSIS, preset_id=p["id"])
+    assert s["preset_id"] == p["id"]
+    # surfaces in list output
+    assert next(x for x in store.list_sessions() if x["id"] == s["id"])["preset_id"] == p["id"]
+    # unknown preset id is rejected (real FK: must reference an existing preset)
+    with pytest.raises(appdb.NotFound):
+        store.create_session("bad", ANALYSIS, preset_id=999999)
+    # default is NULL
+    assert store.create_session("no preset", ANALYSIS)["preset_id"] is None
+
+
+def test_set_session_preset_set_clear_and_notfound(store):
+    p = store.create_preset("p", {"w_accuracy": 1, "w_latency": 0, "w_vram": 0, "w_tokens": 0})
+    s = store.create_session("S", ANALYSIS)
+    assert store.set_session_preset(s["id"], p["id"])["preset_id"] == p["id"]
+    assert store.set_session_preset(s["id"], None)["preset_id"] is None   # clear
+    with pytest.raises(appdb.NotFound):
+        store.set_session_preset(s["id"], 999999)                          # bad preset
+    with pytest.raises(appdb.NotFound):
+        store.set_session_preset(999999, p["id"])                          # bad session
+
+
+def test_deleting_preset_nulls_referencing_sessions(store):
+    p = store.create_preset("temp", {"w_accuracy": 1, "w_latency": 0, "w_vram": 0, "w_tokens": 0})
+    s = store.create_session("S", ANALYSIS, preset_id=p["id"])
+    store.delete_preset(p["id"])
+    # the session survives; its preset_id is detached to NULL
+    assert store.get_session(s["id"])["preset_id"] is None
+
+
+def test_http_session_preset_id(tmp_path):
+    client, _ = _crud_client(tmp_path)
+    pid = client.get("/presets").get_json()["presets"][0]["id"]   # a builtin
+    r = client.post("/sessions", json={"name": "S", "analysis": ANALYSIS, "preset_id": pid})
+    assert r.status_code == 201 and r.get_json()["preset_id"] == pid
+    sid = r.get_json()["id"]
+    # PATCH can clear it
+    assert client.patch(f"/sessions/{sid}", json={"preset_id": None}).get_json()["preset_id"] is None
+    # PATCH can set it back
+    assert client.patch(f"/sessions/{sid}", json={"preset_id": pid}).get_json()["preset_id"] == pid
+    # unknown preset -> 404
+    assert client.post("/sessions", json={"name": "x", "analysis": ANALYSIS, "preset_id": 999999}).status_code == 404
+
+
 def test_source_run_id_extractor():
     assert appdb.source_run_id_of({"run_ids": ["r1", "r2"]}) == "r1"
     assert appdb.source_run_id_of({"run_ids": []}) is None
@@ -144,8 +193,9 @@ def test_migration_adds_source_run_id_to_old_db_idempotently(tmp_path, monkeypat
     s = appdb.AppStore(dbp)
     try:
         cols = {r["name"] for r in s.conn.execute("PRAGMA table_info(session)")}
-        assert "source_run_id" in cols                 # column added
-        assert s.list_sessions()[0]["source_run_id"] is None   # old row stays NULL
+        assert "source_run_id" in cols and "preset_id" in cols   # both columns added
+        row0 = s.list_sessions()[0]
+        assert row0["source_run_id"] is None and row0["preset_id"] is None  # old row stays NULL
     finally:
         s.close()
 

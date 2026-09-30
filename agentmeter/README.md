@@ -75,7 +75,10 @@ live under `results/` (path set by `storage.sqlite_path` in the config, not hard
   `scenario_results` 1─<`agent_metrics` on the composite key `(run_id, model, scenario_id)` —
   enforced at the application level, atomic per scenario (both tables written in one transaction),
   not a DB-level FK. The study DB schema is **locked** and never migrated.
-- **App DB:** `session` 1─<`note`; `session` N─M `tag` via `session_tag`. `session.source_run_id`
-  is a **weak, unenforced** reference to a `runs.run_id` in the *separate* study DB, recorded from
-  an imported analysis' `run_ids`; it may be NULL and may point at a run not present locally. The
-  app layer never opens the study DB to resolve it.
+- **App DB:** `weight_preset` 1─<`session` (FK `session.preset_id`, nullable, `ON DELETE SET NULL` —
+  records which saved weighting a session was scored with); `session` 1─<`note`; `session` N─M `tag`
+  via `session_tag`. `session.source_run_id` is a **weak, unenforced** reference to a `runs.run_id` in
+  the *separate* study DB, recorded from an imported analysis' `run_ids`; it may be NULL and may point
+  at a run not present locally. `hf_metadata_cache.model_id` is likewise a **weak, unenforced** lookup
+  key matching a benchmarked model name — not a DB FK. The app layer never opens the study DB to
+  resolve either cross-DB reference.

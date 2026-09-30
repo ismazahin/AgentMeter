@@ -51,6 +51,7 @@ def register_crud(app, get_store: Callable[[], "appdb.AppStore"]) -> None:
             analysis=b.get("analysis"),
             source_filename=b.get("source_filename"),
             analysis_ref=b.get("analysis_ref"),
+            preset_id=b.get("preset_id"),
         )), 201))
 
     @app.route("/sessions/<int:sid>", methods=["GET", "PATCH", "DELETE"])
@@ -59,8 +60,17 @@ def register_crud(app, get_store: Callable[[], "appdb.AppStore"]) -> None:
             return handle(lambda: jsonify(get_store().get_session(sid, include_analysis=True)))
         if request.method == "PATCH":
             b = body()
-            # ONLY the name may change — never the stored metrics/analysis.
-            return handle(lambda: jsonify(get_store().update_session_name(sid, b.get("name", ""))))
+            # Name and/or preset_id may change — never the stored metrics/analysis.
+            def _patch():
+                out = None
+                if "name" in b:
+                    out = get_store().update_session_name(sid, b.get("name", ""))
+                if "preset_id" in b:
+                    out = get_store().set_session_preset(sid, b.get("preset_id"))
+                if out is None:  # nothing to change -> return current
+                    out = get_store().get_session(sid, include_analysis=False)
+                return jsonify(out)
+            return handle(_patch)
         # DELETE
         def _del():
             get_store().delete_session(sid)

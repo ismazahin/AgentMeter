@@ -112,9 +112,12 @@ CREATE TABLE IF NOT EXISTS session (
     summary         TEXT,            -- small JSON blob (read-only, from import)
     analysis_ref    TEXT,            -- original path/name of the imported analysis.json
     analysis_json   TEXT NOT NULL,   -- stored copy of the imported analysis (read-only)
-    source_run_id   TEXT             -- Phase 23: WEAK/logical ref to a runs.run_id in the
+    source_run_id   TEXT,            -- Phase 23: WEAK/logical ref to a runs.run_id in the
                                      -- SEPARATE study DB (from the imported analysis' run_ids).
                                      -- NOT an enforced FK; may point at a run not present locally.
+    preset_id       INTEGER,         -- Phase 24: which weight_preset this session was saved with
+                                     -- (nullable; real FK within this app DB).
+    FOREIGN KEY (preset_id) REFERENCES weight_preset(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS weight_preset (
@@ -192,11 +195,17 @@ class AppStore:
         """Idempotent, additive migrations for an app DB created by an older version.
         Only ever touches this app DB (self.conn) — never the locked study DB.
 
-        Phase 23: add session.source_run_id if it is missing. Safe to run repeatedly.
+        Phase 23: add session.source_run_id if it is missing.
+        Phase 24: add session.preset_id if it is missing. Safe to run repeatedly.
+        (ALTER TABLE cannot re-declare the FK on an existing table; on migrated DBs
+        preset_id is a validated soft reference — create/set_session_preset check the
+        preset exists, and delete_preset nulls any sessions pointing at it.)
         """
         cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(session)")}
         if "source_run_id" not in cols:
             self.conn.execute("ALTER TABLE session ADD COLUMN source_run_id TEXT")
+        if "preset_id" not in cols:
+            self.conn.execute("ALTER TABLE session ADD COLUMN preset_id INTEGER")
 
     def close(self) -> None:
         self.conn.close()
@@ -220,25 +229,49 @@ class AppStore:
     # ================= sessions =================
     def create_session(self, name: str, analysis: dict[str, Any],
                         source_filename: Optional[str] = None,
-                        analysis_ref: Optional[str] = None) -> dict[str, Any]:
+                        analysis_ref: Optional[str] = None,
+                        preset_id: Optional[int] = None) -> dict[str, Any]:
         name = (name or "").strip()
         if not name:
             raise ValueError("session name is required and must be non-empty")
         if not isinstance(analysis, dict) or "phase8" not in analysis:
             raise ValueError("analysis must be an object containing a 'phase8' block "
                              "(an AgentMeter analysis.json)")
+        if preset_id is not None:
+            self._require_preset(preset_id)          # real FK: must reference an existing preset
         summary = summarize_analysis(analysis)
         source_run_id = source_run_id_of(analysis)   # weak ref; None if absent
         now = _now()
         with self._lock, self.conn:
             cur = self.conn.execute(
                 "INSERT INTO session (name, created_at, updated_at, source_filename, "
-                "summary, analysis_ref, analysis_json, source_run_id) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                "summary, analysis_ref, analysis_json, source_run_id, preset_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (name, now, now, source_filename, json.dumps(summary),
-                 analysis_ref or source_filename, json.dumps(analysis), source_run_id))
+                 analysis_ref or source_filename, json.dumps(analysis), source_run_id,
+                 preset_id))
             sid = cur.lastrowid
         return self.get_session(sid, include_analysis=True)
+
+    def _require_preset(self, preset_id: int) -> None:
+        """Validate that a weight_preset id exists (soft-FK check, works on migrated
+        DBs too). Raises NotFound otherwise."""
+        if self.conn.execute("SELECT 1 FROM weight_preset WHERE id = ?",
+                             (preset_id,)).fetchone() is None:
+            raise NotFound(f"weight preset {preset_id} not found")
+
+    def set_session_preset(self, session_id: int, preset_id: Optional[int]) -> dict[str, Any]:
+        """Set (or clear, with None) which weight_preset a session was saved with."""
+        if self.conn.execute("SELECT 1 FROM session WHERE id = ?",
+                             (session_id,)).fetchone() is None:
+            raise NotFound(f"session {session_id} not found")
+        if preset_id is not None:
+            self._require_preset(preset_id)
+        with self._lock, self.conn:
+            self.conn.execute(
+                "UPDATE session SET preset_id = ?, updated_at = ? WHERE id = ?",
+                (preset_id, _now(), session_id))
+        return self.get_session(session_id, include_analysis=False)
 
     def list_sessions(self, tag: Optional[str | int] = None) -> list[dict[str, Any]]:
         """List session metadata (newest first), each with its `tags`. If `tag`
@@ -249,13 +282,13 @@ class AppStore:
                 return []                      # unknown tag -> no sessions match
             rows = self.conn.execute(
                 "SELECT s.id, s.name, s.created_at, s.updated_at, s.source_filename, "
-                "s.summary, s.analysis_ref, s.source_run_id FROM session s "
+                "s.summary, s.analysis_ref, s.source_run_id, s.preset_id FROM session s "
                 "JOIN session_tag st ON st.session_id = s.id WHERE st.tag_id = ? "
                 "ORDER BY datetime(s.created_at) DESC, s.id DESC", (trow["id"],)).fetchall()
         else:
             rows = self.conn.execute(
                 "SELECT id, name, created_at, updated_at, source_filename, summary, "
-                "analysis_ref, source_run_id FROM session ORDER BY datetime(created_at) DESC, id DESC"
+                "analysis_ref, source_run_id, preset_id FROM session ORDER BY datetime(created_at) DESC, id DESC"
             ).fetchall()
         tags_by_session = self._all_session_tags()
         out = []
@@ -307,6 +340,7 @@ class AppStore:
             "summary": json.loads(row["summary"]) if row["summary"] else None,
             "analysis_ref": row["analysis_ref"],
             "source_run_id": (row["source_run_id"] if "source_run_id" in keys else None),
+            "preset_id": (row["preset_id"] if "preset_id" in keys else None),
         }
 
     # ================= weight presets =================
@@ -373,6 +407,9 @@ class AppStore:
         if row["is_builtin"]:
             raise Forbidden(f"preset '{row['name']}' is a builtin and cannot be deleted")
         with self._lock, self.conn:
+            # detach any sessions that referenced it (keeps migrated DBs consistent even
+            # without the DB-level ON DELETE SET NULL); the sessions themselves survive.
+            self.conn.execute("UPDATE session SET preset_id = NULL WHERE preset_id = ?", (preset_id,))
             self.conn.execute("DELETE FROM weight_preset WHERE id = ?", (preset_id,))
 
     def _preset_row(self, row: sqlite3.Row) -> dict[str, Any]:

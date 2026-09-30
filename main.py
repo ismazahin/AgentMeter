@@ -41,6 +41,10 @@ def main(argv: list[str] | None = None) -> int:
     p_full.add_argument("--fresh", action="store_true", help="ignore any incomplete run and start a new one")
     p_full.add_argument("--proj-scenarios", type=int, default=1000, help="projection: total scenarios")
     p_full.add_argument("--proj-models", type=int, default=None, help="projection: number of models (default: #models)")
+    p_full.add_argument("--no-analyze", action="store_true",
+                        help="skip the automatic analyze step after the run (default: auto-analyze on)")
+    p_full.add_argument("--model-vram", type=str, default=None,
+                        help="model_vram.json to pass through to the auto-analysis (total device footprint)")
 
     p_data = sub.add_parser(
         "build-dataset", help="Data-prep: build a balanced N-per-class RAW CSV from the CIC-IDS2017 sources"
@@ -125,6 +129,9 @@ def main(argv: list[str] | None = None) -> int:
                 fresh=args.fresh,
                 proj_scenarios=args.proj_scenarios,
                 proj_models=args.proj_models,
+                # --no-analyze forces off; otherwise let config run.auto_analyze decide.
+                auto_analyze=(False if args.no_analyze else None),
+                model_vram_path=args.model_vram,
             )
         except ConfigMismatchError as e:
             print(f"\n{e}\n", file=sys.stderr)

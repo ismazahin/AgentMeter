@@ -102,6 +102,9 @@ class RunFullResult:
     scenarios_run: int      # newly executed this invocation
     scenarios_skipped: int  # skipped because already complete (resume)
     report: str
+    # Phase 27 — auto-analyze chained after a successful run (workflow convenience).
+    analyzed: bool = False              # True if analysis.json was produced
+    analysis_out_dir: Optional[str] = None
 
 
 # --- configuration-derived identity ------------------------------------
@@ -207,6 +210,8 @@ def run_full(
     fresh: bool = False,
     proj_scenarios: int = 1000,
     proj_models: Optional[int] = None,
+    auto_analyze: Optional[bool] = None,
+    model_vram_path: Optional[str] = None,
 ) -> RunFullResult:
     cfg = load_config(config_path)
     _gpu_guard(cfg)
@@ -301,7 +306,7 @@ def run_full(
             store, run_id, models, n_scn, ran, skipped, wall_elapsed,
             proj_scenarios, proj_models,
         )
-        return RunFullResult(
+        result = RunFullResult(
             run_id=run_id,
             resumed=resumed,
             models=models,
@@ -311,7 +316,52 @@ def run_full(
             report=report,
         )
     finally:
+        # Close (and checkpoint the WAL) BEFORE auto-analyze, so analyze's read-only
+        # connection sees a self-contained database.
         store.close()
+
+    # Reached only on success (an exception in the try propagates past finally).
+    # Phase 27: chain the EXISTING analyze step onto the end of the run. This never
+    # changes what analyze computes; it only saves a second manual command.
+    _maybe_auto_analyze(cfg, config_path, db_path, auto_analyze, model_vram_path, result)
+    return result
+
+
+def _analysis_out_dir(db_path) -> str:
+    """Per-run analysis directory, derived from the DB path so each run's analysis is
+    distinct and lands UNDER results/ where the dashboard's local-results discovery
+    (Phase 16) finds it: results/agentmeter.db -> results/agentmeter_analysis."""
+    from pathlib import Path as _Path
+    p = _Path(db_path)
+    return str(p.parent / f"{p.stem}_analysis")
+
+
+def _maybe_auto_analyze(cfg, config_path, db_path, auto_analyze, model_vram_path, result) -> None:
+    """Chain the EXISTING analyze step onto a successful run (opt-out).
+
+    Enabled by default; disabled by `auto_analyze=False` (the CLI's --no-analyze) or
+    `run.auto_analyze: false` in config. Analyze reads the DB READ-ONLY and its
+    provenance still flags a user/custom run as non_validated, exactly as a manual
+    `analyze` does. A failure here NEVER fails the run: the raw data is already
+    committed and safe, so we report it and tell the operator how to re-run.
+    """
+    enabled = cfg.get("run.auto_analyze", True) if auto_analyze is None else auto_analyze
+    out_dir = _analysis_out_dir(db_path)
+    if not enabled:
+        print(f"\nAuto-analysis skipped. Run manually with:\n"
+              f"  python main.py analyze --db {db_path} --out {out_dir}")
+        return
+    from ..analysis.analyze import run_analysis
+    try:
+        run_analysis(config_path=config_path, db_path=str(db_path), out_dir=out_dir,
+                     model_vram_path=model_vram_path)
+        result.analyzed = True
+        result.analysis_out_dir = out_dir
+        print(f"\nAuto-analysis complete -> {out_dir}/analysis.json")
+    except Exception as e:  # never let analysis lose/obscure a successful run
+        print(f"\nAuto-analysis FAILED: {e}\n"
+              f"The completed run data is intact and safe. Re-run analysis manually:\n"
+              f"  python main.py analyze --db {db_path} --out {out_dir}", file=sys.stderr)
 
 
 def _select_run(

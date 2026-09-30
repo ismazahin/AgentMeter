@@ -70,8 +70,20 @@ CREATE TABLE IF NOT EXISTS agent_metrics (
     input_tokens   INTEGER,
     output_tokens  INTEGER,
     PRIMARY KEY (run_id, model, scenario_id, agent_name),
-    FOREIGN KEY (run_id) REFERENCES runs(run_id)
+    FOREIGN KEY (run_id) REFERENCES runs(run_id),
+    -- Every agent row belongs to exactly one scenario_result. DEFERRABLE so the
+    -- check runs at COMMIT: persist_scenario writes the agent rows first and the
+    -- scenario_results parent last, all in one transaction (see there).
+    FOREIGN KEY (run_id, model, scenario_id)
+        REFERENCES scenario_results(run_id, model, scenario_id)
+        DEFERRABLE INITIALLY DEFERRED
 );
+
+-- Secondary indexes. run_id is already the leftmost PK column of both child
+-- tables (so run-scoped queries use the PK index); model is not, so give it its
+-- own index for per-model analysis queries. IF NOT EXISTS keeps this additive.
+CREATE INDEX IF NOT EXISTS idx_sr_model ON scenario_results(model);
+CREATE INDEX IF NOT EXISTS idx_am_model ON agent_metrics(model);
 """
 
 

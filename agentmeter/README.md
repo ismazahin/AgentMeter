@@ -82,3 +82,26 @@ live under `results/` (path set by `storage.sqlite_path` in the config, not hard
   at a run not present locally. `hf_metadata_cache.model_id` is likewise a **weak, unenforced** lookup
   key matching a benchmarked model name — not a DB FK. The app layer never opens the study DB to
   resolve either cross-DB reference.
+
+### Deliberate design notes (be ready to defend these)
+
+- **`model` is stored as a repeated string, not a lookup table — on purpose.** The study is a fixed set
+  of 5 models over an immutable, locked dataset; rows are written once and **never updated**, so the
+  classic update anomaly cannot arise. A `model` lookup table would require re-writing the locked study
+  DB (changing the thesis numbers), which is forbidden. The lookup is instead provided *virtually* by
+  `check-integrity` (below) and by `hf_metadata_cache`.
+- **Foreign keys in the study DB.** `PRAGMA foreign_keys = ON` is set, and `run_id` is a real enforced
+  FK from both child tables to `runs`. `agent_metrics → scenario_results` on the composite
+  `(run_id, model, scenario_id)` is declared `DEFERRABLE INITIALLY DEFERRED` (checked at commit, since a
+  scenario's agent rows and its `scenario_results` parent are written in one transaction). These apply to
+  **newly created** run DBs; the already-locked study file is never re-created.
+- **Cross-DB references are verified, not enforced.** Run `python main.py check-integrity` (read-only) to
+  report any `session.source_run_id` that doesn't resolve to a run, any `session.preset_id` that doesn't
+  resolve to a preset, and per-model HF-metadata coverage. Weak cross-DB danglings are warnings (allowed
+  by design); a missing `preset_id` is a hard error.
+- **`hf_metadata_cache` is hybrid relational + document.** The full cleaned metadata stays in the
+  `payload` JSON (source of truth), and the fields worth querying (`params_b`, `downloads`, `likes`,
+  `license`, `pipeline_tag`) are **promoted into typed columns** refreshed on every write, so they can be
+  filtered/sorted in SQL. `analysis_json`/`summary` on `session` follow the same principle.
+- **Timestamps** are ISO-8601 UTC strings (`datetime.now(timezone.utc).isoformat(...)`), sorted with
+  SQLite's `datetime()` — lexicographic order equals chronological order.

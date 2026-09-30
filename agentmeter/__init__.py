@@ -22,7 +22,7 @@ from .db import appdb, storage
 from .data import dataprep, dataset
 from .pipeline import agents, instrument
 from .run import measure, pilot, runner, worker
-from .analysis import analyze, analyze_advanced, analyze_by_class
+from .analysis import analyze, analyze_advanced, analyze_by_class, integrity
 from .server import config_builder, crud_api, hf_metadata, local_sessions, pull_eval
 from .util import env_check, envtools, vast_shutdown
 

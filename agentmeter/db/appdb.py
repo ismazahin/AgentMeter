@@ -164,9 +164,41 @@ CREATE TABLE IF NOT EXISTS hf_metadata_cache (
     model_id    TEXT PRIMARY KEY,
     fetched_at  REAL NOT NULL,
     status      TEXT NOT NULL,
-    payload     TEXT NOT NULL      -- JSON of the cleaned metadata dict
+    payload     TEXT NOT NULL,     -- JSON of the cleaned metadata dict (source of truth)
+    -- Phase 25: fields PROMOTED from payload into typed columns so they are
+    -- queryable/sortable in SQL (hybrid relational + document). payload stays the
+    -- source of truth; these are a projection, refreshed on every hf_cache_set.
+    -- Nullable: an 'unavailable' fetch caches a status with no metadata fields.
+    params_b     REAL,             -- model size in billions of parameters
+    downloads    INTEGER,
+    likes        INTEGER,
+    license      TEXT,
+    pipeline_tag TEXT
 );
 """
+
+# Payload fields promoted into hf_metadata_cache columns (name -> column is 1:1).
+_HF_PROMOTED = ("params_b", "downloads", "likes", "license", "pipeline_tag")
+_HF_INT_COLS = ("downloads", "likes")
+_HF_REAL_COLS = ("params_b",)
+
+
+def _hf_promoted_value(data: dict[str, Any], col: str) -> Any:
+    """Coerce one promoted field out of a cached HF payload to its column type,
+    returning None when absent or not coercible (so a bad/partial payload never
+    breaks the write — the JSON payload remains the source of truth)."""
+    v = (data or {}).get(col)
+    if v is None:
+        return None
+    try:
+        if col in _HF_INT_COLS:
+            return int(v)
+        if col in _HF_REAL_COLS:
+            f = float(v)
+            return None if (math.isnan(f) or math.isinf(f)) else f
+    except (TypeError, ValueError):
+        return None
+    return str(v)
 
 
 class AppStore:
@@ -200,12 +232,33 @@ class AppStore:
         (ALTER TABLE cannot re-declare the FK on an existing table; on migrated DBs
         preset_id is a validated soft reference — create/set_session_preset check the
         preset exists, and delete_preset nulls any sessions pointing at it.)
+        Phase 25: add the promoted hf_metadata_cache columns if missing, then
+        backfill them from each row's existing JSON payload.
         """
         cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(session)")}
         if "source_run_id" not in cols:
             self.conn.execute("ALTER TABLE session ADD COLUMN source_run_id TEXT")
         if "preset_id" not in cols:
             self.conn.execute("ALTER TABLE session ADD COLUMN preset_id INTEGER")
+
+        hf_cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(hf_metadata_cache)")}
+        col_types = {"params_b": "REAL", "downloads": "INTEGER", "likes": "INTEGER",
+                     "license": "TEXT", "pipeline_tag": "TEXT"}
+        added = [c for c in _HF_PROMOTED if c not in hf_cols]
+        for c in added:
+            self.conn.execute(f"ALTER TABLE hf_metadata_cache ADD COLUMN {c} {col_types[c]}")
+        if added:  # backfill the new columns from each row's stored JSON payload
+            for row in self.conn.execute(
+                    "SELECT model_id, payload FROM hf_metadata_cache").fetchall():
+                try:
+                    data = json.loads(row["payload"])
+                except (ValueError, TypeError):
+                    continue
+                self.conn.execute(
+                    "UPDATE hf_metadata_cache SET "
+                    + ", ".join(f"{c} = ?" for c in _HF_PROMOTED)
+                    + " WHERE model_id = ?",
+                    [_hf_promoted_value(data, c) for c in _HF_PROMOTED] + [row["model_id"]])
 
     def close(self) -> None:
         self.conn.close()
@@ -585,12 +638,21 @@ class AppStore:
         return {"fetched_at": row["fetched_at"], "status": row["status"], "data": data}
 
     def hf_cache_set(self, model_id: str, entry: dict[str, Any]) -> None:
-        """Upsert a cache entry (entry = {'fetched_at','status','data'})."""
+        """Upsert a cache entry (entry = {'fetched_at','status','data'}).
+
+        Writes the full JSON payload AND the promoted queryable columns in one
+        statement, so the columns always match the payload they were derived from.
+        """
+        data = entry.get("data", {}) or {}
+        promoted = [_hf_promoted_value(data, c) for c in _HF_PROMOTED]
+        cols = ", ".join(_HF_PROMOTED)
+        placeholders = ", ".join("?" for _ in _HF_PROMOTED)
+        set_promoted = ", ".join(f"{c} = excluded.{c}" for c in _HF_PROMOTED)
         with self._lock, self.conn:
             self.conn.execute(
-                "INSERT INTO hf_metadata_cache (model_id, fetched_at, status, payload) "
-                "VALUES (?, ?, ?, ?) ON CONFLICT(model_id) DO UPDATE SET "
+                f"INSERT INTO hf_metadata_cache (model_id, fetched_at, status, payload, {cols}) "
+                f"VALUES (?, ?, ?, ?, {placeholders}) ON CONFLICT(model_id) DO UPDATE SET "
                 "fetched_at = excluded.fetched_at, status = excluded.status, "
-                "payload = excluded.payload",
-                (model_id, float(entry.get("fetched_at", 0.0)),
-                 str(entry.get("status", "ok")), json.dumps(entry.get("data", {}))))
+                f"payload = excluded.payload, {set_promoted}",
+                [model_id, float(entry.get("fetched_at", 0.0)),
+                 str(entry.get("status", "ok")), json.dumps(data)] + promoted)

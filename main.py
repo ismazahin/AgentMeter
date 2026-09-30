@@ -63,6 +63,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_mv.add_argument("--out", type=str, default="results/model_vram.json", help="output JSON path")
 
+    p_ic = sub.add_parser(
+        "check-integrity", help="Verify cross-database references (study DB + app DB; read-only)"
+    )
+    p_ic.add_argument("--db", type=str, default=None, help="study results DB (default: config storage.sqlite_path)")
+    p_ic.add_argument("--app-db", type=str, default=None, help="app metadata DB (default: results/agentmeter_app.db)")
+
     args = parser.parse_args(argv)
 
     if args.command == "check-env":
@@ -157,6 +163,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\n{e}\n", file=sys.stderr)
             return 1
         return 0
+
+    if args.command == "check-integrity":
+        from agentmeter.analysis.integrity import format_report, run_integrity_check
+
+        report = run_integrity_check(config_path=args.config, study_db=args.db, app_db=args.app_db)
+        print(format_report(report))
+        return 0 if report.get("ok", True) else 1
 
     parser.print_help()
     return 0

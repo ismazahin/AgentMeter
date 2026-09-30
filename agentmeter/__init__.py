@@ -18,7 +18,7 @@ Modules are grouped into subpackages by role (see agentmeter/README.md):
 Submodules are re-exported here so `from agentmeter import <module>` keeps working.
 """
 from . import config, providers
-from .db import appdb, storage
+from .db import appdb, combine, storage
 from .data import dataprep, dataset
 from .pipeline import agents, instrument
 from .run import measure, pilot, runner, worker

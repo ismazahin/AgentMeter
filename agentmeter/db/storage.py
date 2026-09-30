@@ -86,6 +86,10 @@ CREATE INDEX IF NOT EXISTS idx_sr_model ON scenario_results(model);
 CREATE INDEX IF NOT EXISTS idx_am_model ON agent_metrics(model);
 """
 
+# Public alias: AppStore ensures these study tables exist in the shared file too
+# (Phase 26 single-database model), so it imports the schema from here.
+SCHEMA = _SCHEMA
+
 
 class Storage:
     """Thin SQLite wrapper. One connection; writes are transactional."""
@@ -99,10 +103,19 @@ class Storage:
         # The run-full parent and its per-model worker each hold a connection to
         # this file; wait rather than fail if the other briefly holds a lock.
         self.conn.execute("PRAGMA busy_timeout = 5000;")
+        # Phase 26: the app layer also writes to this one file — WAL lets a reader
+        # (e.g. the dashboard) and the writer proceed without blocking each other.
+        self.conn.execute("PRAGMA journal_mode = WAL;")
         self.conn.executescript(_SCHEMA)
         self.conn.commit()
 
     def close(self) -> None:
+        # Flush the WAL back into the main file so a later read-only opener
+        # (analysis, the integrity checker) sees a self-contained database.
+        try:
+            self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        except sqlite3.OperationalError:
+            pass
         self.conn.close()
 
     # --- run lifecycle --------------------------------------------------

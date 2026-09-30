@@ -69,6 +69,14 @@ def main(argv: list[str] | None = None) -> int:
     p_ic.add_argument("--db", type=str, default=None, help="study results DB (default: config storage.sqlite_path)")
     p_ic.add_argument("--app-db", type=str, default=None, help="app metadata DB (default: results/agentmeter_app.db)")
 
+    p_cb = sub.add_parser(
+        "combine-db", help="Merge the legacy study DB + app DB into ONE unified file (sources unchanged)"
+    )
+    p_cb.add_argument("--study", type=str, required=True, help="path to the study results DB")
+    p_cb.add_argument("--app", type=str, required=True, help="path to the app metadata DB")
+    p_cb.add_argument("--out", type=str, required=True, help="path to write the unified DB (must not exist)")
+    p_cb.add_argument("--overwrite", action="store_true", help="replace the output file if it already exists")
+
     args = parser.parse_args(argv)
 
     if args.command == "check-env":
@@ -170,6 +178,22 @@ def main(argv: list[str] | None = None) -> int:
         report = run_integrity_check(config_path=args.config, study_db=args.db, app_db=args.app_db)
         print(format_report(report))
         return 0 if report.get("ok", True) else 1
+
+    if args.command == "combine-db":
+        from agentmeter.db.combine import combine_databases
+
+        try:
+            summary = combine_databases(args.study, args.app, args.out, overwrite=args.overwrite)
+        except (FileNotFoundError, FileExistsError, ValueError, RuntimeError) as e:
+            print(f"\n{e}\n", file=sys.stderr)
+            return 1
+        print(f"Unified DB written -> {args.out}")
+        for t, n in sorted(summary["tables"].items()):
+            print(f"    {t:<20} {n} rows")
+        if summary["source_run_id_nulled"]:
+            print(f"    ({summary['source_run_id_nulled']} dangling source_run_id set to NULL)")
+        print("Sources were not modified.")
+        return 0
 
     parser.print_help()
     return 0

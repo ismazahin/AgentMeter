@@ -95,18 +95,25 @@ def test_delete_session_cascades_notes(store):
         store.get_note(n["id"])
 
 
-# --- source_run_id: weak cross-DB reference (Phase 23) -----------------
+# --- source_run_id: real FK to runs.run_id (Phase 26, unified DB) -------
 
 def test_source_run_id_populated_and_nullable(store):
-    # ANALYSIS carries run_ids ["run_locked"] -> stored as the weak reference
-    s = store.create_session("has run", ANALYSIS)
+    # Phase 26: source_run_id is a real FK, so it resolves only when the run is
+    # present in the (now unified) DB; otherwise it degrades to NULL.
+    store.conn.execute(
+        "INSERT INTO runs (run_id, config_fingerprint, started_at, status) "
+        "VALUES ('run_locked', 'fp', 't', 'complete')")
+    store.conn.commit()
+
+    s = store.create_session("has run", ANALYSIS)   # ANALYSIS run_ids = ["run_locked"]
     assert s["source_run_id"] == "run_locked"
 
     import copy
-    a = copy.deepcopy(ANALYSIS)
-    a.pop("run_ids", None)
-    s2 = store.create_session("no run", a)
-    assert s2["source_run_id"] is None            # absent -> NULL, never fabricated
+    a = copy.deepcopy(ANALYSIS); a.pop("run_ids", None)
+    assert store.create_session("no run", a)["source_run_id"] is None   # absent -> NULL
+
+    a2 = copy.deepcopy(ANALYSIS); a2["run_ids"] = ["not_present"]
+    assert store.create_session("ghost", a2)["source_run_id"] is None   # unresolved -> NULL
 
     # surfaces in list + get output too
     by_name = {x["name"]: x["source_run_id"] for x in store.list_sessions()}
@@ -375,15 +382,11 @@ def test_http_tag_crud(tmp_path):
     assert client.post(f"/sessions/{sid}/tags", json={"name": "  "}).status_code == 400
 
 
-# --- the locked study DB is never touched ------------------------------
-
-def test_appstore_refuses_locked_db():
-    with pytest.raises(ValueError, match="locked study DB"):
-        appdb.AppStore(appdb.LOCKED_STUDY_DB)
-
+# --- CRUD on a given DB file stays within that file --------------------
 
 def test_crud_never_opens_locked_db(tmp_path, monkeypatch):
-    """A full CRUD flow must never open the locked study DB (any mode)."""
+    """A full CRUD flow on one DB file must not reach for the historical study
+    file (Phase 26: no guard, but CRUD still only touches the file it was given)."""
     opened = []
     real_connect = sqlite3.connect
 

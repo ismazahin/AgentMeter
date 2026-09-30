@@ -1,12 +1,17 @@
-"""Phase 12 — application metadata DB (CRUD for sessions, weight presets, notes).
+"""Phase 12 — application metadata (CRUD for sessions, weight presets, notes).
 
-A SEPARATE SQLite database (results/agentmeter_app.db by default) that lets the
-system manage its own records. It is a VIEW/MANAGEMENT layer only and NEVER
-touches the locked study:
-  * the locked study DB (results/agentmeter_full_l4.db) is never opened here;
-  * imported analysis.json data is stored READ-ONLY (its summary is extracted
+Phase 26: SINGLE-DATABASE model. The app-metadata tables (session, weight_preset,
+note, tag, session_tag, hf_metadata_cache) live in the SAME SQLite file as the
+study results tables (runs, scenario_results, agent_metrics), so the whole schema
+is one connected database — one file to open, back up and diagram. The earlier
+two-file split (and the guard that blocked this module from the study DB) is gone.
+
+Consequences of the unified file:
+  * AppStore ensures BOTH schemas exist in the file, so session.source_run_id can
+    be a REAL foreign key to runs.run_id;
+  * imported analysis.json data is still stored READ-ONLY (its summary is extracted
     once at import and never recomputed or edited);
-  * there is no CRUD on datasets or the 5-model set — out of scope by design.
+  * there is still no CRUD on datasets or the model set — out of scope by design.
 
 This module has no Flask dependency so it is fully testable on CPU. The HTTP
 layer (agentmeter/crud_api.py) is a thin wrapper over these methods.
@@ -23,8 +28,11 @@ from typing import Any, Optional
 
 from ..config import PROJECT_ROOT
 
-DEFAULT_APP_DB = PROJECT_ROOT / "results" / "agentmeter_app.db"
-# The locked study DB — this module must NEVER open it (guard below).
+# Phase 26: one unified database file holds both the study and the app tables.
+DEFAULT_APP_DB = PROJECT_ROOT / "results" / "agentmeter.db"
+# Historical study-DB path, kept only as a reference for the integrity checker's
+# fallback and for provenance in analyze.py. It is no longer a forbidden target —
+# the app and the study now share one file.
 LOCKED_STUDY_DB = (PROJECT_ROOT / "results" / "agentmeter_full_l4.db").resolve()
 
 WEIGHT_KEYS = ("w_accuracy", "w_latency", "w_vram", "w_tokens")
@@ -86,12 +94,11 @@ def summarize_analysis(analysis: dict[str, Any]) -> dict[str, Any]:
 
 
 def source_run_id_of(analysis: dict[str, Any]) -> Optional[str]:
-    """Best-effort WEAK reference: the study run this imported analysis came from.
+    """The study run this imported analysis came from.
 
     Reads the analysis' `run_ids` (the field analyze.py writes) and returns the first
-    one as a plain string, or None if absent. This is a LOGICAL cross-database
-    reference to a runs.run_id in the SEPARATE study DB — never enforced, never
-    assumed to resolve to a locally present run.
+    one as a plain string, or None if absent. Phase 26: this maps to session.source_run_id,
+    a real FK to runs.run_id; create_session stores NULL if the run is not present.
     """
     if not isinstance(analysis, dict):
         return None
@@ -112,12 +119,13 @@ CREATE TABLE IF NOT EXISTS session (
     summary         TEXT,            -- small JSON blob (read-only, from import)
     analysis_ref    TEXT,            -- original path/name of the imported analysis.json
     analysis_json   TEXT NOT NULL,   -- stored copy of the imported analysis (read-only)
-    source_run_id   TEXT,            -- Phase 23: WEAK/logical ref to a runs.run_id in the
-                                     -- SEPARATE study DB (from the imported analysis' run_ids).
-                                     -- NOT an enforced FK; may point at a run not present locally.
+    source_run_id   TEXT,            -- which study run this imported analysis came from
+                                     -- (from the analysis' run_ids). Phase 26: a REAL FK to
+                                     -- runs.run_id now that both live in one file; nullable.
     preset_id       INTEGER,         -- Phase 24: which weight_preset this session was saved with
-                                     -- (nullable; real FK within this app DB).
-    FOREIGN KEY (preset_id) REFERENCES weight_preset(id) ON DELETE SET NULL
+                                     -- (nullable; real FK).
+    FOREIGN KEY (preset_id) REFERENCES weight_preset(id) ON DELETE SET NULL,
+    FOREIGN KEY (source_run_id) REFERENCES runs(run_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS weight_preset (
@@ -159,7 +167,7 @@ CREATE TABLE IF NOT EXISTS session_tag (
 );
 
 -- Phase 22 — cache for Hugging Face Hub model metadata (external CONTEXT only,
--- never study data). Lives in this SEPARATE app DB, never the locked study DB.
+-- never study data). Lives in the unified DB alongside the study tables.
 CREATE TABLE IF NOT EXISTS hf_metadata_cache (
     model_id    TEXT PRIMARY KEY,
     fetched_at  REAL NOT NULL,
@@ -207,16 +215,17 @@ class AppStore:
 
     def __init__(self, db_path: str | Path = DEFAULT_APP_DB):
         self.path = Path(db_path)
-        # Integrity guard: refuse to ever be pointed at the locked study DB.
-        if self.path.resolve() == LOCKED_STUDY_DB:
-            raise ValueError(
-                f"AppStore must not use the locked study DB ({LOCKED_STUDY_DB}). "
-                "CRUD uses a separate metadata DB.")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys = ON;")
         self.conn.execute("PRAGMA busy_timeout = 5000;")
+        # Phase 26: the app and study tables share one file. Ensure the STUDY
+        # tables exist first (imported lazily to avoid an import cycle) so that
+        # session.source_run_id can be a real FK to runs.run_id, then the app tables.
+        from .storage import SCHEMA as _STUDY_SCHEMA
+        self.conn.execute("PRAGMA journal_mode = WAL;")  # one file, two writers -> WAL
+        self.conn.executescript(_STUDY_SCHEMA)
         self.conn.executescript(_SCHEMA)
         self._migrate()
         self.conn.commit()
@@ -261,6 +270,12 @@ class AppStore:
                     [_hf_promoted_value(data, c) for c in _HF_PROMOTED] + [row["model_id"]])
 
     def close(self) -> None:
+        # Flush the WAL back into the main file so a later read-only opener
+        # (analysis, the integrity checker) sees a self-contained database.
+        try:
+            self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        except sqlite3.OperationalError:
+            pass
         self.conn.close()
 
     # --- builtin presets (seeded once; read-only) ----------------------
@@ -293,7 +308,12 @@ class AppStore:
         if preset_id is not None:
             self._require_preset(preset_id)          # real FK: must reference an existing preset
         summary = summarize_analysis(analysis)
-        source_run_id = source_run_id_of(analysis)   # weak ref; None if absent
+        source_run_id = source_run_id_of(analysis)   # the run this analysis came from
+        # source_run_id is now a real FK to runs.run_id (unified DB). If the run is
+        # not present locally (analysis imported from elsewhere), degrade to NULL
+        # rather than reject the import.
+        if source_run_id is not None and not self._run_exists(source_run_id):
+            source_run_id = None
         now = _now()
         with self._lock, self.conn:
             cur = self.conn.execute(
@@ -305,6 +325,15 @@ class AppStore:
                  preset_id))
             sid = cur.lastrowid
         return self.get_session(sid, include_analysis=True)
+
+    def _run_exists(self, run_id: str) -> bool:
+        """Whether a study run is present in the (now unified) DB. Tolerates a DB
+        with no runs table yet (returns False rather than raising)."""
+        try:
+            return self.conn.execute("SELECT 1 FROM runs WHERE run_id = ?",
+                                     (run_id,)).fetchone() is not None
+        except sqlite3.OperationalError:
+            return False
 
     def _require_preset(self, preset_id: int) -> None:
         """Validate that a weight_preset id exists (soft-FK check, works on migrated

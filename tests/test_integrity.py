@@ -148,9 +148,17 @@ def _seed_app(path):
     store = appdb.AppStore(path)
     preset = store.create_preset(
         "mine", {"w_accuracy": 0.4, "w_latency": 0.3, "w_vram": 0.2, "w_tokens": 0.1})
-    store.create_session("ok", {"phase8": {"saw_table": [{"model": "x", "rank": 1}]},
-                                "run_ids": ["runX"]}, preset_id=preset["id"])
-    store.create_session("bad", {"phase8": {}, "run_ids": ["ghost-run"]})
+    store.create_session("ok", {"phase8": {"saw_table": [{"model": "x", "rank": 1}]}},
+                         preset_id=preset["id"])
+    store.create_session("bad", {"phase8": {}})
+    # Simulate a legacy/migrated app file whose source_run_id points at runs held in
+    # a SEPARATE study file (create_session would otherwise NULL an unresolved ref).
+    # This is exactly the cross-file state check-integrity is meant to verify.
+    store.conn.execute("PRAGMA foreign_keys = OFF")
+    store.conn.execute("UPDATE session SET source_run_id = 'runX' WHERE name = 'ok'")
+    store.conn.execute("UPDATE session SET source_run_id = 'ghost-run' WHERE name = 'bad'")
+    store.conn.execute("PRAGMA foreign_keys = ON")
+    store.conn.commit()
     store.hf_cache_set("m/A", {"fetched_at": time.time(), "status": "ok",
                                "data": {"params_b": 8.0, "downloads": 1, "likes": 1}})
     return store, preset

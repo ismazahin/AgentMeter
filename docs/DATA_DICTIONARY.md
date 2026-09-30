@@ -5,20 +5,25 @@ databases. Read this alongside the ER diagram. Units are given explicitly becaus
 the columns store bare numbers (a value of `0.42` in `wall_time_s` means *0.42
 seconds*).
 
-AgentMeter stores data in **two separate files by design** (see the ER diagram
-notes for why):
+AgentMeter stores everything in **one unified SQLite file**
+(`results/agentmeter.db` by default). The tables fall into two groups — the
+study *measurements* and the app *metadata* — and they are connected by real
+foreign keys.
 
-| File | Role | Written by |
+| Group | Tables | Written by |
 |---|---|---|
-| `results/agentmeter_full_l4.db` | **Study results** — the locked, read-only measurements the thesis reports | `run-full` (once; then locked) |
-| `results/agentmeter_app.db` | **App metadata** — the product/dashboard's own bookkeeping | the web app / CRUD API |
+| **Measurements** | `runs`, `scenario_results`, `agent_metrics` | `run-full` |
+| **App metadata** | `session`, `weight_preset`, `note`, `tag`, `session_tag`, `hf_metadata_cache` | the web app / CRUD API |
+
+(Legacy two-file databases are merged into this one file with
+`python main.py combine-db`.)
 
 All timestamps are **ISO-8601 UTC strings** (e.g. `2025-09-30T04:12:07+00:00`);
 sorted as text they are also in chronological order.
 
 ---
 
-## Study results DB — `agentmeter_full_l4.db`
+## Measurement tables (in the unified `agentmeter.db`)
 
 ### `runs` — one row per benchmark execution
 Primary key: `run_id`.
@@ -71,7 +76,7 @@ has many scenario results; each scenario result is produced by four agent rows.
 
 ---
 
-## App metadata DB — `agentmeter_app.db`
+## App-metadata tables (in the unified `agentmeter.db`)
 
 ### `session` — a saved analysis view in the dashboard
 Primary key: `id`. Foreign key: `preset_id → weight_preset.id` (`ON DELETE SET NULL`).
@@ -85,7 +90,7 @@ Primary key: `id`. Foreign key: `preset_id → weight_preset.id` (`ON DELETE SET
 | `summary` | TEXT | JSON | Small extracted summary (top model, tiers…) — read-only projection of the analysis. |
 | `analysis_ref` | TEXT | path/name | Original reference of the imported analysis. |
 | `analysis_json` | TEXT | JSON | Full stored copy of the imported analysis (read-only source of truth). |
-| `source_run_id` | TEXT | → *study* `runs.run_id` | **Weak, unenforced** cross-DB reference to the study run this analysis came from; may be NULL or point at a run not present locally. |
+| `source_run_id` | TEXT | → `runs.run_id` (FK) | The study run this analysis came from; a real FK (`ON DELETE SET NULL`), nullable. Stored as NULL if the analysis refers to a run not present in the file. |
 | `preset_id` | INTEGER | → `weight_preset.id` / NULL | Which saved weighting the session was scored with. |
 
 ### `weight_preset` — saved SAW scoring weight sets
@@ -150,10 +155,11 @@ truth; the other columns are a queryable projection refreshed on every write.
 
 ## Relationships at a glance
 
-- **Study DB:** `runs` 1─< `scenario_results` 1─< `agent_metrics` (linked by
+- **Measurements:** `runs` 1─< `scenario_results` 1─< `agent_metrics` (linked by
   `run_id`, and the composite `(run_id, model, scenario_id)`).
-- **App DB:** `weight_preset` 1─< `session` 1─< `note`; `session` N─M `tag` via
-  `session_tag`.
-- **Across the two files (weak, verified not enforced):** `session.source_run_id`
-  → study `runs.run_id`, and `hf_metadata_cache.model_id` matches a study `model`
-  name. Run `python main.py check-integrity` to verify these on demand.
+- **App metadata:** `weight_preset` 1─< `session` 1─< `note`; `session` N─M `tag`
+  via `session_tag`.
+- **Link between the groups (real FK):** `session.source_run_id` → `runs.run_id`
+  (`ON DELETE SET NULL`; nullable). `hf_metadata_cache.model_id` matches a `model`
+  name but is a documented lookup, not a DB FK. Run `python main.py check-integrity`
+  to verify these on demand.

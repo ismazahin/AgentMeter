@@ -35,16 +35,24 @@ from ..config import PROJECT_ROOT, load_config
 
 ALPHA = 0.05  # significance level for the Kruskal-Wallis omnibus test
 
-# The LOCKED validation study DB — the tool's validated baseline (5 canonical
-# models on CIC-IDS2017). An analysis is "validated" ONLY when it was produced
-# from exactly this DB; anything else is a user/custom run, flagged non_validated.
+# The canonical validation study DB(s) — the tool's validated baseline (5 canonical
+# models on CIC-IDS2017). An analysis is "validated" ONLY when produced from one of
+# these; anything else (a user/custom run) is flagged non_validated.
 LOCKED_STUDY_DB = (PROJECT_ROOT / "results" / "agentmeter_full_l4.db").resolve()
+# Phase 26: the unified single-file database is also the canonical study.
+UNIFIED_STUDY_DB = (PROJECT_ROOT / "results" / "agentmeter.db").resolve()
+
+
+def _validated_study_dbs() -> set[Path]:
+    """Resolved paths that count as the validated baseline (read at call time so a
+    test may monkeypatch LOCKED_STUDY_DB). User-run and pull DBs are never in here."""
+    return {LOCKED_STUDY_DB, UNIFIED_STUDY_DB}
 
 
 def _provenance(db: Path, cfg) -> dict[str, Any]:
     """Classify an analysis as the validated baseline vs a user/custom run.
 
-    Determination is by the RESULTS DB: only the locked study DB yields the
+    Determination is by the RESULTS DB: only the canonical study DB(s) yield the
     validated baseline. Any other DB (e.g. a user config's results/user_runs/*.db)
     is flagged non_validated so it can never be mistaken for, or merged into, the
     canonical validation numbers.
@@ -53,7 +61,7 @@ def _provenance(db: Path, cfg) -> dict[str, Any]:
         resolved = db.resolve()
     except OSError:
         resolved = db
-    validated = resolved == LOCKED_STUDY_DB
+    validated = resolved in _validated_study_dbs()
     return {
         "validated_study": validated,
         "non_validated": not validated,

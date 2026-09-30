@@ -203,11 +203,27 @@ def format_report(report: dict[str, Any]) -> str:
     return "\n".join(L)
 
 
+def _default_study_db(cfg) -> str:
+    """Best default for the study DB when neither --db nor a config path is given.
+
+    Prefer the configured storage.sqlite_path when that file exists; otherwise fall
+    back to the project's known locked study DB (results/agentmeter_full_l4.db) if it
+    is present — so `check-integrity` with no arguments finds the real study rather
+    than the generic default filename. Read-only either way.
+    """
+    configured = cfg.resolve_path("storage.sqlite_path", "results/agentmeter.db")
+    if Path(configured).exists():
+        return str(configured)
+    if Path(appdb.LOCKED_STUDY_DB).exists():
+        return str(appdb.LOCKED_STUDY_DB)
+    return str(configured)
+
+
 def run_integrity_check(config_path: Optional[str] = None,
                         study_db: Optional[str] = None,
                         app_db: Optional[str] = None) -> dict[str, Any]:
-    """Resolve both DB paths (CLI overrides > config > defaults) and run the check."""
+    """Resolve both DB paths (CLI overrides > config > known-locked fallback) and check."""
     cfg = load_config(config_path)
-    study_path = study_db or str(cfg.resolve_path("storage.sqlite_path", "results/agentmeter.db"))
+    study_path = study_db or _default_study_db(cfg)
     app_path = app_db or str(appdb.DEFAULT_APP_DB)
     return check_integrity(study_path, app_path)

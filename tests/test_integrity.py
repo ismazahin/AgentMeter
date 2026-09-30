@@ -199,6 +199,25 @@ def test_integrity_flags_dangling_preset_as_error(tmp_path):
     assert any("preset_id 999" in e for e in rep["errors"])
 
 
+def test_default_study_db_falls_back_to_locked_db(tmp_path, monkeypatch):
+    from agentmeter.analysis import integrity
+
+    class _Cfg:  # configured path points at a file that does not exist
+        def resolve_path(self, key, default):
+            return tmp_path / "not_here.db"
+
+    # no locked DB present -> keep the configured (missing) path, so the report can
+    # show exactly what it looked for
+    monkeypatch.setattr(integrity.appdb, "LOCKED_STUDY_DB", tmp_path / "locked_absent.db")
+    assert integrity._default_study_db(_Cfg()) == str(tmp_path / "not_here.db")
+
+    # locked DB present -> prefer it over the generic default filename
+    locked = tmp_path / "agentmeter_full_l4.db"
+    _seed_study(locked).close()
+    monkeypatch.setattr(integrity.appdb, "LOCKED_STUDY_DB", locked)
+    assert integrity._default_study_db(_Cfg()) == str(locked)
+
+
 def test_integrity_handles_missing_study_db(tmp_path):
     ap = tmp_path / "app.db"
     _seed_app(ap)[0].close()

@@ -345,6 +345,12 @@ def runner_script(name: str, os_kind: str = "win",
     slug, _ = _resolve_existing_user_config(name, base_dir)   # validates + existence
     cfg_rel = f"configs/user/{slug}.yaml"        # forward slashes work on Windows too
     cmd = f"python main.py --config {cfg_rel} run-full"
+    # The repo root (where main.py lives) is baked in so the runner works from ANY
+    # folder it was downloaded to (e.g. Downloads), on the machine serving this app.
+    # It still tries its own folder first, so a runner moved into the repo stays
+    # portable across machines.
+    repo_win = str(PROJECT_ROOT)
+    repo_unix = PROJECT_ROOT.as_posix()
 
     if os_kind == "win":
         lines = [
@@ -357,16 +363,20 @@ def runner_script(name: str, os_kind: str = "win",
             "echo   This can take a while. When it finishes, the results appear",
             'echo   in the dashboard Local results tab.',
             "echo ================================================================",
+            # 1) this runner's own folder (portable if placed in the repo)
             'cd /d "%~dp0"',
-            # Make a wrong location obvious instead of a raw "can't open main.py".
-            'if not exist "main.py" goto nomain',
-            cmd,
+            'if exist "main.py" goto run',
+            # 2) the AgentMeter folder this dashboard was served from (so it works
+            #    straight from Downloads on the same machine)
+            f'cd /d "{repo_win}"',
+            'if exist "main.py" goto run',
+            # 3) give up with clear guidance rather than a raw Python error
+            "echo ERROR: could not find main.py.",
+            "echo Put this runner in your AgentMeter folder (the one with main.py),",
+            "echo or run it on the machine where AgentMeter is installed.",
             "goto done",
-            ":nomain",
-            "echo ERROR: main.py is not in this folder:",
-            "echo   %~dp0",
-            "echo Move this runner INTO your AgentMeter folder - the one that contains",
-            "echo main.py - then double-click it again.",
+            ":run",
+            cmd,
             ":done",
             "echo.",
             "echo Finished. Review any messages above.",
@@ -384,11 +394,12 @@ def runner_script(name: str, os_kind: str = "win",
         'echo "  This can take a while. When it finishes, the results appear"',
         'echo "  in the dashboard'"'"'s Local results tab."',
         'echo "================================================================"',
-        'cd "$(dirname "$0")"',
-        # Make a wrong location obvious instead of a raw "can't open main.py".
+        # 1) this runner's own folder, then 2) the served AgentMeter folder
+        'cd "$(dirname "$0")" 2>/dev/null || true',
+        f'if [ ! -f "main.py" ]; then cd "{repo_unix}" 2>/dev/null || true; fi',
         'if [ ! -f "main.py" ]; then',
-        '  echo "ERROR: main.py is not in this folder: $(pwd)"',
-        '  echo "Move this runner INTO your AgentMeter folder (the one that contains main.py) and run it again."',
+        '  echo "ERROR: could not find main.py near this script or at the AgentMeter folder."',
+        '  echo "Put this runner in your AgentMeter folder (the one with main.py), or run it where AgentMeter is installed."',
         '  read -r -p "Press Enter to close..." _',
         "  exit 1",
         "fi",

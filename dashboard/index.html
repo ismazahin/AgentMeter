@@ -951,6 +951,12 @@
       <span class="note" id="cfg-remote-msg" style="margin-left:12px"></span>
     </div>
     <p class="note" id="cfg-remote-note" style="display:none"></p>
+    <div class="exportbar" id="cfg-notify-bar" style="display:none">
+      <span class="lbl">Phone alerts (Telegram):</span>
+      <button class="ghost" id="cfg-notify-test">Test Telegram</button>
+      <span class="note" id="cfg-notify-msg" style="margin-left:12px"></span>
+    </div>
+    <p class="note" id="cfg-notify-note" style="display:none"></p>
     <pre class="cfg-yaml" id="cfg-yaml">Fill in the form and click <b>Preview YAML</b> or <b>Save config</b>.</pre>
   </div>
 
@@ -3550,12 +3556,15 @@
         $("cfg-runner-bar").style.display = "flex";
         $("cfg-runner-note").style.display = "block";
         refreshVastStatus();   // show the remote-runner option + .env readiness
+        refreshNotifyStatus(); // show the Telegram alert status
       } else {
         // a preview is not written, so there is nothing to make a runner for
         $("cfg-runner-bar").style.display = "none";
         $("cfg-runner-note").style.display = "none";
         $("cfg-remote-bar").style.display = "none";
         $("cfg-remote-note").style.display = "none";
+        $("cfg-notify-bar").style.display = "none";
+        $("cfg-notify-note").style.display = "none";
       }
     }
 
@@ -3618,6 +3627,35 @@
       }).catch(function (e) {
         runnerMsg("SSH test failed: " + e.message, true, "cfg-remote-msg");
       }).then(function () { $("cfg-remote-test").disabled = false; });
+    }
+
+    function testTelegram() {
+      if (!live()) { runnerMsg("Server not available — start pull_eval_server.py.", true, "cfg-notify-msg"); return; }
+      runnerMsg("Sending a test message…", false, "cfg-notify-msg");
+      $("cfg-notify-test").disabled = true;
+      fetch(base() + "/api/notify-test", { method: "POST" }).then(function (r) {
+        return r.json();
+      }).then(function (d) {
+        runnerMsg(d.ok ? "✓ Sent — check your phone."
+          : (d.disabled ? "Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env first."
+             : "✗ Failed: " + (d.error || "unknown")), !d.ok, "cfg-notify-msg");
+      }).catch(function (e) {
+        runnerMsg("Telegram test failed: " + e.message, true, "cfg-notify-msg");
+      }).then(function () { $("cfg-notify-test").disabled = false; });
+    }
+
+    function refreshNotifyStatus() {
+      if (!live()) { $("cfg-notify-bar").style.display = "none"; $("cfg-notify-note").style.display = "none"; return; }
+      fetch(base() + "/api/notify-status").then(function (r) {
+        return r.ok ? r.json() : null;
+      }).then(function (d) {
+        if (!d) return;
+        $("cfg-notify-bar").style.display = "flex";
+        var note = $("cfg-notify-note"); note.style.display = "block";
+        note.textContent = d.enabled
+          ? "On: the server pushes a Telegram message when a new analysis appears in results/. Reads .env live; the token is never shown."
+          : ("To enable, set in .env: " + d.missing.join(", ") + " (from @BotFather + /getUpdates).");
+      }).catch(function () {});
     }
 
     function refreshVastStatus() {
@@ -3725,6 +3763,7 @@
       $("cfg-remote-bat").addEventListener("click", function () { downloadRunner("win", "remote"); });
       $("cfg-remote-sh").addEventListener("click", function () { downloadRunner("unix", "remote"); });
       $("cfg-remote-test").addEventListener("click", testSsh);
+      $("cfg-notify-test").addEventListener("click", testTelegram);
       Array.prototype.forEach.call(document.querySelectorAll("#cfg-weights input[data-w]"), function (el) {
         el.addEventListener("input", updateWsum);
       });

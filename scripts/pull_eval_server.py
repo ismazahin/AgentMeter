@@ -130,17 +130,24 @@ def _manual_cors(resp):
 
 def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_DIR,
                guard: "CostGuard" = None, app_store=None,
-               app_db_path: Path = None, local_results_dir: Path = None):
+               app_db_path: Path = None, local_results_dir: Path = None,
+               start_watcher: bool = False):
     import json as _json
 
     from flask import Flask, Response, jsonify, request, send_from_directory
 
     from agentmeter import appdb, config_builder, crud_api, hf_metadata, local_sessions
+    from agentmeter.server import notify
 
     app = Flask(__name__, static_folder=None)
 
     # Phase 16 — read-only discovery of result JSON files under results/.
     local = local_sessions.LocalSessions(local_results_dir or (REPO_ROOT / "results"))
+
+    # Phase 30 — watch results/ for NEW analyses and push a Telegram notification.
+    # Seeded with what exists now, so only analyses that appear later notify.
+    results_watcher = notify.NewResultsWatcher(local.root)
+    results_watcher.seed()
 
     # Metadata DB (Phase 12 CRUD) — opened LAZILY on first CRUD use, so serving the
     # dashboard / pull API never creates it. Separate from the locked study DB.
@@ -323,6 +330,27 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
         from agentmeter.server import remote_runner
         return jsonify(remote_runner.test_connection())
 
+    # Phase 30 — Telegram notifications (new-analysis push).
+    @app.route("/api/notify-status", methods=["GET"])
+    def notify_status_ep():
+        """Telegram readiness from .env — PRESENCE only, never the token value."""
+        return jsonify(notify.notify_status())
+
+    @app.route("/api/notify-test", methods=["POST", "OPTIONS"])
+    def notify_test_ep():
+        """Send a test message so the user can confirm the bot token + chat id work."""
+        if request.method == "OPTIONS":
+            return ("", 204)
+        return jsonify(notify.send_telegram(
+            "AgentMeter: test notification — your Telegram alerts are working."))
+
+    @app.route("/api/notify-check", methods=["POST", "OPTIONS"])
+    def notify_check_ep():
+        """Scan results/ once and notify for any new analysis (also runs on a timer)."""
+        if request.method == "OPTIONS":
+            return ("", 204)
+        return jsonify({"new": results_watcher.poll_once()})
+
     # --- dashboard (same-origin) ---------------------------------------
     @app.route("/", methods=["GET"])
     def index():
@@ -389,6 +417,19 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
             return jsonify({"error": "no completed pull/eval yet",
                             "status": manager.status()}), 404
         return jsonify(payload)
+
+    # Phase 30 — background poller: notify on new analyses even when no browser is
+    # open (so the phone push reaches you while you are away). Daemon thread; a
+    # failure in a poll never takes down the server.
+    if start_watcher:
+        def _watch_loop():
+            while True:
+                try:
+                    results_watcher.poll_once()
+                except Exception as e:  # noqa: BLE001
+                    logging.getLogger("agentmeter.notify").warning("watch poll failed: %s", e)
+                time.sleep(15)
+        threading.Thread(target=_watch_loop, daemon=True).start()
 
     return app
 
@@ -513,7 +554,7 @@ def main(argv=None) -> int:
     )
     guard.manager = manager
     app = create_app(manager, guard=guard, app_db_path=args.app_db,
-                     local_results_dir=args.results_dir)
+                     local_results_dir=args.results_dir, start_watcher=True)
 
     _print_startup(args.port)
     _log_safety_modes(args, instance_id)

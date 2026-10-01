@@ -51,6 +51,17 @@ def test_runner_sh_wraps_exact_command(tmp_path):
     assert "\r\n" not in content                       # LF only
 
 
+def test_runner_tolerates_path_or_extension_in_name(tmp_path):
+    # the dashboard may pass a full saved path (Unix "/" or Windows "\") or a .yaml
+    # name; all must resolve to the same user config.
+    _make_user_cfg(tmp_path, "my-experiment")
+    for nm in ("my-experiment", "my-experiment.yaml",
+               "configs/user/my-experiment.yaml", "configs\\user\\my-experiment"):
+        fname, content = cb.runner_script(nm, "win", base_dir=tmp_path)
+        assert fname == "run_my-experiment.bat"
+        assert "configs/user/my-experiment.yaml run-full" in content
+
+
 def test_runner_refuses_nonexistent_config(tmp_path):
     with pytest.raises(cb.ConfigBuildError, match="not found"):
         cb.runner_script("does-not-exist", "win", base_dir=tmp_path)

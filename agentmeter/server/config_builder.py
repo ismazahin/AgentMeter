@@ -307,6 +307,12 @@ def _resolve_existing_user_config(name: str, base_dir: Path | None = None) -> tu
     config, the root config, and any traversal outside the user config dir. Returns
     (slug, resolved_path)."""
     base = (base_dir or USER_CONFIG_DIR)
+    # Tolerate a full path or a trailing .yaml being passed as the name: keep only
+    # the final path component and drop the extension before slugging. slugify still
+    # sanitises, so this never widens what can be reached.
+    name = re.split(r"[\\/]", str(name or ""))[-1]
+    if name.lower().endswith(".yaml"):
+        name = name[:-5]
     slug = slugify(name)
     resolved = (base / f"{slug}.yaml").resolve()
     if resolved in _PROTECTED:

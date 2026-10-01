@@ -3533,7 +3533,8 @@
       lastYaml = yaml;
       $("cfg-yaml").textContent = yaml;
       if (path) {
-        lastName = path.split("/").pop();
+        // the saved path may use "/" (Unix) or "\" (Windows) separators
+        lastName = path.split(/[\\/]/).pop();
         lastConfigStem = lastName.replace(/\.yaml$/i, "");
         $("cfg-preview-path").textContent = "Saved: " + path;
         $("cfg-preview-bar").style.display = "flex";

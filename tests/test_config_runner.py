@@ -35,6 +35,7 @@ def test_runner_bat_wraps_exact_command(tmp_path):
     assert "python main.py --config configs/user/my-run.yaml run-full" in content
     assert content.startswith("@echo off")
     assert "pause" in content                          # window stays open
+    assert 'if not exist "main.py" goto nomain' in content   # clear "wrong folder" guard
     assert "\r\n" in content                           # CRLF for Windows
     assert 'cd /d "%~dp0"' in content                  # runs from the repo root
     # references ONLY the user config, never the locked/root config
@@ -48,6 +49,7 @@ def test_runner_sh_wraps_exact_command(tmp_path):
     assert content.startswith("#!/usr/bin/env bash")
     assert "python main.py --config configs/user/my-run.yaml run-full" in content
     assert "read -r -p" in content                     # prompt keeps the terminal open
+    assert '[ ! -f "main.py" ]' in content             # clear "wrong folder" guard
     assert "\r\n" not in content                       # LF only
 
 

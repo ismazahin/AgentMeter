@@ -75,6 +75,29 @@ def load_env(paths: Iterable[str] = (".env", ".env.local")) -> list[str]:
     return loaded
 
 
+def read_dotenv_live(paths: Iterable[str] = (".env", ".env.local")) -> dict[str, str]:
+    """Read the .env file(s) FRESH and return their KEY=VALUE pairs, merged with the
+    process environment as a fallback (file values WIN, so an edit to .env is picked
+    up without restarting the server). Does NOT mutate os.environ. Values are returned
+    to the caller but must never be logged.
+    """
+    merged: dict[str, str] = {}
+    for p in paths:
+        path = Path(p)
+        if not path.exists():
+            continue
+        try:
+            from dotenv import dotenv_values
+            vals = {k: v for k, v in dict(dotenv_values(str(path))).items() if v is not None}
+        except Exception:  # noqa: BLE001 — python-dotenv optional
+            vals = _parse_env_file(path)
+        merged.update(vals)
+    # process env fills any key the file did not set
+    for k, v in os.environ.items():
+        merged.setdefault(k, v)
+    return merged
+
+
 def token_present(var: str) -> bool:
     return bool(os.environ.get(var))
 

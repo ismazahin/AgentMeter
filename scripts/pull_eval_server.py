@@ -292,13 +292,27 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
     def config_runner_ep():
         name = request.args.get("name", "")
         os_kind = (request.args.get("os", "win") or "win").lower()
+        target = (request.args.get("target", "local") or "local").lower()
         try:
-            filename, content = config_builder.runner_script(name, os_kind)
+            if target == "remote":
+                # Phase 29: run on a Vast/SSH GPU box. Reads .env LIVE for the SSH
+                # target; the generated file embeds only host/port/user/key-path.
+                from agentmeter.server import remote_runner
+                filename, content = remote_runner.remote_runner_script(name, os_kind)
+            else:
+                filename, content = config_builder.runner_script(name, os_kind)
         except config_builder.ConfigBuildError as e:
             return jsonify({"error": str(e)}), 400
         resp = Response(content, mimetype="application/octet-stream")
         resp.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
         return resp
+
+    @app.route("/api/vast-status", methods=["GET"])
+    def vast_status_ep():
+        """Readiness of the remote (Vast/SSH) runner from .env — PRESENCE only,
+        never any secret value. Read live so an .env edit is reflected immediately."""
+        from agentmeter.server import remote_runner
+        return jsonify(remote_runner.ssh_status())
 
     # --- dashboard (same-origin) ---------------------------------------
     @app.route("/", methods=["GET"])

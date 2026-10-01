@@ -943,6 +943,13 @@
       AgentMeter folder, and double-click to run. Requires a GPU and the Python environment set up.
       It wraps <code>python main.py --config configs/user/&lt;name&gt;.yaml run-full</code> — the dashboard
       never runs it. Results appear in <b>Local results</b> afterward.</p>
+    <div class="exportbar" id="cfg-remote-bar" style="display:none">
+      <span class="lbl">Run on your Vast/SSH GPU box:</span>
+      <button class="ghost" id="cfg-remote-bat">Remote runner (.bat)</button>
+      <button class="ghost" id="cfg-remote-sh">Remote runner (.sh)</button>
+      <span class="note" id="cfg-remote-msg" style="margin-left:12px"></span>
+    </div>
+    <p class="note" id="cfg-remote-note" style="display:none"></p>
     <pre class="cfg-yaml" id="cfg-yaml">Fill in the form and click <b>Preview YAML</b> or <b>Save config</b>.</pre>
   </div>
 
@@ -3541,33 +3548,44 @@
         // runner is offered only for a SAVED user config (needs a real file)
         $("cfg-runner-bar").style.display = "flex";
         $("cfg-runner-note").style.display = "block";
+        refreshVastStatus();   // show the remote-runner option + .env readiness
       } else {
         // a preview is not written, so there is nothing to make a runner for
         $("cfg-runner-bar").style.display = "none";
         $("cfg-runner-note").style.display = "none";
+        $("cfg-remote-bar").style.display = "none";
+        $("cfg-remote-note").style.display = "none";
       }
     }
 
-    function runnerMsg(text, isErr) {
-      var el = $("cfg-runner-msg");
+    function runnerMsg(text, isErr, elId) {
+      var el = $(elId || "cfg-runner-msg");
       if (el) { el.textContent = text; el.style.color = isErr ? "var(--bad, #d33)" : ""; }
       setMsg(text, isErr);   // also mirror to the main config-builder status line
     }
-    function downloadRunner(osKind) {
+    function downloadRunner(osKind, target) {
       if (!lastConfigStem) return;
+      var remote = target === "remote";
+      var msgEl = remote ? "cfg-remote-msg" : "cfg-runner-msg";
       var ext = osKind === "win" ? ".bat" : ".sh";
-      if (!live()) { runnerMsg("Server not available — start pull_eval_server.py, then reload.", true); return; }
-      runnerMsg("Preparing runner (" + ext + ")…", false);
-      var url = base() + "/api/config-runner?name=" + encodeURIComponent(lastConfigStem) + "&os=" + osKind;
+      if (!live()) { runnerMsg("Server not available — start pull_eval_server.py, then reload.", true, msgEl); return; }
+      runnerMsg("Preparing " + (remote ? "remote " : "") + "runner (" + ext + ")…", false, msgEl);
+      var url = base() + "/api/config-runner?name=" + encodeURIComponent(lastConfigStem) + "&os=" + osKind
+        + (remote ? "&target=remote" : "");
       // Fetch first so we can DETECT an old server (no route -> JSON 404) and tell the
       // user to restart it, instead of the browser silently saving a failed
       // "config-runner.json". On success we download the real file via a blob.
       fetch(url).then(function (r) {
         var ct = r.headers.get("content-type") || "";
         if (!r.ok || ct.indexOf("application/json") !== -1) {
-          return r.text().then(function () {
+          // a JSON body carries the server's real reason (e.g. "set VAST_SSH_* in .env")
+          return r.json().then(function (d) {
+            throw new Error((d && d.error) ? d.error
+              : (r.status === 404 ? "this server has no /api/config-runner route — restart pull_eval_server.py."
+                 : "server rejected the runner (HTTP " + r.status + ")."));
+          }, function () {
             throw new Error(r.status === 404
-              ? "this server has no /api/config-runner route — restart pull_eval_server.py so it loads the runner (Phase 28)."
+              ? "this server has no /api/config-runner route — restart pull_eval_server.py."
               : "server rejected the runner (HTTP " + r.status + ").");
           });
         }
@@ -3582,8 +3600,27 @@
         a.download = res.fname;
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-        runnerMsg("Downloaded " + res.fname + " — put it in the AgentMeter folder and double-click.", false);
-      }).catch(function (e) { runnerMsg("Runner download failed: " + e.message, true); });
+        runnerMsg("Downloaded " + res.fname + " — " + (remote
+          ? "double-click to run on your GPU box."
+          : "put it in the AgentMeter folder and double-click."), false, msgEl);
+      }).catch(function (e) { runnerMsg("Runner download failed: " + e.message, true, msgEl); });
+    }
+
+    function refreshVastStatus() {
+      if (!live()) { $("cfg-remote-bar").style.display = "none"; $("cfg-remote-note").style.display = "none"; return; }
+      fetch(base() + "/api/vast-status").then(function (r) {
+        return r.ok ? r.json() : null;
+      }).then(function (d) {
+        if (!d) return;
+        $("cfg-remote-bar").style.display = "flex";
+        $("cfg-remote-bat").disabled = !d.ready;
+        $("cfg-remote-sh").disabled = !d.ready;
+        var note = $("cfg-remote-note"); note.style.display = "block";
+        note.textContent = d.ready
+          ? "Reads your .env SSH details live: SSHes into your GPU box, runs the benchmark there, and copies results back to Local results. Your private key and API key are never written into the file."
+          : ("To enable, set these in .env: " + d.missing.join(", ")
+             + " (plus optional VAST_SSH_USER, VAST_SSH_KEY, VAST_REMOTE_DIR). The web app re-reads .env on each click.");
+      }).catch(function () {});
     }
 
     function post(path, cb) {
@@ -3670,6 +3707,8 @@
       $("cfg-download-btn").addEventListener("click", download);
       $("cfg-runner-bat").addEventListener("click", function () { downloadRunner("win"); });
       $("cfg-runner-sh").addEventListener("click", function () { downloadRunner("unix"); });
+      $("cfg-remote-bat").addEventListener("click", function () { downloadRunner("win", "remote"); });
+      $("cfg-remote-sh").addEventListener("click", function () { downloadRunner("unix", "remote"); });
       Array.prototype.forEach.call(document.querySelectorAll("#cfg-weights input[data-w]"), function (el) {
         el.addEventListener("input", updateWsum);
       });

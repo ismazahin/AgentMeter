@@ -98,6 +98,70 @@ def test_remote_runner_refuses_missing_config(tmp_path):
         rr.remote_runner_script("never", "win", env=FULL_ENV, base_dir=tmp_path)
 
 
+# --- test_connection (pre-flight SSH check) ------------------------------
+
+class _Proc:
+    def __init__(self, returncode=0, stdout="", stderr=""):
+        self.returncode = returncode; self.stdout = stdout; self.stderr = stderr
+
+
+def _runner_capturing(argv_box, proc):
+    def run(argv, **kw):
+        argv_box.append(argv); argv_box.append(kw)
+        return proc
+    return run
+
+
+def test_connection_ok_and_agentmeter_found():
+    box = []
+    res = rr.test_connection(env=FULL_ENV, runner=_runner_capturing(box, _Proc(0, "AGENTMETER_OK\n")))
+    assert res["ok"] is True and "found AgentMeter" in res["message"]
+    argv = box[0]
+    # safe invocation: argv list, BatchMode, timeouts, key path, read-only remote cmd
+    assert argv[0] == "ssh" and "BatchMode=yes" in argv
+    assert "-p" in argv and "root@ssh5.vast.ai" in argv
+    assert any("test -f" in a and "main.py" in a for a in argv)   # never runs the benchmark
+    assert not any("run-full" in a for a in argv)
+    assert box[1].get("timeout")                                  # bounded by a timeout
+
+
+def test_connection_connected_but_no_mainpy():
+    res = rr.test_connection(env=FULL_ENV, runner=lambda *a, **k: _Proc(0, "NO_MAINPY\n"))
+    assert res["ok"] is True and res.get("warn") is True and "main.py is not" in res["message"]
+
+
+def test_connection_auth_failure():
+    res = rr.test_connection(env=FULL_ENV,
+                             runner=lambda *a, **k: _Proc(255, "", "Permission denied (publickey).\n"))
+    assert res["ok"] is False and "Permission denied" in res["message"]
+
+
+def test_connection_not_ready():
+    res = rr.test_connection(env={})
+    assert res["ok"] is False and "VAST_SSH_HOST" in res["message"]
+
+
+def test_connection_ssh_missing():
+    def boom(*a, **k):
+        raise FileNotFoundError()
+    res = rr.test_connection(env=FULL_ENV, runner=boom)
+    assert res["ok"] is False and "ssh not found" in res["message"]
+
+
+def test_connection_timeout():
+    import subprocess as sp
+    def slow(*a, **k):
+        raise sp.TimeoutExpired(cmd="ssh", timeout=20)
+    res = rr.test_connection(env=FULL_ENV, runner=slow)
+    assert res["ok"] is False and "Timed out" in res["message"]
+
+
+def test_connection_never_leaks_api_key():
+    box = []
+    rr.test_connection(env=FULL_ENV, runner=_runner_capturing(box, _Proc(0, "AGENTMETER_OK")))
+    assert "SECRET-API-KEY-SHOULD-NOT-LEAK" not in str(box[0])
+
+
 # --- endpoints -----------------------------------------------------------
 
 def _client(tmp_path, monkeypatch, env=None):
@@ -162,3 +226,10 @@ def test_remote_endpoint_refuses_without_env(tmp_path, monkeypatch):
     r = client.get(f"/api/config-runner?name={stem}&os=win&target=remote")
     assert r.status_code == 400
     assert "SSH details missing" in r.get_json()["error"]
+
+
+def test_vast_test_endpoint(tmp_path, monkeypatch):
+    client = _client(tmp_path, monkeypatch, env=FULL_ENV)
+    monkeypatch.setattr(rr.subprocess, "run", lambda *a, **k: _Proc(0, "AGENTMETER_OK\n"))
+    d = client.post("/api/vast-test").get_json()
+    assert d["ok"] is True and "found AgentMeter" in d["message"]

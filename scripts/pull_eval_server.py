@@ -314,6 +314,15 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
         from agentmeter.server import remote_runner
         return jsonify(remote_runner.ssh_status())
 
+    @app.route("/api/vast-test", methods=["POST", "OPTIONS"])
+    def vast_test_ep():
+        """Pre-flight: a bounded, read-only SSH check (reachable + AgentMeter present).
+        Runs NO benchmark. Reads .env live. Returns ok/message only, never a secret."""
+        if request.method == "OPTIONS":
+            return ("", 204)
+        from agentmeter.server import remote_runner
+        return jsonify(remote_runner.test_connection())
+
     # --- dashboard (same-origin) ---------------------------------------
     @app.route("/", methods=["GET"])
     def index():

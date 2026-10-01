@@ -945,6 +945,7 @@
       never runs it. Results appear in <b>Local results</b> afterward.</p>
     <div class="exportbar" id="cfg-remote-bar" style="display:none">
       <span class="lbl">Run on your Vast/SSH GPU box:</span>
+      <button class="ghost" id="cfg-remote-test">Test SSH connection</button>
       <button class="ghost" id="cfg-remote-bat">Remote runner (.bat)</button>
       <button class="ghost" id="cfg-remote-sh">Remote runner (.sh)</button>
       <span class="note" id="cfg-remote-msg" style="margin-left:12px"></span>
@@ -3606,6 +3607,19 @@
       }).catch(function (e) { runnerMsg("Runner download failed: " + e.message, true, msgEl); });
     }
 
+    function testSsh() {
+      if (!live()) { runnerMsg("Server not available — start pull_eval_server.py.", true, "cfg-remote-msg"); return; }
+      runnerMsg("Testing SSH connection…", false, "cfg-remote-msg");
+      $("cfg-remote-test").disabled = true;
+      fetch(base() + "/api/vast-test", { method: "POST" }).then(function (r) {
+        return r.json();
+      }).then(function (d) {
+        runnerMsg((d.ok ? (d.warn ? "⚠ " : "✓ ") : "✗ ") + (d.message || (d.ok ? "OK" : "failed")), !d.ok, "cfg-remote-msg");
+      }).catch(function (e) {
+        runnerMsg("SSH test failed: " + e.message, true, "cfg-remote-msg");
+      }).then(function () { $("cfg-remote-test").disabled = false; });
+    }
+
     function refreshVastStatus() {
       if (!live()) { $("cfg-remote-bar").style.display = "none"; $("cfg-remote-note").style.display = "none"; return; }
       fetch(base() + "/api/vast-status").then(function (r) {
@@ -3615,6 +3629,7 @@
         $("cfg-remote-bar").style.display = "flex";
         $("cfg-remote-bat").disabled = !d.ready;
         $("cfg-remote-sh").disabled = !d.ready;
+        $("cfg-remote-test").disabled = !d.ready;
         var note = $("cfg-remote-note"); note.style.display = "block";
         note.textContent = d.ready
           ? "Reads your .env SSH details live: SSHes into your GPU box, runs the benchmark there, and copies results back to Local results. Your private key and API key are never written into the file."
@@ -3709,6 +3724,7 @@
       $("cfg-runner-sh").addEventListener("click", function () { downloadRunner("unix"); });
       $("cfg-remote-bat").addEventListener("click", function () { downloadRunner("win", "remote"); });
       $("cfg-remote-sh").addEventListener("click", function () { downloadRunner("unix", "remote"); });
+      $("cfg-remote-test").addEventListener("click", testSsh);
       Array.prototype.forEach.call(document.querySelectorAll("#cfg-weights input[data-w]"), function (el) {
         el.addEventListener("input", updateWsum);
       });

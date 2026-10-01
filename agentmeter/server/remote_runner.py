@@ -20,8 +20,9 @@ repo is kept in sync). This module does not provision, install, or rent anything
 """
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import yaml
 
@@ -60,6 +61,54 @@ def ssh_status(env: Optional[dict[str, str]] = None) -> dict[str, Any]:
     missing = [k for k in REQUIRED_KEYS if not present[k]]
     return {"ready": not missing, "missing": missing, "present": present,
             "required": list(REQUIRED_KEYS), "optional": list(OPTIONAL_KEYS)}
+
+
+def test_connection(env: Optional[dict[str, str]] = None,
+                    runner: Optional[Callable] = None, timeout: int = 20) -> dict[str, Any]:
+    """Pre-flight: a bounded, READ-ONLY SSH check using the .env target. Confirms the
+    box is reachable and that AgentMeter (main.py) is present in VAST_REMOTE_DIR. It
+    runs NO benchmark and changes nothing on the box.
+
+    Safe by construction: argv list (no shell), BatchMode=yes (never hangs on a
+    password prompt), connect + overall timeouts, and host/port/key come from .env
+    (operator-trusted), never from the browser. Returns a small dict (ok/message),
+    never any secret.
+    """
+    env = env if env is not None else envtools.read_dotenv_live()
+    ssh = ssh_config(env)
+    if not ssh["ready"]:
+        return {"ok": False, "ready": False,
+                "message": "Set VAST_SSH_HOST and VAST_SSH_PORT in .env first."}
+    run = runner or subprocess.run
+    remote_dir = ssh["remote_dir"]
+    # one argv element -> passed to the REMOTE shell (which expands ~); no local shell.
+    remote_cmd = f"test -f {remote_dir}/main.py && echo AGENTMETER_OK || echo NO_MAINPY"
+    argv = ["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "ConnectTimeout=10"]
+    if ssh["key"]:
+        argv += ["-i", ssh["key"]]
+    argv += ["-p", str(ssh["port"]), f"{ssh['user']}@{ssh['host']}", remote_cmd]
+    try:
+        proc = run(argv, capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError:
+        return {"ok": False, "message": "ssh not found on this machine. Install the "
+                "OpenSSH client (Windows 10+ has it under Optional Features)."}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "message": f"Timed out connecting to {ssh['host']}. Check "
+                "the host/port and that the instance is running."}
+    out = (getattr(proc, "stdout", "") or "")
+    err = (getattr(proc, "stderr", "") or "")
+    if getattr(proc, "returncode", 1) == 0 and "AGENTMETER_OK" in out:
+        return {"ok": True, "message": f"Connected to {ssh['user']}@{ssh['host']} and "
+                f"found AgentMeter in {remote_dir}."}
+    if getattr(proc, "returncode", 1) == 0 and "NO_MAINPY" in out:
+        return {"ok": True, "warn": True,
+                "message": f"Connected, but main.py is not in {remote_dir}. "
+                "Set VAST_REMOTE_DIR correctly or install AgentMeter there."}
+    # connection/auth failure — surface the last stderr line (no secret in ssh stderr)
+    reason = next((ln.strip() for ln in reversed(err.splitlines()) if ln.strip()),
+                  "connection failed")
+    return {"ok": False, "message": f"Could not connect: {reason[:200]}"}
 
 
 def _analysis_rel(slug: str, base_dir: Optional[Path] = None) -> str:

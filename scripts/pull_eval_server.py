@@ -178,6 +178,29 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
         def after(resp):  # noqa: ANN001
             return _manual_cors(resp)
 
+    # Phase 31 — optional HTTP Basic Auth gate (for internet exposure). OFF by
+    # default (local use unchanged); ENABLED when AGENTMETER_AUTH_PASS is set in the
+    # environment/.env. When on, EVERY route needs the user/pass (browsers prompt
+    # once and reuse it for fetches too), except CORS preflight and /health. Use
+    # only over HTTPS (a tunnel/reverse proxy provides TLS) — Basic Auth is plaintext.
+    import hmac as _hmac
+    auth_user = os.environ.get("AGENTMETER_AUTH_USER", "agentmeter")
+    auth_pass = os.environ.get("AGENTMETER_AUTH_PASS", "")
+    app.config["AUTH_ENABLED"] = bool(auth_pass)
+    if auth_pass:
+        @app.before_request
+        def _require_auth():  # noqa: ANN202
+            if request.method == "OPTIONS" or request.path == "/health":
+                return None
+            a = request.authorization
+            ok = (a is not None and (getattr(a, "type", "basic") or "basic") == "basic"
+                  and _hmac.compare_digest((a.username or ""), auth_user)
+                  and _hmac.compare_digest((a.password or ""), auth_pass))
+            if not ok:
+                return Response("Authentication required", 401,
+                                {"WWW-Authenticate": 'Basic realm="AgentMeter"'})
+            return None
+
     # Phase 12 — CRUD routes for sessions / presets / notes.
     crud_api.register_crud(app, get_store)
 
@@ -564,6 +587,14 @@ def main(argv=None) -> int:
         threading.Thread(target=guard.watchdog, args=(stop,), daemon=True).start()
 
     if args.ngrok:
+        if not app.config.get("AUTH_ENABLED"):
+            print("\n" + "!" * 72, file=sys.stderr)
+            print("  WARNING: opening a PUBLIC tunnel with NO authentication.", file=sys.stderr)
+            print("  Anyone with the URL can read your results AND trigger /pull-eval", file=sys.stderr)
+            print("  (which SPENDS GPU money). Set AGENTMETER_AUTH_USER / "
+                  "AGENTMETER_AUTH_PASS", file=sys.stderr)
+            print("  in .env to require a login. See docs/DEPLOY.md.", file=sys.stderr)
+            print("!" * 72 + "\n", file=sys.stderr)
         try:
             url = _open_tunnel(args.port)
             print(f"  ngrok tunnel : {url}  (optional public URL)", flush=True)

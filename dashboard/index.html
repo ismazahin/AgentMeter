@@ -199,6 +199,12 @@
   .subtabs .subtab.active { color: var(--accent); border-bottom-color: var(--accent); }
   .subview { display: none; }
   .subview.active { display: block; }
+  /* Decision support (Phase 32B; read-only, additive) */
+  .ds-caveat { border-left: 3px solid var(--accent); padding: 8px 0 8px 12px; margin-top: 10px; color: var(--ink); font-weight: 600; }
+  .ds-filter-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; }
+  .ds-filter-controls input[type="number"] { width: 92px; }
+  td.cf-pass, span.cf-pass { color: #1a7f37; font-weight: 700; }
+  td.cf-fail, span.cf-fail { color: #cf222e; font-weight: 700; }
   /* highlight cards (Artificial-Analysis-style) */
   .highlights { display: grid; gap: 16px; grid-template-columns: 1fr; }
   @media (min-width: 780px) { .highlights { grid-template-columns: 1fr 1fr 1fr; } }
@@ -608,7 +614,33 @@
       <button class="ghost" id="exp-agent-csv">Per-agent CSV</button>
       <button class="ghost" id="exp-class-csv">Per-class CSV</button>
       <button class="ghost" id="exp-print">Print report</button>
+      <button class="ghost" id="exp-brief">Decision brief</button>
     </div>
+  </div>
+
+  <div class="section-label">Decision support</div>
+  <div class="panel">
+    <h2>Deployment recommendation <span class="hint">— what to do with this result, in plain language (updates live with the weights below)</span><span class="help"><button class="help-btn" type="button" data-help="ds-rec" aria-label="What is this?">?</button></span></h2>
+    <p class="finding" id="ds-rec-headline"></p>
+    <p class="note ds-caveat" id="ds-rec-caveat"></p>
+  </div>
+
+  <div class="panel">
+    <h2>What-if constraint filter <span class="hint">— set resource/accuracy limits; see which models pass against the measured values (no new runs)</span><span class="help"><button class="help-btn" type="button" data-help="ds-filter" aria-label="What is this?">?</button></span></h2>
+    <div class="controls ds-filter-controls" style="margin-bottom:12px">
+      <label>Max latency (s): <input type="number" id="cf-latency" min="0" step="0.1" autocomplete="off"></label>
+      <label style="margin-left:14px">Max VRAM (MB): <input type="number" id="cf-vram" min="0" step="100" autocomplete="off"></label>
+      <label style="margin-left:14px">Max tokens: <input type="number" id="cf-tokens" min="0" step="50" autocomplete="off"></label>
+      <label style="margin-left:14px">Min accuracy (%): <input type="number" id="cf-accuracy" min="0" max="100" step="1" autocomplete="off"></label>
+      <button class="ghost" id="cf-clear" type="button" style="margin-left:14px">Clear</button>
+    </div>
+    <table id="cf-table"></table>
+    <p class="note" id="cf-note"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Optimisation guidance <span class="hint">— where resource cost concentrates and how to reduce it (resource cost only)</span><span class="help"><button class="help-btn" type="button" data-help="ds-optim" aria-label="What is this?">?</button></span></h2>
+    <p class="finding" id="ds-optim"></p>
   </div>
 
   <div class="section-label">Model context</div>
@@ -2450,6 +2482,107 @@
     hcardBars("hc-latency", lat, function (v) { return v.toFixed(1) + "s"; }, false, "c3");
   }
 
+  // ==== Phase 32B — Decision Support (Overview; read-only, additive) ====
+  // Ranking is reused from saw.js (SAW.rankModels), exactly as renderSaw does —
+  // so the recommendation tracks the live sliders. All narration/formatting lives
+  // in report.js (node-tested); nothing here recomputes a locked number.
+  function liveRanked() {
+    var d = state.data; if (!d || !d.phase8) return [];
+    var p8 = d.phase8;
+    var norm = (p8.normalised || []).slice();
+    var exp = state.exploratory;
+    if (exp && exp.normalised) {
+      var em = exp.model || exp.normalised.model;
+      if (!norm.some(function (n) { return n.model === em; })) norm.push(exp.normalised);
+    }
+    var tiers = p8.tiers || { healthy_min: 80, degraded_min: 60 };
+    return SAW.rankModels(norm, state.weights, tiers);
+  }
+
+  function renderDecision() {
+    var d = state.data; if (!d || !d.phase8) return;
+    var ranked = liveRanked();
+    var rec = REPORT.recommendation(d, ranked, state.weights);
+    var h = document.getElementById("ds-rec-headline");
+    var c = document.getElementById("ds-rec-caveat");
+    if (h) h.textContent = rec.headline;
+    if (c) c.textContent = rec.caveat;      // textContent: the honesty caveat, never HTML
+    var o = document.getElementById("ds-optim");
+    if (o) o.textContent = REPORT.optimisationHint(d, rec.top).text;
+  }
+
+  function cfNum(id) {
+    var el = document.getElementById(id);
+    if (!el || el.value === "" || el.value == null) return null;
+    var v = +el.value; return isNaN(v) ? null : v;
+  }
+  var CF_TARGET_PH = { "cf-latency": "latency_s", "cf-vram": "vram_mb",
+                       "cf-tokens": "tokens_total", "cf-accuracy": "accuracy_pct" };
+  function renderConstraintFilter() {
+    var d = state.data; if (!d) return;
+    var tbl = document.getElementById("cf-table");
+    var note = document.getElementById("cf-note");
+    if (!tbl) return;
+    var limits = { latency_s: cfNum("cf-latency"), vram_mb: cfNum("cf-vram"),
+                   tokens_total: cfNum("cf-tokens"), accuracy_pct: cfNum("cf-accuracy") };
+    var out = REPORT.constraintFilter(d, limits);
+    var head = "<thead><tr><th class='l'>Model</th><th>Accuracy</th><th>Latency</th>" +
+      "<th>Total device VRAM</th><th>Tokens</th><th class='l'>Result</th></tr></thead>";
+    var body = out.results.map(function (x) {
+      var v = x.values;
+      var result = (out.activeCount === 0)
+        ? "<span class='note'>—</span>"
+        : (x.pass ? "<span class='cf-pass'>PASS</span>"
+                  : "<span class='cf-fail'>FAIL</span> <span class='note'>(" + esc(x.failed.join(", ")) + ")</span>");
+      return "<tr><td class='model l'>" + esc(x.model) + "</td>" +
+        "<td>" + fmtPct(v.accuracy_pct) + "</td>" +
+        "<td>" + fmtS(v.latency_s) + "</td>" +
+        "<td>" + fmtGB(v.vram_mb) + "</td>" +
+        "<td>" + fmtInt(v.tokens_total) + "</td>" +
+        "<td class='l'>" + result + "</td></tr>";
+    }).join("");
+    tbl.innerHTML = head + "<tbody>" + body + "</tbody>";
+    var msg;
+    if (out.activeCount === 0) {
+      msg = "Enter one or more limits above to test the " + out.results.length +
+        " models against their measured values (read-only — no new runs).";
+    } else if (!out.anyPass) {
+      msg = "No model satisfies all " + out.activeCount + " constraint" +
+        (out.activeCount === 1 ? "" : "s") + " at once. Loosen a limit, or accept the trade-off shown.";
+    } else {
+      var n = out.results.filter(function (x) { return x.pass; }).length;
+      msg = n + " of " + out.results.length + " models pass all set constraints.";
+    }
+    if (out.ignored && out.ignored.length) {
+      msg += " (Ignored — not measured in this analysis: " + esc(out.ignored.join(", ")) + ".)";
+    }
+    if (note) note.textContent = msg;
+  }
+
+  // Show the study targets as input placeholders (hint only; not applied as values).
+  function seedConstraintPlaceholders() {
+    var t = (state.data && state.data.phase8 && state.data.phase8.targets) || {};
+    var map = { "cf-latency": t.latency_s, "cf-vram": t.vram_mb,
+                "cf-tokens": t.tokens_total, "cf-accuracy": t.accuracy_pct };
+    Object.keys(map).forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && map[id] != null) el.setAttribute("placeholder", "target " + map[id]);
+    });
+  }
+  function initDecision() {
+    ["cf-latency", "cf-vram", "cf-tokens", "cf-accuracy"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener("input", renderConstraintFilter);
+    });
+    var clr = document.getElementById("cf-clear");
+    if (clr) clr.addEventListener("click", function () {
+      ["cf-latency", "cf-vram", "cf-tokens", "cf-accuracy"].forEach(function (id) {
+        var el = document.getElementById(id); if (el) el.value = "";
+      });
+      renderConstraintFilter();
+    });
+  }
+
   // ---- render: sliders + presets ----
   function renderWeightReadout() {
     var w = SAW.normalizeWeights(state.weights);
@@ -2480,6 +2613,7 @@
     renderWeightReadout();
     renderSaw();
     renderHighlights();
+    renderDecision();   // recommendation + optimisation track the live weights
   }
 
   function buildSliders() {
@@ -2497,6 +2631,7 @@
         renderWeightReadout();
         renderSaw();
         renderHighlights();
+        renderDecision();   // keep the recommendation in sync with the live sliders
       });
     });
   }
@@ -3339,7 +3474,11 @@
       "exp-saw-csv": guard(function () { downloadText("agentmeter_saw.csv", REPORT.sawCsv(state.data)); }),
       "exp-agent-csv": guard(function () { downloadText("agentmeter_per_agent.csv", REPORT.perAgentCsv(state.data)); }),
       "exp-class-csv": guard(function () { downloadText("agentmeter_per_class.csv", REPORT.perClassCsv(state.data)); }),
-      "exp-print": guard(function () { printReport(REPORT.reportHtml(state.data, currentTitle())); })
+      "exp-print": guard(function () { printReport(REPORT.reportHtml(state.data, currentTitle())); }),
+      "exp-brief": guard(function () {
+        printReport(REPORT.decisionBrief(state.data, liveRanked(), state.weights,
+          currentTitle() + " — decision brief"));
+      })
     };
     Object.keys(map).forEach(function (id) {
       var el = document.getElementById(id); if (el) el.addEventListener("click", map[id]);
@@ -3894,7 +4033,10 @@
     "throughput": "Output tokens produced per second of generation. <b>Higher means the model writes its answer faster</b> once it starts. It's a raw speed measure, independent of how long the answer is.",
     "misclass": "Compares the resource cost (latency, tokens) when a model is right vs when it's wrong. It answers 'do wrong answers cost more?'. <span class=\"g\">A cost comparison only — not a measure of detection quality.</span>",
     "compare": "Line up 2–3 saved sessions to see how their resource cost and scores differ — e.g. the same models on different GPUs. Pick a metric to compare; the best value in each row is highlighted. <span class=\"g\">Read-only: it changes no numbers.</span>",
-    "modelctx": "Live reference facts about each model, pulled from the Hugging Face Hub — size, downloads, likes, license and last update. <b>This is context only</b>, not part of the score and never used to re-rank models. <span class=\"g\">If the Hub is unreachable it simply shows as unavailable; the rest of the dashboard is unaffected.</span>"
+    "modelctx": "Live reference facts about each model, pulled from the Hugging Face Hub — size, downloads, likes, license and last update. <b>This is context only</b>, not part of the score and never used to re-rank models. <span class=\"g\">If the Hub is unreachable it simply shows as unavailable; the rest of the dashboard is unaffected.</span>",
+    "ds-rec": "A plain-language reading of the current ranking: which model is the most resource-efficient choice under the weights you've set. It updates live as you move the sliders. <b>Honesty note:</b> every model is in the Critical tier (accuracy below target), so this is a <b>starting point, not a deployment sign-off</b>.",
+    "ds-filter": "Enter the limits your use case can tolerate (max latency / VRAM / tokens, min accuracy). Each model is checked against its <b>already-measured</b> values and marked PASS or FAIL, with the failing constraint named. <span class=\"g\">It filters existing data only — it never launches a new run, and a limit on a dimension this analysis didn't measure is simply ignored.</span>",
+    "ds-optim": "Points to the pipeline step where resource cost concentrates and suggests how to reduce it — cap that step's token budget or use a lighter model for that step. <span class=\"g\">Strictly a resource-cost suggestion; it is not advice about accuracy or detection quality.</span>"
   };
 
   function closeHelp() {
@@ -4051,6 +4193,10 @@
     buildPcSelector();
     renderPerClass();
     renderAdvanced();
+    // Decision support (Overview; read-only). Recommendation/optimisation were
+    // drawn by setWeights above; (re)seed the constraint filter for this dataset.
+    seedConstraintPlaceholders();
+    renderConstraintFilter();
     // Re-arm render-on-reveal for this fresh dataset. The panels above were drawn
     // while the Detailed view (and its panes) may be hidden, so each group gets
     // one idempotent redraw the first time it is actually shown — see showDetailSub.
@@ -4220,6 +4366,7 @@
   initPullPanel();
   initNav();
   initDetailSubtabs();
+  initDecision();
   CRUD.init();
   initExport();
   COMPARE.init();

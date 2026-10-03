@@ -211,11 +211,184 @@
       "</body></html>";
   }
 
+  /* ============================================================
+   * Phase 32B — Decision support (READ-ONLY; resource efficiency +
+   * model selection only). Pure functions over analysis.json; they
+   * never recompute the locked numbers. Ranking comes from saw.js and
+   * is passed in as `ranked` (an ordered [{model,...}] list); when not
+   * supplied these fall back to the stored saw_table rank verbatim.
+   * ============================================================ */
+
+  // The four SAW criteria, their per-model source field, and direction.
+  // dir "min" = user sets a floor (accuracy); "max" = user sets a ceiling.
+  var DS_CHECKS = [
+    { key: "accuracy_pct", dir: "min", label: "accuracy",
+      get: function (r) { return r.accuracy_pct; } },
+    { key: "latency_s", dir: "max", label: "latency",
+      get: function (r) { return r.latency_s; } },
+    { key: "vram_mb", dir: "max", label: "VRAM",
+      get: function (r) { return vramOf(r); } },
+    { key: "tokens_total", dir: "max", label: "tokens",
+      get: function (r) { return r.tokens_total; } }
+  ];
+
+  // Ordered model list from the live ranking if given, else stored rank.
+  function _rankedModels(data, ranked) {
+    if (ranked && ranked.length) return ranked.map(function (r) { return r.model; });
+    return _sawRows(data).slice()
+      .sort(function (a, b) { return (a.rank == null ? 99 : a.rank) - (b.rank == null ? 99 : b.rank); })
+      .map(function (r) { return r.model; });
+  }
+
+  // Plain-language deployment recommendation. Returns TEXT strings (render with
+  // textContent — no HTML). The headline follows the live ranking/weights; the
+  // caveat is the non-negotiable honesty note, grounded in the LOCKED tier +
+  // accuracy target (weight-independent), never softened.
+  var _DS_PRIO = { accuracy: "accuracy", latency: "speed (latency)",
+                   vram: "memory (VRAM)", tokens: "token economy" };
+  function recommendation(data, ranked, weights) {
+    var p8 = (data && data.phase8) || {};
+    var rows = _sawRows(data);
+    if (!rows.length) return { headline: "", caveat: "", top: null, allCritical: false };
+    var topModel = _rankedModels(data, ranked)[0] || null;
+    var w = weights || p8.weights || {};
+    var prios = Object.keys(_DS_PRIO)
+      .filter(function (k) { return w[k] != null; })
+      .sort(function (a, b) { return (+w[b] || 0) - (+w[a] || 0); })
+      .slice(0, 2).map(function (k) { return _DS_PRIO[k]; });
+    var priTxt = prios.length ? prios.join(", then ") : "the configured weights";
+    var accTarget = (p8.targets && p8.targets.accuracy_pct != null) ? +p8.targets.accuracy_pct : 80;
+    // LOCKED facts: every model sits in the Critical tier AND below the accuracy target.
+    var allCritical = rows.every(function (r) { return (r.tier || "") === "Critical"; });
+    var headline = topModel
+      ? ("Based on your current priorities (" + priTxt + "), " + topModel +
+         " is the most resource-efficient choice.")
+      : "";
+    var caveat;
+    if (allCritical) {
+      caveat = "All " + rows.length + " models fall in the Critical tier (accuracy below the " +
+        accTarget + "% target), so none is recommended for zero-shot deployment as-is" +
+        (topModel ? ("; " + topModel + " is the best resource-efficient starting point.") : ".");
+    } else {
+      caveat = "This is decision support, not a deployment sign-off — check each model's tier " +
+        "and the accuracy target before deploying.";
+    }
+    return { headline: headline, caveat: caveat, top: topModel,
+             allCritical: allCritical, accTarget: accTarget };
+  }
+
+  // What-if constraint filter. limits: {accuracy_pct, latency_s, vram_mb,
+  // tokens_total} — any null/undefined/"" is ignored. Pure filter over measured
+  // values; a requested dimension absent from the data degrades gracefully
+  // (reported in `ignored`, never invented).
+  function constraintFilter(data, limits) {
+    limits = limits || {};
+    var rows = _sawRows(data);
+    function provided(c) { return limits[c.key] != null && limits[c.key] !== "" && !isNaN(+limits[c.key]); }
+    function measurable(c) { return rows.some(function (r) { return c.get(r) != null; }); }
+    var active = DS_CHECKS.filter(function (c) { return provided(c) && measurable(c); });
+    var ignored = DS_CHECKS.filter(function (c) { return provided(c) && !measurable(c); })
+      .map(function (c) { return c.key; });
+    var results = rows.map(function (r) {
+      var failed = [];
+      active.forEach(function (c) {
+        var v = c.get(r);
+        if (v == null) return;                       // field absent on this row -> can't fail it
+        var lim = +limits[c.key];
+        if (c.dir === "min" ? (v < lim) : (v > lim)) failed.push(c.label);
+      });
+      return { model: r.model, pass: failed.length === 0, failed: failed,
+               values: { accuracy_pct: r.accuracy_pct, latency_s: r.latency_s,
+                         vram_mb: vramOf(r), tokens_total: r.tokens_total } };
+    });
+    return { results: results, anyPass: results.some(function (x) { return x.pass; }),
+             activeCount: active.length, ignored: ignored };
+  }
+
+  // Resource-only optimisation guidance from per-agent dominant-cost data.
+  // STRICTLY about resource cost: it never mentions accuracy, detection quality,
+  // fine-tuning, prompts, or RAG, and makes no quality-improvement claim.
+  function optimisationHint(data, model) {
+    var dom = (data && data.per_agent && data.per_agent.dominant) || [];
+    var row = (model && dom.filter(function (d) { return d.model === model; })[0]) || dom[0] || null;
+    if (!row) return { text: "", latency_agent: null, vram_agent: null };
+    var la = row.latency_dominant_agent || null, va = row.vram_dominant_agent || null;
+    var where = [];
+    if (la) where.push('the "' + la + '" step dominates latency');
+    if (va) where.push('"' + va + '" dominates working memory');
+    var text = "Resource cost concentrates in the pipeline" +
+      (where.length ? ": " + where.join(" and ") : "") + ". " +
+      "To cut resource cost, cap that step's token budget (lower its max_new_tokens) or run a " +
+      "lighter model for that one step — this reduces latency, memory and token use only; " +
+      "it does not change the model's verdicts.";
+    return { text: text, latency_agent: la, vram_agent: va };
+  }
+
+  // One-page stakeholder decision brief (standalone HTML; print to PDF via the
+  // existing print path). Values pulled verbatim from analysis.json; ranking from
+  // the live `ranked` if given. No recomputation of locked numbers.
+  function decisionBrief(data, ranked, weights, title) {
+    var sm = sessionSummary(data);
+    var rows = _sawRows(data);
+    var order = _rankedModels(data, ranked);
+    var byM = {}; rows.forEach(function (r) { byM[r.model] = r; });
+    var rec = recommendation(data, ranked, weights);
+    var top = rec.top;
+    var hint = optimisationHint(data, top);
+    var notes = (data && data.notes) || {};
+
+    var rankRows = order.map(function (m, i) {
+      var r = byM[m] || {};
+      return "<tr><td>" + (i + 1) + "</td><td class='l'>" + _htmlEsc(m) + "</td>" +
+        "<td>" + _num(r.accuracy_pct, 1) + "%</td>" +
+        "<td>" + _num(r.latency_s, 2) + " s</td>" +
+        "<td>" + (vramOf(r) == null ? "&mdash;" : _num(vramOf(r) / 1024, 1) + " GB") + "</td>" +
+        "<td>" + (r.tokens_total == null ? "&mdash;" : Math.round(r.tokens_total)) + "</td>" +
+        "<td>" + _num(r.composite, 3) + "</td><td>" + _htmlEsc(r.tier || "&mdash;") + "</td></tr>";
+    }).join("");
+
+    var findings = [];
+    findings.push("Models evaluated: " + _htmlEsc(order.join(", ")) + ".");
+    if (rec.allCritical) findings.push("Accuracy reality: every model is in the <b>Critical</b> tier, " +
+      "below the " + rec.accTarget + "% accuracy target &mdash; <b>none is deployment-ready as-is</b>.");
+    if (hint.latency_agent || hint.vram_agent) findings.push("Where cost concentrates: " +
+      _htmlEsc(hint.text));
+    if (notes.vram_finding) findings.push(_htmlEsc(notes.vram_finding));
+
+    return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>" +
+      _htmlEsc(title || "AgentMeter decision brief") + "</title><style>" +
+      "body{font:14px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c2128;max-width:900px;margin:24px auto;padding:0 16px;}" +
+      "h1{font-size:22px;margin:0 0 2px;} h2{font-size:16px;margin:22px 0 8px;border-bottom:1px solid #e2e6ec;padding-bottom:4px;}" +
+      ".muted{color:#5b6675;} .rec{background:#f3f6fb;border:1px solid #d9e1ec;border-radius:10px;padding:12px 14px;margin:10px 0;}" +
+      ".rec .head{font-weight:700;} .caveat{color:#8a3b00;font-weight:600;margin-top:6px;}" +
+      "table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin:6px 0;}" +
+      "th,td{border-bottom:1px solid #e2e6ec;padding:6px 8px;text-align:right;} th:first-child,td:first-child,.l{text-align:left;}" +
+      "thead th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:#5b6675;}" +
+      "ul{margin:6px 0 0;padding-left:20px;} li{margin:4px 0;} .foot{color:#8a8f98;font-size:12px;margin-top:26px;}" +
+      "@media print{body{margin:0;} a{display:none;}}" +
+      "</style></head><body>" +
+      "<h1>AgentMeter &mdash; " + _htmlEsc(title || "Decision brief") + "</h1>" +
+      "<p class='muted'>Run(s): " + _htmlEsc((sm.run_ids || []).join(", ") || "&mdash;") +
+      " &middot; generated " + new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC</p>" +
+      "<h2>Recommendation</h2><div class='rec'><div class='head'>" + _htmlEsc(rec.headline) + "</div>" +
+      "<div class='caveat'>" + _htmlEsc(rec.caveat) + "</div></div>" +
+      "<h2>Ranking (resource-efficiency composite)</h2>" +
+      "<table><thead><tr><th>#</th><th>Model</th><th>Accuracy</th><th>Latency</th><th>VRAM</th>" +
+      "<th>Tokens</th><th>Composite</th><th>Tier</th></tr></thead><tbody>" + rankRows + "</tbody></table>" +
+      "<h2>Key findings</h2><ul>" + findings.map(function (f) { return "<li>" + f + "</li>"; }).join("") + "</ul>" +
+      "<p class='foot'>Resource-efficiency measurement (latency, VRAM, tokens) + SAW composite, " +
+      "read-only over analysis.json. Decision support only &mdash; not a detection-quality ranking " +
+      "and not a deployment sign-off.</p></body></html>";
+  }
+
   var api = {
     compareSessions: compareSessions, sessionSummary: sessionSummary,
     metricValue: metricValue, vramOf: vramOf,
     sawCsv: sawCsv, perAgentCsv: perAgentCsv, perClassCsv: perClassCsv,
     comparisonCsv: comparisonCsv, reportHtml: reportHtml,
+    recommendation: recommendation, constraintFilter: constraintFilter,
+    optimisationHint: optimisationHint, decisionBrief: decisionBrief,
+    DS_CHECKS: DS_CHECKS,
     HIGHER_BETTER: HIGHER_BETTER, CMP_METRICS: CMP_METRICS
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

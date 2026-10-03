@@ -510,6 +510,9 @@
     flex: none; font: 600 12px/1 var(--sans); color: var(--accent-ink); background: var(--accent);
     border: 1px solid var(--accent); border-radius: var(--radius); padding: 7px 12px; cursor: pointer; }
   .getting-started .gs-x:hover { background: var(--accent-2); border-color: var(--accent-2); }
+  .gs-link { background: none; border: none; padding: 0; margin: 0; font: inherit; color: var(--accent);
+    text-decoration: underline; cursor: pointer; }
+  .gs-link:hover { color: var(--accent-2); }
 
   /* glossary */
   .glossary { margin: 4px 0 0; }
@@ -562,7 +565,8 @@
   <div id="getting-started" class="getting-started" hidden>
     <div class="gs-body"><b>New here?</b> Start on <b>Overview</b> for the model ranking, open
       <b>Detailed Analysis</b> for the breakdowns, and click any <span class="gs-q">?</span> to learn
-      what a metric means. AgentMeter measures <b>resource efficiency</b> — speed, memory and token
+      what a metric means — or open the <button type="button" class="gs-link" onclick="document.querySelector('#nav [data-view=&quot;settings&quot;]').click()">Glossary</button>
+      for every term. AgentMeter measures <b>resource efficiency</b> — speed, memory and token
       use — with accuracy as one factor; it does not claim to pick the single "best" threat detector.</div>
     <button id="gs-dismiss" class="gs-x" type="button">Got it</button>
   </div>
@@ -645,19 +649,19 @@
 
   <div class="section-label">Model context</div>
   <div class="panel">
-    <h2>Reference metadata from Hugging Face Hub <span class="hint">— context only, not part of the score</span><span class="help"><button class="help-btn" type="button" data-help="modelctx" aria-label="What is this?">?</button></span></h2>
+    <h2>Model reference info (Hugging Face) <span class="hint">— context only, not part of the score</span><span class="help"><button class="help-btn" type="button" data-help="modelctx" aria-label="What is this?">?</button></span></h2>
     <table id="mc-table"></table>
     <p class="note" id="mc-note">Loading model metadata…</p>
   </div>
 
   <div class="panel">
-    <h2>Sensitivity — live weights<span class="help"><button class="help-btn" type="button" data-help="sens-live" aria-label="What is this?">?</button></span></h2>
+    <h2>Live weights<span class="help"><button class="help-btn" type="button" data-help="sens-live" aria-label="What is this?">?</button></span></h2>
     <div class="presets" id="presets"></div>
     <div class="sliders" id="sliders"></div>
     <p class="note" id="wsum"></p>
 
     <div class="crud-block" id="saved-presets-block">
-      <h3 class="crud-h3">Saved weight presets <span class="hint">— save the live weights, load them back later</span></h3>
+      <h3 class="crud-h3">Saved weight presets <span class="hint">— save the live weights, load them back later; applies to the live ranking above, not to Config builder</span></h3>
       <div class="row" style="margin-bottom:10px">
         <input type="text" id="preset-name" placeholder="Preset name (e.g. my-weighting)" autocomplete="off">
         <button class="primary" id="preset-save-btn">Save current weights</button>
@@ -674,7 +678,9 @@
 
   <div class="section-label">Admin</div>
   <div class="panel">
-    <h2>Add a model <span class="hint">— pull ONE extra HF model and run it through the same harness (exploratory, NOT part of the validated 5-model study)</span><span class="help right"><button class="help-btn" type="button" data-help="addmodel" aria-label="What is this?">?</button></span></h2>
+    <h2>Run one model now (exploratory) <span class="hint">— benchmarks a single Hugging Face model on this GPU server right now and adds it below as an unvalidated, exploratory row</span><span class="help right"><button class="help-btn" type="button" data-help="addmodel" aria-label="What is this?">?</button></span></h2>
+    <p class="note"><b>Requires the GPU pull/eval server.</b> This runs a real benchmark now, so it only works when the dashboard is opened from a running <code>pull_eval_server.py</code> on a GPU box (e.g. Vast.ai) — not over <code>file://</code> or on a CPU-only machine.</p>
+    <p class="note"><b>Not sure which?</b> <b>Run one model now</b> executes immediately on the server and shows an exploratory result here. <b>Config builder</b> (Config tab) writes a config you run yourself later (and can list many models).</p>
     <div class="admin">
       <div class="row">
         <label for="pull-base">Server base URL</label>
@@ -809,7 +815,7 @@
   <div class="subview" id="dsub-tradeoffs">
 
   <div class="panel">
-    <h2>Sensitivity analysis <span class="hint">— does the ranking hold up if you weight the factors differently? (fixed weight sets from the study)</span><span class="help"><button class="help-btn" type="button" data-help="sensitivity" aria-label="What is this?">?</button></span></h2>
+    <h2>Weighting robustness <span class="hint">— does the ranking hold up if you weight the factors differently? (fixed weight sets from the study)</span><span class="help"><button class="help-btn" type="button" data-help="sensitivity" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="sens-finding"></p>
     <table id="sens-table"></table>
     <p class="note" id="sens-note"></p>
@@ -846,6 +852,7 @@
   <p class="tab-intro"><b>Sessions — save and organise results.</b> Import an <code>analysis.json</code> as a
     named session, add tags to group runs, and reopen any session to load it into the Overview and Detailed
     Analysis tabs. Stored results are read-only once saved. (Needs the AgentMeter server.)</p>
+  <p class="note"><b>Local results</b> = result files the server found under <code>results/</code>; <b>Saved sessions</b> = ones you named and kept in the app; <b>Import</b> = upload an <code>analysis.json</code> file.</p>
   <div class="panel" id="crud-unavailable" style="display:none">
     <h2>Sessions</h2>
     <p class="finding">Saved sessions, presets and notes are stored by the server. Open this dashboard <b>from the pull/eval server</b> (or set the server base URL in the Overview → Add a model panel) to manage them. Over <code>file://</code> this is read-only.</p>
@@ -928,7 +935,8 @@
     generate a configuration file for your own choice of models, dataset and weights. It only <b>writes a
     file</b> — it never starts a run or uses a GPU, and it can't touch the locked validated study.</p>
   <div class="panel">
-    <h2>Config builder <span class="hint">— generate a run config (YAML) without hand-editing. Builds a file only; never starts a run.</span></h2>
+    <h2>Config builder <span class="hint">— write a reusable run config (a plan). This only saves a file — nothing runs here.</span></h2>
+    <p class="note"><b>Not sure which?</b> <b>Run one model now</b> (Overview → bottom) executes immediately on the GPU server and shows an exploratory result. <b>Config builder</b> writes a config you run yourself later (and can list many models).</p>
     <p class="finding" id="cfg-scope">This writes a config to <code>configs/user/&lt;name&gt;.yaml</code>. It does <b>not</b> run inference or use a GPU, and it can <b>never</b> overwrite the locked study config (<code>configs/run_full_l4.yaml</code>) or the root <code>config.yaml</code>. Scope: models, dataset, SAW weights, targets, tiers, agent token budgets.</p>
     <p class="note" id="cfg-offline" style="display:none">Config builder needs the AgentMeter server (same-origin API). Open this dashboard from a running <code>pull_eval_server.py</code>, or set the server URL in the pull panel.</p>
 

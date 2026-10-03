@@ -299,7 +299,7 @@ def test_server_serves_dashboard_and_api_same_origin(tmp_path):
     # (1) dashboard served at the root — SAME origin as the API
     r = client.get("/")
     assert r.status_code == 200
-    assert b"AgentMeter" in r.data and b"Add a model" in r.data
+    assert b"AgentMeter" in r.data and b'id="pull-btn"' in r.data
 
     # (2) static assets served too
     assert b"SAW" in client.get("/saw.js").data
@@ -390,7 +390,7 @@ def test_detailed_view_anchors_present_in_served_index(tmp_path):
                    'data-view="detailed"', 'data-view="settings"'):
         assert anchor in html
     # detailed-analysis content anchors
-    for anchor in ("Per-agent diagnostics", "Sensitivity analysis", "Statistics",
+    for anchor in ("Per-agent diagnostics", "Weighting robustness", "Statistics",
                    "Kruskal", "Accuracy detail",
                    'id="pa-wall-table"', 'id="sens-table"', 'id="stats-body"',
                    'id="acc-table"'):

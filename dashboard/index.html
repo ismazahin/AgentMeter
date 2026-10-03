@@ -713,6 +713,7 @@
   <div class="panel">
     <h2>Accuracy detail<span class="help"><button class="help-btn" type="button" data-help="accuracy" aria-label="What is this?">?</button></span></h2>
     <p class="lead">Per-model accuracy from the stored <code>correct</code> flag (not recomputed).</p>
+    <p class="note"><b>How to read:</b> accuracy is how often a model's final label matched the true class across all scenarios — higher is better. When a confusion matrix is shown below, rows are the <b>true</b> class and columns are what the model <b>predicted</b>: the diagonal is correct calls, off-diagonal cells are mix-ups.</p>
     <table id="acc-table"></table>
     <div id="acc-perclass" style="margin-top:18px"></div>
     <div id="acc-confusion" style="margin-top:18px"></div>
@@ -737,7 +738,7 @@
   <div class="subview" id="dsub-resource">
 
   <div class="panel">
-    <h2>Per-agent diagnostics <span class="hint">— where latency and working memory are spent inside the 4-agent pipeline</span><span class="help"><button class="help-btn" type="button" data-help="peragent" aria-label="What is this?">?</button></span></h2>
+    <h2>Per-agent diagnostics <span class="hint">— which of the 4 pipeline steps (Perceive → Reason → Decide → Act) uses the most time and memory</span><span class="help"><button class="help-btn" type="button" data-help="peragent" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="pa-finding"></p>
     <table class="subtable" id="pa-wall-table">
       <caption>Mean wall time per agent (seconds) — highest per model highlighted</caption>
@@ -768,7 +769,7 @@
   </div>
 
   <div class="panel">
-    <h2>Resource cost per attack class <span class="hint">— where latency, VRAM and tokens concentrate across classes (measurement, not detection quality)</span><span class="help"><button class="help-btn" type="button" data-help="perclass" aria-label="What is this?">?</button></span></h2>
+    <h2>Resource cost per attack class <span class="hint">— how time, memory and tokens split across attack classes; a cost breakdown, not a detection score</span><span class="help"><button class="help-btn" type="button" data-help="perclass" aria-label="What is this?">?</button></span></h2>
     <div class="controls" style="margin-bottom:14px">
       <label>Model: <select id="pc-model"></select></label>
       <label style="margin-left:14px">Metric: <select id="pc-metric">
@@ -783,19 +784,21 @@
   </div>
 
   <div class="panel">
-    <h2>Latency stability (CoV) <span class="hint">— std ÷ mean of end-to-end latency; lower = more predictable</span><span class="help"><button class="help-btn" type="button" data-help="cov" aria-label="What is this?">?</button></span></h2>
+    <h2>Latency stability (CoV) <span class="hint">— how steady each model's speed is run to run; lower means more predictable timing</span><span class="help"><button class="help-btn" type="button" data-help="cov" aria-label="What is this?">?</button></span></h2>
+    <p class="note"><b>How to read:</b> this is how consistent a model's speed is from scenario to scenario. <b>Lower = steadier, more predictable timing</b> (good for reliable response); a high value means the model is sometimes much slower than its average. The formula is std ÷ mean of end-to-end latency.</p>
     <div id="cov-bars"></div>
     <table id="cov-table" style="margin-top:16px"></table>
   </div>
 
   <div class="panel">
-    <h2>Prefill vs decode <span class="hint">— mean TTFT (prefill) vs wall − TTFT (decode); where temporal cost concentrates</span><span class="help"><button class="help-btn" type="button" data-help="prefill" aria-label="What is this?">?</button></span></h2>
+    <h2>Prefill vs decode <span class="hint">— how each model's time splits between reading the prompt (prefill/TTFT) and writing the answer (decode)</span><span class="help"><button class="help-btn" type="button" data-help="prefill" aria-label="What is this?">?</button></span></h2>
     <div id="pd-bars"></div>
     <p class="note" id="pd-note"></p>
   </div>
 
   <div class="panel">
-    <h2>Output throughput <span class="hint">— output tokens ÷ generation (decode) seconds</span><span class="help"><button class="help-btn" type="button" data-help="throughput" aria-label="What is this?">?</button></span></h2>
+    <h2>Output throughput <span class="hint">— how fast each model writes its answer once generating; higher is quicker</span><span class="help"><button class="help-btn" type="button" data-help="throughput" aria-label="What is this?">?</button></span></h2>
+    <p class="note"><b>How to read:</b> how fast a model writes its answer once it starts generating — output tokens per second. <b>Higher = quicker to finish a response.</b> This is raw generation speed, separate from how long the answer ends up being.</p>
     <div id="tp-bars"></div>
     <table id="tp-table" style="margin-top:16px"></table>
   </div>
@@ -806,14 +809,15 @@
   <div class="subview" id="dsub-tradeoffs">
 
   <div class="panel">
-    <h2>Sensitivity analysis <span class="hint">— ranking under each configured weight set (fixed, from the study)</span><span class="help"><button class="help-btn" type="button" data-help="sensitivity" aria-label="What is this?">?</button></span></h2>
+    <h2>Sensitivity analysis <span class="hint">— does the ranking hold up if you weight the factors differently? (fixed weight sets from the study)</span><span class="help"><button class="help-btn" type="button" data-help="sensitivity" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="sens-finding"></p>
     <table id="sens-table"></table>
     <p class="note" id="sens-note"></p>
   </div>
 
   <div class="panel">
-    <h2>Pareto frontier <span class="hint">— accuracy vs resource cost; the non-dominated models form the front</span><span class="help"><button class="help-btn" type="button" data-help="pareto" aria-label="What is this?">?</button></span></h2>
+    <h2>Pareto frontier <span class="hint">— accuracy vs resource cost; the best trade-offs sit on the front line</span><span class="help"><button class="help-btn" type="button" data-help="pareto" aria-label="What is this?">?</button></span></h2>
+    <p class="note"><b>How to read:</b> each dot is a model, placed by accuracy (up) against resource cost (right). <b>Dots on the dashed line are the best accuracy-vs-cost trade-offs; any dot behind the line is beaten on both</b> by a model on it. Up-and-left is better.</p>
     <div class="pareto-grid">
       <div><h3 class="crud-h3">Accuracy vs mean latency</h3><div id="pareto-latency"></div></div>
       <div><h3 class="crud-h3">Accuracy vs mean tokens</h3><div id="pareto-tokens"></div></div>
@@ -827,8 +831,9 @@
   <div class="subview" id="dsub-stats">
 
   <div class="panel">
-    <h2>Statistics <span class="hint">— Kruskal-Wallis omnibus + Dunn post-hoc (read-only; from the study)</span><span class="help"><button class="help-btn" type="button" data-help="statistics" aria-label="What is this?">?</button></span></h2>
+    <h2>Statistics <span class="hint">— are the differences between models real or just noise? (Kruskal-Wallis + Dunn)</span><span class="help"><button class="help-btn" type="button" data-help="statistics" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="stats-finding"></p>
+    <p class="note"><b>How to read:</b> the Kruskal-Wallis test asks whether the models' per-scenario differences are real or could be chance. <b>A small p-value (p &lt; 0.05) means the difference is real, not luck.</b> In the Dunn table below, each cell is the p-value for that <b>pair</b> of models — a small cell means those two genuinely differ.</p>
     <div id="stats-body"></div>
   </div>
 
@@ -2890,7 +2895,7 @@
     var cEl = document.getElementById("acc-confusion");
     var cModels = Object.keys(conf);
     if (cModels.length) {
-      cEl.innerHTML = "<h3 style='font-size:14px;margin:0 0 8px'>Confusion matrices <small class='note'>(rows = true label, cols = predicted)</small></h3>" +
+      cEl.innerHTML = "<h3 style='font-size:14px;margin:0 0 8px'>Confusion matrices <small class='note'>(rows = true label, cols = predicted; the diagonal is correct, off-diagonal cells are mix-ups)</small></h3>" +
         cModels.map(function (m) {
           var cm = conf[m]; var rowsL = Object.keys(cm);
           var cols = rowsL.length ? Object.keys(cm[rowsL[0]]) : [];
@@ -3027,7 +3032,7 @@
       s += '<text class="tick" x="' + X(t) + '" y="' + (H - mb + 15) + '" text-anchor="middle">' + (t >= 100 ? Math.round(t) : t.toFixed(1)) + '</text>';
     });
     s += '<text class="axlabel" x="' + ((ml + W - mr) / 2) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(xLabel) + ' →</text>';
-    s += '<text class="axlabel" transform="translate(13,' + ((mt + H - mb) / 2) + ') rotate(-90)" text-anchor="middle">accuracy →</text>';
+    s += '<text class="axlabel" transform="translate(13,' + ((mt + H - mb) / 2) + ') rotate(-90)" text-anchor="middle">accuracy (%), higher is better →</text>';
     // Pareto front line (front points sorted by x)
     var front = pts.filter(function (p) { return p[frontKey]; }).slice()
       .sort(function (a, b) { return (+a[xKey]) - (+b[xKey]); });
@@ -3049,8 +3054,8 @@
     if (!a || !a.pareto) { box.innerHTML = "<span class='note'>(no advanced data in this file)</span>";
       document.getElementById("pareto-tokens").innerHTML = ""; return; }
     var pts = a.pareto.points || [];
-    svgScatter("pareto-latency", pts, "mean_latency_s", "mean latency (s)", "pareto_latency");
-    svgScatter("pareto-tokens", pts, "mean_tokens", "mean tokens", "pareto_tokens");
+    svgScatter("pareto-latency", pts, "mean_latency_s", "mean latency (s), lower is better", "pareto_latency");
+    svgScatter("pareto-tokens", pts, "mean_tokens", "mean tokens, lower is better", "pareto_tokens");
     var lat = pts.filter(function (p) { return p.pareto_latency; }).map(function (p) { return shortModel(p.model); });
     var tok = pts.filter(function (p) { return p.pareto_tokens; }).map(function (p) { return shortModel(p.model); });
     document.getElementById("pareto-note").textContent =
@@ -4022,16 +4027,16 @@
     "sens-live": "Drag a slider to change how much each factor counts, then watch the ranking above update live. Ask questions like 'if I cared more about speed, would the order change?'. <span class=\"g\">Weights are automatically re-normalised to sum to 1.</span>",
     "vram-finding": "A plain-language note about memory use in this run. On this hardware every model sits far below the memory target, so VRAM doesn't separate them — the ranking is driven mainly by accuracy, latency and tokens.",
     "addmodel": "Optional: pull one extra Hugging Face model and run it through the same pipeline for a side-by-side look. <span class=\"g\">It is exploratory and clearly marked — it never joins or changes the validated 5-model study.</span>",
-    "peragent": "Shows where time and memory are spent inside the 4-step pipeline (Perceive → Reason → Decide → Act). Taller bars mean that step costs more. <span class=\"g\">It reveals which step is the bottleneck for each model.</span>",
-    "perclass": "Average latency, memory and tokens broken down by attack class (e.g. Port Scanning, Benign). It shows where resource cost concentrates across categories. <span class=\"g\">This is a cost breakdown only — not a judgement of how well each class is detected.</span>",
-    "sensitivity": "The same ranking recomputed under several fixed weighting schemes (equal, accuracy-heavy, efficiency-heavy). <b>If a model stays on top across all of them, the ranking is robust</b> to how you weight the factors.",
-    "statistics": "A statistical test (Kruskal-Wallis) checks whether the models' per-scenario latency and memory really differ or could just be noise. <b>A small p-value means the differences are real</b>; the Dunn table shows which specific model pairs differ.",
-    "accuracy": "Per-model accuracy plus a confusion matrix (true label vs predicted). Use it to see not just how often a model is right, but what it confuses. <span class=\"g\">Low accuracy here is an honest measured result for zero-shot models on this task.</span>",
-    "pareto": "Plots accuracy against a resource cost (latency or tokens). Models on the <b>front</b> (toward the upper-left) are the best available trade-offs — nothing beats them on both at once. Points behind the front are dominated by a better option.",
-    "cov": "Coefficient of variation = spread ÷ average of end-to-end latency. <b>Lower is better</b> — more predictable, consistent response times; higher means the model is sometimes much slower than usual.",
-    "prefill": "Splits each response's time into prefill (time to the first token, TTFT) and decode (generating the rest). <span class=\"g\">It shows whether a model's time goes mostly into reading the prompt or into writing the answer.</span>",
-    "throughput": "Output tokens produced per second of generation. <b>Higher means the model writes its answer faster</b> once it starts. It's a raw speed measure, independent of how long the answer is.",
-    "misclass": "Compares the resource cost (latency, tokens) when a model is right vs when it's wrong. It answers 'do wrong answers cost more?'. <span class=\"g\">A cost comparison only — not a measure of detection quality.</span>",
+    "peragent": "<b>What:</b> where time and working memory go across the 4 pipeline steps (Perceive → Reason → Decide → Act), per model. <b>How to read:</b> a taller bar means that step costs more. <b>Look for:</b> the step that dominates — that is the bottleneck to target if you want to cut cost. <span class=\"g\">In the real run, Reason dominates latency and Decide dominates working memory for every model.</span>",
+    "perclass": "<b>What:</b> average latency, memory and tokens broken down by attack class (Port Scanning, Benign, …). <b>How to read:</b> pick a model and a metric; a taller bar means that class costs more to process. <b>Look for:</b> classes that are unusually expensive. <span class=\"g\">This is a cost breakdown only — not a judgement of how well each class is detected.</span>",
+    "sensitivity": "<b>What:</b> the ranking recomputed under several fixed weightings (equal, accuracy-heavy, efficiency-heavy). <b>How to read:</b> each column is one weighting — follow a model across them. <b>Look for:</b> whether the top model stays on top; if it does, the ranking is robust to how you weight the factors.",
+    "statistics": "<b>What:</b> a test (Kruskal-Wallis) of whether the models' per-scenario latency/memory really differ or could just be chance. <b>How to read:</b> a small p-value (p &lt; 0.05) means the differences are real. <b>Look for:</b> which metrics are significant; the Dunn table then shows which specific model pairs differ.",
+    "accuracy": "<b>What:</b> how often each model's final verdict matched the true label, plus a confusion matrix of true vs predicted. <b>How to read:</b> higher accuracy is better; in the matrix the diagonal is correct calls and off-diagonal cells are mix-ups. <b>Look for:</b> which classes a model confuses. <span class=\"g\">Low accuracy here is an honest measured result for zero-shot models on this task.</span>",
+    "pareto": "<b>What:</b> accuracy plotted against a resource cost (latency or tokens). <b>How to read:</b> up = more accurate, left = cheaper; the dashed line connects the best trade-offs. <b>Look for:</b> models on the line — nothing beats them on both at once; dots behind the line are outperformed by a model on it.",
+    "cov": "<b>What:</b> how consistent each model's speed is from scenario to scenario. <b>How to read:</b> lower = steadier, more predictable timing (good for reliable response); higher means the model is sometimes much slower than usual. <b>Look for:</b> the steadiest model. <span class=\"g\">The formula is std ÷ mean of end-to-end latency.</span>",
+    "prefill": "<b>What:</b> each response's time split into prefill (time to the first token, TTFT) and decode (writing the rest). <b>How to read:</b> compare the two bars per model. <b>Look for:</b> whether time goes mostly into reading the prompt or generating the answer — the two are optimised differently.",
+    "throughput": "<b>What:</b> how fast each model writes its answer once generating — output tokens per second. <b>How to read:</b> higher = quicker to finish a response. <b>Look for:</b> the fastest generator. <span class=\"g\">Raw generation speed, independent of how long the answer ends up being.</span>",
+    "misclass": "<b>What:</b> the resource cost (latency, tokens) when a model is right vs when it's wrong. <b>How to read:</b> compare the right-bar and wrong-bar per model. <b>Look for:</b> whether wrong answers cost more. <span class=\"g\">A cost comparison only — not a measure of detection quality.</span>",
     "compare": "Line up 2–3 saved sessions to see how their resource cost and scores differ — e.g. the same models on different GPUs. Pick a metric to compare; the best value in each row is highlighted. <span class=\"g\">Read-only: it changes no numbers.</span>",
     "modelctx": "Live reference facts about each model, pulled from the Hugging Face Hub — size, downloads, likes, license and last update. <b>This is context only</b>, not part of the score and never used to re-rank models. <span class=\"g\">If the Hub is unreachable it simply shows as unavailable; the rest of the dashboard is unaffected.</span>",
     "ds-rec": "A plain-language reading of the current ranking: which model is the most resource-efficient choice under the weights you've set. It updates live as you move the sliders. <b>Honesty note:</b> every model is in the Critical tier (accuracy below target), so this is a <b>starting point, not a deployment sign-off</b>.",

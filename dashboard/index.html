@@ -192,6 +192,13 @@
   .panel { box-shadow: var(--shadow); }
   .panel h2 { font-size: 18px; letter-spacing: -0.01em; }
   .section-label { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 2px 10px; }
+  /* Detailed Analysis — internal sub-tabs (Phase 32A; visual grouping only, no data change) */
+  .subtabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); padding: 0; margin: 2px 0 18px; }
+  .subtabs .subtab { border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; font-size: 13.5px; font-weight: 600; background: transparent; color: var(--muted); cursor: pointer; }
+  .subtabs .subtab:hover { color: var(--ink); background: transparent; border-bottom-color: var(--line); }
+  .subtabs .subtab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .subview { display: none; }
+  .subview.active { display: block; }
   /* highlight cards (Artificial-Analysis-style) */
   .highlights { display: grid; gap: 16px; grid-template-columns: 1fr; }
   @media (min-width: 780px) { .highlights { grid-template-columns: 1fr 1fr 1fr; } }
@@ -661,6 +668,42 @@
     same loaded results: where time and memory go inside the pipeline, how stable the ranking is, statistical
     tests, per-class costs, and efficiency trade-offs. Hover any <b>?</b> to learn how to read a chart.</p>
 
+  <div class="subtabs" id="dsub-tabs" role="tablist">
+    <button class="subtab active" type="button" data-dsub="accuracy" role="tab">Accuracy &amp; Correctness</button>
+    <button class="subtab" type="button" data-dsub="resource" role="tab">Resource Efficiency</button>
+    <button class="subtab" type="button" data-dsub="tradeoffs" role="tab">Trade-offs &amp; Ranking</button>
+    <button class="subtab" type="button" data-dsub="stats" role="tab">Statistical Validation</button>
+  </div>
+
+  <!-- ---- Accuracy & Correctness: per-model + per-class accuracy, confusion, misclassification cost ---- -->
+  <div class="subview active" id="dsub-accuracy">
+
+  <div class="panel">
+    <h2>Accuracy detail<span class="help"><button class="help-btn" type="button" data-help="accuracy" aria-label="What is this?">?</button></span></h2>
+    <p class="lead">Per-model accuracy from the stored <code>correct</code> flag (not recomputed).</p>
+    <table id="acc-table"></table>
+    <div id="acc-perclass" style="margin-top:18px"></div>
+    <div id="acc-confusion" style="margin-top:18px"></div>
+  </div>
+
+  <div class="panel">
+    <h2>Misclassification resource cost <span class="hint">— cost when right vs wrong (resource comparison only, not a detection ranking)</span><span class="help"><button class="help-btn" type="button" data-help="misclass" aria-label="What is this?">?</button></span></h2>
+    <div class="controls" style="margin-bottom:14px">
+      <label>Metric: <select id="mc-metric">
+        <option value="mean_latency_s">Mean latency (s)</option>
+        <option value="mean_tokens">Mean tokens</option>
+      </select></label>
+    </div>
+    <div id="mc-bars"></div>
+    <table id="mc-table" style="margin-top:16px"></table>
+    <p class="note" id="mc-note"></p>
+  </div>
+
+  </div>
+
+  <!-- ---- Resource Efficiency: per-agent diagnostics, per-class resource, CoV, prefill/decode, throughput ---- -->
+  <div class="subview" id="dsub-resource">
+
   <div class="panel">
     <h2>Per-agent diagnostics <span class="hint">— where latency and working memory are spent inside the 4-agent pipeline</span><span class="help"><button class="help-btn" type="button" data-help="peragent" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="pa-finding"></p>
@@ -708,38 +751,6 @@
   </div>
 
   <div class="panel">
-    <h2>Sensitivity analysis <span class="hint">— ranking under each configured weight set (fixed, from the study)</span><span class="help"><button class="help-btn" type="button" data-help="sensitivity" aria-label="What is this?">?</button></span></h2>
-    <p class="finding" id="sens-finding"></p>
-    <table id="sens-table"></table>
-    <p class="note" id="sens-note"></p>
-  </div>
-
-  <div class="panel">
-    <h2>Statistics <span class="hint">— Kruskal-Wallis omnibus + Dunn post-hoc (read-only; from the study)</span><span class="help"><button class="help-btn" type="button" data-help="statistics" aria-label="What is this?">?</button></span></h2>
-    <p class="finding" id="stats-finding"></p>
-    <div id="stats-body"></div>
-  </div>
-
-  <div class="panel">
-    <h2>Accuracy detail<span class="help"><button class="help-btn" type="button" data-help="accuracy" aria-label="What is this?">?</button></span></h2>
-    <p class="lead">Per-model accuracy from the stored <code>correct</code> flag (not recomputed).</p>
-    <table id="acc-table"></table>
-    <div id="acc-perclass" style="margin-top:18px"></div>
-    <div id="acc-confusion" style="margin-top:18px"></div>
-  </div>
-
-  <div class="section-label">Chapter 4 — analytical expansion <span class="hint" style="text-transform:none;letter-spacing:0;font-weight:400">(read-only, from the loaded results)</span></div>
-
-  <div class="panel">
-    <h2>Pareto frontier <span class="hint">— accuracy vs resource cost; the non-dominated models form the front</span><span class="help"><button class="help-btn" type="button" data-help="pareto" aria-label="What is this?">?</button></span></h2>
-    <div class="pareto-grid">
-      <div><h3 class="crud-h3">Accuracy vs mean latency</h3><div id="pareto-latency"></div></div>
-      <div><h3 class="crud-h3">Accuracy vs mean tokens</h3><div id="pareto-tokens"></div></div>
-    </div>
-    <p class="note" id="pareto-note"></p>
-  </div>
-
-  <div class="panel">
     <h2>Latency stability (CoV) <span class="hint">— std ÷ mean of end-to-end latency; lower = more predictable</span><span class="help"><button class="help-btn" type="button" data-help="cov" aria-label="What is this?">?</button></span></h2>
     <div id="cov-bars"></div>
     <table id="cov-table" style="margin-top:16px"></table>
@@ -757,17 +768,38 @@
     <table id="tp-table" style="margin-top:16px"></table>
   </div>
 
+  </div>
+
+  <!-- ---- Trade-offs & Ranking: sensitivity analysis + Pareto frontier ---- -->
+  <div class="subview" id="dsub-tradeoffs">
+
   <div class="panel">
-    <h2>Misclassification resource cost <span class="hint">— cost when right vs wrong (resource comparison only, not a detection ranking)</span><span class="help"><button class="help-btn" type="button" data-help="misclass" aria-label="What is this?">?</button></span></h2>
-    <div class="controls" style="margin-bottom:14px">
-      <label>Metric: <select id="mc-metric">
-        <option value="mean_latency_s">Mean latency (s)</option>
-        <option value="mean_tokens">Mean tokens</option>
-      </select></label>
+    <h2>Sensitivity analysis <span class="hint">— ranking under each configured weight set (fixed, from the study)</span><span class="help"><button class="help-btn" type="button" data-help="sensitivity" aria-label="What is this?">?</button></span></h2>
+    <p class="finding" id="sens-finding"></p>
+    <table id="sens-table"></table>
+    <p class="note" id="sens-note"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Pareto frontier <span class="hint">— accuracy vs resource cost; the non-dominated models form the front</span><span class="help"><button class="help-btn" type="button" data-help="pareto" aria-label="What is this?">?</button></span></h2>
+    <div class="pareto-grid">
+      <div><h3 class="crud-h3">Accuracy vs mean latency</h3><div id="pareto-latency"></div></div>
+      <div><h3 class="crud-h3">Accuracy vs mean tokens</h3><div id="pareto-tokens"></div></div>
     </div>
-    <div id="mc-bars"></div>
-    <table id="mc-table" style="margin-top:16px"></table>
-    <p class="note" id="mc-note"></p>
+    <p class="note" id="pareto-note"></p>
+  </div>
+
+  </div>
+
+  <!-- ---- Statistical Validation: Kruskal-Wallis omnibus + Dunn post-hoc ---- -->
+  <div class="subview" id="dsub-stats">
+
+  <div class="panel">
+    <h2>Statistics <span class="hint">— Kruskal-Wallis omnibus + Dunn post-hoc (read-only; from the study)</span><span class="help"><button class="help-btn" type="button" data-help="statistics" aria-label="What is this?">?</button></span></h2>
+    <p class="finding" id="stats-finding"></p>
+    <div id="stats-body"></div>
+  </div>
+
   </div>
 
   </section><!-- /detailed -->
@@ -3787,10 +3819,55 @@
     if (name === "compare") COMPARE.refresh();
     if (name === "config") CONFIG.refresh();
     if (name === "overview") MODELCTX.load();
+    if (name === "detailed") showDetailSub(_detailSub);   // reveal active sub-tab (render-on-reveal)
   }
   function initNav() {
     Array.prototype.forEach.call(document.querySelectorAll("#nav button"), function (b) {
       b.addEventListener("click", function () { showView(b.dataset.view); });
+    });
+  }
+
+  // ==== Phase 32A — Detailed Analysis internal sub-tabs ====
+  // Visual grouping only: the panels, their element IDs and their data are
+  // unchanged. load() still renders every panel up front (so all charts are
+  // already populated); these sub-tabs just gate which group is visible.
+  //
+  // Render-on-reveal: the bar charts use CSS percentage widths and the Pareto
+  // scatter uses a fixed SVG viewBox, so they scale correctly even when drawn
+  // inside a hidden pane. We still re-run each group's existing render path the
+  // first time its sub-tab is shown — belt-and-suspenders against any chart that
+  // might later measure pixel width at draw time. It is idempotent and only runs
+  // once data is loaded.
+  var DETAIL_SUB_RENDER = {
+    accuracy:  function () { renderAccuracy(); renderMisclass(); },
+    resource:  function () { renderPerAgentDetail(); renderAgents(); renderPerClass();
+                             renderCov(); renderPrefillDecode(); renderThroughput(); },
+    tradeoffs: function () { renderSensitivity(); renderPareto(); },
+    stats:     function () { renderStatistics(); }
+  };
+  var _detailSubRevealed = {};
+  var _detailSub = "accuracy";   // currently selected sub-tab (DOM default)
+
+  function showDetailSub(name) {
+    _detailSub = name;
+    Array.prototype.forEach.call(document.querySelectorAll("#view-detailed .subview"), function (p) {
+      p.classList.toggle("active", p.id === "dsub-" + name);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#dsub-tabs .subtab"), function (b) {
+      var on = b.dataset.dsub === name;
+      b.classList.toggle("active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    // Redraw this group's charts the first time it becomes visible (only if a
+    // dataset is loaded — the render fns read state.data).
+    if (state.data && !_detailSubRevealed[name] && DETAIL_SUB_RENDER[name]) {
+      _detailSubRevealed[name] = true;
+      try { DETAIL_SUB_RENDER[name](); } catch (e) { /* non-fatal; panel keeps its last render */ }
+    }
+  }
+  function initDetailSubtabs() {
+    Array.prototype.forEach.call(document.querySelectorAll("#dsub-tabs .subtab"), function (b) {
+      b.addEventListener("click", function () { showDetailSub(b.dataset.dsub); });
     });
   }
 
@@ -3974,6 +4051,10 @@
     buildPcSelector();
     renderPerClass();
     renderAdvanced();
+    // Re-arm render-on-reveal for this fresh dataset. The panels above were drawn
+    // while the Detailed view (and its panes) may be hidden, so each group gets
+    // one idempotent redraw the first time it is actually shown — see showDetailSub.
+    _detailSubRevealed = {};
   }
 
   function validate(d) {
@@ -4138,6 +4219,7 @@
   bootSample();
   initPullPanel();
   initNav();
+  initDetailSubtabs();
   CRUD.init();
   initExport();
   COMPARE.init();

@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AgentMeter Dashboard</title>
-<!-- UI typeface (Inter) + monospace for numerics. Loaded from Google Fonts when
-     served over http; degrades to the system-ui / mono stacks over file://. -->
+<title>AgentMeter Benchmarks</title>
+<!-- Type system: Source Serif 4 (display) + Inter Tight (body) + JetBrains Mono
+     (numerics). Loaded from Google Fonts with display=swap; every stack declares
+     local fallbacks, so the page stays legible offline over file://. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <!--
   AgentMeter results dashboard — Phase 10 Part A (VIEW LAYER ONLY).
 
@@ -23,582 +24,673 @@
   analysis.json next to this file and it is fetched on start).
 -->
 <style>
+  /* ==================================================================
+     PHASE 35 — editorial benchmark design system (look & feel only)
+
+     Modelled on the Artificial Analysis benchmark pages: a near-monochrome
+     body (white / light-grey bands, black text, hairline rules), a serif
+     display face, sans body, monospace numerics, and colour reserved for
+     DATA — each model's vendor gets one colour, used identically in every
+     chart. The brand violet is confined to the logo mark, the hero CTA and
+     the composite highlight square. Element IDs and JS hooks are unchanged.
+     ================================================================== */
   :root {
-    --bg: #f6f7f9; --panel: #ffffff; --ink: #1c2128; --muted: #5b6675;
-    --line: #e2e6ec; --accent: #3b5bdb; --accent-soft: #edf0fe;
-    --bar1: #3b5bdb; --bar2: #12796b;
-    --healthy: #2f9e44; --healthy-bg: #e7f6ec;
-    --degraded: #d9820a; --degraded-bg: #fdf1e0;
-    --critical: #c92a2a; --critical-bg: #fce9e9;
-    --sample: #8a5a00; --sample-bg: #fff4d6; --sample-line: #f0c65a;
-    --loaded: #0b6b5f; --loaded-bg: #e2f6f2; --loaded-line: #7fd3c6;
+    --serif: "Source Serif 4", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --sans: "Inter Tight", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    /* surfaces */
+    --page: #ffffff; --band: #eff1f4; --panel: #ffffff; --panel-2: #fafafa;
+    --chip: #f4f4f5; --chip-2: #e5e5e7;
+    /* text + rules */
+    --ink: #0a0a0a; --ink-2: #3f3f46; --muted: #71717a;
+    --line: #e7e7ea; --line-strong: #d4d4d8;
+    /* inverse (black pills / primary buttons) */
+    --inv: #0a0a0a; --inv-ink: #ffffff; --inv-hover: #3f3f46;
+    /* confined brand accent */
+    --brand: #7f4bf3; --brand-hover: #6a35e0; --plum: #3f1238;
+    /* chart vocabulary */
+    --good-zone: rgba(144, 238, 144, .25); --good-zone-line: rgba(110, 200, 110, .55);
+    --weak-zone: #f7f7f8; --frontline: #0a0a0a;
+    --hi-1: var(--brand); --hi-2: #f2c200; --hi-3: #f06a2a;    /* highlight-card squares */
+    --bar-strong: #18181b; --bar-soft: #a1a1aa;                 /* single-series bars */
+    --series-a: #2563eb; --series-b: #f59e0b;                   /* two-series bars */
+    /* vendor identity (data colour) */
+    --v-alibaba: #ff7018; --v-mistral: #e0a100; --v-meta: #0089f4;
+    --v-google: #37a754; --v-microsoft: #00a3a3; --v-other: #8b8b94;
+    /* semantic states */
+    --healthy: #157f3c; --healthy-bg: #e6f4ea;
+    --degraded: #a35f00; --degraded-bg: #fbf0dc;
+    --critical: #b42323; --critical-bg: #fbe8e8;
+    --sample: #8a5a00; --sample-bg: #fdf5df; --sample-line: #e9c66a;
+    --loaded: #0b6b5f; --loaded-bg: #e3f4f0; --loaded-line: #86cfc3;
+    --warn: #8a4a12; --warn-bg: #fbeee0; --warn-line: #e08a3c;
+    --radius: 6px; --radius-lg: 8px;
+    --nav-h: 40px;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #10141a; --panel: #171c24; --ink: #e6e9ef; --muted: #9aa5b5;
-      --line: #2a323d; --accent: #6b86ff; --accent-soft: #1e2740;
-      --bar1: #6b86ff; --bar2: #3fc7b4;
-      --healthy: #63d888; --healthy-bg: #16351f;
-      --degraded: #f0b657; --degraded-bg: #3a2a10;
-      --critical: #ff7b7b; --critical-bg: #3a1717;
-      --sample: #ffd873; --sample-bg: #33290a; --sample-line: #6b551a;
-      --loaded: #6fe0cf; --loaded-bg: #0f3330; --loaded-line: #1f6156;
-    }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --page: #0c0c0e; --band: #161619; --panel: #121215; --panel-2: #17171a;
+    --chip: #1f1f23; --chip-2: #2b2b30;
+    --ink: #f2f2f3; --ink-2: #c6c6cc; --muted: #8f8f98;
+    --line: #26262b; --line-strong: #35353b;
+    --inv: #f2f2f3; --inv-ink: #0c0c0e; --inv-hover: #c6c6cc;
+    --brand: #a98bff; --brand-hover: #bda6ff; --plum: #e9d4ff;
+    --good-zone: rgba(110, 220, 130, .13); --good-zone-line: rgba(110, 220, 130, .35);
+    --weak-zone: #18181b; --frontline: #f2f2f3;
+    --bar-strong: #e4e4e7; --bar-soft: #5b5b63;
+    --series-a: #4d8bff; --series-b: #f5a524;
+    --healthy: #5ad48a; --healthy-bg: #10301d;
+    --degraded: #f0b657; --degraded-bg: #382810;
+    --critical: #ff8a8a; --critical-bg: #3a1717;
+    --sample: #f6d27a; --sample-bg: #2a220b; --sample-line: #5f4c17;
+    --loaded: #6fe0cf; --loaded-bg: #0f2e2a; --loaded-line: #1f6156;
+    --warn: #f0c088; --warn-bg: #352514; --warn-line: #a4652a;
+  } }
+  :root[data-theme="dark"] {
+    --page: #0c0c0e; --band: #161619; --panel: #121215; --panel-2: #17171a;
+    --chip: #1f1f23; --chip-2: #2b2b30;
+    --ink: #f2f2f3; --ink-2: #c6c6cc; --muted: #8f8f98;
+    --line: #26262b; --line-strong: #35353b;
+    --inv: #f2f2f3; --inv-ink: #0c0c0e; --inv-hover: #c6c6cc;
+    --brand: #a98bff; --brand-hover: #bda6ff; --plum: #e9d4ff;
+    --good-zone: rgba(110, 220, 130, .13); --good-zone-line: rgba(110, 220, 130, .35);
+    --weak-zone: #18181b; --frontline: #f2f2f3;
+    --bar-strong: #e4e4e7; --bar-soft: #5b5b63;
+    --series-a: #4d8bff; --series-b: #f5a524;
+    --healthy: #5ad48a; --healthy-bg: #10301d;
+    --degraded: #f0b657; --degraded-bg: #382810;
+    --critical: #ff8a8a; --critical-bg: #3a1717;
+    --sample: #f6d27a; --sample-bg: #2a220b; --sample-line: #5f4c17;
+    --loaded: #6fe0cf; --loaded-bg: #0f2e2a; --loaded-line: #1f6156;
+    --warn: #f0c088; --warn-bg: #352514; --warn-line: #a4652a;
   }
+
+  /* ---------------- base ---------------- */
   * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
   body {
-    margin: 0; background: var(--bg); color: var(--ink);
-    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0; background: var(--page); color: var(--ink);
+    font: 400 14px/1.55 var(--sans); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
   }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 64px; }
-  header h1 { margin: 0 0 4px; font-size: 24px; letter-spacing: -0.01em; }
-  header p.sub { margin: 0 0 16px; color: var(--muted); }
-  .panel {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-    padding: 18px 20px; margin: 16px 0;
+  code { font-family: var(--mono); font-size: .9em; }
+  a { color: inherit; }
+  b, strong { font-weight: 600; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .container { width: 100%; max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+  @media (max-width: 640px) { .container { padding: 0 16px; } }
+
+  /* ---------------- top navigation (floats over the hero band) ---------------- */
+  .topbar { position: sticky; top: 16px; z-index: 50; height: var(--nav-h); margin-bottom: calc(-1 * var(--nav-h)); }
+  .topbar .container { display: flex; align-items: stretch; justify-content: space-between; gap: 12px; height: 100%; }
+  .brand {
+    flex: none; display: inline-flex; align-items: center; gap: 9px; padding: 0 16px 0 13px;
+    background: var(--inv); color: var(--inv-ink); border-radius: 999px; text-decoration: none; user-select: none;
   }
-  .panel h2 { margin: 0 0 12px; font-size: 17px; }
-  .panel h2 .hint { font-weight: 400; font-size: 13px; color: var(--muted); }
+  .brand svg { width: 16px; height: 16px; flex: none; }
+  .brand .mark-a { fill: var(--brand); } .brand .mark-b { fill: currentColor; }
+  .brand .name { font: 400 16px/1 var(--serif); letter-spacing: -.005em; white-space: nowrap; }
+  .nav {
+    min-width: 0; display: flex; align-items: center; gap: 2px; padding: 0 4px;
+    background: var(--chip); border-radius: 999px; overflow-x: auto; scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav button {
+    flex: none; display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 13px;
+    font: 500 13px/1 var(--sans); color: var(--ink-2); background: transparent; border: 0; border-radius: 999px;
+    cursor: pointer; white-space: nowrap; transition: background-color .15s ease, color .15s ease;
+  }
+  .nav button:hover { background: var(--chip-2); color: var(--ink); }
+  .nav button.active { background: var(--inv); color: var(--inv-ink); }
+  .nav .nav-i { display: none; }
+  .tools { flex: none; display: flex; align-items: center; gap: 6px; }
+  .loadbtn {
+    position: relative; display: inline-flex; align-items: center; gap: 7px; height: 100%; padding: 0 14px;
+    font: 500 13px/1 var(--sans); color: var(--ink); background: var(--chip); border-radius: 999px; cursor: pointer; white-space: nowrap;
+  }
+  .loadbtn:hover { background: var(--chip-2); }
+  .loadbtn:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .loadbtn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .loadbtn input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; font-size: 0; }
+  @media (max-width: 860px) {
+    .topbar { position: sticky; top: 0; height: auto; margin-bottom: 0; padding: 10px 0; background: var(--band); border-bottom: 1px solid var(--line); }
+    .topbar .container { flex-wrap: wrap; row-gap: 8px; }
+    .brand, .loadbtn { height: 40px; }
+    .nav { order: 3; flex: 1 0 100%; height: 44px; }
+    .nav button { height: 36px; }
+    .loadbtn .lbl-long { display: none; }
+  }
+
+  /* ---------------- hero band ---------------- */
+  /* Full-bleed band from inside the centred container (box-shadow + clip-path). */
+  .band, .view-hero { background: var(--band); box-shadow: 0 0 0 100vmax var(--band); clip-path: inset(0 -100vmax); }
+  .band { display: flow-root; padding-top: calc(16px + var(--nav-h) + 40px); }
+  .band:empty { padding-top: calc(16px + var(--nav-h) + 56px); }
+  @media (max-width: 860px) { .band { padding-top: 20px; } .band:empty { padding-top: 24px; } }
+  .view-hero { padding: 8px 0 56px; margin-bottom: 40px; }
+  .hero-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 24px; }
+  .hero-main { grid-column: span 12; }
+  .hero-aside { grid-column: span 12; display: flex; justify-content: flex-start; align-items: flex-start; }
+  @media (min-width: 1024px) {
+    .hero-main { grid-column: span 9; padding-right: 96px; }
+    .hero-aside { grid-column: span 3; justify-content: flex-end; }
+  }
+  .view-hero h1 {
+    margin: 0 0 16px; max-width: 40ch;
+    font: 400 clamp(28px, 4vw, 38px)/1.12 var(--serif); letter-spacing: -.012em; color: var(--ink);
+  }
+  .tab-intro { margin: 0; max-width: 72ch; font-size: 14px; line-height: 1.6; color: var(--ink); }
+  .tab-intro b { font-weight: 600; }
+  .tab-intro + .tab-intro, .view-hero .note { margin-top: 12px; }
+  .view-hero .note { max-width: 72ch; color: var(--ink-2); }
+  .cta {
+    display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px;
+    font: 500 13px/1 var(--sans); color: #fff; background: var(--brand); border: 0; border-radius: var(--radius-lg);
+    cursor: pointer; white-space: nowrap; transition: background-color .15s ease;
+  }
+  .cta:hover { background: var(--brand-hover); }
+  :root[data-theme="dark"] .cta { color: #140a2a; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cta { color: #140a2a; } }
+  .cta svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .index-card { grid-column: span 12; margin-top: 8px; background: var(--panel); border-radius: var(--radius-lg); padding: 18px 20px; font-size: 12.5px; }
+  @media (min-width: 1024px) { .index-card { grid-column: span 9; margin-right: 96px; } }
+  .index-card h2 { margin: 0 0 6px; font: 400 19px/1.25 var(--serif); }
+  .index-card p { margin: 0 0 12px; color: var(--ink-2); }
+  .index-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px 28px; grid-template-columns: 1fr 1fr; }
+  @media (min-width: 760px) { .index-card ul { grid-template-columns: repeat(4, 1fr); } }
+  .index-card li b { display: block; font-weight: 600; color: var(--ink); }
+  .index-card li span { display: block; margin-top: 2px; color: var(--muted); }
+  .index-card .foot { margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); color: var(--ink-2); }
+
+  /* notices that sit inside the band, above the page title */
   .banner {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
-    border: 1px solid; border-radius: 10px; padding: 12px 16px; margin: 4px 0 8px;
+    position: relative; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px;
+    margin: 0 0 28px; padding: 11px 16px 11px 34px; font-size: 13px; line-height: 1.5;
+    color: var(--ink-2); background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg);
   }
-  .banner.sample { background: var(--sample-bg); border-color: var(--sample-line); color: var(--sample); }
-  .banner.loaded { background: var(--loaded-bg); border-color: var(--loaded-line); color: var(--loaded); }
-  .banner b { font-weight: 700; }
-  .banner .src { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; opacity: .9; }
-  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
-  input[type=file] { font: inherit; color: var(--muted); }
-  select, button {
-    font: inherit; color: var(--ink); background: var(--panel);
-    border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; cursor: pointer;
+  .banner::before { content: ""; position: absolute; left: 14px; top: 16px; width: 10px; height: 10px; background: var(--muted); }
+  .banner b { font-weight: 600; }
+  .banner .src { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .banner.sample { background: var(--sample-bg); border-color: var(--sample-line); }
+  .banner.sample::before { background: var(--sample-line); }
+  .banner.sample b { color: var(--sample); }
+  .banner.loaded::before { background: var(--loaded); }
+  .banner.loaded b { color: var(--loaded); }
+  .banner.unvalidated { background: var(--warn-bg); border-color: var(--warn-line); }
+  .banner.unvalidated::before { background: var(--warn-line); }
+  .banner.unvalidated b { color: var(--warn); }
+  .getting-started {
+    display: flex; align-items: flex-start; gap: 16px; margin: 0 0 12px; padding: 13px 16px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg);
   }
-  button:hover, select:hover { border-color: var(--accent); }
-  button.preset.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .getting-started[hidden] { display: none; }
+  .getting-started .gs-body { flex: 1; font-size: 13px; line-height: 1.55; color: var(--ink-2); }
+  .getting-started .gs-body b { color: var(--ink); }
+  .getting-started .gs-q { display: inline-grid; place-items: center; width: 15px; height: 15px; border: 1px solid var(--line-strong); border-radius: 999px; font-size: 10px; font-weight: 600; vertical-align: 1px; }
+  .gs-x { flex: none; height: 32px; padding: 0 14px; font: 500 13px/1 var(--sans); color: var(--inv-ink); background: var(--inv); border: 0; border-radius: var(--radius-lg); cursor: pointer; }
+  .gs-x:hover { background: var(--inv-hover); }
+  .gs-link { padding: 0; margin: 0; font: inherit; color: inherit; background: none; border: 0; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+  .gs-link:hover { color: var(--brand); }
+
+  /* ---------------- views & section headings ---------------- */
+  .main { padding-bottom: 120px; }
+  .view { display: none; }
+  .view.active { display: block; }
+  .section-label {
+    display: flex; align-items: baseline; gap: 12px; margin: 72px 0 8px; padding-top: 22px; border-top: 1px solid var(--line);
+    font: 400 26px/1.2 var(--serif); letter-spacing: -.01em; color: var(--ink);
+  }
+  .section-label::before { content: ""; flex: none; width: 18px; height: 18px; background: var(--ink); transform: translateY(1px); }
+  .section-label.is-first { margin-top: 0; border-top: 0; padding-top: 0; }
+  .section-label.is-small {
+    display: block; margin: 0 0 24px; padding: 0 0 12px; border-top: 0; border-bottom: 1px solid var(--line);
+    font: 500 14px/1.4 var(--sans); letter-spacing: 0;
+  }
+  .section-label.is-small::before { display: none; }
+  .section-desc { margin: 4px 0 24px; max-width: 64ch; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+
+  /* ---------------- cards / panels ---------------- */
+  .panel { margin: 0 0 24px; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+  @media (max-width: 640px) { .panel { padding: 18px 16px; } }
+  .panel h2 {
+    display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; margin: 0 0 16px;
+    font: 400 20px/1.25 var(--serif); letter-spacing: -.005em; color: var(--ink);
+  }
+  .panel h2 .hint { order: 3; flex-basis: 100%; margin-top: 4px; max-width: 70ch; font: 400 12px/1.5 var(--sans); color: var(--muted); }
+  .panel h2 .help { order: 2; }
+  .lead { margin: -6px 0 14px; font-size: 12.5px; color: var(--muted); }
+  .note { margin: 12px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+  .note b { color: var(--ink-2); }
+  .note.err, #pull-status.err { color: var(--critical); }
+  .note.ok, #pull-status.ok { color: var(--loaded); }
+  .finding {
+    margin: 0; padding: 12px 16px; font-size: 13.5px; line-height: 1.6; color: var(--ink);
+    background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--ink); border-radius: var(--radius);
+  }
+  .ds-caveat { margin-top: 12px; padding: 0 0 0 16px; border-left: 3px solid var(--critical); font-size: 13px; font-weight: 500; color: var(--ink); }
+  .crud-h3 { margin: 0 0 12px; font: 600 14px/1.4 var(--sans); }
+  .crud-h3 .hint, h3 .hint { font-weight: 400; font-size: 12px; color: var(--muted); }
+  .crud-block { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+
+  /* "How to read this chart" expanders */
+  details.howto { margin-top: 16px; font-size: 12.5px; }
+  details.howto summary {
+    display: flex; align-items: center; gap: 6px; padding: 7px 0; list-style: none; cursor: pointer;
+    font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line);
+  }
+  details.howto summary::-webkit-details-marker { display: none; }
+  details.howto summary::before { content: "i"; display: inline-grid; place-items: center; width: 13px; height: 13px; border: 1px solid currentColor; border-radius: 999px; font: 600 9px/1 var(--serif); }
+  details.howto summary::after { content: "+"; margin-left: auto; font-size: 16px; line-height: 1; transition: transform .2s ease; }
+  details.howto[open] summary::after { transform: rotate(45deg); }
+  details.howto summary:hover { color: var(--ink); }
+  details.howto p { margin: 8px 0 0; max-width: 80ch; line-height: 1.6; color: var(--ink-2); }
+
+  /* ---------------- controls ---------------- */
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+  .controls label, .admin label, .ds-filter-controls label { font-size: 12.5px; color: var(--ink-2); }
+  select, button, input[type=text], input[type=number], textarea { font: inherit; }
+  select, input[type=text], input[type=number] {
+    height: 32px; padding: 0 10px; font-size: 13px; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line-strong); border-radius: var(--radius-lg);
+  }
+  select { padding-right: 28px; cursor: pointer; appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 15 5 5 5-5'/%3E%3Cpath d='m7 9 5-5 5 5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 8px center; background-size: 14px; }
+  select:hover, input[type=text]:hover, input[type=number]:hover { border-color: var(--muted); }
+  select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; border-color: var(--ink); }
+  input::placeholder, textarea::placeholder { color: var(--muted); }
+  button { cursor: pointer; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary {
+    height: 32px; padding: 0 14px; font-size: 13px; font-weight: 500; color: var(--inv-ink);
+    background: var(--inv); border: 1px solid var(--inv); border-radius: var(--radius-lg);
+  }
+  button.primary:hover { background: var(--inv-hover); border-color: var(--inv-hover); }
+  button.ghost, .rowact button, .presets button, .chip button {
+    height: 32px; padding: 0 12px; font-size: 13px; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line-strong); border-radius: var(--radius-lg);
+  }
+  button.ghost:hover, .rowact button:hover, .presets button:hover { border-color: var(--ink); }
+  .rowact button { height: 28px; margin-left: 6px; font-size: 12.5px; }
+  .rowact button.danger:hover, .chip button.danger:hover { border-color: var(--critical); color: var(--critical); }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .row input[type=text] { flex: 1; min-width: 220px; }
+  .filelabel { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
+  input[type=file] { font-size: 12.5px; color: var(--muted); }
+  input[type=file]::file-selector-button {
+    height: 30px; margin-right: 8px; padding: 0 12px; font: 500 12.5px var(--sans); color: var(--ink);
+    background: var(--chip); border: 0; border-radius: var(--radius-lg); cursor: pointer; }
+  .ds-filter-controls { gap: 10px 18px; margin-bottom: 16px; }
+  .ds-filter-controls label { display: inline-flex; align-items: center; gap: 8px; margin-left: 0 !important; }
+  .ds-filter-controls input[type=number] { width: 96px; }
+  .ds-filter-controls button { margin-left: 0 !important; }
+
+  /* AA-style segmented preset toggle */
+  .presets { display: inline-flex; flex-wrap: wrap; gap: 2px; margin: 0 0 18px; padding: 2px; background: var(--chip); border-radius: var(--radius-lg); }
+  .presets button { height: 30px; border-color: transparent; background: transparent; color: var(--ink-2); }
+  .presets button:hover { border-color: transparent; color: var(--ink); }
+  .presets button.preset.active, .presets button.active { background: var(--panel); color: var(--ink); border-color: var(--line); }
+
+  .sliders { display: grid; grid-template-columns: 1fr; gap: 14px 40px; }
+  @media (min-width: 760px) { .sliders { grid-template-columns: 1fr 1fr; } }
+  .slider-row { display: grid; grid-template-columns: 88px minmax(0, 1fr) 118px; gap: 12px; align-items: center; }
+  .slider-row label { font-size: 13px; color: var(--ink-2); }
+  .slider-row input[type=range] { width: 100%; accent-color: var(--ink); }
+  .wval { font: 12px/1.35 var(--mono); text-align: right; color: var(--muted); }
+  .wval b { color: var(--ink); font-weight: 600; }
+
+  /* ---------------- tables ---------------- */
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { padding: 9px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  @media (max-width: 860px) { .panel table { display: block; max-width: 100%; overflow-x: auto; } }
+  th, td { padding: 10px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
   th:first-child, td:first-child, th.l, td.l { text-align: left; }
-  thead th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-  tbody tr:hover { background: var(--accent-soft); }
-  .rank { font-weight: 700; color: var(--muted); width: 1%; }
-  .model { font-weight: 600; }
-  .comp { font-weight: 700; }
-  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  thead th {
+    font: 500 12px/1.3 var(--sans); color: var(--muted); background: var(--panel);
+    border-bottom: 1px solid var(--line-strong); vertical-align: bottom;
+  }
+  tbody td { font: 12.5px/1.4 var(--mono); color: var(--ink-2); }
+  tbody td.l, tbody td.model, tbody td:first-child, tbody td.rowact, tbody td.tagcell { font-family: var(--sans); }
+  tbody tr:hover td { background: var(--panel-2); }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.model { font-size: 13px; font-weight: 600; color: var(--ink); }
+  td.rank { width: 1%; color: var(--muted); font-weight: 500; }
+  td.comp { color: var(--ink); font-weight: 600; }
+  .vtick { display: inline-block; width: 3px; height: 14px; margin-right: 10px; vertical-align: -2px; border-radius: 1px; }
+  td.hot, td.rank1, td.cmp-best { color: var(--ink); font-weight: 600; background: var(--chip); }
+  th.hotcol { color: var(--ink); }
+  caption, .subtable caption { padding: 4px 0 8px; text-align: left; font-size: 12.5px; color: var(--muted); }
+  .subtable { margin: 12px 0 4px; }
+  .matrix { font-size: 12px; }
+  .matrix td, .matrix th { padding: 6px 8px; }
+  tr.exp-row td { background: repeating-linear-gradient(45deg, var(--sample-bg) 0 8px, transparent 8px 16px); }
+  tr.exp-row .model { color: var(--sample); }
+  td.cf-pass, span.cf-pass { color: var(--healthy); font-weight: 600; }
+  td.cf-fail, span.cf-fail { color: var(--critical); font-weight: 600; }
+  .mc-un { font-style: italic; font-size: 12px; color: var(--muted); }
+
+  /* badges & pills */
+  .badge, .pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font: 500 11.5px/1.2 var(--sans); white-space: nowrap; }
   .badge.Healthy { color: var(--healthy); background: var(--healthy-bg); }
   .badge.Degraded { color: var(--degraded); background: var(--degraded-bg); }
   .badge.Critical { color: var(--critical); background: var(--critical-bg); }
-  .badge.exp { color: var(--sample); background: var(--sample-bg); border: 1px dashed var(--sample-line); margin-left: 6px; }
-  /* Exploratory (pulled) row — visually distinct, never mistaken for the validated set. */
-  tr.exp-row td { background: repeating-linear-gradient(45deg, var(--sample-bg), var(--sample-bg) 8px, transparent 8px, transparent 16px); }
-  tr.exp-row .model { color: var(--sample); }
-  tr.exp-row:hover td { background: var(--sample-bg); }
-  /* Admin pull/eval panel */
-  .admin { display: grid; gap: 12px; }
-  .admin .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-  .admin label { color: var(--muted); font-size: 13px; }
-  .admin input[type=text] {
-    font: inherit; color: var(--ink); background: var(--panel);
-    border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 280px; flex: 1;
-  }
-  .admin input[type=text]:focus { outline: none; border-color: var(--accent); }
-  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
-  button.primary:hover { filter: brightness(1.06); }
-  button:disabled { opacity: .5; cursor: not-allowed; }
-  .progress { background: var(--line); border-radius: 8px; height: 12px; overflow: hidden; display: none; }
-  .progress .fill { height: 100%; width: 0%; background: var(--accent); border-radius: 8px; transition: width .3s ease; }
-  #pull-status { font-size: 13px; color: var(--muted); min-height: 18px; }
-  #pull-status.err { color: var(--critical); }
-  #pull-status.ok { color: var(--loaded); }
-  .finding { color: var(--ink); background: var(--accent-soft); border-left: 4px solid var(--accent);
-             padding: 12px 14px; border-radius: 8px; margin: 0; }
-  .sliders { display: grid; grid-template-columns: 1fr; gap: 14px; }
-  @media (min-width: 720px) { .sliders { grid-template-columns: 1fr 1fr; } }
-  .slider-row { display: grid; grid-template-columns: 96px 1fr 118px; gap: 10px; align-items: center; }
-  .slider-row label { color: var(--muted); }
-  .slider-row input[type=range] { width: 100%; accent-color: var(--accent); }
-  .wval { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
-  .wval b { color: var(--accent); }
-  .presets { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
-  .agent-chart { display: grid; gap: 14px; }
-  .chart-block h3 { margin: 0 0 8px; font-size: 14px; }
-  .chart-block h3 small { color: var(--muted); font-weight: 400; }
-  .barrow { display: grid; grid-template-columns: 80px 1fr 96px; gap: 10px; align-items: center; margin: 6px 0; }
-  .barrow .name { color: var(--muted); font-size: 13px; text-align: left; }
-  .bartrack { background: var(--line); border-radius: 6px; height: 20px; overflow: hidden; }
-  .barfill { height: 100%; border-radius: 6px; }
-  .barfill.wall { background: var(--bar1); }
-  .barfill.vram { background: var(--bar2); }
-  .barval { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
-  .legend { display: flex; gap: 16px; color: var(--muted); font-size: 13px; margin-top: 4px; }
-  .legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
-  .legend .sw.wall { background: var(--bar1); } .legend .sw.vram { background: var(--bar2); }
-  .note { color: var(--muted); font-size: 13px; margin-top: 10px; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .92em; }
-  /* --- nav (Overview / Detailed Analysis / Settings) --- */
-  .nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 4px; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
-  .nav button { font: inherit; font-weight: 600; color: var(--muted); background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; cursor: pointer; }
-  .nav button:hover { border-color: var(--accent); color: var(--ink); }
-  .nav button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .view { display: none; }
-  .view.active { display: block; }
-  /* section intro line under a panel heading */
-  .lead { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
-  /* table cell highlighting for the "dominant" findings + rank-1 */
-  td.hot { background: var(--accent-soft); font-weight: 700; color: var(--accent); }
-  td.rank1 { color: var(--accent); font-weight: 700; }
-  th.hotcol { color: var(--accent); }
-  .subtable { margin: 8px 0 4px; }
-  .subtable caption { text-align: left; color: var(--muted); font-size: 13px; padding: 8px 0 6px; }
-  /* statistics rows */
-  .stat-row { display: grid; grid-template-columns: 200px 1fr; gap: 8px 16px; padding: 8px 0; border-bottom: 1px solid var(--line); }
-  .stat-row .k { color: var(--muted); }
-  .sig { font-weight: 700; }
-  .sig.yes { color: var(--healthy); } .sig.no { color: var(--muted); }
-  .matrix { font-size: 12px; }
-  .matrix td, .matrix th { padding: 5px 7px; }
-  /* settings status rows */
-  .status-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
-  @media (min-width: 640px) { .status-grid { grid-template-columns: 1fr 1fr; } }
-  .status-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
-  .status-item .lbl { color: var(--muted); }
-  .pill { display: inline-block; padding: 2px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+  .badge.exp { margin-left: 6px; color: var(--sample); background: var(--sample-bg); border: 1px dashed var(--sample-line); }
   .pill.on { color: var(--healthy); background: var(--healthy-bg); }
-  .pill.off { color: var(--muted); background: var(--line); }
+  .pill.off { color: var(--muted); background: var(--chip); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; font-size: 13px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); }
+  .chip .cname { font-weight: 600; }
+  .chip .cw { font: 11.5px var(--mono); color: var(--muted); }
+  .chip .builtin { font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+  .chip button { height: 26px; padding: 0 8px; font-size: 12px; border-color: transparent; }
+  .chip button:hover { border-color: var(--line-strong); }
+  .tagchip { display: inline-flex; align-items: center; gap: 4px; margin: 2px 4px 2px 0; padding: 2px 8px; font-size: 11.5px; font-weight: 500; color: var(--ink-2); background: var(--chip); border-radius: 999px; white-space: nowrap; }
+  .tagchip .tag-x { cursor: pointer; opacity: .6; } .tagchip .tag-x:hover { opacity: 1; }
+  .tagcell .addtag { padding: 2px 9px; font-size: 11.5px; color: var(--muted); background: transparent; border: 1px dashed var(--line-strong); border-radius: 999px; cursor: pointer; }
+  .tagcell .addtag:hover { color: var(--ink); border-color: var(--ink); }
 
-  /* ===================== professional polish ===================== */
-  :root {
-    --shadow: 0 1px 2px rgba(16,24,40,.05), 0 1px 3px rgba(16,24,40,.07);
-    --c1: #4a3aa7; --c2: #2a78d6; --c3: #eb6834;   /* composite / accuracy / latency */
+  .exportbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .exportbar .lbl { margin-right: 6px; font-size: 12.5px; color: var(--muted); }
+
+  /* ---------------- highlight cards (AA "Highlights" row) ---------------- */
+  .highlights { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 1024px) { .highlights { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .hcard { min-width: 0; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+  .hcard .hhead { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+  .hcard .sq { flex: none; width: 16px; height: 16px; transform: translateY(2px); }
+  .hcard h3 { margin: 0; font: 400 24px/1.15 var(--serif); letter-spacing: -.01em; }
+  .hcard .help { margin-left: auto; }
+  .hcard .sub { margin: 0 0 6px; font-size: 12px; color: var(--muted); }
+  .vbars { position: relative; display: flex; align-items: stretch; gap: 8px; height: 264px; padding-top: 26px; }
+  .vbar { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
+  .vbar .plot { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; border-bottom: 1px solid var(--line-strong); }
+  .vbar .col { position: relative; width: 100%; max-width: 54px; min-height: 3px; }
+  .vbar .v {
+    font: 500 11.5px/1 var(--mono); color: var(--ink); white-space: nowrap; margin-bottom: 5px;
   }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-    --shadow: 0 1px 2px rgba(0,0,0,.45);
-    --c1: #9085e9; --c2: #3987e5; --c3: #d95926;
-  } }
-  :root[data-theme="dark"] { --shadow: 0 1px 2px rgba(0,0,0,.45); --c1:#9085e9; --c2:#3987e5; --c3:#d95926; }
-  .wrap { max-width: 1120px; }
-  /* top brand bar */
-  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 6px 0 14px; }
-  .brand { display: flex; align-items: center; gap: 11px; }
-  .brand .mark { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--accent); color: #fff; font-size: 17px; font-weight: 800; }
-  .brand .name { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; }
-  .brand .name small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); letter-spacing: 0; margin-top: 1px; }
-  .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .toolbar .filelabel { font-size: 13px; color: var(--muted); }
-  /* nav as a real tab bar */
-  .nav { gap: 4px; border-bottom: 1px solid var(--line); padding: 0; margin: 2px 0 20px; }
-  .nav button { border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 12px 18px; font-size: 15px; background: transparent; color: var(--muted); }
-  .nav button:hover { color: var(--ink); background: transparent; border-bottom-color: var(--line); }
-  .nav button.active { background: transparent; color: var(--accent); border-bottom-color: var(--accent); }
-  .panel { box-shadow: var(--shadow); }
-  .panel h2 { font-size: 18px; letter-spacing: -0.01em; }
-  .section-label { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 22px 2px 10px; }
-  /* Detailed Analysis — internal sub-tabs (Phase 32A; visual grouping only, no data change) */
-  .subtabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); padding: 0; margin: 2px 0 18px; }
-  .subtabs .subtab { border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px 14px; font-size: 13.5px; font-weight: 600; background: transparent; color: var(--muted); cursor: pointer; }
-  .subtabs .subtab:hover { color: var(--ink); background: transparent; border-bottom-color: var(--line); }
-  .subtabs .subtab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .vbar .col .v { position: absolute; top: 7px; left: 0; right: 0; margin: 0; text-align: center; color: #fff; }
+  .vbar .m {
+    height: 46px; padding-top: 8px; overflow: hidden; text-align: center;
+    font-size: 11px; line-height: 1.25; color: var(--muted); word-break: break-word;
+  }
+  @media (max-width: 640px) { .vbars { gap: 6px; } .vbar .m { height: 60px; font-size: 10.5px; } }
+  .vbar .m .vdot { display: block; width: 8px; height: 8px; margin: 0 auto 4px; border-radius: 999px; }
+  .vbar.best .m { color: var(--ink); font-weight: 600; }
+
+  /* chart watermark — AA's small corner mark, here the AgentMeter wordmark */
+  .vbars::after, .chartwm::after {
+    content: "AgentMeter"; position: absolute; top: 0; right: 0; padding-left: 13px;
+    font: 400 12px/1 var(--serif); color: var(--muted); opacity: .8; pointer-events: none;
+    background: linear-gradient(var(--brand), var(--brand)) left center / 8px 8px no-repeat;
+  }
+  .chartwm { position: relative; }
+
+  /* ---------------- horizontal bars ---------------- */
+  .agent-chart { display: grid; gap: 18px; }
+  .chart-block h3 { margin: 0 0 8px; font: 600 13.5px/1.4 var(--sans); }
+  .chart-block h3 small { font-weight: 400; color: var(--muted); }
+  .barrow { display: grid; grid-template-columns: 96px minmax(0, 1fr) 96px; gap: 12px; align-items: center; margin: 7px 0; }
+  .barrow .name { font-size: 12.5px; color: var(--ink-2); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bartrack { height: 18px; background: var(--chip); border-radius: 2px; overflow: hidden; }
+  .barfill { height: 100%; border-radius: 2px 0 0 2px; }
+  .barfill.wall { background: var(--bar-strong); }
+  .barfill.vram { background: var(--bar-soft); }
+  .barval { font: 12px var(--mono); text-align: right; color: var(--ink); }
+  @media (max-width: 640px) { .barrow { grid-template-columns: 88px minmax(0, 1fr) 76px !important; gap: 8px; } }
+  .legend, .glegend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 6px; font-size: 12.5px; color: var(--ink-2); }
+  .legend .sw, .glegend .sw { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 999px; vertical-align: 0; }
+  .legend .sw.wall { background: var(--bar-strong); } .legend .sw.vram { background: var(--bar-soft); }
+  .gbar { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 12px; align-items: center; margin: 10px 0; }
+  @media (max-width: 640px) { .gbar { grid-template-columns: 1fr; gap: 4px; } }
+  .gbar .gname { font-size: 12.5px; color: var(--ink-2); }
+  .gbar .gtrack { display: flex; flex-direction: column; gap: 4px; }
+  .gseg { display: flex; align-items: center; gap: 8px; }
+  .gseg .glabel { width: 62px; flex: none; font-size: 11px; text-align: right; color: var(--muted); }
+  .gseg .gbarfill { height: 14px; min-width: 2px; border-radius: 0 2px 2px 0; }
+  .gseg .gval { font: 12px var(--mono); color: var(--ink); }
+  .fill-a { background: var(--series-a); } .fill-b { background: var(--series-b); }
+
+  /* ---------------- scatter (AA trade-off map) ---------------- */
+  .pareto-grid { display: grid; grid-template-columns: 1fr; gap: 32px; }
+  .pareto-grid h3.crud-h3 { margin-bottom: 6px; font: 400 17px/1.3 var(--serif); }
+  .scatter-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 6px 0 10px; font-size: 12.5px; color: var(--ink-2); }
+  .scatter-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .scatter-legend .zone { width: 16px; height: 12px; background: var(--good-zone); border: 1px solid var(--good-zone-line); border-radius: 2px; }
+  .scatter-legend .dots { width: 20px; height: 8px; }
+  .scatter-legend .vd { width: 8px; height: 8px; border-radius: 999px; }
+  .scatter { display: block; width: 100%; height: auto; overflow: visible; }
+  .scatter .zone-good { fill: var(--good-zone); }
+  .scatter .zone-weak { fill: var(--weak-zone); }
+  .scatter .axis { stroke: var(--line-strong); stroke-width: 1; }
+  .scatter .gridln { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 4; }
+  .scatter .tick { fill: var(--muted); font: 11px var(--mono); }
+  .scatter .axlabel { fill: var(--ink-2); font: 500 12px var(--sans); }
+  .scatter .frontline { fill: none; stroke: var(--frontline); stroke-width: 2.5; stroke-dasharray: .1 5.6; stroke-linecap: round; }
+  .scatter .dot { stroke: var(--panel); stroke-width: 1.5; }
+  .scatter .dot.front { stroke: var(--frontline); stroke-width: 1.5; }
+  .scatter .ptlabel { fill: var(--ink-2); font: 12px var(--sans); }
+
+  /* ---------------- detailed analysis: AA left section rail ---------------- */
+  .dlayout { display: block; }
+  .subtabs {
+    display: flex; gap: 2px; margin: 0 0 28px; padding: 6px; overflow-x: auto;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  }
+  .subtab {
+    flex: none; display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px;
+    font: 500 13px/1 var(--sans); color: var(--ink-2); background: transparent; border: 0; border-radius: var(--radius); cursor: pointer; white-space: nowrap;
+  }
+  .subtab::before { content: ""; width: 8px; height: 8px; flex: none; background: var(--muted); opacity: .6; }
+  .subtab:hover { color: var(--ink); }
+  .subtab.active { color: var(--ink); background: var(--chip-2); }
+  .subtab.active::before { background: var(--ink); opacity: 1; }
+  @media (min-width: 1024px) {
+    .dlayout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 10fr); gap: 28px; align-items: start; }
+    .subtabs {
+      position: sticky; top: 96px; flex-direction: column; gap: 12px; margin: 0; padding: 20px 0 0;
+      background: none; border: 0; border-radius: 0; overflow: visible;
+    }
+    .subtab { height: auto; padding: 0; align-items: flex-start; font-size: 12px; line-height: 1.35; white-space: normal; text-align: left; color: var(--ink); opacity: .5; background: none !important; }
+    .subtab::before { margin-top: 3px; opacity: 1; }
+    .subtab:hover, .subtab.active { opacity: 1; }
+  }
   .subview { display: none; }
   .subview.active { display: block; }
-  /* Decision support (Phase 32B; read-only, additive) */
-  .ds-caveat { border-left: 3px solid var(--accent); padding: 8px 0 8px 12px; margin-top: 10px; color: var(--ink); font-weight: 600; }
-  .ds-filter-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; }
-  .ds-filter-controls input[type="number"] { width: 92px; }
-  td.cf-pass, span.cf-pass { color: #1a7f37; font-weight: 700; }
-  td.cf-fail, span.cf-fail { color: #cf222e; font-weight: 700; }
-  /* highlight cards (Artificial-Analysis-style) */
-  .highlights { display: grid; gap: 16px; grid-template-columns: 1fr; }
-  @media (min-width: 780px) { .highlights { grid-template-columns: 1fr 1fr 1fr; } }
-  .hcard { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 18px 14px; box-shadow: var(--shadow); }
-  .hcard .hhead { display: flex; align-items: center; gap: 8px; }
-  .hcard .sq { width: 12px; height: 12px; border-radius: 3px; flex: none; }
-  .hcard h3 { margin: 0; font-size: 16px; font-weight: 700; }
-  .hcard .sub { color: var(--muted); font-size: 12px; margin: 3px 0 4px; }
-  .vbars { display: flex; align-items: flex-end; gap: 8px; height: 168px; padding-top: 8px; }
-  .vbar { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
-  .vbar .v { font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); margin-bottom: 4px; }
-  .vbar .col { width: 100%; max-width: 40px; border-radius: 6px 6px 0 0; min-height: 3px; }
-  .vbar .col.c1 { background: var(--c1); } .vbar .col.c2 { background: var(--c2); } .vbar .col.c3 { background: var(--c3); }
-  .vbar .m { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.2; margin-top: 8px; word-break: break-word; }
-  .vbar.best .m { color: var(--ink); font-weight: 600; }
-  /* CRUD blocks (presets / sessions / notes) */
-  .crud-block { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 16px; }
-  .crud-h3 { font-size: 14px; font-weight: 700; margin: 0 0 12px; }
-  .crud-h3 .hint { font-weight: 400; font-size: 12px; color: var(--muted); }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 999px; padding: 5px 6px 5px 12px; font-size: 13px; background: var(--panel); }
-  .chip .cname { font-weight: 600; }
-  .chip .cw { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-  .chip button { border: none; background: transparent; padding: 3px 8px; border-radius: 999px; font-size: 12px; color: var(--accent); cursor: pointer; }
-  .chip button:hover { background: var(--accent-soft); }
-  .chip button.danger { color: var(--critical); }
-  .chip .builtin { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
-  .rowact button { border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 5px 12px; font-size: 13px; cursor: pointer; margin-left: 6px; }
-  .rowact button:hover { border-color: var(--accent); }
-  .rowact button.danger:hover { border-color: var(--critical); color: var(--critical); }
-  .note-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
-  .note-item .nbody { flex: 1; }
-  .note-item .nmeta { color: var(--muted); font-size: 11px; margin-top: 2px; }
-  /* Chapter 4 — Pareto scatter + grouped bars */
-  .pareto-grid { display: grid; gap: 18px; grid-template-columns: 1fr; }
-  @media (min-width: 760px) { .pareto-grid { grid-template-columns: 1fr 1fr; } }
-  .scatter { width: 100%; height: auto; }
-  .scatter .axis { stroke: var(--line); stroke-width: 1; }
-  .scatter .gridln { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; opacity: .6; }
-  .scatter .axlabel, .scatter .tick { fill: var(--muted); font-size: 11px; }
-  .scatter .dot { fill: var(--muted); }
-  .scatter .dot.front { fill: var(--accent); stroke: var(--panel); stroke-width: 1.5; }
-  .scatter .frontline { stroke: var(--accent); stroke-width: 1.5; stroke-dasharray: 4 3; fill: none; opacity: .7; }
-  .scatter .ptlabel { fill: var(--ink); font-size: 10px; }
-  .gbar { display: grid; grid-template-columns: 180px 1fr; gap: 10px; align-items: center; margin: 8px 0; }
-  .gbar .gname { color: var(--muted); font-size: 13px; text-align: left; }
-  .gbar .gtrack { display: flex; flex-direction: column; gap: 3px; }
-  .gseg { display: flex; align-items: center; gap: 8px; }
-  .gseg .gbarfill { height: 14px; border-radius: 4px; min-width: 2px; }
-  .gseg .gval { font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
-  .gseg .glabel { font-size: 11px; color: var(--muted); width: 62px; text-align: right; }
-  .fill-a { background: var(--c2); } .fill-b { background: var(--c3); }
-  .glegend { display: flex; gap: 16px; color: var(--muted); font-size: 12px; margin: 6px 0 2px; }
-  .glegend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 6px; }
-  /* Compare workspace + export */
-  button.ghost { font: inherit; font-size: 13px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
-  button.ghost:hover { border-color: var(--accent); color: var(--accent); }
-  .exportbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
-  .exportbar .lbl { color: var(--muted); font-size: 13px; margin-right: 4px; }
-  .cmp-slots { display: grid; gap: 12px; grid-template-columns: 1fr; }
-  @media (min-width: 720px) { .cmp-slots { grid-template-columns: 1fr 1fr 1fr; } }
-  .cmp-slot { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--panel); }
-  .cmp-slot h4 { margin: 0 0 8px; font-size: 13px; color: var(--muted); font-weight: 700; }
-  .cmp-slot select, .cmp-slot input[type=file] { width: 100%; font: inherit; font-size: 13px; margin-bottom: 8px; }
-  .cmp-slot select { color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  .subview > .section-label:first-child { margin-top: 0; border-top: 0; padding-top: 0; }
+
+  /* statistics */
+  .stat-row { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 6px 16px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  @media (max-width: 640px) { .stat-row { grid-template-columns: 1fr; } }
+  .stat-row .k { color: var(--muted); }
+  .sig { font-weight: 600; } .sig.yes { color: var(--healthy); } .sig.no { color: var(--muted); }
+
+  /* ---------------- sessions / compare / config / settings ---------------- */
+  .admin { display: grid; gap: 12px; }
+  .admin .row label { min-width: 110px; }
+  .progress { display: none; height: 6px; background: var(--chip); border-radius: 999px; overflow: hidden; }
+  .progress .fill { width: 0; height: 100%; background: var(--ink); border-radius: 999px; transition: width .3s ease; }
+  #pull-status { min-height: 18px; font-size: 13px; color: var(--muted); }
+  .note-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
+  .note-item .nbody { flex: 1; font-size: 13px; }
+  .note-item .nmeta { margin-top: 2px; font-size: 11px; color: var(--muted); }
+  .cmp-slots { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  @media (min-width: 760px) { .cmp-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .cmp-slot { padding: 14px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+  .cmp-slot h4 { margin: 0 0 10px; font: 600 12px/1.3 var(--sans); color: var(--muted); }
+  .cmp-slot select, .cmp-slot input[type=file] { width: 100%; margin-bottom: 8px; }
   .cmp-slot .loaded { font-size: 12px; color: var(--loaded); }
   .cmp-slot .empty { font-size: 12px; color: var(--muted); }
-  td.cmp-best { color: var(--accent); font-weight: 700; background: var(--accent-soft); }
-  #cmp-table td.model, #cmp-table th.l { text-align: left; }
-  /* config builder */
-  .cfg-grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
+  .cfg-grid { display: grid; grid-template-columns: 1fr; gap: 12px 16px; }
   @media (min-width: 640px) { .cfg-grid { grid-template-columns: 1fr 1fr; } }
-  @media (min-width: 900px) { .cfg-grid { grid-template-columns: 1fr 1fr 1fr; } }
-  .cfg-grid label, .cfg-weights label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 600; }
-  .cfg-grid input, .cfg-grid select, .cfg-weights input, .cfg-ta {
-    font: inherit; font-size: 13px; color: var(--ink); background: var(--panel);
-    border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; width: 100%; box-sizing: border-box; }
-  .cfg-ta { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; resize: vertical; }
-  .cfg-weights { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-  .cfg-weights label { width: 110px; }
-  .cfg-wsum { font-size: 13px; font-weight: 700; padding-bottom: 8px; }
-  .cfg-wsum.ok { color: var(--loaded); }
-  .cfg-wsum.bad { color: #c0392b; }
-  .cfg-yaml { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-    padding: 14px; overflow: auto; max-height: 460px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12.5px; line-height: 1.5; white-space: pre; color: var(--ink); }
-  .cfg-yaml.locked { border-color: var(--accent); }
-  /* session tags */
-  .tagchip { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px;
-    background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent);
-    border-radius: 999px; padding: 1px 7px; margin: 2px 3px 2px 0; white-space: nowrap; }
-  .tagchip .tag-x { cursor: pointer; font-weight: 700; opacity: 0.75; }
-  .tagchip .tag-x:hover { opacity: 1; }
-  .tagcell .addtag { font-size: 11.5px; color: var(--muted); background: transparent;
-    border: 1px dashed var(--line); border-radius: 999px; padding: 1px 8px; cursor: pointer; }
-  .tagcell .addtag:hover { border-color: var(--accent); color: var(--accent); }
-  .banner.unvalidated { background: #fbeee0; border-color: #e08a3c; color: #7a4410; }
-  :root[data-theme="dark"] .banner.unvalidated { background: #3a2a15; border-color: #e08a3c; color: #f0c088; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .banner.unvalidated {
-    background: #3a2a15; border-color: #e08a3c; color: #f0c088; } }
+  @media (min-width: 960px) { .cfg-grid { grid-template-columns: repeat(3, 1fr); } }
+  .cfg-grid label, .cfg-weights label { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
+  .cfg-grid input, .cfg-grid select, .cfg-weights input { width: 100%; }
+  .cfg-ta { width: 100%; padding: 10px 12px; font: 12.5px/1.5 var(--mono); color: var(--ink); background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); resize: vertical; }
+  .cfg-weights { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+  .cfg-weights label { width: 112px; }
+  .cfg-wsum { padding-bottom: 8px; font: 600 12.5px var(--mono); }
+  .cfg-wsum.ok { color: var(--loaded); } .cfg-wsum.bad { color: var(--critical); }
+  .cfg-yaml { max-height: 460px; margin: 14px 0 0; padding: 14px 16px; overflow: auto; white-space: pre; font: 12.5px/1.55 var(--mono); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-lg); }
+  .cfg-yaml.locked { border-left: 3px solid var(--ink); }
+  #view-config h3, #view-settings h3 { font-family: var(--sans); font-weight: 600; }
+  .status-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  @media (min-width: 640px) { .status-grid { grid-template-columns: 1fr 1fr; } }
+  .status-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
+  .status-item .lbl { color: var(--ink-2); }
+  .glossary { margin: 0; }
+  .glossary div { padding: 10px 0; font-size: 13px; line-height: 1.55; border-bottom: 1px solid var(--line); }
+  .glossary div:last-child { border-bottom: 0; }
+  .glossary .term { font-weight: 600; color: var(--ink); }
+  .glossary .def { color: var(--ink-2); }
 
-  /* ============================================================
-     PHASE 20 — visual redesign (look & feel only; overrides above)
-     A restrained developer-tool / observability aesthetic:
-     neutral surfaces, one accent, hairline borders, dense tables,
-     monospace numerics, a persistent left sidebar. No logic touched.
-     ============================================================ */
-  :root {
-    --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    /* Light: crisp near-black text on cool-neutral surfaces */
-    --bg: #f4f5f7; --panel: #ffffff; --panel-2: #fafbfc; --sidebar-bg: #ffffff;
-    --ink: #15181e; --ink-2: #3a414c; --muted: #69707d;
-    --line: #e6e8ec; --line-strong: #d3d7de;
-    --accent: #4b56d2; --accent-2: #3a44c0; --accent-soft: #eceffb; --accent-ink: #ffffff;
-    --bar1: #4b56d2; --bar2: #0f9488;
-    --healthy: #12855a; --healthy-bg: #e6f4ec;
-    --degraded: #b26a00; --degraded-bg: #fbf0dd;
-    --critical: #c02b2b; --critical-bg: #fbe9e9;
-    --sample: #8a5a00; --sample-bg: #fbf3dc; --sample-line: #ecc65f;
-    --loaded: #0b6b5f; --loaded-bg: #e2f4f0; --loaded-line: #7fd3c6;
-    --shadow: 0 1px 2px rgba(16,24,40,.04), 0 1px 2px rgba(16,24,40,.06);
-    --c1: #4b56d2; --c2: #0f9488; --c3: #d97706;
-    --radius: 6px; --radius-lg: 10px;
-    --sb-w: 236px;
-  }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-    /* Dark: near-black chrome, hairline borders, muted text */
-    --bg: #0b0d11; --panel: #14171d; --panel-2: #171b22; --sidebar-bg: #0f1216;
-    --ink: #e8eaf0; --ink-2: #b9c0cc; --muted: #8b93a2;
-    --line: #23272f; --line-strong: #2e343d;
-    --accent: #818cf8; --accent-2: #99a2fb; --accent-soft: #1b2036; --accent-ink: #0b0d11;
-    --bar1: #818cf8; --bar2: #2dd4bf;
-    --healthy: #4ade80; --healthy-bg: #14311f;
-    --degraded: #f0b657; --degraded-bg: #3a2a10;
-    --critical: #ff8080; --critical-bg: #3a1717;
-    --sample: #ffd873; --sample-bg: #2e2609; --sample-line: #5f4c17;
-    --loaded: #6fe0cf; --loaded-bg: #0f302c; --loaded-line: #1f6156;
-    --shadow: 0 1px 2px rgba(0,0,0,.5); --c1: #818cf8; --c2: #2dd4bf; --c3: #f59e0b;
-  } }
-  :root[data-theme="dark"] {
-    --bg: #0b0d11; --panel: #14171d; --panel-2: #171b22; --sidebar-bg: #0f1216;
-    --ink: #e8eaf0; --ink-2: #b9c0cc; --muted: #8b93a2;
-    --line: #23272f; --line-strong: #2e343d;
-    --accent: #818cf8; --accent-2: #99a2fb; --accent-soft: #1b2036; --accent-ink: #0b0d11;
-    --bar1: #818cf8; --bar2: #2dd4bf;
-    --healthy: #4ade80; --healthy-bg: #14311f;
-    --degraded: #f0b657; --degraded-bg: #3a2a10;
-    --critical: #ff8080; --critical-bg: #3a1717;
-    --sample: #ffd873; --sample-bg: #2e2609; --sample-line: #5f4c17;
-    --loaded: #6fe0cf; --loaded-bg: #0f302c; --loaded-line: #1f6156;
-    --shadow: 0 1px 2px rgba(0,0,0,.5); --c1: #818cf8; --c2: #2dd4bf; --c3: #f59e0b;
-  }
-
-  body { font-family: var(--sans); font-size: 14px; -webkit-font-smoothing: antialiased; }
-
-  /* ---- app shell: persistent left sidebar + scrolling main ---- */
-  .app { display: grid; grid-template-columns: var(--sb-w) minmax(0, 1fr); min-height: 100vh; }
-  .sidebar {
-    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
-    background: var(--sidebar-bg); border-right: 1px solid var(--line);
-    display: flex; flex-direction: column; gap: 6px; padding: 18px 12px;
-  }
-  .main { min-width: 0; max-width: 1160px; padding: 26px 30px 72px; }
-  .sidebar .brand { padding: 4px 8px 14px; gap: 10px; }
-  .sidebar .brand .mark {
-    width: 30px; height: 30px; border-radius: 8px; background: var(--accent);
-    color: var(--accent-ink); display: inline-grid; place-items: center; box-shadow: none;
-  }
-  .sidebar .brand .name { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
-  .sidebar .brand .name small { font-size: 11px; font-weight: 400; color: var(--muted); margin-top: 2px; }
-
-  /* nav as a vertical rail with clear active state */
-  .sidebar .nav { display: flex; flex-direction: column; gap: 2px; border: none; padding: 0; margin: 0; }
-  .sidebar .nav button {
-    display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-    font: 500 13.5px/1 var(--sans); color: var(--ink-2); background: transparent;
-    border: none; border-radius: var(--radius); padding: 9px 10px; cursor: pointer;
-  }
-  .sidebar .nav button .nav-i {
-    width: 17px; height: 17px; flex: none; fill: none; stroke: currentColor;
-    stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: .8;
-  }
-  .sidebar .nav button:hover { background: var(--accent-soft); color: var(--ink); border: none; }
-  .sidebar .nav button.active { background: var(--accent-soft); color: var(--accent); border: none; }
-  .sidebar .nav button.active .nav-i { opacity: 1; }
-  .sidefoot { margin-top: auto; padding: 12px 8px 4px; border-top: 1px solid var(--line); }
-  .sidefoot .filelabel { display: flex; flex-direction: column; gap: 6px; font-size: 11.5px; color: var(--muted); }
-  .sidefoot input[type=file] { font-size: 11.5px; }
-  .sidefoot input[type=file]::file-selector-button {
-    font: inherit; color: var(--ink); background: var(--panel-2); border: 1px solid var(--line);
-    border-radius: var(--radius); padding: 5px 10px; margin-right: 8px; cursor: pointer; }
-
-  /* ---- surfaces & type ---- */
-  .panel { border-radius: var(--radius-lg); border: 1px solid var(--line); padding: 18px 20px; box-shadow: none; }
-  .panel h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; color: var(--ink); }
-  .panel h2 .hint { font-weight: 400; font-size: 12.5px; }
-  .section-label { color: var(--muted); }
-  .lead { font-size: 12.5px; }
-  code { font-family: var(--mono); }
-
-  /* ---- controls ---- */
-  select, button, .admin input[type=text], .cfg-grid input, .cfg-grid select,
-  .cfg-weights input, input[type=text] {
-    border-radius: var(--radius); border-color: var(--line-strong);
-  }
-  button, select { font-size: 13px; }
-  button:hover, select:hover { border-color: var(--accent); }
-  select:focus, button:focus-visible, input:focus, textarea:focus {
-    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-  button.primary:hover { background: var(--accent-2); border-color: var(--accent-2); filter: none; }
-  button.ghost, .rowact button, .nav-tab { border-color: var(--line-strong); }
-
-  /* ---- tables: dense, zebra, aligned, monospace numerics ---- */
-  .panel table { font-variant-numeric: tabular-nums; }
-  .panel th, .panel td { padding: 8px 11px; border-bottom: 1px solid var(--line); }
-  .panel thead th {
-    font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
-    color: var(--muted); background: var(--panel-2); border-bottom: 1px solid var(--line-strong);
-    position: sticky; top: 0; }
-  .panel tbody td { font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); }
-  .panel tbody td.l, .panel tbody td.model, .panel tbody td:first-child,
-  .panel tbody td .tagchip, .panel tbody td.rowact { font-family: var(--sans); }
-  .panel tbody td.model { color: var(--ink); font-weight: 600; }
-  .panel tbody tr:nth-child(even) td { background: var(--panel-2); }
-  .panel tbody tr:hover td { background: var(--accent-soft); }
-  td.cmp-best { background: var(--accent-soft); color: var(--accent); }
-  td.hot, td.rank1 { background: var(--accent-soft); }
-
-  /* ---- badges / pills / chips ---- */
-  .badge, .pill { border-radius: 5px; font-weight: 600; font-size: 11px; letter-spacing: .01em; }
-  .chip { border-radius: var(--radius); border-color: var(--line-strong); }
-  .tagchip { border-radius: 5px; background: var(--accent-soft); border-color: transparent; color: var(--accent); font-weight: 500; }
-  .tagcell .addtag { border-radius: 5px; }
-  .finding { border-radius: var(--radius); border-left-width: 3px; }
-  .banner { border-radius: var(--radius-lg); }
-
-  /* ---- highlight cards: sharper, flatter ---- */
-  .hcard { border-radius: var(--radius-lg); box-shadow: none; padding: 16px 16px 12px; }
-  .hcard h3 { font-size: 14px; }
-  .vbar .v { font-family: var(--mono); }
-
-  /* ---- charts: muted grid, single accent emphasis ---- */
-  .scatter .gridln { opacity: .45; }
-  .scatter .axlabel, .scatter .tick { font-family: var(--mono); font-size: 10.5px; }
-  .scatter .dot.front { fill: var(--accent); }
-  .scatter .frontline { stroke: var(--accent); }
-  .barval, .gseg .gval, .wval, .cfg-wsum { font-family: var(--mono); }
-  .progress { height: 8px; border-radius: 999px; }
-  .progress .fill { border-radius: 999px; }
-
-  /* ---- responsive: collapse the sidebar to a top rail on narrow screens ---- */
-  @media (max-width: 720px) {
-    .app { grid-template-columns: 1fr; }
-    .sidebar { position: static; height: auto; flex-direction: column; border-right: none; border-bottom: 1px solid var(--line); }
-    .sidebar .nav { flex-direction: row; flex-wrap: wrap; }
-    .sidebar .nav button { width: auto; }
-    .sidefoot { margin-top: 8px; }
-    .main { padding: 18px 16px 56px; }
-  }
-
-  /* ============================================================
-     PHASE 21 — onboarding & in-context help (help text/UI only)
-     Tab intros, "?" info popovers, first-visit hint, glossary.
-     No logic/data/analysis touched.
-     ============================================================ */
-  .tab-intro {
-    color: var(--ink-2); font-size: 12.5px; line-height: 1.55; margin: 2px 2px 16px;
-    max-width: 760px; }
-  .tab-intro b { color: var(--ink); font-weight: 600; }
-
-  .help { position: relative; display: inline-flex; vertical-align: middle; margin-left: 6px; }
+  /* ---------------- in-context help ("?") ---------------- */
+  .help { position: relative; display: inline-flex; vertical-align: middle; margin-left: 4px; }
   .help-btn {
-    width: 17px; height: 17px; padding: 0; border-radius: 999px; cursor: pointer;
-    border: 1px solid var(--line-strong); background: var(--panel-2); color: var(--muted);
-    font: 600 11px/1 var(--sans); display: inline-grid; place-items: center; }
-  .help-btn:hover, .help-btn[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+    display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0;
+    font: 600 11px/1 var(--sans); color: var(--muted); background: var(--panel); border: 1px solid var(--line-strong); border-radius: 999px; cursor: pointer;
+  }
+  .help-btn:hover, .help-btn[aria-expanded="true"] { color: var(--ink); border-color: var(--ink); }
   .help-pop {
-    position: absolute; top: calc(100% + 7px); left: 0; z-index: 60;
-    width: 300px; max-width: 78vw; box-sizing: border-box;
-    background: var(--panel); color: var(--ink-2);
-    border: 1px solid var(--line-strong); border-radius: var(--radius-lg);
-    box-shadow: 0 8px 28px rgba(16,24,40,.16); padding: 12px 14px;
-    font: 400 12.5px/1.55 var(--sans); text-transform: none; letter-spacing: 0; white-space: normal; }
+    position: absolute; top: calc(100% + 8px); left: 0; z-index: 60; width: 300px; max-width: 78vw; padding: 12px 14px;
+    font: 400 12.5px/1.55 var(--sans); letter-spacing: 0; text-transform: none; white-space: normal; color: var(--ink-2);
+    background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); box-shadow: 0 10px 30px rgba(0, 0, 0, .12);
+  }
   .help-pop[hidden] { display: none; }
   .help-pop.flip { left: auto; right: 0; }
-  .help-pop b { color: var(--ink); font-weight: 600; }
-  .help-pop .g { display: block; margin-top: 6px; color: var(--muted); font-size: 11.5px; }
+  .help-pop b { color: var(--ink); }
+  .help-pop .g { display: block; margin-top: 6px; font-size: 11.5px; color: var(--muted); }
 
-  /* first-visit hint */
-  .getting-started {
-    display: flex; align-items: flex-start; gap: 14px; margin: 0 0 16px;
-    background: var(--accent-soft); border: 1px solid var(--accent); border-radius: var(--radius-lg);
-    padding: 13px 15px; }
-  .getting-started[hidden] { display: none; }
-  .getting-started .gs-body { font-size: 12.5px; line-height: 1.55; color: var(--ink-2); flex: 1; }
-  .getting-started .gs-body b { color: var(--ink); font-weight: 600; }
-  .getting-started .gs-q { display: inline-grid; place-items: center; width: 15px; height: 15px;
-    border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); font-size: 10px;
-    font-weight: 700; vertical-align: middle; }
-  .getting-started .gs-x {
-    flex: none; font: 600 12px/1 var(--sans); color: var(--accent-ink); background: var(--accent);
-    border: 1px solid var(--accent); border-radius: var(--radius); padding: 7px 12px; cursor: pointer; }
-  .getting-started .gs-x:hover { background: var(--accent-2); border-color: var(--accent-2); }
-  .gs-link { background: none; border: none; padding: 0; margin: 0; font: inherit; color: var(--accent);
-    text-decoration: underline; cursor: pointer; }
-  .gs-link:hover { color: var(--accent-2); }
+  /* ---------------- FAQ ---------------- */
+  .faq { max-width: 720px; margin: 0 auto; }
+  .faq details { border-bottom: 1px solid var(--line); }
+  .faq summary {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0 10px;
+    list-style: none; cursor: pointer; font-size: 15px; font-weight: 500; color: var(--ink);
+  }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; flex: none; font-size: 20px; font-weight: 300; color: var(--muted); transition: transform .2s ease; }
+  .faq details[open] summary::after { transform: rotate(45deg); }
+  .faq p { margin: 0 0 16px; font-size: 13.5px; line-height: 1.65; color: var(--ink-2); }
 
-  /* glossary */
-  .glossary { margin: 4px 0 0; }
-  .glossary div { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; line-height: 1.5; }
-  .glossary div:last-child { border-bottom: none; }
-  .glossary dt, .glossary .term { font-weight: 600; color: var(--ink); }
-  .glossary .term { font-family: var(--sans); }
-  .glossary .def { color: var(--ink-2); }
-  .mc-un { color: var(--muted); font-style: italic; font-size: 12px; }
+  /* ---------------- footer (AA notch silhouette, neutral band) ---------------- */
+  .site-foot { margin-top: 40px; color: var(--plum); background: var(--band); clip-path: polygon(0 0, 35% 0, 39% 38px, 100% 38px, 100% 100%, 0 100%); }
+  .site-foot .grid { display: grid; grid-template-columns: 1fr; gap: 40px 20px; padding: 88px 0 56px; }
+  @media (min-width: 860px) { .site-foot .grid { grid-template-columns: repeat(12, minmax(0, 1fr)); padding-top: 104px; } }
+  .site-foot .mark { grid-column: span 3; }
+  .site-foot .mark svg { width: 120px; height: 120px; }
+  .site-foot .mark .mark-a { fill: var(--brand); } .site-foot .mark .mark-b { fill: currentColor; }
+  .site-foot .word { margin: 18px 0 0; font: 400 40px/1 var(--serif); letter-spacing: -.015em; }
+  .site-foot .about { grid-column: 5 / span 5; }
+  .site-foot .about p { margin: 0; font: 400 clamp(20px, 2.4vw, 30px)/1.2 var(--serif); max-width: 22ch; }
+  .site-foot .cols { grid-column: 5 / span 8; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+  @media (max-width: 859px) { .site-foot .about, .site-foot .cols, .site-foot .mark { grid-column: auto; } .site-foot .cols { grid-template-columns: 1fr 1fr; } }
+  .site-foot h4 { margin: 0 0 14px; font: 500 14px/1.3 var(--sans); }
+  .site-foot ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .site-foot li, .site-foot li button { font: 400 13px/1.5 var(--sans); color: inherit; }
+  .site-foot li button { padding: 0; background: none; border: 0; text-align: left; }
+  .site-foot li button:hover { text-decoration: underline; text-underline-offset: 2px; }
+  .site-foot .legal { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 20px 0 28px; border-top: 1px solid var(--line-strong); font-size: 12px; opacity: .75; }
 </style>
 </head>
 <body>
 <div class="app">
-  <aside class="sidebar">
-    <div class="brand">
-      <span class="mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 4-6"/></svg>
-      </span>
-      <span class="name">AgentMeter<small>LLM resource-efficiency benchmark</small></span>
+<header class="topbar">
+  <div class="container">
+    <a class="brand" href="#" onclick="document.querySelector('#nav [data-view=&quot;overview&quot;]').click();return false;" aria-label="AgentMeter — Overview">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><rect class="mark-b" x="0" y="12" width="4" height="4"/><rect class="mark-b" x="4" y="8" width="4" height="4"/><rect class="mark-b" x="8" y="4" width="4" height="4"/><rect class="mark-a" x="12" y="0" width="4" height="4"/></svg>
+      <span class="name">AgentMeter</span>
+    </a>
+
+  <nav class="nav" id="nav" aria-label="Views">
+    <button data-view="overview" class="active">
+      <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      <span>Overview</span></button>
+    <button data-view="detailed">
+      <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M13 16V8"/><path d="M18 16v-3"/></svg>
+      <span>Detailed Analysis</span></button>
+    <button data-view="sessions">
+      <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
+      <span>Sessions</span></button>
+    <button data-view="compare">
+      <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><path d="M12 3v18"/><path d="M5 8H3l2-3 2 3H5v8"/><path d="M19 16h2l-2 3-2-3h2V8"/></svg>
+      <span>Compare</span></button>
+    <button data-view="config">
+      <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19 12a7 7 0 00-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 00-1.7-1L14.5 2h-5l-.3 2.5a7 7 0 00-1.7 1l-2.4-1-2 3.5L2.1 11a7 7 0 000 2l-2 1.5 2 3.5 2.4-1a7 7 0 001.7 1L9.5 22h5l.3-2.5a7 7 0 001.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"/></svg>
+      <span>Config builder</span></button>
+    <button data-view="settings">
+      <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+      <span>Settings</span></button>
+  </nav>
+
+    <div class="tools">
+      <label class="loadbtn" title="Load an analysis.json results file">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+        <span><span class="lbl-long">Load </span>results.json</span>
+        <input type="file" id="file" accept="application/json,.json" aria-label="Load results.json"></label>
     </div>
-
-    <nav class="nav" id="nav" aria-label="Views">
-      <button data-view="overview" class="active">
-        <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
-        <span>Overview</span></button>
-      <button data-view="detailed">
-        <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M13 16V8"/><path d="M18 16v-3"/></svg>
-        <span>Detailed Analysis</span></button>
-      <button data-view="sessions">
-        <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
-        <span>Sessions</span></button>
-      <button data-view="compare">
-        <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><path d="M12 3v18"/><path d="M5 8H3l2-3 2 3H5v8"/><path d="M19 16h2l-2 3-2-3h2V8"/></svg>
-        <span>Compare</span></button>
-      <button data-view="config">
-        <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19 12a7 7 0 00-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 00-1.7-1L14.5 2h-5l-.3 2.5a7 7 0 00-1.7 1l-2.4-1-2 3.5L2.1 11a7 7 0 000 2l-2 1.5 2 3.5 2.4-1a7 7 0 001.7 1L9.5 22h5l.3-2.5a7 7 0 001.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"/></svg>
-        <span>Config builder</span></button>
-      <button data-view="settings">
-        <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
-        <span>Settings</span></button>
-    </nav>
-
-    <div class="sidefoot">
-      <label class="filelabel">Load results.json
-        <input type="file" id="file" accept="application/json,.json"></label>
-    </div>
-  </aside>
-
-  <main class="main">
-  <div id="getting-started" class="getting-started" hidden>
-    <div class="gs-body"><b>New here?</b> Start on <b>Overview</b> for the model ranking, open
-      <b>Detailed Analysis</b> for the breakdowns, and click any <span class="gs-q">?</span> to learn
-      what a metric means — or open the <button type="button" class="gs-link" onclick="document.querySelector('#nav [data-view=&quot;settings&quot;]').click()">Glossary</button>
-      for every term. AgentMeter measures <b>resource efficiency</b> — speed, memory and token
-      use — with accuracy as one factor; it does not claim to pick the single "best" threat detector.</div>
-    <button id="gs-dismiss" class="gs-x" type="button">Got it</button>
   </div>
-  <div id="banner" class="banner sample"></div>
+</header>
+
+<main class="main container">
+  <div class="band">
+    <div id="getting-started" class="getting-started" hidden>
+      <div class="gs-body"><b>New here?</b> Start on <b>Overview</b> for the model ranking, open
+        <b>Detailed Analysis</b> for the breakdowns, and click any <span class="gs-q">?</span> to learn
+        what a metric means — or open the <button type="button" class="gs-link" onclick="document.querySelector('#nav [data-view=&quot;settings&quot;]').click()">Glossary</button>
+        for every term. AgentMeter measures <b>resource efficiency</b> — speed, memory and token
+        use — with accuracy as one factor; it does not claim to pick the single "best" threat detector.</div>
+      <button id="gs-dismiss" class="gs-x" type="button">Got it</button>
+    </div>
+    <div id="banner" class="banner sample"></div>
+  </div>
 
   <!-- ===================== OVERVIEW ===================== -->
   <section id="view-overview" class="view active">
 
-  <p class="tab-intro"><b>Overview — your starting point.</b> It ranks the benchmarked models by one
+  <header class="view-hero">
+    <div class="hero-grid">
+      <div class="hero-main">
+        <h1>AgentMeter LLM Resource-Efficiency Benchmarks</h1>
+        <p class="tab-intro">This page ranks the benchmarked models by one
     overall efficiency score and lets you change how much each factor (accuracy, speed, memory, tokens)
     counts using the sliders. The ranking re-computes live in your browser.</p>
+      </div>
+      <div class="hero-aside"><button type="button" class="cta" onclick="document.querySelector('#nav [data-view=&quot;compare&quot;]').click()">Compare runs <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></button></div>
+      <div class="index-card">
+        <h2>AgentMeter composite (SAW)</h2>
+        <p>One score built from four measured criteria, each normalised against a target value:</p>
+        <ul>
+          <li><b>Accuracy</b><span>Share of scenarios where the final label matched the true class</span></li>
+          <li><b>Latency</b><span>Wall time per scenario through all four agents</span></li>
+          <li><b>VRAM</b><span>Total device memory while the model runs</span></li>
+          <li><b>Tokens</b><span>Input + output tokens per scenario</span></li>
+        </ul>
+        <p class="foot">Weights renormalise to sum to 1; move the <b>Live weights</b> sliders to change them. Accuracy is one factor &mdash; AgentMeter measures resource efficiency, not which model is the best threat detector.</p>
+      </div>
+    </div>
+  </header>
 
-  <div class="section-label">Highlights</div>
+  <div class="section-label is-small">Highlights</div>
   <div class="highlights">
     <div class="hcard">
-      <div class="hhead"><span class="sq" style="background:var(--c1)"></span><h3>Composite Health Score</h3><span class="help"><button class="help-btn" type="button" data-help="hc-composite" aria-label="What is this?">?</button></span></div>
+      <div class="hhead"><span class="sq" style="background:var(--hi-1)"></span><h3>Composite Health Score</h3><span class="help"><button class="help-btn" type="button" data-help="hc-composite" aria-label="What is this?">?</button></span></div>
       <p class="sub">SAW composite ×100 · Higher is better</p>
       <div class="vbars" id="hc-composite"></div>
     </div>
     <div class="hcard">
-      <div class="hhead"><span class="sq" style="background:var(--c2)"></span><h3>Accuracy</h3><span class="help"><button class="help-btn" type="button" data-help="hc-accuracy" aria-label="What is this?">?</button></span></div>
+      <div class="hhead"><span class="sq" style="background:var(--hi-2)"></span><h3>Accuracy</h3><span class="help"><button class="help-btn" type="button" data-help="hc-accuracy" aria-label="What is this?">?</button></span></div>
       <p class="sub">Detection accuracy across 300 scenarios · Higher is better</p>
       <div class="vbars" id="hc-accuracy"></div>
     </div>
     <div class="hcard">
-      <div class="hhead"><span class="sq" style="background:var(--c3)"></span><h3>Latency per scenario</h3><span class="help right"><button class="help-btn" type="button" data-help="hc-latency" aria-label="What is this?">?</button></span></div>
+      <div class="hhead"><span class="sq" style="background:var(--hi-3)"></span><h3>Latency per scenario</h3><span class="help right"><button class="help-btn" type="button" data-help="hc-latency" aria-label="What is this?">?</button></span></div>
       <p class="sub">Mean wall time per scenario · Lower is better</p>
       <div class="vbars" id="hc-latency"></div>
     </div>
   </div>
 
-  <div class="section-label">Ranking</div>
+  <h2 class="section-label">Ranking</h2>
+  <p class="section-desc">Every benchmarked model, scored by the SAW composite under the live weights and sorted best first.</p>
   <div class="panel">
     <h2>SAW ranking <span class="hint">— Simple Additive Weighting composite, re-ranked live from the weights below</span><span class="help"><button class="help-btn" type="button" data-help="saw" aria-label="What is this?">?</button></span></h2>
     <table id="saw">
@@ -622,7 +714,8 @@
     </div>
   </div>
 
-  <div class="section-label">Decision support</div>
+  <h2 class="section-label">Decision support</h2>
+  <p class="section-desc">What to do with this result: a plain-language recommendation, a what-if filter against your own limits, and where the resource cost sits.</p>
   <div class="panel">
     <h2>Deployment recommendation <span class="hint">— what to do with this result, in plain language (updates live with the weights below)</span><span class="help"><button class="help-btn" type="button" data-help="ds-rec" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="ds-rec-headline"></p>
@@ -647,7 +740,8 @@
     <p class="finding" id="ds-optim"></p>
   </div>
 
-  <div class="section-label">Model context</div>
+  <h2 class="section-label">Model context &amp; weights</h2>
+  <p class="section-desc">Reference facts about each model, and the weights that drive the ranking above.</p>
   <div class="panel">
     <h2>Model reference info (Hugging Face) <span class="hint">— context only, not part of the score</span><span class="help"><button class="help-btn" type="button" data-help="modelctx" aria-label="What is this?">?</button></span></h2>
     <table id="mc-table"></table>
@@ -676,7 +770,8 @@
     <p class="finding" id="finding"></p>
   </div>
 
-  <div class="section-label">Admin</div>
+  <h2 class="section-label">Run a model</h2>
+  <p class="section-desc">Benchmark one extra model on the GPU server. Its row stays labelled exploratory and never enters the validated study.</p>
   <div class="panel">
     <h2>Run one model now (exploratory) <span class="hint">— benchmarks a single Hugging Face model on this GPU server right now and adds it below as an unvalidated, exploratory row</span><span class="help right"><button class="help-btn" type="button" data-help="addmodel" aria-label="What is this?">?</button></span></h2>
     <p class="note"><b>Requires the GPU pull/eval server.</b> This runs a real benchmark now, so it only works when the dashboard is opened from a running <code>pull_eval_server.py</code> on a GPU box (e.g. Vast.ai) — not over <code>file://</code> or on a CPU-only machine.</p>
@@ -697,16 +792,40 @@
     </div>
   </div>
 
+    <h2 class="section-label">Frequently asked questions</h2>
+  <div class="faq">
+    <details><summary>How is the composite score weighted?</summary>
+      <p>Each of the four criteria (accuracy, latency, VRAM, tokens) is normalised against a target value and multiplied by its weight; the weights are renormalised to sum to 1. The defaults come from the study config. Move the <b>Live weights</b> sliders and the ranking recomputes in your browser with <code>saw.js</code>, the same formula the analysis uses.</p></details>
+    <details><summary>Why can every model land in the Critical tier?</summary>
+      <p>Tiers come from fixed thresholds on the composite &times;100: Healthy &ge; 80, Degraded &ge; 60, Critical below that. When zero-shot accuracy sits well below the accuracy target, every composite is pulled down, so a whole field can be Critical. That is a finding about zero-shot detection on this data, not a display error.</p></details>
+    <details><summary>Does AgentMeter pick the best threat detector?</summary>
+      <p>No. It measures resource efficiency &mdash; speed, memory and token use &mdash; with accuracy as one factor. The pipeline is the test subject; the contribution is the measurement harness and the comparison method.</p></details>
+    <details><summary>What is the difference between total device VRAM and marginal working memory?</summary>
+      <p><b>Total device VRAM</b> is the memory footprint while the model runs, and it is what the ranking uses. <b>Marginal working memory</b> (<code>vram_delta</code>) is the memory an agent adds above the fresh-context baseline; it excludes the model weights and is shown only in the per-agent diagnostics.</p></details>
+    <details><summary>What does the sample banner mean?</summary>
+      <p>The dashboard opens on a bundled sample: accuracy, composite, rank and tier are the locked real results, while latency and token magnitudes and all per-agent numbers are illustrative placeholders. Load a real <code>analysis.json</code> with <b>Load results.json</b> and the banner turns green.</p></details>
+    <details><summary>Are exploratory and custom runs comparable with the study?</summary>
+      <p>They are ranked with the same SAW configuration so you can read them side by side, but they are excluded from the validated study and its statistics, and they are always labelled. The locked study numbers are never modified.</p></details>
+  </div>
+
   </section><!-- /overview -->
 
   <!-- ===================== DETAILED ANALYSIS ===================== -->
   <section id="view-detailed" class="view">
 
-  <p class="tab-intro"><b>Detailed Analysis — the breakdowns behind the ranking.</b> Read-only views of the
+  <header class="view-hero">
+    <div class="hero-grid">
+      <div class="hero-main">
+        <h1>Detailed analysis: the breakdowns behind the ranking</h1>
+        <p class="tab-intro">Read-only views of the
     same loaded results: where time and memory go inside the pipeline, how stable the ranking is, statistical
     tests, per-class costs, and efficiency trade-offs. Hover any <b>?</b> to learn how to read a chart.</p>
+      </div>
+    </div>
+  </header>
 
-  <div class="subtabs" id="dsub-tabs" role="tablist">
+  <div class="dlayout">
+  <div class="subtabs" id="dsub-tabs" role="tablist" aria-label="Analysis sections">
     <button class="subtab active" type="button" data-dsub="accuracy" role="tab">Accuracy &amp; Correctness</button>
     <button class="subtab" type="button" data-dsub="resource" role="tab">Resource Efficiency</button>
     <button class="subtab" type="button" data-dsub="tradeoffs" role="tab">Trade-offs &amp; Ranking</button>
@@ -714,15 +833,18 @@
   </div>
 
   <!-- ---- Accuracy & Correctness: per-model + per-class accuracy, confusion, misclassification cost ---- -->
+  <div class="dpanes">
   <div class="subview active" id="dsub-accuracy">
+  <h2 class="section-label">Accuracy &amp; correctness</h2>
+  <p class="section-desc">How often each model was right, where it confused classes, and what a wrong answer cost in time and tokens.</p>
 
   <div class="panel">
     <h2>Accuracy detail<span class="help"><button class="help-btn" type="button" data-help="accuracy" aria-label="What is this?">?</button></span></h2>
     <p class="lead">Per-model accuracy from the stored <code>correct</code> flag (not recomputed).</p>
-    <p class="note"><b>How to read:</b> accuracy is how often a model's final label matched the true class across all scenarios — higher is better. When a confusion matrix is shown below, rows are the <b>true</b> class and columns are what the model <b>predicted</b>: the diagonal is correct calls, off-diagonal cells are mix-ups.</p>
     <table id="acc-table"></table>
     <div id="acc-perclass" style="margin-top:18px"></div>
     <div id="acc-confusion" style="margin-top:18px"></div>
+    <details class="howto"><summary>How to read this table</summary><p>accuracy is how often a model's final label matched the true class across all scenarios — higher is better. When a confusion matrix is shown below, rows are the <b>true</b> class and columns are what the model <b>predicted</b>: the diagonal is correct calls, off-diagonal cells are mix-ups.</p></details>
   </div>
 
   <div class="panel">
@@ -742,6 +864,8 @@
 
   <!-- ---- Resource Efficiency: per-agent diagnostics, per-class resource, CoV, prefill/decode, throughput ---- -->
   <div class="subview" id="dsub-resource">
+  <h2 class="section-label">Resource efficiency</h2>
+  <p class="section-desc">Where time, memory and tokens go inside the four-agent pipeline, by agent, by attack class and per model.</p>
 
   <div class="panel">
     <h2>Per-agent diagnostics <span class="hint">— which of the 4 pipeline steps (Perceive → Reason → Decide → Act) uses the most time and memory</span><span class="help"><button class="help-btn" type="button" data-help="peragent" aria-label="What is this?">?</button></span></h2>
@@ -791,9 +915,9 @@
 
   <div class="panel">
     <h2>Latency stability (CoV) <span class="hint">— how steady each model's speed is run to run; lower means more predictable timing</span><span class="help"><button class="help-btn" type="button" data-help="cov" aria-label="What is this?">?</button></span></h2>
-    <p class="note"><b>How to read:</b> this is how consistent a model's speed is from scenario to scenario. <b>Lower = steadier, more predictable timing</b> (good for reliable response); a high value means the model is sometimes much slower than its average. The formula is std ÷ mean of end-to-end latency.</p>
     <div id="cov-bars"></div>
     <table id="cov-table" style="margin-top:16px"></table>
+    <details class="howto"><summary>How to read this chart</summary><p>this is how consistent a model's speed is from scenario to scenario. <b>Lower = steadier, more predictable timing</b> (good for reliable response); a high value means the model is sometimes much slower than its average. The formula is std ÷ mean of end-to-end latency.</p></details>
   </div>
 
   <div class="panel">
@@ -804,15 +928,17 @@
 
   <div class="panel">
     <h2>Output throughput <span class="hint">— how fast each model writes its answer once generating; higher is quicker</span><span class="help"><button class="help-btn" type="button" data-help="throughput" aria-label="What is this?">?</button></span></h2>
-    <p class="note"><b>How to read:</b> how fast a model writes its answer once it starts generating — output tokens per second. <b>Higher = quicker to finish a response.</b> This is raw generation speed, separate from how long the answer ends up being.</p>
     <div id="tp-bars"></div>
     <table id="tp-table" style="margin-top:16px"></table>
+    <details class="howto"><summary>How to read this chart</summary><p>how fast a model writes its answer once it starts generating — output tokens per second. <b>Higher = quicker to finish a response.</b> This is raw generation speed, separate from how long the answer ends up being.</p></details>
   </div>
 
   </div>
 
   <!-- ---- Trade-offs & Ranking: sensitivity analysis + Pareto frontier ---- -->
   <div class="subview" id="dsub-tradeoffs">
+  <h2 class="section-label">Trade-offs &amp; ranking</h2>
+  <p class="section-desc">Whether the ranking survives different weightings, and which models give the best accuracy for their cost.</p>
 
   <div class="panel">
     <h2>Weighting robustness <span class="hint">— does the ranking hold up if you weight the factors differently? (fixed weight sets from the study)</span><span class="help"><button class="help-btn" type="button" data-help="sensitivity" aria-label="What is this?">?</button></span></h2>
@@ -823,36 +949,47 @@
 
   <div class="panel">
     <h2>Pareto frontier <span class="hint">— accuracy vs resource cost; the best trade-offs sit on the front line</span><span class="help"><button class="help-btn" type="button" data-help="pareto" aria-label="What is this?">?</button></span></h2>
-    <p class="note"><b>How to read:</b> each dot is a model, placed by accuracy (up) against resource cost (right). <b>Dots on the dashed line are the best accuracy-vs-cost trade-offs; any dot behind the line is beaten on both</b> by a model on it. Up-and-left is better.</p>
     <div class="pareto-grid">
-      <div><h3 class="crud-h3">Accuracy vs mean latency</h3><div id="pareto-latency"></div></div>
-      <div><h3 class="crud-h3">Accuracy vs mean tokens</h3><div id="pareto-tokens"></div></div>
+      <div class="chartwm"><h3 class="crud-h3">Accuracy vs mean latency</h3><div id="pareto-latency"></div></div>
+      <div class="chartwm"><h3 class="crud-h3">Accuracy vs mean tokens</h3><div id="pareto-tokens"></div></div>
     </div>
     <p class="note" id="pareto-note"></p>
+    <details class="howto"><summary>How to read this chart</summary><p>each dot is a model, placed by accuracy (up) against resource cost (right). <b>Dots joined by the dotted Pareto line are the best accuracy-vs-cost trade-offs; any dot behind the line is beaten on both</b> by a model on it. Up-and-left is better. The green "most attractive quadrant" marks models that are both more accurate and cheaper than the median model; the grey corner marks the opposite.</p></details>
   </div>
 
   </div>
 
   <!-- ---- Statistical Validation: Kruskal-Wallis omnibus + Dunn post-hoc ---- -->
   <div class="subview" id="dsub-stats">
+  <h2 class="section-label">Statistical validation</h2>
+  <p class="section-desc">Whether the differences between models are real or could be noise.</p>
 
   <div class="panel">
     <h2>Statistics <span class="hint">— are the differences between models real or just noise? (Kruskal-Wallis + Dunn)</span><span class="help"><button class="help-btn" type="button" data-help="statistics" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="stats-finding"></p>
-    <p class="note"><b>How to read:</b> the Kruskal-Wallis test asks whether the models' per-scenario differences are real or could be chance. <b>A small p-value (p &lt; 0.05) means the difference is real, not luck.</b> In the Dunn table below, each cell is the p-value for that <b>pair</b> of models — a small cell means those two genuinely differ.</p>
     <div id="stats-body"></div>
+    <details class="howto"><summary>How to read these tests</summary><p>the Kruskal-Wallis test asks whether the models' per-scenario differences are real or could be chance. <b>A small p-value (p &lt; 0.05) means the difference is real, not luck.</b> In the Dunn table below, each cell is the p-value for that <b>pair</b> of models — a small cell means those two genuinely differ.</p></details>
   </div>
 
   </div>
+  </div><!-- /dpanes -->
+  </div><!-- /dlayout -->
 
   </section><!-- /detailed -->
 
   <!-- ===================== SESSIONS (CRUD) ===================== -->
   <section id="view-sessions" class="view">
-  <p class="tab-intro"><b>Sessions — save and organise results.</b> Import an <code>analysis.json</code> as a
+  <header class="view-hero">
+    <div class="hero-grid">
+      <div class="hero-main">
+        <h1>Sessions</h1>
+        <p class="tab-intro">Import an <code>analysis.json</code> as a
     named session, add tags to group runs, and reopen any session to load it into the Overview and Detailed
     Analysis tabs. Stored results are read-only once saved. (Needs the AgentMeter server.)</p>
-  <p class="note"><b>Local results</b> = result files the server found under <code>results/</code>; <b>Saved sessions</b> = ones you named and kept in the app; <b>Import</b> = upload an <code>analysis.json</code> file.</p>
+        <p class="note"><b>Local results</b> = result files the server found under <code>results/</code>; <b>Saved sessions</b> = ones you named and kept in the app; <b>Import</b> = upload an <code>analysis.json</code> file.</p>
+      </div>
+    </div>
+  </header>
   <div class="panel" id="crud-unavailable" style="display:none">
     <h2>Sessions</h2>
     <p class="finding">Saved sessions, presets and notes are stored by the server. Open this dashboard <b>from the pull/eval server</b> (or set the server base URL in the Overview → Add a model panel) to manage them. Over <code>file://</code> this is read-only.</p>
@@ -904,9 +1041,16 @@
 
   <!-- ===================== COMPARE (multi-session workspace) ===================== -->
   <section id="view-compare" class="view">
-  <p class="tab-intro"><b>Compare — put runs side by side.</b> Pick 2–3 saved sessions (for example the same
+  <header class="view-hero">
+    <div class="hero-grid">
+      <div class="hero-main">
+        <h1>Compare runs side by side</h1>
+        <p class="tab-intro">Pick 2–3 saved sessions (for example the same
     models on different GPUs) to see how their resource cost and scores differ, then export the comparison.
     Read-only — it changes no numbers.</p>
+      </div>
+    </div>
+  </header>
   <div class="panel">
     <h2>Compare sessions <span class="hint">— pick 2–3 saved sessions and see resource cost + SAW composite side-by-side (read-only)</span><span class="help"><button class="help-btn" type="button" data-help="compare" aria-label="What is this?">?</button></span></h2>
     <div class="cmp-slots" id="cmp-slots"></div>
@@ -931,9 +1075,16 @@
 
   <!-- ===================== CONFIG BUILDER ===================== -->
   <section id="view-config" class="view">
-  <p class="tab-intro"><b>Config builder — set up a custom run without editing YAML.</b> Fill in the form to
+  <header class="view-hero">
+    <div class="hero-grid">
+      <div class="hero-main">
+        <h1>Config builder: set up a custom run without editing YAML</h1>
+        <p class="tab-intro">Fill in the form to
     generate a configuration file for your own choice of models, dataset and weights. It only <b>writes a
     file</b> — it never starts a run or uses a GPU, and it can't touch the locked validated study.</p>
+      </div>
+    </div>
+  </header>
   <div class="panel">
     <h2>Config builder <span class="hint">— write a reusable run config (a plan). This only saves a file — nothing runs here.</span></h2>
     <p class="note"><b>Not sure which?</b> <b>Run one model now</b> (Overview → bottom) executes immediately on the GPU server and shows an exploratory result. <b>Config builder</b> writes a config you run yourself later (and can list many models).</p>
@@ -1046,8 +1197,15 @@
 
   <!-- ===================== SETTINGS (STATUS ONLY) ===================== -->
   <section id="view-settings" class="view">
-  <p class="tab-intro"><b>Settings — read-only status.</b> Shows which API tokens the server has configured
+  <header class="view-hero">
+    <div class="hero-grid">
+      <div class="hero-main">
+        <h1>Settings &amp; glossary</h1>
+        <p class="tab-intro">Shows which API tokens the server has configured
     (set / not set) and the cost-safety options. No secrets are ever entered or displayed here.</p>
+      </div>
+    </div>
+  </header>
   <div class="panel">
     <h2>Settings <span class="hint">— status only</span></h2>
     <p class="finding" id="settings-note">Tokens are configured via the server-side <code>.env</code> file for security and are never entered or shown here.</p>
@@ -1074,6 +1232,24 @@
   </div>
   </section><!-- /settings -->
   </main>
+
+<footer class="site-foot">
+  <div class="container">
+    <div class="grid">
+      <div class="mark">
+        <svg width="120" height="120" viewBox="0 0 16 16" aria-hidden="true"><rect class="mark-b" x="0" y="12" width="4" height="4"/><rect class="mark-b" x="4" y="8" width="4" height="4"/><rect class="mark-b" x="8" y="4" width="4" height="4"/><rect class="mark-a" x="12" y="0" width="4" height="4"/></svg>
+        <p class="word">AgentMeter</p>
+      </div>
+      <div class="about"><p>Resource efficiency of open-source LLMs in agentic threat-detection pipelines.</p></div>
+      <div class="cols">
+        <div><h4>Results</h4><ul><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;overview&quot;]').click();window.scrollTo(0,0)">Overview</button></li><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;detailed&quot;]').click();window.scrollTo(0,0)">Detailed analysis</button></li><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;compare&quot;]').click();window.scrollTo(0,0)">Compare runs</button></li></ul></div>
+        <div><h4>Workspace</h4><ul><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;sessions&quot;]').click();window.scrollTo(0,0)">Sessions</button></li><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;config&quot;]').click();window.scrollTo(0,0)">Config builder</button></li><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;settings&quot;]').click();window.scrollTo(0,0)">Settings &amp; glossary</button></li></ul></div>
+        <div><h4>Method</h4><ul><li>Four-agent pipeline: Perceive &rarr; Reason &rarr; Decide &rarr; Act</li><li>Per-agent wall time, TTFT, VRAM, tokens</li><li>SAW composite + Kruskal-Wallis / Dunn</li></ul></div>
+      </div>
+    </div>
+    <div class="legal"><span>AgentMeter</span><span>Read-only view of a precomputed analysis.json</span><span>Scoring mirrors analyze.py via saw.js</span></div>
+  </div>
+</footer>
 </div>
 
 <!-- Bundled illustrative SAMPLE (see notes.SAMPLE inside). Kept in sync with
@@ -2432,7 +2608,7 @@
         (isExp ? '<span class="badge exp" title="Pulled on demand; not part of the validated 5-model study">exploratory</span>' : "");
       return '<tr class="' + (isExp ? "exp-row" : "") + '">' +
         '<td class="rank l">' + r.rank + "</td>" +
-        '<td class="model l">' + esc(r.model) + "</td>" +
+        '<td class="model l"><span class="vtick" style="background:' + vendorOf(r.model).color + '" title="' + esc(vendorOf(r.model).name) + '"></span>' + esc(r.model) + "</td>" +
         "<td>" + fmtPct(x.accuracy_pct) + "</td>" +
         "<td>" + fmtS(x.latency_s) + "</td>" +
         "<td>" + fmtGB(x.total_device_vram_mb != null ? x.total_device_vram_mb : x.vram_mb) + "</td>" +
@@ -2457,6 +2633,20 @@
     return String(m).split("/").pop()
       .replace(/-Instruct.*$/i, "").replace(/-it$/i, "").replace(/-chat$/i, "");
   }
+  // Data colour = model vendor (presentation only). One colour per creator,
+  // used identically in every chart so a model is recognisable at a glance.
+  var VENDORS = [
+    { re: /qwen|alibaba/i, name: "Alibaba", color: "var(--v-alibaba)" },
+    { re: /mistral|mixtral|ministral/i, name: "Mistral", color: "var(--v-mistral)" },
+    { re: /llama|meta/i, name: "Meta", color: "var(--v-meta)" },
+    { re: /gemma|gemini|google/i, name: "Google", color: "var(--v-google)" },
+    { re: /phi-|microsoft/i, name: "Microsoft", color: "var(--v-microsoft)" }
+  ];
+  function vendorOf(m) {
+    var s = String(m || "");
+    for (var i = 0; i < VENDORS.length; i++) if (VENDORS[i].re.test(s)) return VENDORS[i];
+    return { name: "Other", color: "var(--v-other)" };
+  }
   function hcardBars(containerId, rows, fmt, higherBetter, colClass) {
     var el = document.getElementById(containerId);
     if (!el) return;
@@ -2466,12 +2656,15 @@
     var best = higherBetter ? Math.max.apply(null, vals) : Math.min.apply(null, vals);
     el.innerHTML = rows.map(function (r) {
       var v = +r.value || 0;
-      var h = Math.max(3, Math.round(Math.abs(v) / max * 120));
+      var pct = Math.max(1.5, Math.abs(v) / max * 100);
       var isBest = (v === best);
-      return '<div class="vbar' + (isBest ? " best" : "") + '">' +
-        '<span class="v">' + fmt(v) + "</span>" +
-        '<div class="col ' + colClass + '" style="height:' + h + "px" + (isBest ? "" : ";opacity:.5") + '"></div>' +
-        '<span class="m">' + esc(shortModel(r.model)) + "</span></div>";
+      var vend = vendorOf(r.model);
+      var val = '<span class="v">' + fmt(v) + "</span>";
+      var inside = pct >= 16;   // value label inside the bar when it fits, above otherwise
+      return '<div class="vbar' + (isBest ? " best" : "") + '" title="' + esc(r.model) + " — " + esc(vend.name) + '">' +
+        '<div class="plot">' + (inside ? "" : val) +
+        '<div class="col ' + colClass + '" style="height:' + pct.toFixed(1) + "%;background:" + vend.color + '">' + (inside ? val : "") + "</div></div>" +
+        '<span class="m"><span class="vdot" style="background:' + vend.color + '"></span>' + esc(shortModel(r.model)) + "</span></div>";
     }).join("");
   }
   function renderHighlights() {
@@ -3017,7 +3210,10 @@
     var el = document.getElementById(id); if (!el) return;
     var pts = (points || []).filter(function (p) { return p.accuracy_pct != null && p[xKey] != null; });
     if (!pts.length) { el.innerHTML = "<span class='note'>(no data)</span>"; return; }
-    var W = 380, H = 250, ml = 46, mr = 14, mt = 12, mb = 46;
+    // Draw at the container's real width so SVG text renders at its true size
+    // (hidden panes report 0 width; fall back to a desktop width).
+    var W = Math.round(Math.min(900, Math.max(300, el.clientWidth || 760)));
+    var H = W < 520 ? 300 : 360, ml = 52, mr = 18, mt = 14, mb = 50;
     var xs = pts.map(function (p) { return +p[xKey]; }), ys = pts.map(function (p) { return +p.accuracy_pct; });
     var xmin = Math.min.apply(null, xs), xmax = Math.max.apply(null, xs);
     var ymin = Math.min.apply(null, ys), ymax = Math.max.apply(null, ys);
@@ -3026,35 +3222,55 @@
     if (xmax === xmin) xmax += 1; if (ymax === ymin) ymax += 1;
     function X(v) { return ml + (v - xmin) / (xmax - xmin) * (W - ml - mr); }
     function Y(v) { return H - mb - (v - ymin) / (ymax - ymin) * (H - mt - mb); }
-    var s = '<svg class="scatter" viewBox="0 0 ' + W + ' ' + H + '" role="img">';
-    // axes
-    s += '<line class="axis" x1="' + ml + '" y1="' + (H - mb) + '" x2="' + (W - mr) + '" y2="' + (H - mb) + '"/>';
-    s += '<line class="axis" x1="' + ml + '" y1="' + mt + '" x2="' + ml + '" y2="' + (H - mb) + '"/>';
-    // y ticks (accuracy %)
-    [ymin, (ymin + ymax) / 2, ymax].forEach(function (t) {
-      s += '<line class="gridln" x1="' + ml + '" y1="' + Y(t) + '" x2="' + (W - mr) + '" y2="' + Y(t) + '"/>';
-      s += '<text class="tick" x="' + (ml - 6) + '" y="' + (Y(t) + 3) + '" text-anchor="end">' + t.toFixed(0) + '%</text>';
-    });
+    function median(arr) { var s = arr.slice().sort(function (p, q) { return p - q; }), n = s.length;
+      return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; }
+    function tickFmt(t) { return t >= 100 ? String(Math.round(t)) : t.toFixed(1); }
+    var mx = median(xs), my = median(ys);
+    var s = '<svg class="scatter" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc("Accuracy vs " + xLabel) + '">';
+    // AA trade-off map: shaded "most attractive" quadrant (more accurate AND cheaper than
+    // the median model) and the opposite, least attractive corner in light grey.
+    s += '<rect class="zone-good" x="' + ml + '" y="' + mt + '" width="' + (X(mx) - ml).toFixed(1) + '" height="' + (Y(my) - mt).toFixed(1) + '"/>';
+    s += '<rect class="zone-weak" x="' + X(mx).toFixed(1) + '" y="' + Y(my).toFixed(1) + '" width="' + (W - mr - X(mx)).toFixed(1) + '" height="' + (H - mb - Y(my)).toFixed(1) + '"/>';
+    // y grid + ticks (accuracy %)
+    for (var i = 0; i <= 4; i++) {
+      var ty = ymin + (ymax - ymin) * i / 4;
+      s += '<line class="gridln" x1="' + ml + '" y1="' + Y(ty).toFixed(1) + '" x2="' + (W - mr) + '" y2="' + Y(ty).toFixed(1) + '"/>';
+      s += '<text class="tick" x="' + (ml - 8) + '" y="' + (Y(ty) + 3.5).toFixed(1) + '" text-anchor="end">' + ty.toFixed(0) + '%</text>';
+    }
     // x ticks
-    [xmin, (xmin + xmax) / 2, xmax].forEach(function (t) {
-      s += '<text class="tick" x="' + X(t) + '" y="' + (H - mb + 15) + '" text-anchor="middle">' + (t >= 100 ? Math.round(t) : t.toFixed(1)) + '</text>';
-    });
-    s += '<text class="axlabel" x="' + ((ml + W - mr) / 2) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(xLabel) + ' →</text>';
-    s += '<text class="axlabel" transform="translate(13,' + ((mt + H - mb) / 2) + ') rotate(-90)" text-anchor="middle">accuracy (%), higher is better →</text>';
-    // Pareto front line (front points sorted by x)
+    for (var k = 0; k <= 4; k++) {
+      var tx = xmin + (xmax - xmin) * k / 4;
+      s += '<text class="tick" x="' + X(tx).toFixed(1) + '" y="' + (H - mb + 17) + '" text-anchor="middle">' + tickFmt(tx) + '</text>';
+    }
+    s += '<line class="axis" x1="' + ml + '" y1="' + (H - mb) + '" x2="' + (W - mr) + '" y2="' + (H - mb) + '"/>';
+    s += '<text class="axlabel" x="' + ((ml + W - mr) / 2) + '" y="' + (H - 10) + '" text-anchor="middle">' + esc(xLabel) + '</text>';
+    s += '<text class="axlabel" transform="translate(14,' + ((mt + H - mb) / 2) + ') rotate(-90)" text-anchor="middle">Accuracy (%), higher is better</text>';
+    // Pareto front (front points sorted by x), drawn as AA's dotted line
     var front = pts.filter(function (p) { return p[frontKey]; }).slice()
       .sort(function (a, b) { return (+a[xKey]) - (+b[xKey]); });
     if (front.length > 1) {
       s += '<polyline class="frontline" points="' +
-        front.map(function (p) { return X(+p[xKey]) + "," + Y(+p.accuracy_pct); }).join(" ") + '"/>';
+        front.map(function (p) { return X(+p[xKey]).toFixed(1) + "," + Y(+p.accuracy_pct).toFixed(1); }).join(" ") + '"/>';
     }
+    var vendorsSeen = [];
     pts.forEach(function (p) {
       var cx = X(+p[xKey]), cy = Y(+p.accuracy_pct), fr = !!p[frontKey];
-      s += '<circle class="dot ' + (fr ? "front" : "") + '" cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="' + (fr ? 6 : 4) + '"><title>' + esc(p.model) + '</title></circle>';
-      s += '<text class="ptlabel" x="' + (cx + 8).toFixed(1) + '" y="' + (cy + 3).toFixed(1) + '">' + esc(shortModel(p.model)) + '</text>';
+      var v = vendorOf(p.model);
+      if (!vendorsSeen.some(function (q) { return q.name === v.name; })) vendorsSeen.push(v);
+      var right = cx > W - 130;   // keep labels inside the plot near the right edge
+      s += '<circle class="dot' + (fr ? " front" : "") + '" cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="6" style="fill:' + v.color + '"><title>' +
+        esc(p.model) + (fr ? " — on the Pareto front" : "") + '</title></circle>';
+      // front points: label under the dot so it never sits on the dotted line
+      if (fr) s += '<text class="ptlabel" x="' + cx.toFixed(1) + '" y="' + (cy + 21).toFixed(1) + '" text-anchor="middle">' + esc(shortModel(p.model)) + '</text>';
+      else s += '<text class="ptlabel" x="' + (right ? cx - 10 : cx + 10).toFixed(1) + '" y="' + (cy + 4).toFixed(1) + '"' + (right ? ' text-anchor="end"' : "") + '>' + esc(shortModel(p.model)) + '</text>';
     });
     s += '</svg>';
-    el.innerHTML = s;
+    var legend = '<div class="scatter-legend">' +
+      '<span><i class="zone"></i>Most attractive quadrant</span>' +
+      '<span><svg class="dots" viewBox="0 0 20 8" aria-hidden="true"><line x1="1.25" y1="4" x2="18.75" y2="4" stroke="currentColor" stroke-width="2.5" stroke-dasharray=".1 5.6" stroke-linecap="round"/></svg>Pareto line</span>' +
+      vendorsSeen.map(function (v) { return '<span><i class="vd" style="background:' + v.color + '"></i>' + esc(v.name) + "</span>"; }).join("") +
+      "</div>";
+    el.innerHTML = legend + s;
   }
 
   function renderPareto() {
@@ -3069,7 +3285,7 @@
     document.getElementById("pareto-note").textContent =
       "Non-dominated (Pareto-optimal) — accuracy vs latency: " + (lat.join(", ") || "—") +
       "  ·  accuracy vs tokens: " + (tok.join(", ") || "—") +
-      ". Highlighted dots/dashed line mark the front (higher accuracy, lower cost).";
+      ". Dark-ringed dots joined by the dotted line mark the front (higher accuracy, lower cost).";
   }
 
   function renderCov() {
@@ -4017,6 +4233,19 @@
       try { DETAIL_SUB_RENDER[name](); } catch (e) { /* non-fatal; panel keeps its last render */ }
     }
   }
+  // The Pareto scatter is drawn at its container's pixel width; redraw it
+  // (debounced) when the viewport changes while it is on screen.
+  var _paretoResizeT = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(_paretoResizeT);
+    _paretoResizeT = setTimeout(function () {
+      var pane = document.getElementById("dsub-tradeoffs");
+      if (state.data && pane && pane.classList.contains("active") &&
+          document.getElementById("view-detailed").classList.contains("active")) {
+        try { renderPareto(); } catch (e) { /* non-fatal */ }
+      }
+    }, 150);
+  });
   function initDetailSubtabs() {
     Array.prototype.forEach.call(document.querySelectorAll("#dsub-tabs .subtab"), function (b) {
       b.addEventListener("click", function () { showDetailSub(b.dataset.dsub); });

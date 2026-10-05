@@ -133,11 +133,17 @@ def schema_markdown(report: dict[str, Any], metadata: dict[str, Any]) -> str:
         f"- Rows dropped (NaN/Inf/non-numeric feature): {report['rows_dropped_nan_inf']:,}",
         f"- Label column: {lab['column'] or 'NOT FOUND'} → evaluation_mode "
         f"**{metadata['evaluation_mode']}**",
+        f"- Class scheme: **{(metadata['class_scheme'] or {}).get('name', 'n/a (unlabelled)')}** · "
+        f"selection: **{metadata['selection_mode']}**",
     ] + [f"- Note: {n}" for n in report.get("notes", [])]
     if lab["found"]:
-        out += [f"- Rows excluded (label outside the 5 classes): "
+        oa = lab["other_attack"]
+        out += [f"- Other Attack: {'enabled' if oa['enabled'] else 'off'} — {oa['rows']:,} rows "
+                f"{oa['sources'] or ''}",
+                f"- Rows excluded (label outside the 5 classes): "
                 f"{report['rows_excluded_out_of_taxonomy']:,} "
-                f"{lab['excluded_out_of_taxonomy'] or ''}", "",
+                f"{lab['excluded_out_of_taxonomy'] or ''}",
+                f"- Rows excluded (missing label): {report['rows_excluded_missing_label']:,}", "",
                 "| class | usable rows | selected |", "|---|---|---|"]
         sel = metadata["label_distribution_selected"]
         for k, v in sorted(lab["distribution"].items()):
@@ -148,16 +154,24 @@ def schema_markdown(report: dict[str, Any], metadata: dict[str, Any]) -> str:
 def process_csv(csv_path: str | Path, *, name: Optional[str] = None,
                 out_root: str | Path | None = None, rules_path: str | Path | None = None,
                 max_flows: Optional[int] = None, max_rows: Optional[int] = None,
-                allow_partial: bool = False, config_path: Optional[str] = None,
-                write: bool = True) -> dict[str, Any]:
+                allow_partial: bool = False, other_attack: bool = False, label_blind: bool = False,
+                config_path: Optional[str] = None, write: bool = True) -> dict[str, Any]:
     """Run the input layer on a CIC-IDS2017-format CSV. Raises CsvValidationError
-    for a CSV that does not match the schema and RuleConfigError for a bad rule-base."""
+    for a CSV that does not match the schema and RuleConfigError for a bad rule-base.
+
+    other_attack: keep named attack labels outside the 5 study classes as the 6th
+                  class "Other Attack" (user runs only) instead of excluding them.
+    label_blind:  do not give the class_balance rule the labels (pure statistical
+                  selection, as on the PCAP path)."""
     src = Path(csv_path)
     rb = rules.load_rulebase(rules_path)
     data = csv_input.load_csv(src, rule_fields=rules.rulebase_fields(rb), allow_partial=allow_partial,
-                              max_rows=max_rows, config_path=config_path)
-    # The rule engine sees features + META only — labels were split off in load_csv.
-    sel = rules.select_flows(data.features, rb, max_flows=max_flows)
+                              other_attack=other_attack, max_rows=max_rows, config_path=config_path)
+    # Operators see features + META only. Labels go to the engine as a SEPARATE
+    # array, read only by the class_balance constraint, and never reach the
+    # selected table (the model's input).
+    sel_labels = None if (label_blind or not data.labelled) else data.labels["label"].to_numpy()
+    sel = rules.select_flows(data.features, rb, max_flows=max_flows, labels=sel_labels)
     audit = sel.audit()
     selected = _selected_frame(sel)
 
@@ -166,7 +180,7 @@ def process_csv(csv_path: str | Path, *, name: Optional[str] = None,
     if data.labelled:
         labels = (data.labels.set_index("flow_id").loc[selected["flow_id"]].reset_index())
         sel_dist = {str(k): int(v) for k, v in labels["label"].value_counts().items()}
-        audit["label_distribution_selected"] = sel_dist  # transparency only; rules are label-blind
+        audit["label_distribution_selected"] = sel_dist
 
     rep = data.report
     n_present = rep["columns"]["present"]
@@ -185,6 +199,7 @@ def process_csv(csv_path: str | Path, *, name: Optional[str] = None,
         feature_columns=[c for c in feature_map.CIC_FEATURES if c not in rep["columns"]["missing"]],
         rows_total=rep["rows_usable"], rows_selected=len(selected),
         rules_fired=audit["rules_fired"], label_distribution_selected=sel_dist,
+        class_scheme=rep["class_scheme"], label_aware_selection=sel.label_aware,
     )
     manifest = {"run_name": run_name, "source_file": src.name,
                 "input": {k: metadata[k] for k in ("source_type", "input_role", "evaluation_mode")},
@@ -204,7 +219,7 @@ def process_csv(csv_path: str | Path, *, name: Optional[str] = None,
 def process_input(path: str | Path, **kw) -> dict[str, Any]:
     """Dispatch by content: packet capture -> process_pcap, anything else -> process_csv."""
     if detect_input_type(path) == "pcap":
-        for k in ("max_rows", "allow_partial", "config_path"):
+        for k in ("max_rows", "allow_partial", "config_path", "other_attack", "label_blind"):
             kw.pop(k, None)
         return process_pcap(path, **kw)
     kw.pop("max_packets", None)

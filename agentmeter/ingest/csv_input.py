@@ -19,12 +19,19 @@ Validation (rejects rather than silently proceeding):
      data/dataprep.py. If no valid rows remain the file is rejected.
 
 Labels (the accuracy enabler) are detected case-insensitively ('Label'/'label'),
-normalised through config.yaml `data_prep.label_map` (raw CIC label -> canonical
-class) or accepted as-is when already canonical (`classes`). Rows whose label is
-outside the canonical taxonomy are EXCLUDED and counted (accuracy is only defined
-over the 5 classes), mirroring dataprep. The label is then split off: it never
-enters the feature table the rules or the model see — it is kept as a separate
-held-out table keyed by flow_id, like DatasetLoader.held_out_label.
+normalised (case-insensitively) through config.yaml `data_prep.label_map` (raw CIC
+label -> canonical class) or accepted when already canonical (`classes`).
+A named label outside the 5 study classes is, by default, EXCLUDED and counted
+(mirroring dataprep). With other_attack=True (opt-in, user runs only) it becomes
+the 6th class "Other Attack" instead, and the run's class_scheme says "6-class" so
+accuracy/confusion is computed over the right set. Empty/NaN labels are never an
+attack: those rows are excluded as missing labels. The locked baseline (its
+dataset, DB and 5 classes) is never touched by any of this.
+
+The label is then split off: it never enters the feature table the model sees —
+it is kept as a separate held-out table keyed by flow_id, like
+DatasetLoader.held_out_label. (The CSV path's optional class_balance rule may
+read it for SELECTION only; see rules.py.)
 """
 from __future__ import annotations
 
@@ -49,6 +56,12 @@ CSV_META_SOURCES = {"Source IP": "src_ip", "Source Port": "src_port",
                     "Destination IP": "dst_ip", "Protocol": "protocol", "Timestamp": "timestamp"}
 _IGNORED = {"Flow ID"}
 _PROTO_NAMES = {6: "TCP", 17: "UDP", 0: "HOPOPT"}
+
+
+# 6th class for NEW USER CSV runs only (opt-in): named attack labels outside the 5
+# study classes (DoS GoldenEye, Heartbleed, Web Attack …, Infiltration, Bot …).
+OTHER_ATTACK = "Other Attack"
+_MISSING_LABELS = {"", "nan", "none", "null", "na", "n/a"}
 
 
 class CsvValidationError(ValueError):
@@ -92,7 +105,7 @@ def required_columns(rule_fields: set[str]) -> set[str]:
 
 
 def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
-             allow_partial: bool = False, max_rows: Optional[int] = None,
+             allow_partial: bool = False, other_attack: bool = False, max_rows: Optional[int] = None,
              max_bytes: int = DEFAULT_MAX_BYTES, config_path: Optional[str] = None) -> CsvInput:
     """Validate and load a CIC-IDS2017-format CSV, or raise CsvValidationError."""
     p = Path(path)
@@ -144,15 +157,31 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
 
     # --- labels -------------------------------------------------------------------
     label_map, classes = _label_maps(config_path)
+    by_map = {k.casefold(): v for k, v in label_map.items()}
+    by_class = {c.casefold(): c for c in classes}
     excluded_labels: dict[str, int] = {}
+    other_sources: dict[str, int] = {}
     raw_dist: dict[str, int] = {}
+    n_missing_label = 0
     canon = None
     if label_col is not None:
-        raw = df[label_col].astype(str).str.strip()
+        # fillna first: pandas 3's str dtype keeps NaN as a float, not "nan".
+        raw = df[label_col].fillna("").astype(str).str.strip()
         raw_dist = {str(k): int(v) for k, v in raw.value_counts().items()}
-        canon = raw.map(lambda v: label_map.get(v, v if v in classes else None))
-        out_of_tax = canon.isna() & ~bad
+        missing_label = raw.str.casefold().isin(_MISSING_LABELS)
+
+        def to_class(v: str) -> Optional[str]:
+            hit = by_map.get(v.casefold()) or by_class.get(v.casefold())
+            if hit is None and other_attack and v.casefold() not in _MISSING_LABELS:
+                return OTHER_ATTACK            # a named label outside the 5 study classes
+            return hit
+
+        canon = raw.map(to_class)
+        n_missing_label = int((missing_label & ~bad).sum())
+        out_of_tax = canon.isna() & ~bad & ~missing_label
         excluded_labels = {str(k): int(v) for k, v in raw[out_of_tax].value_counts().items()}
+        is_other = (canon == OTHER_ATTACK) & ~bad
+        other_sources = {str(k): int(v) for k, v in raw[is_other].value_counts().items()}
         keep = ~bad & canon.notna()
     else:
         keep = ~bad
@@ -179,7 +208,7 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
     labels = None
     if label_col is not None:
         labels = pd.DataFrame({"flow_id": out["flow_id"].to_numpy(),
-                               "label_raw": df.loc[kept_idx, label_col].astype(str).str.strip().to_numpy(),
+                               "label_raw": raw.loc[kept_idx].to_numpy(),
                                "label": canon.loc[kept_idx].to_numpy()})
         # Hard guarantee, as in DatasetLoader: the label never survives into features.
         assert label_col not in out.columns and "label" not in out.columns, "label leaked into features"
@@ -189,6 +218,7 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
         "rows_read": int(len(df)), "rows_usable": int(len(out)),
         "rows_dropped_nan_inf": n_bad,
         "rows_excluded_out_of_taxonomy": int(sum(excluded_labels.values())),
+        "rows_excluded_missing_label": n_missing_label,
         "truncated_at": max_rows if (max_rows is not None and len(df) >= max_rows) else None,
         "columns": {"expected": len(CIC_FEATURES), "present": len(present),
                     "missing": missing, "extra_ignored": extra,
@@ -205,6 +235,28 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
                              if labels is not None else {}),
             "mapping": "config.yaml data_prep.label_map (raw CIC label -> canonical class)",
             "classes": classes,
+            "other_attack": {"enabled": other_attack, "rows": int(sum(other_sources.values())),
+                             "sources": other_sources},
         },
+        "class_scheme": class_scheme(labels, classes, other_attack),
     }
+    if excluded_labels and not other_attack:
+        report["notes"].append("rows with attack labels outside the 5 study classes were excluded; "
+                               "enable other_attack (--other-attack) to keep them as 'Other Attack'")
     return CsvInput(features=out, labels=labels, report=report)
+
+
+def class_scheme(labels: Optional[pd.DataFrame], classes: list[str],
+                 other_attack: bool) -> Optional[dict[str, Any]]:
+    """The class set downstream accuracy/confusion must use for THIS run.
+
+    5-class unless Other Attack was enabled AND at least one row fell into it.
+    Applies to user runs only: the locked baseline's 5 classes are never changed."""
+    if labels is None:
+        return None
+    six = other_attack and bool((labels["label"] == OTHER_ATTACK).any())
+    return {"name": "6-class" if six else "5-class",
+            "classes": classes + ([OTHER_ATTACK] if six else []),
+            "other_attack_enabled": other_attack,
+            "note": ("5 study classes + 'Other Attack' (user-run only; baseline stays 5-class)"
+                     if six else "the 5 study classes")}

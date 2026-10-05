@@ -34,6 +34,11 @@ def main(argv=None) -> int:
     ap.add_argument("--max-packets", type=int, default=None, help="PCAP: stop after N packets")
     ap.add_argument("--allow-partial", action="store_true",
                     help="CSV: accept a subset of the 78 features (marked 'partial')")
+    ap.add_argument("--other-attack", action="store_true",
+                    help="CSV: keep attack labels outside the 5 study classes as 'Other Attack' "
+                         "(6-class user run) instead of excluding them")
+    ap.add_argument("--label-blind", action="store_true",
+                    help="CSV: skip the label-aware class_balance rule (statistical selection only)")
     ap.add_argument("--name", default=None, help="run name (default: file name)")
     ap.add_argument("--out-root", default=None, help="override the results/<type>_runs root")
     ap.add_argument("--no-write", action="store_true", help="print only, write nothing")
@@ -53,7 +58,8 @@ def main(argv=None) -> int:
     try:
         res = process_csv(args.file, name=args.name, out_root=args.out_root, rules_path=args.rules,
                           max_flows=args.max_flows, max_rows=args.max_rows,
-                          allow_partial=args.allow_partial, write=not args.no_write)
+                          allow_partial=args.allow_partial, other_attack=args.other_attack,
+                          label_blind=args.label_blind, write=not args.no_write)
     except CsvValidationError as e:
         print(f"Rejected: {e}", file=sys.stderr)
         return 2
@@ -75,9 +81,15 @@ def main(argv=None) -> int:
     if lab["found"]:
         print(f"Labels    column '{lab['column']}' (held out, never a feature): "
               + ", ".join(f"{k} {v:,}" for k, v in sorted(lab["distribution"].items())))
+        oa = lab["other_attack"]
+        print(f"Classes   {meta['class_scheme']['name']} — "
+              + (f"Other Attack {oa['rows']:,} rows from {oa['sources']}" if oa["rows"] else
+                 "Other Attack off" if not oa["enabled"] else "no rows outside the 5 classes"))
+        for note in rep["notes"]:
+            print(f"          note: {note}")
     else:
         print("Labels    none found -> efficiency only")
-    print(f"Selection {meta['rows_selected']:,} of {meta['rows_total']:,} rows "
+    print(f"Selection {meta['selection_mode']}: {meta['rows_selected']:,} of {meta['rows_total']:,} rows "
           f"(budget {m['selection']['max_flows']}); rules fired: "
           f"{', '.join(meta['rules_fired']) or 'none'}")
     if meta["label_distribution_selected"]:

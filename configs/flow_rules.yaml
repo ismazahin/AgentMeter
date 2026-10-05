@@ -15,7 +15,7 @@
 # the same factor, so the mix of rules is kept at any budget.
 #
 # Operator types (agentmeter/ingest/rules.py): per_group, top_percentile,
-# threshold, typical_band, random_fill. Field names are the CIC-IDS2017 feature
+# threshold, typical_band, random_fill — plus the constraint type class_balance. Field names are the CIC-IDS2017 feature
 # columns, the identification columns (protocol_name, dst_ip …), or a name
 # declared under `derived`.
 
@@ -30,6 +30,19 @@ derived:                    # each derived field = sum of the listed columns
   total_bytes: [Total Length of Fwd Packets, Total Length of Bwd Packets]
 
 rules:
+  # --- Class balance (CONSTRAINT; label-aware; labelled CSV path only) ---------
+  # Caps each label class at an equal share of the budget (water-filling), so a
+  # mostly-BENIGN CSV still yields a balanced mix and accuracy is not dominated
+  # by one class. The rules below still choose WHICH rows within each class.
+  # Labels are read for SELECTION only — never shown to the model. PCAP and
+  # unlabelled CSV inputs have no labels, so it is skipped there (label-blind
+  # statistical selection). Remove/disable this entry, or run with --label-blind,
+  # to select label-blind on a labelled CSV too.
+  - id: class_balance
+    type: class_balance
+    description: Equal share of the budget per label class present (labelled CSV only).
+    mode: equal
+
   # --- Coverage --------------------------------------------------------------
   - id: protocol_coverage
     type: per_group

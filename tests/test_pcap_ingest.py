@@ -206,6 +206,10 @@ def test_pcap_run_is_flagged_efficiency_only_and_loads_through_the_contract(tmp_
     assert meta["feature_match"]["status"] == "approximate"
     assert any("no ground-truth labels" in r for r in meta["accuracy_unavailable_reasons"])
     assert not (tmp_path / "sample" / "labels.csv").exists()
+    assert meta["class_scheme"] is None and meta["selection_mode"] == "label_blind_statistical"
+    audit = json.loads((tmp_path / "sample" / "selection_audit.json").read_text())
+    bal = next(r for r in audit["rules"] if r["id"] == "class_balance")
+    assert bal["fired"] is False and "no labels" in bal["computed"]["skipped"]
     run = load_input_run(tmp_path / "sample")
     assert run.labels is None and not run.accuracy_available
     assert list(run.selected.columns) == SELECTED_COLUMNS and len(run.selected) == 12

@@ -37,6 +37,11 @@ def print_rule_table(audit: dict) -> None:
         if not r["enabled"]:
             print(f"  {r['id']:<20}{'—':>8}{'—':>10}{'—':>9}  (disabled)")
             continue
+        if r.get("kind") == "constraint":
+            c = r["computed"]
+            print(f"  {r['id']:<20}{'(constraint)':>27}  "
+                  + (f"caps {c['caps']}" if c.get("applied") else f"skipped: {c.get('skipped')}"))
+            continue
         comp = {k: v for k, v in r["computed"].items() if k != "bounds"}
         print(f"  {r['id']:<20}{r['matched']:>8}{r['admitted']:>10}{r['already_selected']:>9}  {comp or ''}")
 

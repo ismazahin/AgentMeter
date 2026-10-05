@@ -18,6 +18,17 @@ and are instances of a small, fixed set of operator TYPES implemented below:
                  percentile band (typical flows, kept for balance)
   random_fill    seeded random fill of whatever budget is left
 
+and one CONSTRAINT type, which admits nothing itself but bounds every rule above:
+
+  class_balance  label-aware (labelled CSV path only): per-class caps by water-
+                 filling — each class present gets an equal share of the budget;
+                 a class with fewer rows keeps them all and its unused share is
+                 re-split among the rest. Rules still decide WHICH rows; the cap
+                 only stops a class from exceeding its share. Labels arrive as a
+                 separate argument and never join the table the operators read,
+                 nor the selected output. With no labels (PCAP, unlabelled CSV,
+                 or a label-blind run) it is skipped and says so in the audit.
+
 Adding or re-tuning a rule = editing the YAML. Only a brand-new operator TYPE
 needs code (one function registered in RULE_TYPES).
 
@@ -88,8 +99,11 @@ _REQUIRED: dict[str, tuple[str, ...]] = {
     "threshold": ("field", "op", "value"),
     "typical_band": ("fields", "band"),
     "random_fill": (),
+    "class_balance": (),
 }
 _COMMON_KEYS = {"id", "type", "description", "enabled", "quota", "reserve"}
+CONSTRAINT_TYPES = {"class_balance"}
+_BALANCE_MODES = ("equal",)
 
 
 def _fail(rule_id: str, msg: str) -> None:
@@ -119,8 +133,10 @@ def parse_rulebase(data: dict[str, Any], source: str = "<dict>") -> RuleBase:
             _fail(rid, "duplicate id")
         seen.add(rid)
         rtype = raw.get("type")
-        if rtype not in RULE_TYPES:
-            _fail(rid, f"unknown type {rtype!r} (known: {', '.join(RULE_TYPES)})")
+        if rtype not in RULE_TYPES and rtype not in CONSTRAINT_TYPES:
+            _fail(rid, f"unknown type {rtype!r} (known: {', '.join([*RULE_TYPES, *CONSTRAINT_TYPES])})")
+        if rtype in CONSTRAINT_TYPES and (raw.get("quota") is not None or raw.get("reserve")):
+            _fail(rid, f"{rtype} is a constraint; it takes no quota/reserve")
         missing = [k for k in _REQUIRED[rtype] if k not in raw]
         if missing:
             _fail(rid, f"type {rtype} requires {missing}")
@@ -139,6 +155,8 @@ def parse_rulebase(data: dict[str, Any], source: str = "<dict>") -> RuleBase:
                           quota=quota, reserve=reserve))
     if not rules:
         raise RuleConfigError(f"{source}: no rules declared")
+    if sum(1 for r in rules if r.enabled and r.type == "class_balance") > 1:
+        raise RuleConfigError(f"{source}: at most one enabled class_balance rule")
     total_reserve = sum(r.reserve for r in rules if r.enabled)
     if total_reserve > max_flows:
         raise RuleConfigError(
@@ -167,6 +185,9 @@ def _check_params(rid: str, rtype: str, p: dict[str, Any]) -> None:
             _fail(rid, "band must be [lo, hi] percentiles with 0 <= lo < hi <= 100")
         if not (isinstance(p["fields"], list) and p["fields"]):
             _fail(rid, "fields must be a non-empty list")
+    elif rtype == "class_balance":
+        if p.get("mode", "equal") not in _BALANCE_MODES:
+            _fail(rid, f"mode must be one of {list(_BALANCE_MODES)}")
     order = p.get("order_by")
     if order is not None and not isinstance(order, str):
         _fail(rid, "order_by must be a column name or 'random'")
@@ -279,10 +300,15 @@ class SelectionResult:
     max_flows: int
     seed: int
 
+    label_aware: bool = False
+
     def audit(self) -> dict[str, Any]:
         return {
-            "framing": ("Statistical sampling only — rules use flow statistics to keep "
-                        "analysis bounded; no rule makes a threat judgement."),
+            "framing": ("Statistical sampling — rules use flow statistics to keep analysis "
+                        "bounded; no rule makes a threat judgement."
+                        + (" Class balance read held-out labels for SELECTION only; the model "
+                           "never sees them." if self.label_aware else "")),
+            "label_aware": self.label_aware,
             "total_flows": self.total_flows, "max_flows": self.max_flows,
             "selected": len(self.selected), "seed": self.seed,
             "rules_fired": [r["id"] for r in self.rule_summary if r["fired"]],
@@ -318,8 +344,34 @@ def rulebase_fields(rb: RuleBase) -> set[str]:
     return fields
 
 
-def select_flows(flows: pd.DataFrame, rb: RuleBase, max_flows: Optional[int] = None) -> SelectionResult:
-    """Apply the rule-base to a flow table and return the selection + audit."""
+def water_fill(counts: dict[str, int], budget: int) -> dict[str, int]:
+    """Equal share per class; a class smaller than its share keeps all its rows and
+    the spare is re-split among the others. Deterministic (ties: smaller class,
+    then name, first)."""
+    caps = {c: 0 for c in counts}
+    remaining = budget
+    open_ = sorted((c for c in counts if counts[c] > 0), key=lambda c: (counts[c], c))
+    while open_ and remaining > 0:
+        share = remaining // len(open_)
+        if share == 0:
+            for c in open_[:remaining]:
+                caps[c] += 1
+            break
+        for c in open_:
+            give = min(share, counts[c] - caps[c])
+            caps[c] += give
+            remaining -= give
+        open_ = [c for c in open_ if caps[c] < counts[c]]
+    return caps
+
+
+def select_flows(flows: pd.DataFrame, rb: RuleBase, max_flows: Optional[int] = None,
+                 labels: Optional[Any] = None) -> SelectionResult:
+    """Apply the rule-base to a flow table and return the selection + audit.
+
+    `labels` (optional, aligned with `flows` rows) is consulted ONLY by an enabled
+    class_balance constraint. It is never added to the table the operators read
+    or to the selected output."""
     budget = int(rb.max_flows if max_flows is None else max_flows)
     if budget <= 0:
         raise RuleConfigError(f"max_flows must be a positive integer (got {budget})")
@@ -328,8 +380,21 @@ def select_flows(flows: pd.DataFrame, rb: RuleBase, max_flows: Optional[int] = N
         unknown = [f for f in _fields_of(r) if f not in work.columns]
         if unknown:
             _fail(r.id, f"unknown field(s) {unknown}")
+    lab = None
+    if labels is not None:
+        lab = np.asarray(labels, dtype=object)
+        if len(lab) != len(work):
+            raise ValueError(f"labels length {len(lab)} != flows {len(work)}")
 
-    active = [r for r in rb.rules if r.enabled]
+    balance = next((r for r in rb.rules if r.enabled and r.type in CONSTRAINT_TYPES), None)
+    caps: Optional[dict[str, int]] = None
+    class_counts: dict[str, int] = {}
+    if balance is not None and lab is not None and len(work):
+        class_counts = {str(k): int(v) for k, v in pd.Series(lab).value_counts().items()}
+        caps = water_fill(class_counts, budget)
+    taken: dict[str, int] = {c: 0 for c in (caps or {})}
+
+    active = [r for r in rb.rules if r.enabled and r.type not in CONSTRAINT_TYPES]
     # Quotas/reserves are tuned for the configured budget. A run-time override
     # (e.g. --max-flows) scales them by the same factor so the rule MIX is kept.
     factor = budget / rb.max_flows
@@ -366,23 +431,44 @@ def select_flows(flows: pd.DataFrame, rb: RuleBase, max_flows: Optional[int] = N
         # for the reserves of the rules after it.
         room = min(left, max(reserve[r.id], left - held_back))
         cap = room if quota[r.id] is None else min(room, quota[r.id])
-        admitted = already = 0
+        admitted = already = blocked = 0
         for idx, why in matches[r.id]:
             if idx in selected:
                 already += 1
                 continue
             if admitted >= cap:
                 continue  # keep scanning so already_selected is counted exactly
+            if caps is not None:
+                c = str(lab[idx])
+                if taken[c] >= caps[c]:
+                    blocked += 1          # class already holds its balanced share
+                    continue
+                taken[c] += 1
             selected[idx] = (r.id, why)
             order.append(idx)
             admitted += 1
         not_taken = len(matches[r.id]) - already - admitted
         summary.append({
-            "id": r.id, "type": r.type, "description": r.description, "enabled": True,
-            "params": r.params, "quota": quota[r.id], "reserve": reserve[r.id],
+            "id": r.id, "type": r.type, "kind": "admission", "description": r.description,
+            "enabled": True, "params": r.params, "quota": quota[r.id], "reserve": reserve[r.id],
             "computed": infos[r.id], "matched": len(matches[r.id]), "admitted": admitted,
             "already_selected": already, "not_taken_quota_or_budget": not_taken,
-            "fired": admitted > 0,
+            "blocked_by_class_cap": blocked, "fired": admitted > 0,
+        })
+    if balance is not None:
+        applied = caps is not None
+        summary.append({
+            "id": balance.id, "type": balance.type, "kind": "constraint",
+            "description": balance.description, "enabled": True, "params": balance.params,
+            "quota": None, "reserve": 0,
+            "computed": ({"applied": True, "class_counts": class_counts, "caps": caps,
+                          "selected_per_class": dict(taken)} if applied else
+                         {"applied": False,
+                          "skipped": "no labels supplied (PCAP, unlabelled CSV, or label-blind run)"}),
+            "matched": len(work) if applied else 0, "admitted": 0, "already_selected": 0,
+            "not_taken_quota_or_budget": 0,
+            "blocked_by_class_cap": sum(x.get("blocked_by_class_cap", 0) for x in summary),
+            "fired": applied,
         })
     by_id = {row["id"]: row for row in summary}
     summary = []
@@ -390,10 +476,13 @@ def select_flows(flows: pd.DataFrame, rb: RuleBase, max_flows: Optional[int] = N
         if r.enabled:
             summary.append(by_id[r.id])
         else:
-            summary.append({"id": r.id, "type": r.type, "description": r.description,
+            summary.append({"id": r.id, "type": r.type,
+                            "kind": "constraint" if r.type in CONSTRAINT_TYPES else "admission",
+                            "description": r.description,
                             "enabled": False, "params": r.params, "quota": r.quota,
                             "reserve": r.reserve, "computed": {}, "matched": 0, "admitted": 0,
-                            "already_selected": 0, "not_taken_quota_or_budget": 0, "fired": False})
+                            "already_selected": 0, "not_taken_quota_or_budget": 0,
+                            "blocked_by_class_cap": 0, "fired": False})
 
     sel = flows.reset_index(drop=True).loc[order].copy()
     sel["selection_rule"] = [selected[i][0] for i in order]
@@ -406,4 +495,4 @@ def select_flows(flows: pd.DataFrame, rb: RuleBase, max_flows: Optional[int] = N
     } for i in order]
     return SelectionResult(selected=sel.reset_index(drop=True), rule_summary=summary,
                            per_flow=per_flow, total_flows=len(work), max_flows=budget,
-                           seed=rb.seed)
+                           seed=rb.seed, label_aware=caps is not None)

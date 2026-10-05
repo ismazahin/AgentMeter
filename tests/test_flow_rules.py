@@ -68,7 +68,7 @@ def rb_from(rule_list, max_flows=40, **extra) -> rules.RuleBase:
 def test_default_rulebase_loads_and_is_statistical_only():
     rb = rules.load_rulebase()
     assert rb.max_flows == 500
-    assert {r.type for r in rb.rules} <= set(rules.RULE_TYPES)
+    assert {r.type for r in rb.rules} <= set(rules.RULE_TYPES) | rules.CONSTRAINT_TYPES
     text = (PROJECT_ROOT / "configs" / "flow_rules.yaml").read_text(encoding="utf-8").lower()
     assert "not a threat judgement" in text or "no rule judges" in text
 

@@ -59,9 +59,9 @@ def test_label_is_isolated_from_features_and_from_the_rule_engine(monkeypatch):
     seen = {}
     real = rules.select_flows
 
-    def spy(df, rb, max_flows=None):
-        seen["cols"] = list(df.columns)
-        return real(df, rb, max_flows=max_flows)
+    def spy(df, rb, max_flows=None, labels=None):
+        seen["cols"] = list(df.columns)       # the table the operators read
+        return real(df, rb, max_flows=max_flows, labels=labels)
 
     monkeypatch.setattr(rules, "select_flows", spy)
     run.process_csv(SAMPLE, write=False)
@@ -216,7 +216,7 @@ def test_cli_ingests_csv_and_rejects_bad_schema(tmp_path, capsys):
     cli = _cli()
     assert cli.main([str(SAMPLE), "--no-write", "--max-flows", "12"]) == 0
     out = capsys.readouterr().out
-    assert "labelled_csv -> accuracy_available" in out and "Selection 12 of 40 rows" in out
+    assert "labelled_csv -> accuracy_available" in out and "12 of 40 rows" in out
     bad = _write(tmp_path, "bad.csv", "a,b\n1,2\n")
     assert cli.main([str(bad), "--no-write"]) == 2
     assert "none of the 78" in capsys.readouterr().err

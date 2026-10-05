@@ -27,7 +27,7 @@ Both paths write the same three things. The LLM phase reads them with
 
 | File | Contents |
 |---|---|
-| `input.json` | `source_type`, `input_role`, `evaluation_mode`, `capabilities.accuracy`, `accuracy_unavailable_reasons`, `feature_match` (exact / partial / approximate), `feature_columns` (model input), `hidden_columns` (never shown to the model), row counts, rules fired, class mix of the selection |
+| `input.json` | `source_type`, `input_role`, `evaluation_mode`, `class_scheme` (5-class / 6-class + class list), `selection_mode` (label_aware_balanced / label_blind_statistical), `capabilities.accuracy`, `accuracy_unavailable_reasons`, `feature_match` (exact / partial / approximate), `feature_columns` (model input), `hidden_columns` (never shown to the model), row counts, rules fired, class mix of the selection |
 | `selected_flows.csv` | 7 identification columns + 78 CIC-IDS2017 features + `selection_rule`, `selection_reason`, `matched_rules`. **Never a label column**: this is checked on write and on load |
 | `labels.csv` | labelled CSV only: `flow_id, label_raw, label`, held out for scoring and aligned 1:1 with `selected_flows.csv` |
 
@@ -55,6 +55,44 @@ Labels:
 - **Isolation:** the label is split off before the rule engine runs. The engine is
   label-blind, exactly like the PCAP path, and the class mix of the selection is
   reported afterwards for transparency.
+
+### "Other Attack": 6-class user runs (opt-in)
+
+User CSVs can contain attacks outside the 5 study classes: DoS GoldenEye,
+slowloris or Slowhttptest, Heartbleed, Web Attack, Infiltration, Bot.
+
+- **Default:** rows with these labels are excluded and counted, and the run notes how
+  to keep them.
+- **With `--other-attack`** (`other_attack=True`): they become the 6th class
+  **"Other Attack"**. The original label is kept in `labels.csv` as `label_raw`, and
+  the report lists how many rows came from each source label.
+- **The run's `class_scheme`:** this is the class set that accuracy and confusion must
+  be computed over.
+  - It is `6-class` only when Other Attack is on *and* at least one row fell into it.
+  - A CSV containing only the 5 classes stays `5-class`.
+- **Missing labels:** empty or NaN labels are never treated as an attack. Those rows
+  are excluded as missing labels.
+- **Baseline unchanged:** this applies only to user runs in `results/csv_runs/`. The
+  locked baseline (`data/cicids_full_300.csv`, the study DB, `config.yaml classes`)
+  stays 5-class and unchanged. A test checks the dataset's SHA-256 fingerprint and
+  the DB hashes.
+
+### Selection: label-aware on CSV, label-blind on PCAP
+
+The two paths have different needs, and both go through the same rule engine with an
+audit trail:
+
+| Path | Selection mode | Why |
+|---|---|---|
+| Labelled CSV | `label_aware_balanced`: the `class_balance` constraint caps each class at an equal share of the budget | A CIC-IDS2017 day file is mostly BENIGN. Without the caps, accuracy would mostly reflect one class |
+| PCAP / unlabelled CSV / `--label-blind` | `label_blind_statistical`: `class_balance` is skipped and says so in the audit | There are no labels, or you chose not to use them |
+
+`class_balance` reads the held-out labels **for selection only**:
+- the labels reach the engine as a separate array and never join the table the rule
+  operators read;
+- `selected_flows.csv`, the model's input, never contains a label;
+- `tests/test_class_balance.py` checks both. It spies on every operator, and it scans
+  `selected_flows.csv` for any label value.
 
 Identification columns: the full "TrafficLabelling" CSVs (`Source IP`, `Protocol`,
 `Timestamp`…) are mapped onto the identification columns. The MachineLearningCVE
@@ -140,6 +178,7 @@ five operator types:
 | `threshold` | notable (absolute) | `Flow Duration >= 60 s` |
 | `typical_band` | baseline for balance | flows inside p25–p75 on packets, duration and bytes |
 | `random_fill` | fill | seeded random sample of any budget left |
+| `class_balance` | **constraint** (labelled CSV only) | water-filling caps: an equal share of the budget per label class, and a small class keeps all its rows while its spare share is re-split. Admits nothing itself, and is position-independent. The rules above still choose *which* rows within each class |
 
 How the engine decides:
 - **Order and budget:** rules run in declared order. `budget.max_flows` caps the
@@ -160,6 +199,15 @@ Only a new operator *type* needs code: one function registered in `RULE_TYPES`.
 
 ## Tests
 
+- `tests/test_class_balance.py` needs pandas only. It covers:
+  - water-filling
+  - an imbalanced CSV: label-blind selection is BENIGN-dominated, while balanced gives
+    10 rows per class
+  - the YAML toggle and config errors
+  - label isolation, using operator spies and a scan of the output
+  - Other Attack: the 6-class scheme and its distribution, 5-class by default, and
+    missing labels never counted as attacks
+  - the locked dataset fingerprint, DB hashes and the 5 study classes
 - `tests/test_csv_ingest.py` needs pandas only. It covers:
   - the CSV sample, which must match its generator
   - schema, label and class-distribution reporting, and raw-to-canonical label mapping

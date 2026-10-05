@@ -12,6 +12,8 @@ Whatever the source (CSV or PCAP), a run directory contains:
     input_role         "labelled_csv" | "unlabelled_csv" | "raw_pcap"
     evaluation_mode    "accuracy_available" | "efficiency_only"
     capabilities       {"resource_efficiency": true, "accuracy": bool}
+    class_scheme       {"name": "5-class" | "6-class", "classes": [...]} or null
+    selection_mode     "label_aware_balanced" | "label_blind_statistical"
     accuracy_unavailable_reasons   why not, when accuracy is false
     feature_match      {"status": "exact" | "partial" | "approximate", ...}
     feature_columns    feature columns that carry real values (model input)
@@ -56,6 +58,7 @@ def build_metadata(*, source_type: str, source_file: str, run_name: str, labelle
                    feature_match: dict[str, Any], feature_columns: list[str],
                    rows_total: int, rows_selected: int, rules_fired: list[str],
                    label_distribution_selected: Optional[dict[str, int]] = None,
+                   class_scheme: Optional[dict[str, Any]] = None, label_aware_selection: bool = False,
                    extra_reasons: Optional[list[str]] = None) -> dict[str, Any]:
     if source_type not in ("csv", "pcap"):
         raise ValueError(f"unknown source_type {source_type!r}")
@@ -82,6 +85,12 @@ def build_metadata(*, source_type: str, source_file: str, run_name: str, labelle
         "rows_selected": rows_selected,
         "rules_fired": rules_fired,
         "label_distribution_selected": label_distribution_selected or {},
+        # Class set accuracy/confusion must use for THIS run (None when unlabelled).
+        # "6-class" = the 5 study classes + "Other Attack" — user runs only.
+        "class_scheme": class_scheme,
+        # label_aware_balanced: class_balance read held-out labels to pick rows
+        # (selection only); label_blind_statistical: rules saw no labels at all.
+        "selection_mode": "label_aware_balanced" if label_aware_selection else "label_blind_statistical",
         "framing": ("Input for MEASURING LLM resource efficiency (and accuracy where labels "
                     "exist). Not a threat-detection product; no threat decision is made here."),
     }

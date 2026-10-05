@@ -31,6 +31,16 @@ def _print_rules(rb: rules.RuleBase) -> None:
         print(f"      params: {r.params}")
 
 
+def print_rule_table(audit: dict) -> None:
+    print(f"  {'rule':<20}{'matched':>8}{'admitted':>10}{'already':>9}  computed")
+    for r in audit["rules"]:
+        if not r["enabled"]:
+            print(f"  {r['id']:<20}{'—':>8}{'—':>10}{'—':>9}  (disabled)")
+            continue
+        comp = {k: v for k, v in r["computed"].items() if k != "bounds"}
+        print(f"  {r['id']:<20}{r['matched']:>8}{r['admitted']:>10}{r['already_selected']:>9}  {comp or ''}")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("pcap", nargs="?", help=".pcap / .pcapng file")
@@ -69,6 +79,9 @@ def main(argv=None) -> int:
 
     m = res["manifest"]
     cap, ext, fm, sel = m["capture"], m["extraction"], m["feature_map"], m["selection"]
+    meta = res["input"].metadata
+    print(f"Input     {meta['input_role']} -> {meta['evaluation_mode']} "
+          f"({'; '.join(meta['accuracy_unavailable_reasons'])})")
     print(f"Capture   {m['source_file']} ({cap['file_format']}, {cap['file_size_bytes']:,} bytes)")
     print(f"          {cap['packet_count']:,} packets over {cap['duration_s']:.3f} s "
           f"(TCP {cap['tcp_packets']:,} · UDP {cap['udp_packets']:,} · other {cap['other_packets']:,})")
@@ -81,13 +94,7 @@ def main(argv=None) -> int:
           f"approximate {c['approximate']} · semantic_diff {c['semantic_diff']} · missing {c['missing']}")
     print(f"Selection {sel['selected']:,} of {ext['flows']:,} flows (budget {sel['max_flows']}); "
           f"rules fired: {', '.join(sel['rules_fired']) or 'none'}")
-    print(f"  {'rule':<20}{'matched':>8}{'admitted':>10}{'already':>9}  computed")
-    for r in res["audit"]["rules"]:
-        if not r["enabled"]:
-            print(f"  {r['id']:<20}{'—':>8}{'—':>10}{'—':>9}  (disabled)")
-            continue
-        comp = {k: v for k, v in r["computed"].items() if k != "bounds"}
-        print(f"  {r['id']:<20}{r['matched']:>8}{r['admitted']:>10}{r['already_selected']:>9}  {comp or ''}")
+    print_rule_table(res["audit"])
     if m["output_dir"]:
         print(f"Wrote     {m['output_dir']}/")
     return 0

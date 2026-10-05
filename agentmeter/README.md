@@ -50,13 +50,15 @@ agentmeter/
 │   ├── hf_metadata.py     Hugging Face Hub metadata (external CONTEXT only, cached).
 │   └── config_builder.py  Build a user config → configs/user/ (never the locked one).
 │
-├── ingest/             ← PCAP INPUT LAYER (service pivot; optional deps, not re-exported)
+├── ingest/             ← INPUT LAYER (service pivot; not re-exported — PCAP needs optional deps)
+│   ├── csv_input.py       CIC-IDS2017-format CSV: schema check, label isolation (accuracy).
 │   ├── pcap.py            Validate a .pcap/.pcapng upload + capture stats.
 │   ├── flows.py           CICFlowMeter (Python port) → 78 CIC-IDS2017 feature columns.
 │   ├── feature_map.py     Explicit CIC-IDS2017 ↔ extractor mapping + gap report.
 │   ├── rules.py           Rule engine: bounded representative flow selection + audit.
-│   ├── run.py             validate → extract → select → results/pcap_runs/<name>/.
-│   └── sample.py          Deterministic synthetic capture for tests/demos.
+│   ├── unified.py         The contract both paths emit: input.json + selected_flows.csv (+ labels.csv).
+│   ├── run.py             process_csv / process_pcap / process_input → results/{csv,pcap}_runs/<name>/.
+│   └── sample.py          Deterministic sample capture + sample CIC-IDS2017 CSV for tests/demos.
 │
 └── util/               ← UTILITIES
     ├── envtools.py        Load tokens from .env (names only, never values).

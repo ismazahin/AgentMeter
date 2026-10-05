@@ -11,6 +11,7 @@ something to act on:
 Synthetic traffic between private addresses; it represents no real host or attack.
 
     python -m agentmeter.ingest.sample data/sample_pcaps/sample_small.pcap
+    python -m agentmeter.ingest.sample data/sample_csv/cicids2017_sample.csv
 """
 from __future__ import annotations
 
@@ -84,6 +85,58 @@ def write_sample_pcap(path: str | Path) -> Path:
     return p
 
 
+# --- CIC-IDS2017-format sample CSV -------------------------------------------
+# Raw-style (as the official MachineLearningCVE files): leading-space headers,
+# the duplicated ' Fwd Header Length' column, raw labels in ' Label'. Rows are
+# taken from data/cicids_full_300.csv (real CIC-IDS2017 rows already in the repo).
+SAMPLE_CSV_PER_CLASS = 8
+_RAW_LABELS = {"Benign": ["BENIGN"], "Brute Force": ["FTP-Patator", "SSH-Patator"],
+               "DoS Hulk": ["DoS Hulk"], "Volumetric DDoS": ["DDoS"], "Port Scanning": ["PortScan"]}
+# 5 classes x 8 usable rows, + 1 row with 'Infinity' (dropped) + 2 out-of-taxonomy rows.
+EXPECTED_CSV_ROWS = 5 * SAMPLE_CSV_PER_CLASS + 3
+EXPECTED_CSV_USABLE = 5 * SAMPLE_CSV_PER_CLASS
+
+
+def build_sample_csv_text(source: str | Path | None = None) -> str:
+    import pandas as pd
+
+    from ..config import PROJECT_ROOT
+    from .feature_map import CIC_FEATURES
+
+    df = pd.read_csv(source or PROJECT_ROOT / "data" / "cicids_full_300.csv")
+    rows: list[tuple[list, str]] = []
+    for canon, raws in _RAW_LABELS.items():
+        part = df[df["label"] == canon].head(SAMPLE_CSV_PER_CLASS)
+        for i, (_, r) in enumerate(part.iterrows()):
+            rows.append(([r[c] for c in CIC_FEATURES], raws[i % len(raws)]))
+    inf_row = [df.iloc[0][c] for c in CIC_FEATURES]
+    inf_row[CIC_FEATURES.index("Flow Bytes/s")] = "Infinity"      # as in the official files
+    rows.insert(3, (inf_row, "BENIGN"))
+    for k in (1, 2):                                             # outside the 5-class taxonomy
+        rows.insert(10 * k, ([df.iloc[100 + k][c] for c in CIC_FEATURES], "DoS slowloris"))
+
+    header = [" " + ("Fwd Header Length" if c == "Fwd Header Length.1" else c) for c in CIC_FEATURES]
+    lines = [",".join(header + [" Label"])]
+    for vals, lab in rows:
+        lines.append(",".join(_csv_value(v) for v in vals) + "," + lab)
+    return "\n".join(lines) + "\n"
+
+
+def _csv_value(v) -> str:
+    if isinstance(v, str):
+        return v
+    f = float(v)
+    return str(int(f)) if f.is_integer() else repr(f)
+
+
+def write_sample_csv(path: str | Path) -> Path:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(build_sample_csv_text(), encoding="utf-8")
+    return p
+
+
 if __name__ == "__main__":  # pragma: no cover
-    out = write_sample_pcap(sys.argv[1] if len(sys.argv) > 1 else "data/sample_pcaps/sample_small.pcap")
+    target = sys.argv[1] if len(sys.argv) > 1 else "data/sample_pcaps/sample_small.pcap"
+    out = write_sample_csv(target) if target.endswith(".csv") else write_sample_pcap(target)
     print(f"wrote {out} ({out.stat().st_size:,} bytes)")

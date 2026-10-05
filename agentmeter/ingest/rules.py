@@ -308,6 +308,16 @@ def _fields_of(rule: Rule) -> list[str]:
     return [f for f in fs if f]
 
 
+def rulebase_fields(rb: RuleBase) -> set[str]:
+    """Every source column the ENABLED rules read (derived fields expanded)."""
+    fields: set[str] = set()
+    for r in rb.rules:
+        if r.enabled:
+            for f in _fields_of(r):
+                fields.update(rb.derived.get(f, [f]))
+    return fields
+
+
 def select_flows(flows: pd.DataFrame, rb: RuleBase, max_flows: Optional[int] = None) -> SelectionResult:
     """Apply the rule-base to a flow table and return the selection + audit."""
     budget = int(rb.max_flows if max_flows is None else max_flows)

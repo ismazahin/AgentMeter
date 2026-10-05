@@ -147,7 +147,7 @@ def test_process_pcap_writes_only_its_run_folder(tmp_path, sample):
     res = process_pcap(sample, name="../evil name", out_root=tmp_path, max_flows=15)
     out = tmp_path / "evil_name"
     assert sorted(p.name for p in out.iterdir()) == [
-        "feature_map.json", "feature_map.md", "flows.csv", "manifest.json",
+        "feature_map.json", "feature_map.md", "flows.csv", "input.json", "manifest.json",
         "selected_flows.csv", "selection_audit.json"]
     assert not list(tmp_path.rglob("*.db"))
     assert _db_hashes() == before                    # study DB(s) untouched
@@ -193,3 +193,32 @@ def test_input_layer_does_not_import_pipeline_saw_or_study_storage():
             elif isinstance(node, ast.Import):
                 for a in node.names:
                     assert not a.name.startswith(forbidden[:4]), f"{path.name} imports {a.name}"
+
+
+def test_pcap_run_is_flagged_efficiency_only_and_loads_through_the_contract(tmp_path, sample):
+    from agentmeter.ingest.unified import SELECTED_COLUMNS, load_input_run
+
+    process_pcap(sample, out_root=tmp_path, max_flows=12)
+    meta = json.loads((tmp_path / "sample" / "input.json").read_text())
+    assert meta["source_type"] == "pcap" and meta["input_role"] == "raw_pcap"
+    assert meta["evaluation_mode"] == "efficiency_only"
+    assert meta["capabilities"] == {"resource_efficiency": True, "accuracy": False}
+    assert meta["feature_match"]["status"] == "approximate"
+    assert any("no ground-truth labels" in r for r in meta["accuracy_unavailable_reasons"])
+    assert not (tmp_path / "sample" / "labels.csv").exists()
+    run = load_input_run(tmp_path / "sample")
+    assert run.labels is None and not run.accuracy_available
+    assert list(run.selected.columns) == SELECTED_COLUMNS and len(run.selected) == 12
+
+
+def test_unified_cli_dispatches_pcap_by_content(tmp_path, sample, capsys):
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("ingest_cli", PROJECT_ROOT / "scripts" / "ingest.py")
+    cli = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli)
+    renamed = tmp_path / "upload.bin"                    # extension is irrelevant: magic bytes decide
+    renamed.write_bytes(sample.read_bytes())
+    assert cli.main([str(renamed), "--no-write", "--max-flows", "10"]) == 0
+    out = capsys.readouterr().out
+    assert "raw_pcap -> efficiency_only" in out and "Selection 10 of 41 flows" in out

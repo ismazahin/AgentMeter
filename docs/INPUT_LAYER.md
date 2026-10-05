@@ -1,9 +1,70 @@
-# PCAP input layer (service pivot, stage 1)
+# Input layer (service pivot): CSV and PCAP
 
-First stage of the benchmarking service: **PCAP → flows → rule-based selection of
-representative flows**. It only extracts and samples flows. It makes **no threat
+The first stage of the benchmarking service turns an upload into a bounded,
+representative set of flows plus a metadata record that says what the later LLM
+phase may measure. It only ingests and prepares data. It makes **no threat
 decisions** and does not touch the 4-agent pipeline, instrumentation, SAW, or the
-locked study DB. Outputs go to `results/pcap_runs/<name>/` only.
+locked study DB.
+
+## Two input roles
+
+| Upload | Features | Labels | Evaluation mode | Output root |
+|---|---|---|---|---|
+| **CSV**, CIC-IDS2017 format, labelled | exact (the 78 reference columns) | yes | `accuracy_available`: efficiency + accuracy | `results/csv_runs/<name>/` |
+| CSV without a label column | exact | no | `efficiency_only` | `results/csv_runs/<name>/` |
+| **PCAP** (raw capture) | approximate (22 of 78 differ, see §2 below) | no | `efficiency_only` | `results/pcap_runs/<name>/` |
+
+```
+python scripts/ingest.py data/sample_csv/cicids2017_sample.csv    # type detected from content
+python scripts/ingest.py data/sample_pcaps/sample_small.pcap
+python scripts/ingest.py Tuesday-WorkingHours.pcap_ISCX.csv --max-flows 300
+```
+
+## Unified contract (`agentmeter/ingest/unified.py`)
+
+Both paths write the same three things. The LLM phase reads them with
+`load_input_run(dir)` and treats both paths the same way:
+
+| File | Contents |
+|---|---|
+| `input.json` | `source_type`, `input_role`, `evaluation_mode`, `capabilities.accuracy`, `accuracy_unavailable_reasons`, `feature_match` (exact / partial / approximate), `feature_columns` (model input), `hidden_columns` (never shown to the model), row counts, rules fired, class mix of the selection |
+| `selected_flows.csv` | 7 identification columns + 78 CIC-IDS2017 features + `selection_rule`, `selection_reason`, `matched_rules`. **Never a label column**: this is checked on write and on load |
+| `labels.csv` | labelled CSV only: `flow_id, label_raw, label`, held out for scoring and aligned 1:1 with `selected_flows.csv` |
+
+## CSV path (`agentmeter/ingest/csv_input.py`)
+
+Validation rejects a file with a stated reason rather than silently carrying on:
+- **Not a CSV:** packet captures (pointed to the PCAP path), binary files, empty
+  files, header-only files and unparseable CSVs.
+- **Schema:** headers are whitespace-stripped, since the official files use
+  `' Label'` and `' Flow Duration'`. All 78 feature columns are required.
+  `--allow-partial` accepts a subset, marked `feature_match: partial`, but never
+  one that lacks a column the rule-base reads.
+- **Values:** rows with NaN/Inf or non-numeric features are dropped and counted, the
+  same declared policy as `dataprep.py`. If nothing valid remains, the file is
+  rejected.
+
+Labels:
+- **Detection:** the label column is found case-insensitively (`Label` / `label`).
+- **Mapping:** labels go through `config.yaml data_prep.label_map`, the same
+  mapping the study used (for example `SSH-Patator` → Brute Force). Labels that are
+  already canonical are accepted.
+- **Out-of-taxonomy labels:** rows with labels outside the 5 classes (for example
+  `DoS slowloris`) are excluded and counted, because accuracy is only defined over
+  the 5 classes.
+- **Isolation:** the label is split off before the rule engine runs. The engine is
+  label-blind, exactly like the PCAP path, and the class mix of the selection is
+  reported afterwards for transparency.
+
+Identification columns: the full "TrafficLabelling" CSVs (`Source IP`, `Protocol`,
+`Timestamp`…) are mapped onto the identification columns. The MachineLearningCVE
+CSVs have no `Protocol` column, so `protocol_name` is `unknown` and protocol
+coverage sees one group. This is written into the run's `schema_report.md`.
+
+Per-run extras: `manifest.json` (full validation report), `schema_report.md`
+(columns, label column, class table) and `selection_audit.json`.
+
+# PCAP path
 
 ## Install (CPU only)
 
@@ -31,7 +92,7 @@ python scripts/pcap_ingest.py --show-rules
 | `selected_flows.csv` | the selected subset + `selection_rule`, `selection_reason`, `matched_rules` |
 | `selection_audit.json` | each rule's matches/admissions/computed thresholds; why each flow was taken |
 
-## 1. Ingestion (`agentmeter/ingest/pcap.py`)
+## 1. PCAP ingestion (`agentmeter/ingest/pcap.py`)
 
 A file is accepted only if:
 1. its magic bytes are libpcap (µs or ns) or pcapng;
@@ -43,7 +104,7 @@ bad pcapng block, then stops as if at end of file. Those warnings are captured a
 reject the file. There is a size limit (default 2 GiB) and an optional `max_packets`
 read cap, which is reported in the stats.
 
-## 2. Flow extraction (`flows.py`, `feature_map.py`)
+## 2. PCAP flow extraction (`flows.py`, `feature_map.py`)
 
 - **Backend:** the Python port `cicflowmeter==0.2.0`. Its CLI reads files through a
   sniffer that needs the `tcpdump` binary, so instead packets are streamed with scapy
@@ -67,7 +128,7 @@ If later phases need parity on these, the remedy is a payload-length backend (or
 Java CICFlowMeter) behind the same `extract_flows` interface. The gap is reported in
 every run's `feature_map.md`, not hidden.
 
-## 3. Rule-based selection (`rules.py`, `configs/flow_rules.yaml`)
+## 3. Rule-based selection (both paths) (`rules.py`, `configs/flow_rules.yaml`)
 
 An inspectable rule engine. The rule-base is YAML; each rule is an instance of one of
 five operator types:
@@ -98,6 +159,14 @@ Adding or re-tuning a rule is a YAML edit (`tests/test_flow_rules.py` proves thi
 Only a new operator *type* needs code: one function registered in `RULE_TYPES`.
 
 ## Tests
+
+- `tests/test_csv_ingest.py` needs pandas only. It covers:
+  - the CSV sample, which must match its generator
+  - schema, label and class-distribution reporting, and raw-to-canonical label mapping
+  - label isolation (the rule engine is spied on to confirm it never sees a label)
+  - accuracy-available, efficiency-only and partial runs
+  - every rejection path, and the contract's leak and alignment guards
+  - the unified CLI
 
 - `tests/test_flow_rules.py` needs pandas only. It covers the feature list (pinned to
   `data/cicids_full_300.csv`), the mapping report, and the rule semantics: budget,

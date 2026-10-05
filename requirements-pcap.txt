@@ -1,0 +1,13 @@
+# AgentMeter — PCAP input layer (CPU only). Install after requirements.txt:
+#
+#   pip install -r requirements-pcap.txt
+#   pip install --no-deps cicflowmeter==0.2.0
+#
+# Why two steps: the Python CICFlowMeter port (cicflowmeter 0.2.0, MIT) pins
+# numpy<2.0, which would downgrade the numpy the rest of AgentMeter uses. Its
+# code runs unchanged on numpy 2, and we drive its FlowSession directly (no
+# sniffer, no tcpdump), so we install it WITHOUT its dependency pins and supply
+# the deps it actually needs here. Version is pinned: agentmeter/ingest/flows.py
+# relies on FlowSession internals of 0.2.0 (tests/test_pcap_ingest.py guards it).
+scapy>=2.5,<3
+requests>=2.31

@@ -26,6 +26,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt flask flask-cors
+          # PCAP input layer: cicflowmeter pins numpy<2 but runs on numpy 2, so it is
+          # installed WITHOUT its pins (see requirements-pcap.txt). Fail here rather
+          # than letting tests/test_pcap_ingest.py skip silently.
+          pip install -r requirements-pcap.txt
+          pip install --no-deps cicflowmeter==0.2.0
+          python -c "import scapy, cicflowmeter.flow_session"
 
       - name: Run tests
         run: pytest

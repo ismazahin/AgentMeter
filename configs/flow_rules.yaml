@@ -1,0 +1,95 @@
+# AgentMeter — flow-selection rule-base (PCAP input layer).
+#
+# Picks a bounded, REPRESENTATIVE subset of the flows extracted from an uploaded
+# PCAP so the benchmark's analysis time stays bounded. Every rule uses purely
+# STATISTICAL flow properties (counts, durations, volumes, protocol, port).
+# No rule judges whether traffic is malicious — "notable" means "statistically
+# unusual in this capture", nothing more.
+#
+# Rules run top to bottom. A flow is admitted once, by the first rule that takes
+# it; every other rule it matched is still recorded in the audit trail.
+#   quota    max flows this rule may admit (null = no per-rule cap)
+#   reserve  slots guaranteed to this rule: earlier rules cannot use them
+#   enabled  false = rule is listed in the audit but does not run
+# Overriding max_flows at run time (--max-flows) scales every quota/reserve by
+# the same factor, so the mix of rules is kept at any budget.
+#
+# Operator types (agentmeter/ingest/rules.py): per_group, top_percentile,
+# threshold, typical_band, random_fill. Field names are the CIC-IDS2017 feature
+# columns, the identification columns (protocol_name, dst_ip …), or a name
+# declared under `derived`.
+
+version: 1
+seed: 42
+
+budget:
+  max_flows: 500            # hard cap on flows passed to the benchmark
+
+derived:                    # each derived field = sum of the listed columns
+  total_packets: [Total Fwd Packets, Total Backward Packets]
+  total_bytes: [Total Length of Fwd Packets, Total Length of Bwd Packets]
+
+rules:
+  # --- Coverage --------------------------------------------------------------
+  - id: protocol_coverage
+    type: per_group
+    description: Every transport protocol in the capture is represented.
+    group_by: protocol_name
+    per_group: 25
+    order_by: random
+    quota: 50
+    reserve: 10
+
+  - id: port_coverage
+    type: per_group
+    description: The busiest destination ports each contribute a few flows.
+    group_by: Destination Port
+    max_groups: 20          # the 20 ports with the most flows
+    per_group: 3
+    order_by: random
+    quota: 60
+
+  # --- Notable (statistically unusual — NOT a threat judgement) -------------
+  - id: high_packet_count
+    type: top_percentile
+    description: Flows with an unusually high packet count for this capture.
+    field: total_packets
+    percentile: 95
+    quota: 60
+
+  - id: long_duration
+    type: top_percentile
+    description: Flows that lasted unusually long for this capture.
+    field: Flow Duration
+    percentile: 95
+    quota: 60
+
+  - id: high_volume
+    type: top_percentile
+    description: Flows that moved an unusually large number of bytes.
+    field: total_bytes
+    percentile: 95
+    quota: 60
+
+  - id: very_long_lived
+    type: threshold
+    description: Any flow lasting over 60 s (absolute limit, microseconds).
+    field: Flow Duration
+    op: ">="
+    value: 60000000
+    quota: 20
+
+  # --- Baseline for balance ---------------------------------------------------
+  - id: typical_baseline
+    type: typical_band
+    description: Typical flows (inter-quartile on size and length) kept for balance.
+    fields: [total_packets, Flow Duration, total_bytes]
+    band: [25, 75]
+    quota: 150
+    reserve: 100
+
+  # --- Fill -------------------------------------------------------------------
+  - id: fill_remaining
+    type: random_fill
+    description: Spend any budget left with a seeded random sample.
+    quota: null

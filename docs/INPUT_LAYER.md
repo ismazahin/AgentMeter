@@ -1,5 +1,8 @@
 # Input layer (service pivot): CSV and PCAP
 
+> Next step: run a prepared input through the 4-agent pipeline for up to 2 models.
+> See [SESSION_BENCHMARK.md](SESSION_BENCHMARK.md).
+
 The first stage of the benchmarking service turns an upload into a bounded,
 representative set of flows plus a metadata record that says what the later LLM
 phase may measure. It only ingests and prepares data. It makes **no threat

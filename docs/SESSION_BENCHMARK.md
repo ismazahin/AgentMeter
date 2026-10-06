@@ -192,3 +192,61 @@ way a benchmark is computed does not change.
 - **Locked study:** jobs only ever write to the prepared run's own `session.db`
   (non_validated), never the locked study.
 
+## The service web flow (`/service`)
+
+`python scripts/pull_eval_server.py`, then open `http://<host>:8000/service`. The
+analysis dashboard of the locked study stays at `/`, labelled "Validation
+baseline", and links to the service with **Run a benchmark**.
+
+1. **Upload.** Choose a `.csv`, `.pcap` or `.pcapng` file, set the number of flows
+   to benchmark and choose whether to keep "Other Attack".
+   - The file goes to `POST /api/ingest`, which saves it under `results/uploads/` and
+     runs the existing ingestion into `results/csv_runs|pcap_runs/<name>_<stamp>/`.
+     Uploading the same file twice creates two separate runs.
+   - A bad file is rejected with its reason.
+2. **Validation summary + models.** The page shows:
+   - rows read, usable, dropped and excluded (or packets and flows for a PCAP);
+   - whether the run is labelled, meaning accuracy plus efficiency, or unlabelled,
+     meaning efficiency only;
+   - the class distribution and how many of each class were selected;
+   - the feature-match status, and the flow-selection rules with which ones fired.
+
+   You pick at most 2 of the 5 study models: a 3rd checkbox is disabled, and the API
+   enforces the same limit. The summary is re-read from the run's files by
+   `GET /api/runs/<kind>/<name>`, so reloading the page keeps it.
+3. **Run + progress.**
+   - **Run** posts to `/api/jobs`, and the page then polls `GET /api/jobs/<id>`
+     every 2 seconds. It shows the status, a progress bar, flows done out of the
+     total, the current model, and the queue position while queued.
+   - The job id is in the URL (`#/job/<id>`, also kept in localStorage). Reloading,
+     or reopening the link later, re-attaches to the same job.
+   - A failed or interrupted job offers **Resume**.
+4. **Results.** The page renders the server's `session_results.json`; it computes
+   nothing itself:
+   - the head-to-head verdict, with the absolute SAW statement under it;
+   - a per-model table;
+   - a head-to-head table;
+   - accuracy by class and confusion matrices, for labelled runs only;
+   - per-agent time and tokens;
+   - the caveats;
+   - downloads: the results JSON, plus SAW and per-agent CSVs through the existing
+     `report.js`.
+
+   **Recent jobs** lists past jobs so you can reopen any result.
+
+**No GPU.** On a server without a GPU, `GET /api/service/config` switches the
+service to **demo mode** with the mock provider, and the page says so on every view.
+On a GPU host it uses `hf` with `configs/run_full_l4.yaml` (4-bit NF4). An operator
+can force the mode with `AGENTMETER_SERVICE_PROVIDER=mock|hf`. Run the server as
+**one process**, because the single-job lock lives in that process.
+
+**Checks.**
+- `tests/test_service_api.py` (pytest) covers the API contract.
+- `tests/e2e/service_flow.js` is a Playwright walk-through against a live server:
+  `node tests/e2e/service_flow.js http://127.0.0.1:8766`. It covers:
+  - upload → summary → the 2-model cap → run;
+  - re-attach after a reload;
+  - results, and reopening from Recent jobs;
+  - PCAP efficiency only, and a bad file rejected;
+  - no horizontal scroll at 375px.
+

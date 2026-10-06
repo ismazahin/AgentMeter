@@ -158,6 +158,7 @@
   .nav button.active { background: var(--inv); color: var(--inv-ink); }
   .nav .nav-i { display: none; }
   .tools { flex: none; display: flex; align-items: center; gap: 6px; }
+  a.loadbtn { text-decoration: none; }
   .loadbtn {
     position: relative; display: inline-flex; align-items: center; gap: 7px; height: 100%; padding: 0 14px;
     font: 500 13px/1 var(--sans); color: var(--ink); background: var(--chip); border-radius: 999px; cursor: pointer; white-space: nowrap;
@@ -654,6 +655,10 @@
   </nav>
 
     <div class="tools">
+      <a class="loadbtn" id="svc-link" href="/service" title="Upload a CSV/PCAP and benchmark up to two models (the benchmark service)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+        <span><span class="lbl-long">Run a </span>benchmark</span></a>
+      <script>if (location.protocol === "file:") document.getElementById("svc-link").hidden = true;</script>
       <label class="loadbtn" title="Load an analysis.json results file">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
         <span><span class="lbl-long">Load </span>results.json</span>

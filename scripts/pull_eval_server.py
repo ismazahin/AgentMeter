@@ -115,7 +115,7 @@ DASHBOARD_DIR = REPO_ROOT / "dashboard"
 # served dashboard (the "view real results" path); it is gitignored, never a secret.
 _ALLOWED_ASSETS = {
     "index.html", "saw.js", "report.js", "pull-config.js", "sample_analysis.json",
-    "README.md", "analysis.json",
+    "README.md", "analysis.json", "service.html",
 }
 
 
@@ -216,6 +216,15 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
         return _jobs_holder["mgr"]
 
     jobs_api.register_jobs(app, get_job_manager)
+
+    # Phase 41 — the service web flow: upload/ingest, run summaries, service config,
+    # and the /service page (same origin; the analysis dashboard stays at /).
+    from agentmeter.server import service_api
+    service_api.register_service(app, get_job_manager)
+
+    @app.route("/service", methods=["GET"])
+    def service_page():
+        return send_from_directory(dashboard_dir, "service.html")
 
     # Phase 16 — read-only discovery of result JSON files under results/.
     @app.route("/api/local-sessions", methods=["GET"])

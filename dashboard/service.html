@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentMeter Benchmark Service</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect x=%270%27 y=%2712%27 width=%274%27 height=%274%27/%3E%3Crect x=%274%27 y=%278%27 width=%274%27 height=%274%27/%3E%3Crect x=%278%27 y=%274%27 width=%274%27 height=%274%27/%3E%3Crect x=%2712%27 y=%270%27 width=%274%27 height=%274%27 fill=%27%237f4bf3%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500&family=Inter+Tight:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!--
+  AgentMeter BENCHMARK SERVICE (Phase 41) — the user-facing web flow:
+  upload a CSV/PCAP -> validation summary -> pick <=2 models -> Run -> live
+  progress -> comparison. VIEW LAYER ONLY: it calls the same-origin API
+  (/api/ingest, /api/runs, /api/jobs) and renders the JSON the server computed
+  (session_results.json). It computes no benchmark, SAW or comparison itself.
+  CSV export reuses dashboard/report.js (REPORT.sawCsv / REPORT.perAgentCsv).
+  The job id lives in the URL (#/job/<id>), so reloading or reopening the page
+  re-attaches to the same job.
+-->
+<style>
+  :root {
+    --serif: "Source Serif 4", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --sans: "Inter Tight", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --page: #ffffff; --band: #eff1f4; --panel: #ffffff; --panel-2: #fafafa;
+    --chip: #f4f4f5; --chip-2: #e5e5e7;
+    --ink: #0a0a0a; --ink-2: #3f3f46; --muted: #71717a;
+    --line: #e7e7ea; --line-strong: #d4d4d8;
+    --inv: #0a0a0a; --inv-ink: #ffffff; --inv-hover: #3f3f46;
+    --brand: #7f4bf3; --brand-hover: #6a35e0;
+    --healthy: #157f3c; --healthy-bg: #e6f4ea;
+    --degraded: #a35f00; --degraded-bg: #fbf0dc;
+    --critical: #b42323; --critical-bg: #fbe8e8;
+    --warn: #8a4a12; --warn-bg: #fbeee0; --warn-line: #e08a3c;
+    --info-bg: #eef2ff; --info-line: #c7d2fe; --info: #3730a3;
+    --radius: 6px; --radius-lg: 8px;
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --page: #0c0c0e; --band: #161619; --panel: #121215; --panel-2: #17171a;
+    --chip: #1f1f23; --chip-2: #2b2b30;
+    --ink: #f2f2f3; --ink-2: #c6c6cc; --muted: #8f8f98;
+    --line: #26262b; --line-strong: #35353b;
+    --inv: #f2f2f3; --inv-ink: #0c0c0e; --inv-hover: #c6c6cc;
+    --brand: #a98bff; --brand-hover: #bda6ff;
+    --healthy: #5ad48a; --healthy-bg: #10301d;
+    --degraded: #f0b657; --degraded-bg: #382810;
+    --critical: #ff8a8a; --critical-bg: #3a1717;
+    --warn: #f0c088; --warn-bg: #352514; --warn-line: #a4652a;
+    --info-bg: #17182b; --info-line: #2f3260; --info: #c7cbff;
+  } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body { background: var(--page); color: var(--ink); font: 400 15px/1.55 var(--sans); }
+  a { color: inherit; }
+  h1, h2, h3 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.01em; margin: 0; }
+  h1 { font-size: clamp(28px, 4.4vw, 40px); line-height: 1.12; }
+  h2 { font-size: 24px; line-height: 1.2; }
+  h3 { font-size: 18px; line-height: 1.3; }
+  .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+  .muted { color: var(--muted); }
+  .mono { font-family: var(--mono); }
+  #svc-job-link, .model .mono, #svc-job-models { overflow-wrap: anywhere; }   /* long ids/URLs wrap */
+  td.mono { white-space: nowrap; }        /* model names stay whole; the table scrolls sideways */
+  [hidden] { display: none !important; }
+
+  /* header */
+  .top { border-bottom: 1px solid var(--line); background: var(--page); position: sticky; top: 0; z-index: 5; }
+  .top-in { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; flex-wrap: wrap; }
+  .logo { display: inline-flex; align-items: center; gap: 8px; font-family: var(--serif); font-size: 19px; text-decoration: none; }
+  .logo svg { width: 18px; height: 18px; }
+  .logo small { font-family: var(--sans); font-size: 12px; color: var(--muted); }
+  .top nav { display: flex; gap: 4px; flex-wrap: wrap; }
+  .top nav a { padding: 6px 10px; border-radius: 999px; text-decoration: none; font-size: 14px; color: var(--ink-2); }
+  .top nav a:hover { background: var(--chip); }
+  .top nav a[aria-current="page"] { background: var(--inv); color: var(--inv-ink); }
+
+  /* steps */
+  .steps { display: flex; gap: 6px; flex-wrap: wrap; margin: 24px 0 8px; padding: 0; list-style: none; font-size: 13px; }
+  .steps li { padding: 4px 10px; border-radius: 999px; background: var(--chip); color: var(--muted); }
+  .steps li[aria-current="step"] { background: var(--inv); color: var(--inv-ink); }
+  .steps li.done { color: var(--ink-2); }
+
+  .hero { padding: 8px 0 20px; }
+  .hero p { max-width: 680px; color: var(--ink-2); margin: 10px 0 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 20px; margin: 0 0 16px; }
+  .card > h2, .card > h3 { margin-bottom: 12px; }
+  .grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 860px) { .grid.two { grid-template-columns: 1fr 1fr; } }
+
+  /* form controls */
+  label { font-weight: 500; }
+  .drop { display: block; border: 1.5px dashed var(--line-strong); border-radius: var(--radius-lg); padding: 28px 16px; text-align: center; background: var(--panel-2); cursor: pointer; }
+  .drop:hover, .drop.over { border-color: var(--ink-2); }
+  .drop strong { display: block; font-family: var(--serif); font-weight: 400; font-size: 20px; margin-bottom: 4px; }
+  .drop input { display: block; margin: 12px auto 0; max-width: 100%; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  input[type="number"] { font: inherit; padding: 6px 8px; width: 110px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink); }
+  .check { display: inline-flex; gap: 8px; align-items: flex-start; font-weight: 400; }
+  .check input { margin-top: 4px; }
+  .btn { font: 500 15px var(--sans); border-radius: 999px; padding: 10px 18px; border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink); cursor: pointer; min-height: 44px; }
+  .btn:hover { background: var(--chip); }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .btn.primary:hover { background: var(--brand-hover); }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+  .models { display: grid; gap: 8px; grid-template-columns: 1fr; margin: 4px 0 8px; }
+  @media (min-width: 640px) { .models { grid-template-columns: 1fr 1fr; } }
+  .model { display: flex; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; font-weight: 400; cursor: pointer; }
+  .model:has(input:checked) { border-color: var(--ink); background: var(--panel-2); }
+  .model:has(input:disabled) { opacity: .5; cursor: not-allowed; }
+  .model .mono { font-size: 13px; overflow-wrap: anywhere; }
+
+  /* notices */
+  .notice { border-radius: var(--radius); padding: 10px 14px; margin: 12px 0; border: 1px solid var(--line); background: var(--panel-2); font-size: 14px; }
+  .notice.info { background: var(--info-bg); border-color: var(--info-line); color: var(--info); }
+  .notice.warn { background: var(--warn-bg); border-color: var(--warn-line); color: var(--warn); }
+  .notice.error { background: var(--critical-bg); border-color: var(--critical); color: var(--critical); }
+  .notice code { font-family: var(--mono); font-size: 12px; }
+
+  /* chips + status */
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 0; }
+  .chip { display: inline-block; font-size: 12.5px; padding: 3px 9px; border-radius: 999px; background: var(--chip); color: var(--ink-2); }
+  .chip.ok { background: var(--healthy-bg); color: var(--healthy); }
+  .chip.eff { background: var(--degraded-bg); color: var(--degraded); }
+  .chip.bad { background: var(--critical-bg); color: var(--critical); }
+  .status { font: 500 12.5px var(--mono); text-transform: uppercase; letter-spacing: .04em; padding: 3px 8px; border-radius: 999px; background: var(--chip); }
+  .status.done { background: var(--healthy-bg); color: var(--healthy); }
+  .status.failed { background: var(--critical-bg); color: var(--critical); }
+  .status.interrupted { background: var(--warn-bg); color: var(--warn); }
+  .status.running { background: var(--inv); color: var(--inv-ink); }
+
+  /* progress */
+  .bar { height: 10px; border-radius: 999px; background: var(--chip-2); overflow: hidden; margin: 14px 0 8px; }
+  .bar > span { display: block; height: 100%; width: 0; background: var(--ink); transition: width .4s ease; }
+  .bar.indet > span { width: 30%; animation: slide 1.4s ease-in-out infinite; }
+  @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
+  @media (prefers-reduced-motion: reduce) { .bar > span { transition: none; } .bar.indet > span { animation: none; } }
+
+  /* tables */
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; padding: 0 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 500; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  td.num, th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.win td.res { font-weight: 600; }
+  .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 14px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  .verdict { font-family: var(--serif); font-size: clamp(20px, 2.6vw, 26px); line-height: 1.35; margin: 4px 0 12px; }
+  .caveats { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; }
+  .caveats li { margin: 4px 0; }
+  details { border-top: 1px solid var(--line); padding: 10px 0; }
+  summary { cursor: pointer; font-weight: 500; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  footer { border-top: 1px solid var(--line); margin-top: 40px; padding: 20px 0 40px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in">
+    <a class="logo" href="#/upload" aria-label="AgentMeter benchmark service home">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="0" y="12" width="4" height="4" fill="currentColor"/><rect x="4" y="8" width="4" height="4" fill="currentColor"/><rect x="8" y="4" width="4" height="4" fill="currentColor"/><rect x="12" y="0" width="4" height="4" fill="#7f4bf3"/></svg>
+      AgentMeter <small>Benchmark service</small>
+    </a>
+    <nav aria-label="Service">
+      <a href="#/upload" data-nav="upload">New benchmark</a>
+      <a href="#/jobs" data-nav="jobs">Recent jobs</a>
+      <a href="/">Validation baseline</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <ol class="steps" id="svc-steps" aria-label="Progress through the benchmark">
+    <li data-step="upload">1 · Upload</li>
+    <li data-step="run">2 · Choose models</li>
+    <li data-step="job">3 · Run</li>
+    <li data-step="results">4 · Results</li>
+  </ol>
+  <div id="svc-demo" class="notice info" hidden></div>
+
+  <!-- 1. UPLOAD -->
+  <section id="view-upload" class="view" aria-labelledby="h-upload">
+    <div class="hero">
+      <h1 id="h-upload">Benchmark two LLMs on your network flows</h1>
+      <p>Upload a CIC-IDS2017-format CSV or a raw PCAP. AgentMeter selects a bounded, representative set of flows,
+        runs them through a 4-agent pipeline for up to two models, and measures resource efficiency — plus accuracy
+        when your file has labels. It measures models; it does not detect threats on your network.</p>
+    </div>
+    <form id="svc-upload-form" class="card" novalidate>
+      <label class="drop" id="svc-drop" for="svc-file">
+        <strong>Choose a .csv, .pcap or .pcapng file</strong>
+        <span class="muted">Labelled CSV → accuracy + efficiency · PCAP → efficiency only</span>
+        <input type="file" id="svc-file" name="file" accept=".csv,.pcap,.pcapng" required>
+      </label>
+      <div class="row">
+        <div class="field">
+          <label for="svc-max-flows">Flows to benchmark</label>
+          <input type="number" id="svc-max-flows" name="max_flows" min="1" max="500" value="50">
+        </div>
+        <label class="check"><input type="checkbox" id="svc-other-attack" name="other_attack" value="1">
+          <span>Keep attacks outside the 5 study classes as <b>Other Attack</b><br>
+          <span class="muted">CSV only — otherwise those rows are excluded</span></span></label>
+      </div>
+      <div class="row">
+        <button type="submit" class="btn primary" id="svc-upload-btn">Upload and validate</button>
+        <span id="svc-upload-busy" class="muted" hidden role="status">Validating and selecting flows…</span>
+      </div>
+      <div id="svc-upload-error" class="notice error" role="alert" hidden></div>
+    </form>
+    <p id="svc-last-job" class="muted" hidden></p>
+  </section>
+
+  <!-- 2. SUMMARY + MODELS -->
+  <section id="view-run" class="view" hidden aria-labelledby="h-run">
+    <div class="hero"><h1 id="h-run">Validation summary</h1></div>
+    <div id="svc-summary"></div>
+    <div class="card">
+      <h2>Choose up to two models</h2>
+      <p class="muted" id="svc-mode-line"></p>
+      <div class="models" id="svc-models" role="group" aria-describedby="svc-model-hint"></div>
+      <p id="svc-model-hint" class="muted" aria-live="polite">Select 1 or 2 models.</p>
+      <div class="row"><button type="button" class="btn primary" id="svc-run" disabled>Run benchmark</button></div>
+      <div id="svc-run-error" class="notice error" role="alert" hidden></div>
+    </div>
+  </section>
+
+  <!-- 3/4. PROGRESS + RESULTS -->
+  <section id="view-job" class="view" hidden aria-labelledby="h-job">
+    <div class="hero">
+      <h1 id="h-job">Benchmark job</h1>
+      <p class="muted">You can close this page — the job keeps running on the server. Reopen this link to check on it: <span id="svc-job-link" class="mono"></span></p>
+    </div>
+    <div class="card" id="svc-job-card">
+      <div class="row" style="margin-top:0"><span id="svc-job-status" class="status">…</span><span id="svc-job-models" class="muted"></span></div>
+      <div class="bar" id="svc-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Benchmark progress"><span id="svc-progress-bar"></span></div>
+      <p id="svc-progress-text" class="mono" aria-live="polite"></p>
+      <div id="svc-job-error" class="notice error" role="alert" hidden></div>
+      <div class="actions"><button type="button" class="btn" id="svc-resume" hidden>Resume job</button></div>
+    </div>
+    <div id="svc-results" hidden></div>
+  </section>
+
+  <!-- RECENT JOBS -->
+  <section id="view-jobs" class="view" hidden aria-labelledby="h-jobs">
+    <div class="hero"><h1 id="h-jobs">Recent jobs</h1></div>
+    <div class="card"><div class="table-wrap" id="svc-jobs-table"></div></div>
+  </section>
+</main>
+
+<footer><div class="wrap">AgentMeter benchmark service — measures LLM resource efficiency (and accuracy where labels exist).
+  User runs are <b>non-validated</b> and never merged into the locked 5-model study; see the
+  <a href="/">validation baseline</a> for that.</div></footer>
+
+<script src="report.js"></script>
+<script>
+(function () {
+  "use strict";
+  var CONFIG = null;
+  var pollToken = 0;
+  var $ = function (id) { return document.getElementById(id); };
+
+  function esc(v) {
+    return String(v == null ? "" : v).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function api(path, opts) {
+    return fetch(path, opts).then(function (r) {
+      return r.text().then(function (t) {
+        var data = null;
+        try { data = t ? JSON.parse(t) : null; } catch (e) { data = { error: t || r.statusText }; }
+        return { ok: r.ok, status: r.status, data: data || {} };
+      });
+    }, function () { return { ok: false, status: 0, data: { error: "Cannot reach the server.", code: "network" } }; });
+  }
+  function showError(el, data) {
+    el.hidden = false;
+    el.innerHTML = esc((data && data.error) || "Something went wrong.") +
+      (data && data.code ? ' <code>' + esc(data.code) + '</code>' : "");
+  }
+  function lastJobSet(id) { try { localStorage.setItem("agentmeter.lastJob", id); } catch (e) {} }
+  function lastJobGet() { try { return localStorage.getItem("agentmeter.lastJob"); } catch (e) { return null; } }
+
+  // ---------- formatting ----------
+  function fmtTime(v) {
+    if (v == null) return "—";
+    return v < 1 ? (v * 1000).toFixed(v < 0.01 ? 2 : 1) + " ms" : v.toFixed(2) + " s";
+  }
+  function fmtNum(v, d) { return v == null ? "—" : Number(v).toLocaleString(undefined, { maximumFractionDigits: d || 0, minimumFractionDigits: d || 0 }); }
+  function fmtPct(v) { return v == null ? "—" : (v * 100).toFixed(1) + "%"; }
+  function fmtMB(v) { return v == null ? "not measured" : fmtNum(v) + " MB"; }
+  function modeChip(acc) {
+    return acc ? '<span class="chip ok">Labelled → accuracy + efficiency</span>'
+               : '<span class="chip eff">Unlabelled → efficiency only</span>';
+  }
+
+  // ---------- routing ----------
+  function route() {
+    pollToken++;                                   // stop any previous poll loop
+    var h = location.hash.replace(/^#\/?/, "");
+    var parts = h.split("/").filter(Boolean).map(decodeURIComponent);
+    var view = parts[0] || "upload";
+    ["upload", "run", "job", "jobs"].forEach(function (v) { $("view-" + v).hidden = v !== view; });
+    document.querySelectorAll(".top nav a[data-nav]").forEach(function (a) {
+      if (a.getAttribute("data-nav") === view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+    setStep(view === "jobs" ? null : view === "job" ? "job" : view);
+    if (view === "run" && parts.length === 3) loadRun(parts[1] + "/" + parts[2]);
+    else if (view === "job" && parts[1]) watchJob(parts[1]);
+    else if (view === "jobs") loadJobs();
+    else if (view === "upload") showLastJob();
+    window.scrollTo(0, 0);
+  }
+  function setStep(step) {
+    var order = ["upload", "run", "job", "results"], idx = order.indexOf(step);
+    $("svc-steps").hidden = step === null;
+    document.querySelectorAll("#svc-steps li").forEach(function (li, i) {
+      li.classList.toggle("done", idx > i);
+      if (li.getAttribute("data-step") === step) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
+    });
+  }
+
+  // ---------- 1. upload ----------
+  function showLastJob() {
+    var id = lastJobGet(), el = $("svc-last-job");
+    el.hidden = !id;
+    if (id) el.innerHTML = 'Your last job: <a href="#/job/' + encodeURIComponent(id) + '">' + esc(id) + '</a>';
+  }
+  $("svc-upload-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var file = $("svc-file").files[0], err = $("svc-upload-error");
+    err.hidden = true;
+    if (!file) { showError(err, { error: "Choose a .csv, .pcap or .pcapng file first." }); return; }
+    var fd = new FormData();
+    fd.append("file", file);
+    fd.append("max_flows", $("svc-max-flows").value || "50");
+    if ($("svc-other-attack").checked) fd.append("other_attack", "1");
+    $("svc-upload-btn").disabled = true; $("svc-upload-busy").hidden = false;
+    api("/api/ingest", { method: "POST", body: fd }).then(function (r) {
+      $("svc-upload-btn").disabled = false; $("svc-upload-busy").hidden = true;
+      if (!r.ok) { showError(err, r.data); return; }
+      location.hash = "#/run/" + r.data.run.split("/").map(encodeURIComponent).join("/");
+    });
+  });
+  var drop = $("svc-drop");
+  ["dragover", "dragenter"].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add("over"); }); });
+  ["dragleave", "drop"].forEach(function (e) { drop.addEventListener(e, function () { drop.classList.remove("over"); }); });
+  drop.addEventListener("drop", function (ev) {
+    ev.preventDefault();
+    if (ev.dataTransfer && ev.dataTransfer.files.length) $("svc-file").files = ev.dataTransfer.files;
+  });
+
+  // ---------- 2. summary + model selection ----------
+  var currentRun = null;
+  function loadRun(run) {
+    currentRun = run;
+    $("svc-summary").innerHTML = '<div class="card muted">Loading…</div>';
+    $("svc-run-error").hidden = true;
+    api("/api/runs/" + run).then(function (r) {
+      if (!r.ok) { $("svc-summary").innerHTML = ""; showError($("svc-run-error"), r.data); $("svc-run").disabled = true; return; }
+      renderSummary(r.data);
+      renderModels(r.data);
+    });
+  }
+  function distTable(all, sel) {
+    var keys = Object.keys(all || {}).length ? Object.keys(all) : Object.keys(sel || {});
+    if (!keys.length) return "";
+    keys.sort();
+    return '<div class="table-wrap"><table id="svc-class-table"><thead><tr><th>Class</th><th class="num">Usable rows</th><th class="num">Selected</th></tr></thead><tbody>' +
+      keys.map(function (k) { return '<tr><td>' + esc(k) + '</td><td class="num">' + fmtNum((all || {})[k]) + '</td><td class="num">' + fmtNum((sel || {})[k] || 0) + '</td></tr>'; }).join("") +
+      '</tbody></table></div>';
+  }
+  function renderSummary(s) {
+    var fm = s.feature_match || {}, csv = s.source_type === "csv";
+    var counts = csv
+      ? [["File", s.source_file], ["Rows read", fmtNum(s.rows_read)], ["Usable rows", fmtNum(s.rows_usable)],
+         ["Dropped (NaN/Inf)", fmtNum(s.rows_dropped)], ["Excluded (outside 5 classes)", fmtNum(s.rows_excluded_out_of_taxonomy)],
+         ["Feature columns", (s.columns_present == null ? "—" : s.columns_present + " / 78")],
+         ["Label column", s.label_column || "none"]]
+      : [["File", s.source_file], ["Packets", fmtNum(s.packets)], ["Capture length", fmtNum(s.capture_duration_s, 1) + " s"],
+         ["Flows extracted", fmtNum(s.flows_extracted)], ["Packets skipped", fmtNum(s.packets_skipped)]];
+    counts.push(["Flows selected", fmtNum(s.rows_selected) + " of " + fmtNum(s.rows_total)]);
+    var rules = (s.rules || []).map(function (r) {
+      return '<tr><td class="mono">' + esc(r.id) + '</td><td>' + esc(r.kind === "constraint" ? "constraint" : r.type) +
+        '</td><td>' + (r.fired ? "fired" : '<span class="muted">' + (r.enabled ? "did not fire" : "disabled") + '</span>') +
+        '</td><td class="num">' + (r.kind === "constraint" ? "—" : fmtNum(r.admitted)) + '</td></tr>';
+    }).join("");
+    var notes = (s.notes || []).concat(s.accuracy_unavailable_reasons || []);
+    $("svc-summary").innerHTML =
+      '<div class="card" id="svc-summary-card"><div class="chips">' + modeChip(s.accuracy_available) +
+      '<span class="chip">' + esc(s.source_type.toUpperCase()) + '</span>' +
+      '<span class="chip">Features: ' + esc(fm.status || "—") + '</span>' +
+      (s.class_scheme ? '<span class="chip">' + esc(s.class_scheme.name) + '</span>' : "") +
+      '<span class="chip">' + esc((s.selection_mode || "").replace(/_/g, " ")) + '</span>' +
+      '<span class="chip">non-validated</span></div>' +
+      '<div class="grid two" style="margin-top:16px"><div><h3>Input</h3><dl class="kv" id="svc-counts">' +
+      counts.map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("") +
+      '</dl>' + (fm.note ? '<p class="muted" style="font-size:13px">' + esc(fm.note) + '</p>' : "") + '</div>' +
+      '<div><h3>' + (csv ? "Class distribution" : "Labels") + '</h3>' +
+      (csv && s.accuracy_available ? distTable(s.class_distribution, s.label_distribution_selected)
+        : '<p class="muted">No ground-truth labels — accuracy cannot be computed; the run measures efficiency only.</p>') +
+      '</div></div>' +
+      (notes.length ? '<ul class="caveats" style="margin-top:12px">' + notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join("") + '</ul>' : "") +
+      '<details><summary>Flow-selection rules (' + (s.rules_fired || []).length + ' fired)</summary><div class="table-wrap"><table id="svc-rules-table"><thead><tr><th>Rule</th><th>Type</th><th>Result</th><th class="num">Flows admitted</th></tr></thead><tbody>' +
+      rules + '</tbody></table></div></details></div>';
+    $("svc-mode-line").innerHTML = s.accuracy_available
+      ? "This run is <b>labelled</b>: the comparison covers accuracy and resource efficiency."
+      : "This run is <b>unlabelled</b>: the comparison covers resource efficiency only (no accuracy).";
+  }
+  function renderModels() {
+    var box = $("svc-models"), max = (CONFIG && CONFIG.max_models) || 2;
+    var models = (CONFIG && CONFIG.canonical_models) || [];
+    box.innerHTML = models.map(function (m, i) {
+      return '<label class="model"><input type="checkbox" name="model" value="' + esc(m) + '" id="svc-model-' + i + '"><span class="mono">' + esc(m) + '</span></label>';
+    }).join("");
+    function sync() {
+      var picked = box.querySelectorAll("input:checked").length;
+      box.querySelectorAll("input").forEach(function (inp) { inp.disabled = !inp.checked && picked >= max; });
+      $("svc-run").disabled = picked < 1 || picked > max;
+      $("svc-model-hint").textContent = picked >= max ? "Maximum of " + max + " models selected — deselect one to change."
+        : picked === 1 ? "1 model selected — add one more to compare head-to-head, or run it alone." : "Select 1 or 2 models.";
+    }
+    box.querySelectorAll("input").forEach(function (inp) { inp.addEventListener("change", sync); });
+    sync();
+  }
+  $("svc-run").addEventListener("click", function () {
+    var models = Array.prototype.map.call($("svc-models").querySelectorAll("input:checked"), function (i) { return i.value; });
+    var err = $("svc-run-error");
+    err.hidden = true;
+    $("svc-run").disabled = true;
+    api("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ run: currentRun, models: models, provider: CONFIG.provider, base_config: CONFIG.base_config }) })
+      .then(function (r) {
+        if (!r.ok) { showError(err, r.data); $("svc-run").disabled = false; return; }
+        lastJobSet(r.data.job_id);
+        location.hash = "#/job/" + encodeURIComponent(r.data.job_id);
+      });
+  });
+
+  // ---------- 3. progress (re-attaches on reload: the id is in the URL) ----------
+  function watchJob(id) {
+    var token = ++pollToken;
+    lastJobSet(id);
+    $("svc-job-link").textContent = location.href;
+    $("svc-results").hidden = true; $("svc-results").innerHTML = "";
+    $("svc-job-error").hidden = true; $("svc-resume").hidden = true;
+    $("svc-job-status").textContent = "…";
+    (function tick() {
+      if (token !== pollToken) return;
+      api("/api/jobs/" + encodeURIComponent(id)).then(function (r) {
+        if (token !== pollToken) return;
+        if (!r.ok) { showError($("svc-job-error"), r.data); $("svc-job-status").textContent = "unknown"; return; }
+        var j = r.data;
+        renderJob(j);
+        if (j.status === "done") { setStep("results"); loadResult(id, token); return; }
+        if (j.status === "failed" || j.status === "interrupted") return;
+        setTimeout(tick, 2000);
+      });
+    })();
+  }
+  function renderJob(j) {
+    var st = $("svc-job-status"), p = j.progress || {}, bar = $("svc-progress");
+    st.textContent = j.status; st.className = "status " + j.status;
+    $("svc-job-models").textContent = j.models.join("  vs  ") + " · " + j.run_name;
+    var pct = p.total ? Math.round(100 * p.completed / p.total) : 0;
+    $("svc-progress-bar").style.width = pct + "%";
+    bar.setAttribute("aria-valuenow", String(pct));
+    bar.classList.toggle("indet", j.status === "running" && !p.completed);
+    var t;
+    if (j.status === "queued") t = "Queued — " + (j.queue_position ? j.queue_position + " job(s) ahead" : "starting next") + ". One benchmark runs at a time.";
+    else if (j.status === "running") t = (p.completed || 0) + " / " + (p.total || 0) + " flows · " + pct + "% · now running " + (p.current_model || "…");
+    else if (j.status === "done") t = (p.completed || 0) + " / " + (p.total || 0) + " flows · done";
+    else t = (p.completed || 0) + " / " + (p.total || 0) + " flows completed before it stopped.";
+    $("svc-progress-text").textContent = t;
+    if (j.status === "failed" || j.status === "interrupted") {
+      showError($("svc-job-error"), { error: j.error || j.message, code: j.status });
+      $("svc-resume").hidden = false;
+    }
+  }
+  $("svc-resume").addEventListener("click", function () {
+    var id = decodeURIComponent(location.hash.split("/")[2] || "");
+    $("svc-resume").disabled = true;
+    api("/api/jobs/" + encodeURIComponent(id) + "/resume", { method: "POST" }).then(function (r) {
+      $("svc-resume").disabled = false;
+      if (!r.ok) { showError($("svc-job-error"), r.data); return; }
+      watchJob(id);
+    });
+  });
+
+  // ---------- 4. results (renders the server's session_results.json) ----------
+  function loadResult(id, token) {
+    api("/api/jobs/" + encodeURIComponent(id) + "/result").then(function (r) {
+      if (token !== pollToken) return;
+      if (!r.ok) { showError($("svc-job-error"), r.data); return; }
+      renderResults(r.data, id);
+    });
+  }
+  function download(name, text, type) {
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: type || "text/csv" }));
+    a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  }
+  function renderResults(res, id) {
+    var s = res.session, pm = res.per_model, rel = res.relative_comparison, cmp = res.comparison;
+    var lab = !!s.accuracy_available, names = pm.map(function (m) { return m.model; });
+    var h = [];
+    h.push('<div class="card" id="svc-verdict-card"><h2>Result</h2><div class="chips">' + modeChip(lab) +
+      '<span class="chip">' + esc(s.class_scheme) + '</span><span class="chip">' + esc(s.n_flows) + ' flows</span>' +
+      '<span class="chip">' + esc(s.provider) + ' · ' + esc(s.hardware) + '</span><span class="chip bad">non-validated</span></div>');
+    if (rel) {
+      h.push('<p class="verdict" id="svc-verdict">' + esc(rel.verdict) + '</p>');
+      if (cmp) h.push('<p class="muted" id="svc-absolute"><b>Absolute SAW</b> (scored against fixed L4-study targets): ' + esc(cmp.statement) + '</p>');
+    } else {
+      h.push('<p class="verdict" id="svc-verdict">Single-model run — no head-to-head comparison.</p>');
+    }
+    h.push('</div>');
+
+    // per-model metrics
+    var rows = pm.map(function (m) {
+      var e = m.efficiency.end_to_end;
+      return '<tr><td class="mono">' + esc(m.model) + '</td><td class="num">' + fmtTime(e.mean_latency_s) +
+        '</td><td class="num">' + fmtTime(e.p95_latency_s) + '</td><td class="num">' + fmtNum(e.mean_tokens_per_flow) +
+        '</td><td class="num">' + fmtMB(e.mean_peak_vram_mb) + '</td>' +
+        (lab ? '<td class="num">' + fmtPct(m.accuracy && m.accuracy.accuracy) + '</td>' : "") +
+        '<td class="num">' + esc(m.saw.composite_100) + ' <span class="muted">' + esc(m.saw.tier) + '</span></td>' +
+        '<td class="num">' + esc(m.saw_efficiency_only.composite_100) + '</td></tr>';
+    }).join("");
+    h.push('<div class="card"><h2>Per model</h2><div class="table-wrap"><table id="svc-models-table"><thead><tr><th>Model</th><th class="num">Latency / flow</th><th class="num">p95</th><th class="num">Tokens / flow</th><th class="num">Peak VRAM</th>' +
+      (lab ? '<th class="num">Accuracy</th>' : "") + '<th class="num">SAW' + (lab ? "" : " (efficiency)") + '</th><th class="num">SAW efficiency-only</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      (lab ? "" : '<p class="muted">No labels — accuracy is not available, so SAW here is efficiency-only.</p>') + '</div>');
+
+    // head-to-head
+    if (rel) {
+      var rr = rel.metrics.map(function (m) {
+        var a = m.values[names[0]], b = m.values[names[1]], isAcc = m.metric === "accuracy";
+        var f = isAcc ? fmtPct : m.metric === "mean_latency_s" ? fmtTime : m.metric === "mean_peak_vram_mb" ? fmtMB : fmtNum;
+        var res2 = !m.available ? '<span class="muted">not available</span>'
+          : m.winner === "tie" ? 'tie <span class="muted">(' + esc(m.note || "") + ')</span>'
+          : esc(m.winner) + ' — ' + (isAcc ? m.diff_pp + " pp higher" : m.pct_better + "% better");
+        return '<tr class="' + (m.winner && m.winner !== "tie" ? "win" : "") + '"><td>' + esc(m.label) + '</td><td class="num">' + f(a) + '</td><td class="num">' + f(b) + '</td><td class="res">' + res2 + '</td></tr>';
+      }).join("");
+      h.push('<div class="card"><h2>Head-to-head</h2><p class="muted">Both models measured on the same flows and hardware. Ties: within ' +
+        (rel.thresholds.efficiency_tie_rel * 100) + '% (latency/VRAM also need p &lt; ' + rel.thresholds.significance_alpha + '), accuracy within ' + rel.thresholds.accuracy_tie_pp + ' pp.</p>' +
+        '<div class="table-wrap"><table id="svc-relative-table"><thead><tr><th>Metric</th><th class="num">' + esc(names[0]) + '</th><th class="num">' + esc(names[1]) + '</th><th>Result</th></tr></thead><tbody>' + rr + '</tbody></table></div></div>');
+    }
+
+    // accuracy (labelled only)
+    if (lab) {
+      var classes = s.class_set;
+      var acc = classes.map(function (c) {
+        var cells = pm.map(function (m) {
+          var r = (m.accuracy.per_class || []).filter(function (x) { return x["class"] === c; })[0] || {};
+          return '<td class="num">' + (r.support ? fmtPct(r.accuracy) : "—") + '</td>';
+        }).join("");
+        var sup = ((pm[0].accuracy.per_class || []).filter(function (x) { return x["class"] === c; })[0] || {}).support;
+        return '<tr><td>' + esc(c) + '</td><td class="num">' + fmtNum(sup) + '</td>' + cells + '</tr>';
+      }).join("");
+      var conf = pm.map(function (m) {
+        var cm = m.accuracy.confusion || {}, seen = Object.keys(cm[classes[0]] || {});
+        // Columns in class-set order, then anything else the model emitted (e.g. Unparseable).
+        var cols = classes.filter(function (c) { return seen.indexOf(c) >= 0; })
+          .concat(seen.filter(function (c) { return classes.indexOf(c) < 0; }));
+        return '<details><summary>Confusion matrix — ' + esc(m.model) + '</summary><div class="table-wrap"><table class="svc-confusion"><thead><tr><th>True ↓ / Predicted →</th>' +
+          cols.map(function (c) { return '<th class="num">' + esc(c) + '</th>'; }).join("") + '</tr></thead><tbody>' +
+          classes.map(function (r) { return '<tr><td>' + esc(r) + '</td>' + cols.map(function (c) { return '<td class="num">' + fmtNum((cm[r] || {})[c]) + '</td>'; }).join("") + '</tr>'; }).join("") +
+          '</tbody></table></div></details>';
+      }).join("");
+      h.push('<div class="card"><h2>Accuracy by class</h2><p class="muted">' + esc(s.class_scheme) + ' class set. Balanced sample: equal shares per class, so this is a per-class view, not real-world prevalence.</p>' +
+        '<div class="table-wrap"><table id="svc-accuracy-table"><thead><tr><th>Class</th><th class="num">Flows</th>' +
+        names.map(function (n) { return '<th class="num">' + esc(n) + '</th>'; }).join("") + '</tr></thead><tbody>' + acc + '</tbody></table></div>' + conf + '</div>');
+    }
+
+    // per agent
+    // Pipeline order (the API's JSON may arrive with sorted keys).
+    var ORDER = ["perceive", "reason", "decide", "act"];
+    var agents = Object.keys(pm[0].efficiency.per_agent).sort(function (a, b) {
+      var ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
+      return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+    });
+    var ag = agents.map(function (a) {
+      return '<tr><td>' + esc(a) + '</td>' + pm.map(function (m) {
+        var v = m.efficiency.per_agent[a] || {};
+        return '<td class="num">' + fmtTime(v.mean_wall_s) + '</td><td class="num">' + fmtNum((v.mean_input_tokens || 0) + (v.mean_output_tokens || 0)) + '</td>';
+      }).join("") + '</tr>';
+    }).join("");
+    h.push('<div class="card"><h2>Per agent</h2><div class="table-wrap"><table id="svc-agent-table"><thead><tr><th>Agent</th>' +
+      names.map(function (n) { return '<th class="num">' + esc(n) + ' time</th><th class="num">tokens</th>'; }).join("") +
+      '</tr></thead><tbody>' + ag + '</tbody></table></div></div>');
+
+    // caveats + downloads
+    var cav = (rel ? rel.caveats : s.caveats) || [];
+    h.push('<div class="card" id="svc-caveats-card"><h2>Read this before quoting the numbers</h2><ul class="caveats" id="svc-caveats">' +
+      cav.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join("") + '</ul><div class="actions">' +
+      '<a class="btn" id="svc-dl-json" href="/api/jobs/' + encodeURIComponent(id) + '/result" download="session_results.json">Results JSON</a>' +
+      '<button type="button" class="btn" id="svc-dl-saw">SAW CSV</button><button type="button" class="btn" id="svc-dl-agent">Per-agent CSV</button></div></div>');
+
+    var box = $("svc-results");
+    box.innerHTML = h.join("");
+    box.hidden = false;
+    $("svc-dl-saw").addEventListener("click", function () { download("agentmeter_session_saw.csv", window.REPORT.sawCsv(res)); });
+    $("svc-dl-agent").addEventListener("click", function () { download("agentmeter_session_per_agent.csv", window.REPORT.perAgentCsv(res)); });
+  }
+
+  // ---------- recent jobs ----------
+  function loadJobs() {
+    api("/api/jobs?limit=30").then(function (r) {
+      var el = $("svc-jobs-table");
+      if (!r.ok) { el.innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
+      var jobs = r.data.jobs || [];
+      if (!jobs.length) { el.innerHTML = '<p class="muted">No jobs yet. <a href="#/upload">Start a benchmark</a>.</p>'; return; }
+      el.innerHTML = '<table id="svc-jobs"><thead><tr><th>Job</th><th>Status</th><th>Input</th><th>Models</th><th>Created (UTC)</th></tr></thead><tbody>' +
+        jobs.map(function (j) {
+          return '<tr><td class="mono"><a href="#/job/' + encodeURIComponent(j.job_id) + '">' + esc(j.job_id) + '</a></td><td><span class="status ' + esc(j.status) + '">' + esc(j.status) +
+            '</span></td><td class="mono">' + esc(j.run_name) + '</td><td class="mono">' + esc((j.models || []).join(", ")) + '</td><td class="mono">' + esc((j.created_at || "").replace("T", " ").replace("+00:00", "")) + '</td></tr>';
+        }).join("") + '</tbody></table>';
+    });
+  }
+
+  // ---------- boot ----------
+  api("/api/service/config").then(function (r) {
+    CONFIG = r.ok ? r.data : { canonical_models: [], max_models: 2, provider: "mock", base_config: null, demo_mode: true, note: "Service config unavailable." };
+    var demo = $("svc-demo");
+    demo.hidden = !CONFIG.demo_mode;
+    demo.textContent = CONFIG.note || "";
+    $("svc-max-flows").value = CONFIG.default_max_flows || 50;
+    window.addEventListener("hashchange", route);
+    route();
+  });
+})();
+</script>
+</body>
+</html>

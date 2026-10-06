@@ -51,7 +51,10 @@ agentmeter/
 │   ├── config_builder.py  Build a user config → configs/user/ (never the locked one).
 │   ├── jobs.py            Persistent background benchmark JOBS (single-job lock, FIFO queue,
 │   │                      restart → interrupted, resume) wrapping session.run_session.
-│   └── jobs_api.py        /api/jobs create / status / result / list / resume endpoints.
+│   ├── jobs_api.py        /api/jobs create / status / result / list / resume endpoints.
+│   └── service_api.py     /api/ingest (upload → existing ingestion), /api/runs summary,
+│                          /api/service/config — backend of the /service web flow
+│                          (page: dashboard/service.html).
 │
 ├── ingest/             ← INPUT LAYER (service pivot; not re-exported — PCAP needs optional deps)
 │   ├── csv_input.py       CIC-IDS2017-format CSV: schema check, label isolation (accuracy).

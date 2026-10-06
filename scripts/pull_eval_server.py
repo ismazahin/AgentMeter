@@ -131,7 +131,7 @@ def _manual_cors(resp):
 def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_DIR,
                guard: "CostGuard" = None, app_store=None,
                app_db_path: Path = None, local_results_dir: Path = None,
-               start_watcher: bool = False):
+               start_watcher: bool = False, job_manager=None):
     import json as _json
 
     from flask import Flask, Response, jsonify, request, send_from_directory
@@ -203,6 +203,19 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
 
     # Phase 12 — CRUD routes for sessions / presets / notes.
     crud_api.register_crud(app, get_store)
+
+    # Phase 40 — persistent background benchmark JOBS (/api/jobs). The manager is
+    # created LAZILY on first use, so serving the dashboard never touches
+    # results/jobs; on creation it recovers jobs left running by a dead process.
+    from agentmeter.server import jobs as _jobs, jobs_api
+    _jobs_holder = {"mgr": job_manager}
+
+    def get_job_manager():
+        if _jobs_holder["mgr"] is None:
+            _jobs_holder["mgr"] = _jobs.JobManager()
+        return _jobs_holder["mgr"]
+
+    jobs_api.register_jobs(app, get_job_manager)
 
     # Phase 16 — read-only discovery of result JSON files under results/.
     @app.route("/api/local-sessions", methods=["GET"])
@@ -576,8 +589,14 @@ def main(argv=None) -> int:
         on_complete=guard.on_complete,
     )
     guard.manager = manager
+    # Phase 40: build the job manager at startup so it recovers the store now —
+    # jobs left running become "interrupted", queued jobs start without waiting
+    # for the first API call.
+    from agentmeter.server.jobs import JobManager
+    job_manager = JobManager()
     app = create_app(manager, guard=guard, app_db_path=args.app_db,
-                     local_results_dir=args.results_dir, start_watcher=True)
+                     local_results_dir=args.results_dir, start_watcher=True,
+                     job_manager=job_manager)
 
     _print_startup(args.port)
     _log_safety_modes(args, instance_id)

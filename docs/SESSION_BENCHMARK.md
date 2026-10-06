@@ -155,3 +155,40 @@ python scripts/benchmark.py results/csv_runs/cicids2017_sample --models mock-a m
 - **PCAP features** are approximate.
 - **CPU and mock runs** have no VRAM readings, so the VRAM criterion can't separate
   the models there.
+
+## Running sessions as background jobs (web service)
+
+`agentmeter/server/jobs.py` wraps the same `run_session` as a persistent
+background **job**, so a run outlives the browser tab and the server process. The
+way a benchmark is computed does not change.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/jobs` | Create a job from `{"run": "csv_runs/<name>", "models": [..≤2], "provider": "mock"/"hf", "base_config": "run_full_l4.yaml"}`. Returns **202** with `job_id` immediately |
+| `GET /api/jobs/<id>` | Status, live progress (`completed` / `total` flows, per model, current model), `result_ready`, `result_url` |
+| `GET /api/jobs/<id>/result` | `session_results.json` once the job is `done`. Before that it returns **409** `not_ready` |
+| `GET /api/jobs` | Recent jobs, newest first, plus the job currently running |
+| `POST /api/jobs/<id>/resume` | Re-queue an `interrupted` or `failed` job |
+
+- **Status:** `queued → running → done | failed | interrupted`.
+- **One job at a time (single-job lock):** a single worker thread runs jobs in order,
+  for GPU and VRAM safety. A job created while another is running stays `queued`,
+  and its `queue_position` shows how many jobs are ahead of it.
+- **Persistence:** each job is stored as `results/jobs/<job_id>.json`, written
+  atomically. When the server restarts, it re-reads the store:
+  - a job that was `running` when the process died becomes **`interrupted`**;
+  - `queued` jobs start again in their original order.
+- **Resume:** `run_full` continues the incomplete run in that session's
+  `session.db`. Completed flows are skipped and no rows are duplicated.
+- **Progress** is read live from the run's own `session.db`, so it stays correct
+  after a restart.
+- **Errors** return `{"error", "code"}`, with codes `too_many_models`, `bad_models`,
+  `run_missing` (404), `no_gpu` (503), `not_ready` (409), `not_resumable` (409),
+  `not_found` (404) and `bad_request`.
+- **No GPU:** a job that needs one (hf provider) is rejected when it is created.
+  It never falls back to the CPU.
+- **Path safety:** runs are named, never given as filesystem paths, and base configs
+  must be files in `configs/`.
+- **Locked study:** jobs only ever write to the prepared run's own `session.db`
+  (non_validated), never the locked study.
+

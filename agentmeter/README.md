@@ -48,7 +48,10 @@ agentmeter/
 │   ├── pull_eval.py       Pull ONE extra HF model + on-demand eval (separate DB).
 │   ├── local_sessions.py  Read-only discovery of result JSON under results/.
 │   ├── hf_metadata.py     Hugging Face Hub metadata (external CONTEXT only, cached).
-│   └── config_builder.py  Build a user config → configs/user/ (never the locked one).
+│   ├── config_builder.py  Build a user config → configs/user/ (never the locked one).
+│   ├── jobs.py            Persistent background benchmark JOBS (single-job lock, FIFO queue,
+│   │                      restart → interrupted, resume) wrapping session.run_session.
+│   └── jobs_api.py        /api/jobs create / status / result / list / resume endpoints.
 │
 ├── ingest/             ← INPUT LAYER (service pivot; not re-exported — PCAP needs optional deps)
 │   ├── csv_input.py       CIC-IDS2017-format CSV: schema check, label isolation (accuracy).

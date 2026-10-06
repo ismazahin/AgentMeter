@@ -299,3 +299,31 @@ def test_canonical_models_are_recognised(tmp_path):
 def test_locked_study_untouched(labelled, six_class, locked_before):
     assert _db_hashes() == locked_before["dbs"]
     assert _sha(DATASET) == locked_before["dataset"] == DATASET_SHA256
+
+
+# --- Phase 39: relative comparison beside the (unchanged) absolute SAW -----------------------
+def test_relative_comparison_sits_beside_the_unchanged_absolute_output(labelled):
+    _, p = labelled
+    # absolute output: same keys as Phase 38
+    assert set(p["comparison"]) == {"models", "metrics", "more_resource_efficient", "saw_basis",
+                                    "saw_ranking", "accuracy", "saw_top", "statement"}
+    assert {r["model"] for r in p["phase8"]["saw_table"]} == {"mock:mock-a", "mock:mock-b"}
+    rel = p["relative_comparison"]
+    assert rel["models"] == ["mock-a", "mock-b"] and rel["accuracy_included"] is True
+    assert {m["metric"] for m in rel["metrics"]} == {"mean_latency_s", "mean_peak_vram_mb",
+                                                     "mean_tokens_per_flow", "accuracy"}
+    assert rel["efficiency_verdict"]["verdict"] in ("more_efficient", "mixed", "tie")
+    assert rel["verdict"] and "Accuracy:" in rel["verdict"]
+    # identical mock models: tokens and accuracy are exactly equal -> ties, never a winner
+    tok = next(m for m in rel["metrics"] if m["metric"] == "mean_tokens_per_flow")
+    acc = next(m for m in rel["metrics"] if m["metric"] == "accuracy")
+    assert tok["winner"] == "tie" and acc["winner"] == "tie"
+    assert next(m for m in rel["metrics"] if m["metric"] == "mean_peak_vram_mb")["available"] is False
+    assert all(c in rel["caveats"] for c in p["session"]["caveats"])
+
+
+def test_relative_comparison_absent_for_one_model(tmp_path):
+    process_csv(SAMPLE, out_root=tmp_path, max_flows=5)
+    p = run_session(tmp_path / "cicids2017_sample", ["mock-a"], provider="mock")
+    assert p["relative_comparison"] is None and p["comparison"] is None
+

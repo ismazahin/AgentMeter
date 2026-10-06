@@ -8,6 +8,9 @@
   statistics            analyze.statistics(sr)            (only with 2 models)
   provenance            analyze._provenance(db, cfg)      -> non_validated
 
+A relative head-to-head view (relative.py) is added beside the absolute SAW,
+over the same metrics, so two models under a fixed target are still separated.
+
 Two SAW views are reported:
   * full SAW (config weights)      — only when the run is labelled (accuracy exists)
   * efficiency-only SAW            — always; accuracy weight 0 and the other
@@ -28,6 +31,7 @@ import pandas as pd
 
 from ..analysis import analyze
 from ..config import load_config
+from .relative import relative_comparison
 
 SCHEMA = "agentmeter.session.v1"
 TIE_REL = 0.01        # metric values within 1% of each other count as a tie
@@ -276,6 +280,14 @@ def score_session(plan: dict[str, Any], run_id: str) -> dict[str, Any]:
     eff_tbl = p8_eff["table"].replace({"model": {v: k for k, v in label_of.items()}})
     full_tbl = p8_full["table"].replace({"model": {v: k for k, v in label_of.items()}}) if labelled else None
     comparison = _compare(models, per_model, eff_tbl, full_tbl, labelled)
+    caveats = _caveats(meta, plan["provider"], sr, plan["six_class"])
+    # Phase 39 — additive head-to-head view over the same metrics (absolute SAW unchanged).
+    stats = _statistics(sr)
+    p_values = {key: stats[metric]["p_value"] for key, metric in
+                (("mean_latency_s", "scenario_total_time_s"), ("mean_peak_vram_mb", "scenario_peak_vram_mb"))
+                if isinstance(stats.get(metric), dict) and "p_value" in stats[metric]}
+    relative = relative_comparison(models, per_model, labelled, caveats, run.get("hardware_label"),
+                                   p_values=p_values)
 
     payload: dict[str, Any] = {
         "schema": SCHEMA,
@@ -291,10 +303,11 @@ def score_session(plan: dict[str, Any], run_id: str) -> dict[str, Any]:
             "class_set": classes, "class_scheme": "6-class" if plan["six_class"] else "5-class",
             "selection_mode": meta.get("selection_mode"), "feature_match": meta.get("feature_match"),
             "non_validated": True,
-            "caveats": _caveats(meta, plan["provider"], sr, plan["six_class"]),
+            "caveats": caveats,
         },
         "per_model": [per_model[m] for m in models],
-        "comparison": comparison,
+        "comparison": comparison,                 # absolute (SAW vs fixed targets)
+        "relative_comparison": relative,          # head-to-head A vs B (Phase 39)
         # --- dashboard-compatible sections (same keys/shape as analysis.json) ---------
         "notes": {"tokens_definition": analyze.TOKEN_DEF, "normalisation_formula": analyze.NORM_FORMULA,
                   "vram_per_agent_note": analyze.VRAM_NOTE, "vram_saw_criterion": analyze.VRAM_SAW_MARGINAL,
@@ -310,7 +323,7 @@ def score_session(plan: dict[str, Any], run_id: str) -> dict[str, Any]:
                         "top_stable": sens["top_stable"], "stable_top_model": sens["stable_top_model"]},
         "per_agent": {"table": diag["table"].to_dict("records"),
                       "dominant": diag["dominant"].to_dict("records")},
-        "statistics": _statistics(sr),
+        "statistics": stats,
         "provenance": provenance,
     }
     if labelled:

@@ -63,8 +63,9 @@ agentmeter/
 ├── session/            ← BENCHMARK SESSIONS (service pivot): a prepared user run → the
 │   │                      EXISTING runner/pipeline for ≤2 models → session.db in the run dir
 │   ├── benchmark.py       Validate ≤2 models, write session scenarios + config, call run_full.
-│   └── scoring.py         Reuse analyze.py (phase7/phase8 SAW/sensitivity/per_agent/stats) +
-│                          the 2-model comparison → session_results.json (non_validated).
+│   ├── scoring.py         Reuse analyze.py (phase7/phase8 SAW/sensitivity/per_agent/stats) +
+│   │                      the absolute 2-model comparison → session_results.json (non_validated).
+│   └── relative.py        Head-to-head A-vs-B on the same metrics (ties by threshold + significance).
 │
 └── util/               ← UTILITIES
     ├── envtools.py        Load tokens from .env (names only, never values).

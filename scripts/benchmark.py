@@ -64,7 +64,16 @@ def main(argv=None) -> int:
         print("    per agent (mean wall s): " + ", ".join(
             f"{a} {_fmt(v['mean_wall_s'])}" for a, v in m["efficiency"]["per_agent"].items()))
     if p["comparison"]:
-        print(f"Compare   {p['comparison']['statement']}")
+        print(f"Absolute  {p['comparison']['statement']}")
+    rel = p.get("relative_comparison")
+    if rel:
+        print(f"Relative  {rel['verdict']}")
+        for m in rel["metrics"]:
+            if not m["available"]:
+                continue
+            how = (f"{m['pct_better']}% better" if m.get("pct_better") is not None else
+                   f"{m['diff_pp']} pp" if m["metric"] == "accuracy" and m["winner"] != "tie" else "")
+            print(f"          {m['label']}: {m['winner']} {how}".rstrip())
     for c in s["caveats"]:
         print(f"  ! {c}")
     print(f"Wrote     {Path(s['run_dir']) / RESULTS_JSON}")

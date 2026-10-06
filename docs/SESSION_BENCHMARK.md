@@ -46,9 +46,44 @@ config's classes unchanged, so its prompts and parsing are exactly as before.
 - **Ties:** metrics within 1%, and composites within 0.5 points, are reported as
   ties.
 
+**Relative (head-to-head) comparison.** This is added beside the absolute SAW,
+which is unchanged. The absolute SAW scores each model against fixed targets from
+the L4 study, so two models that both beat a target both score the maximum on it.
+They can then tie even when one is clearly better. `relative_comparison` ranks the
+two models directly against each other, using the same measured metrics:
+
+| Metric | Better | Reported as | Tie when |
+|---|---|---|---|
+| Mean end-to-end latency per flow | lower | % lower than the other model, and a ratio | within 2%, **or** not significant (per-flow Kruskal-Wallis p ≥ 0.05) |
+| Mean peak working VRAM | lower | % less, and a ratio | within 2%, or not significant; "not available" on CPU/mock |
+| Mean tokens per flow | lower | % fewer, and a ratio | within 2% |
+| Accuracy (labelled runs only) | higher | percentage-point difference | within 2 percentage points |
+
+The significance check reuses the session's existing statistics. A gap that is only
+timing noise is reported as a tie together with its p-value, so it never produces a
+false winner.
+
+- **Efficiency verdict (dominance rule, no weights):**
+  - a model that wins at least one efficiency metric and loses none is "more
+    resource-efficient";
+  - if each model wins at least one, the verdict is "mixed" and the trade-off is
+    written out;
+  - otherwise it is a tie.
+- **Accuracy** is reported beside the efficiency verdict, never folded into it. A
+  "faster but less accurate" trade-off is stated explicitly.
+- **Example verdict:** *"A is more resource-efficient than B: 50.0% lower latency,
+  20.0% less VRAM, 10.0% fewer tokens per flow. Accuracy: A is higher by 10.0
+  percentage points (A 80.0% vs B 70.0%)."*
+- **Caveats:** the relative view adds two notes to the session caveats.
+  - Both models ran on the same hardware and the same flows, so the comparison is
+    like-for-like.
+  - On non-L4 hardware such as an A100, absolute numbers aren't comparable with the
+    locked study. Only the A-vs-B relation is.
+
 `session_results.json` keeps the dashboard's `analysis.json` keys (`phase7` for
 labelled runs only, `phase8`, `sensitivity`, `per_agent`, `statistics`,
-`provenance`). It adds `session`, `per_model`, `comparison` and `caveats`.
+`provenance`). It adds `session`, `per_model`, `comparison` (absolute) and
+`relative_comparison` (head-to-head, `null` unless there are 2 models), plus caveats.
 
 ## CPU smoke test (mock provider)
 

@@ -71,7 +71,9 @@ agentmeter/
 │   ├── benchmark.py       Validate ≤2 models, write session scenarios + config, call run_full.
 │   ├── scoring.py         Reuse analyze.py (phase7/phase8 SAW/sensitivity/per_agent/stats) +
 │   │                      the absolute 2-model comparison → session_results.json (non_validated).
-│   └── relative.py        Head-to-head A-vs-B on the same metrics (ties by threshold + significance).
+│   ├── relative.py        Head-to-head A-vs-B on the same metrics (ties by threshold + significance).
+│   ├── brief.py           Python mirror of report.js recommendation()/optimisationHint() (parity-tested).
+│   └── pdf_report.py      reportlab PDF benchmark report from session_results.json (verbatim values).
 │
 └── util/               ← UTILITIES
     ├── envtools.py        Load tokens from .env (names only, never values).

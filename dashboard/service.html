@@ -14,7 +14,8 @@
   progress -> comparison. VIEW LAYER ONLY: it calls the same-origin API
   (/api/ingest, /api/runs, /api/jobs) and renders the JSON the server computed
   (session_results.json). It computes no benchmark, SAW or comparison itself.
-  CSV export reuses dashboard/report.js (REPORT.sawCsv / REPORT.perAgentCsv).
+  CSV export reuses dashboard/report.js (REPORT.sawCsv / REPORT.perAgentCsv);
+  the PDF report is built server-side (GET /api/jobs/<id>/report.pdf).
   The job id lives in the URL (#/job/<id>), so reloading or reopening the page
   re-attaches to the same job.
 -->
@@ -100,6 +101,7 @@
   .check { display: inline-flex; gap: 8px; align-items: flex-start; font-weight: 400; }
   .check input { margin-top: 4px; }
   .btn { font: 500 15px var(--sans); border-radius: 999px; padding: 10px 18px; border: 1px solid var(--line-strong); background: var(--panel); color: var(--ink); cursor: pointer; min-height: 44px; }
+  a.btn { text-decoration: none; display: inline-flex; align-items: center; }
   .btn:hover { background: var(--chip); }
   .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
   .btn.primary:hover { background: var(--brand-hover); }
@@ -596,6 +598,7 @@
     var cav = (rel ? rel.caveats : s.caveats) || [];
     h.push('<div class="card" id="svc-caveats-card"><h2>Read this before quoting the numbers</h2><ul class="caveats" id="svc-caveats">' +
       cav.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join("") + '</ul><div class="actions">' +
+      '<a class="btn primary" id="svc-dl-pdf" href="/api/jobs/' + encodeURIComponent(id) + '/report.pdf" download>Download PDF report</a>' +
       '<a class="btn" id="svc-dl-json" href="/api/jobs/' + encodeURIComponent(id) + '/result" download="session_results.json">Results JSON</a>' +
       '<button type="button" class="btn" id="svc-dl-saw">SAW CSV</button><button type="button" class="btn" id="svc-dl-agent">Per-agent CSV</button></div></div>');
 

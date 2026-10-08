@@ -63,6 +63,10 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
   await p.screenshot({ path: S + '/svc-results.png', fullPage: true });
   const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#svc-dl-saw')]);
   log(/saw\.csv$/.test(dl.suggestedFilename()), 'SAW CSV export via report.js');
+  const [pdf] = await Promise.all([p.waitForEvent('download'), p.click('#svc-dl-pdf')]);
+  const pdfPath = S + '/svc-report.pdf'; await pdf.saveAs(pdfPath);
+  const magic = fs.readFileSync(pdfPath).subarray(0, 5).toString();
+  log(/\.pdf$/.test(pdf.suggestedFilename()) && magic === '%PDF-', 'Download PDF report gives a real PDF: ' + pdf.suggestedFilename());
 
   // reopen from recent jobs in a NEW page (close browser, come back)
   const p2 = await (await b.newContext({ viewport: { width: 1280, height: 900 } })).newPage();

@@ -2,3 +2,4 @@
 # Install after requirements.txt:  pip install -r requirements-dev.txt
 # Run the suite:                    pytest -q
 pytest>=7.4
+pypdf>=4.0          # read generated PDF reports back in tests

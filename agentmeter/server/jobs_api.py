@@ -6,6 +6,7 @@ enabled, covers them like every other route.
   GET  /api/jobs                ?limit=N  -> recent jobs, newest first
   GET  /api/jobs/<id>           status + live progress + result_ready / result_url
   GET  /api/jobs/<id>/result    session_results.json once done (409 until then)
+  GET  /api/jobs/<id>/report.pdf  PDF benchmark report once done (409 until then)
   POST /api/jobs/<id>/resume    re-queue an interrupted/failed job -> 202 {job}
 
 Errors are {"error": <message>, "code": <stable reason>} with codes such as
@@ -69,6 +70,39 @@ def register_jobs(app, get_manager: Callable[[], JobManager]) -> None:
             return jsonify(get_manager().result(job_id))
         except JobError as e:
             return fail(e)
+
+    @app.route("/api/jobs/<job_id>/report.pdf", methods=["GET"])
+    def job_report_pdf(job_id):
+        """Phase 42: a PDF report built verbatim from the finished job's results."""
+        import json as _json
+        from pathlib import Path as _Path
+
+        from flask import Response
+
+        mgr = get_manager()
+        try:
+            res = mgr.result(job_id)                      # 409 not_ready / 404 not_found
+            job = mgr.get(job_id)
+        except JobError as e:
+            return fail(e)
+        try:
+            from ..session.pdf_report import build_report_pdf
+        except ImportError as e:                          # pragma: no cover - dependency missing
+            return fail(JobError(f"PDF reports need reportlab on the server (pip install reportlab): {e}",
+                                 "pdf_unavailable", 501))
+        run_dir = _Path(job["run_dir"])
+
+        def read(name):
+            p = run_dir / name
+            return _json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+        try:
+            pdf = build_report_pdf(res, job=job, input_meta=read("input.json"),
+                                   audit=read("selection_audit.json"))
+        except ImportError as e:
+            return fail(JobError(f"PDF reports need reportlab on the server (pip install reportlab): {e}",
+                                 "pdf_unavailable", 501))
+        return Response(pdf, mimetype="application/pdf", headers={
+            "Content-Disposition": f'attachment; filename="agentmeter_report_{job_id}.pdf"'})
 
     @app.route("/api/jobs/<job_id>/resume", methods=["POST"])
     def job_resume(job_id):

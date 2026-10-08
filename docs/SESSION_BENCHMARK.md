@@ -250,3 +250,49 @@ can force the mode with `AGENTMETER_SERVICE_PROVIDER=mock|hf`. Run the server as
   - PCAP efficiency only, and a bad file rejected;
   - no horizontal scroll at 375px.
 
+## PDF benchmark report
+
+**Download PDF report** on the results page calls `GET /api/jobs/<id>/report.pdf`.
+For a job that hasn't finished it returns **409** `not_ready`. It builds a 1–2 page
+A4 report with reportlab (`agentmeter/session/pdf_report.py`).
+
+The report contains:
+- **Header:** run name, generation time, the session run id and the job id. A
+  **DEMO** banner appears when the run used the mock provider.
+- **Input:**
+  - source type and file; labelled (accuracy + efficiency) or unlabelled
+    (efficiency only);
+  - rows available and flows selected;
+  - the class set: "scored" for labelled runs, "chosen from, not scored" for
+    unlabelled runs;
+  - feature match and selection mode.
+- **Flow selection (rule-base):** every rule, its type, whether it fired, and how
+  many flows it admitted. This comes from the run's own `selection_audit.json`.
+- **Models evaluated,** with the provider, hardware and quantisation.
+- **Per-metric comparison:** the head-to-head winner for each metric (latency,
+  VRAM, tokens, plus accuracy when labelled), and a per-model table with the SAW
+  composites.
+- **Verdict:** the session's own head-to-head sentence plus the absolute SAW
+  statement, quoted verbatim.
+- **Recommendation:** the efficiency verdict in plain language, then the
+  accuracy caveat. A low-accuracy run is stated to be "NOT an endorsement as a
+  threat detector". An unlabelled run says accuracy was not measured. A resource-
+  only optimisation hint follows.
+- **Accuracy by class:** labelled runs only.
+- **Caveats:** non-validated, balanced sample, the hardware note, the mock note
+  when it applies, and the scope statement.
+
+**Values are never recomputed.** Every number comes from `session_results.json`
+(plus `input.json` and `selection_audit.json` for the input and rule-base
+sections).
+
+**Same logic as the dashboard.** The recommendation text comes from
+`agentmeter/session/brief.py`, a line-for-line Python mirror of `report.js`'s
+`recommendation()` and `optimisationHint()`. `tests/test_pdf_report.py` runs
+`report.js` under node and asserts the outputs are identical. When the head-to-head
+is a tie and the SAW top is a tie too, no "best starting point" model is named,
+because rank 1 inside a tie would be arbitrary.
+
+**Dependencies:** `reportlab` is in `requirements.txt`. The tests also need
+`pypdf`, which is in `requirements-dev.txt`.
+

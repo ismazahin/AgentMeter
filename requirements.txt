@@ -6,3 +6,5 @@ numpy>=1.24
 scipy>=1.10
 langgraph>=0.2
 langchain-core>=0.3
+# Service PDF benchmark report (Phase 42): GET /api/jobs/<id>/report.pdf
+reportlab>=4.0

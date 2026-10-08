@@ -66,6 +66,15 @@ For a long-lived public deployment:
   For a single user, the built-in threaded dev server behind a tunnel is acceptable;
   the real security win is **auth + HTTPS**, which the steps above give you.
 
+## Upload limits
+The `/service` upload is capped at **200 MB** by default (`config.yaml`
+`service.max_upload_mb`, or `AGENTMETER_MAX_UPLOAD_MB`), and large captures/CSVs are
+parsed only up to a flow/row cap. See docs/INPUT_LAYER.md, "Large inputs on the
+web service". If a reverse proxy sits in front, set its body limit to at least the
+same value (nginx `client_max_body_size 201m;`), or the proxy rejects the file
+first with its own HTML error. Ingestion runs inside the upload request, so the
+proxy/tunnel read timeout should allow about 2 minutes.
+
 ## Checklist before going public
 - [ ] `AGENTMETER_AUTH_USER` / `AGENTMETER_AUTH_PASS` set to a strong password.
 - [ ] Served over **HTTPS** (tunnel or reverse proxy), never plain http.

@@ -197,6 +197,7 @@
       <label class="drop" id="svc-drop" for="svc-file">
         <strong>Choose a .csv, .pcap or .pcapng file</strong>
         <span class="muted">Labelled CSV → accuracy + efficiency · PCAP → efficiency only</span>
+        <span class="muted" id="svc-limits">Maximum file size: 200 MB</span>
         <input type="file" id="svc-file" name="file" accept=".csv,.pcap,.pcapng" required>
       </label>
       <div class="row">
@@ -293,6 +294,7 @@
     if (v == null) return "—";
     return v < 1 ? (v * 1000).toFixed(v < 0.01 ? 2 : 1) + " ms" : v.toFixed(2) + " s";
   }
+  function fmtSize(b) { return b >= 1048576 ? fmtNum(b / 1048576, 1) + " MB" : fmtNum(b / 1024, 1) + " KB"; }
   function fmtNum(v, d) { return v == null ? "—" : Number(v).toLocaleString(undefined, { maximumFractionDigits: d || 0, minimumFractionDigits: d || 0 }); }
   function fmtPct(v) { return v == null ? "—" : (v * 100).toFixed(1) + "%"; }
   function fmtMB(v) { return v == null ? "not measured" : fmtNum(v) + " MB"; }
@@ -338,6 +340,13 @@
     var file = $("svc-file").files[0], err = $("svc-upload-error");
     err.hidden = true;
     if (!file) { showError(err, { error: "Choose a .csv, .pcap or .pcapng file first." }); return; }
+    var lim = (CONFIG && CONFIG.limits) || null;
+    if (lim && file.size > lim.max_upload_bytes) {   // checked here too, so a huge file is never sent
+      showError(err, { error: "File too large: the upload limit is " + lim.max_upload_label + " (this file is " +
+        fmtSize(file.size) + "). Upload a smaller slice — AgentMeter benchmarks a bounded sample of flows anyway.",
+        code: "too_large" });
+      return;
+    }
     var fd = new FormData();
     fd.append("file", file);
     fd.append("max_flows", $("svc-max-flows").value || "50");
@@ -386,7 +395,9 @@
          ["Label column", s.label_column || "none"]]
       : [["File", s.source_file], ["Packets", fmtNum(s.packets)], ["Capture length", fmtNum(s.capture_duration_s, 1) + " s"],
          ["Flows extracted", fmtNum(s.flows_extracted)], ["Packets skipped", fmtNum(s.packets_skipped)]];
+    if (s.file_size_bytes != null) counts.splice(1, 0, ["File size", fmtSize(s.file_size_bytes)]);
     counts.push(["Flows selected", fmtNum(s.rows_selected) + " of " + fmtNum(s.rows_total)]);
+    var big = s.large_input || {};
     var rules = (s.rules || []).map(function (r) {
       return '<tr><td class="mono">' + esc(r.id) + '</td><td>' + esc(r.kind === "constraint" ? "constraint" : r.type) +
         '</td><td>' + (r.fired ? "fired" : '<span class="muted">' + (r.enabled ? "did not fire" : "disabled") + '</span>') +
@@ -399,7 +410,8 @@
       '<span class="chip">Features: ' + esc(fm.status || "—") + '</span>' +
       (s.class_scheme ? '<span class="chip">' + esc(s.class_scheme.name) + '</span>' : "") +
       '<span class="chip">' + esc((s.selection_mode || "").replace(/_/g, " ")) + '</span>' +
-      '<span class="chip">non-validated</span></div>' +
+      '<span class="chip">non-validated</span>' + (big.capped ? '<span class="chip">large input · capped</span>' : "") + '</div>' +
+      (big.capped ? '<div class="notice warn" id="svc-large-input" role="status">' + esc(big.message) + '</div>' : "") +
       '<div class="grid two" style="margin-top:16px"><div><h3>Input</h3><dl class="kv" id="svc-counts">' +
       counts.map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("") +
       '</dl>' + (fm.note ? '<p class="muted" style="font-size:13px">' + esc(fm.note) + '</p>' : "") + '</div>' +
@@ -631,6 +643,9 @@
     demo.hidden = !CONFIG.demo_mode;
     demo.textContent = CONFIG.note || "";
     $("svc-max-flows").value = CONFIG.default_max_flows || 50;
+    if (CONFIG.limits) $("svc-limits").textContent = "Maximum file size: " + CONFIG.limits.max_upload_label +
+      " · large inputs are parsed up to " + fmtNum(CONFIG.limits.max_pcap_flows) + " flows (PCAP) / " +
+      fmtNum(CONFIG.limits.max_csv_rows) + " rows (CSV)";
     window.addEventListener("hashchange", route);
     route();
   });

@@ -116,10 +116,14 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
 
     try:
         # Official CIC files contain a mis-encoded byte in 'Web Attack – …' labels.
-        df = pd.read_csv(p, nrows=max_rows, low_memory=False, encoding_errors="replace",
-                         skipinitialspace=True)
+        # One row past max_rows tells "capped" apart from "exactly max_rows long".
+        df = pd.read_csv(p, nrows=None if max_rows is None else max_rows + 1, low_memory=False,
+                         encoding_errors="replace", skipinitialspace=True)
     except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as e:
         raise CsvValidationError(f"{p.name}: not a readable CSV ({e})") from e
+    capped = max_rows is not None and len(df) > max_rows
+    if capped:
+        df = df.iloc[:max_rows]
     try:
         df.columns = _normalize_columns(df.columns)
     except ValueError as e:
@@ -219,7 +223,7 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
         "rows_dropped_nan_inf": n_bad,
         "rows_excluded_out_of_taxonomy": int(sum(excluded_labels.values())),
         "rows_excluded_missing_label": n_missing_label,
-        "truncated_at": max_rows if (max_rows is not None and len(df) >= max_rows) else None,
+        "truncated_at": max_rows if capped else None,
         "columns": {"expected": len(CIC_FEATURES), "present": len(present),
                     "missing": missing, "extra_ignored": extra,
                     "meta_found": [c for c in CSV_META_SOURCES if c in cols]},

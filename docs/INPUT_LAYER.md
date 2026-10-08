@@ -145,6 +145,35 @@ bad pcapng block, then stops as if at end of file. Those warnings are captured a
 reject the file. There is a size limit (default 2 GiB) and an optional `max_packets`
 read cap, which is reported in the stats.
 
+### Large inputs on the web service (Phase 43)
+
+The `/service` upload flow applies tighter, configurable bounds (`config.yaml`
+`service:`, each with an env override). These only bound the **upload and the parse**.
+How flows are sampled and how a benchmark is computed are unchanged.
+
+| limit | default | env override | over the limit |
+|---|---|---|---|
+| `max_upload_mb` | 200 | `AGENTMETER_MAX_UPLOAD_MB` (or exact `AGENTMETER_MAX_UPLOAD_BYTES`) | **rejected**, HTTP 413 `too_large`, message states the limit |
+| `max_pcap_packets` | 100,000 | `AGENTMETER_MAX_PCAP_PACKETS` | parsed up to the cap |
+| `max_pcap_flows` | 20,000 | `AGENTMETER_MAX_PCAP_FLOWS` | extraction stops; table = first N flows |
+| `max_csv_rows` | 500,000 | `AGENTMETER_MAX_CSV_ROWS` | read stops; selection from first N rows |
+
+- **Upload:** an over-limit `Content-Length` is rejected before any of the body is
+  read. Flask's `MAX_CONTENT_LENGTH` (limit + 1 MiB of multipart slack) cuts off a
+  body sent without a length (chunked). The file is streamed to disk in 1 MiB chunks
+  with a running byte count, so it is never held whole in memory. The page also
+  checks `file.size` first, so a browser never sends an oversized file.
+- **Caps:** when one applies, the run summary's `large_input` says so
+  (`{"capped": true, "unit": "rows"|"flows"|"packets", "cap": N, "message": …}`),
+  the UI shows it as a notice, and the CSV `schema_report.md` gets a "Large input" line.
+  The rule-base then selects its bounded set (`max_flows` ≤ 500) from what was parsed.
+- **Why these defaults:** PCAP parsing is the slow step, at about 0.6 ms per packet
+  on CPU (validation pass plus CICFlowMeter). The packet/flow caps keep a worst-case
+  ingest near a minute. A 520k-row (166 MB) CSV ingests in about 17 s at the
+  500k-row cap.
+- The CLI (`scripts/ingest.py`) keeps its own options (`--max-packets`, `--max-rows`)
+  and the 2 GiB file bound. Phase 43 does not change it.
+
 ## 2. PCAP flow extraction (`flows.py`, `feature_map.py`)
 
 - **Backend:** the Python port `cicflowmeter==0.2.0`. Its CLI reads files through a

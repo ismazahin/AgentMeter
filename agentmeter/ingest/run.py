@@ -60,13 +60,16 @@ def detect_input_type(path: str | Path) -> str:
 def process_pcap(pcap_path: str | Path, *, name: Optional[str] = None,
                  out_root: str | Path | None = None, rules_path: str | Path | None = None,
                  max_flows: Optional[int] = None, max_packets: Optional[int] = None,
-                 write: bool = True) -> dict[str, Any]:
+                 max_extract_flows: Optional[int] = None, write: bool = True) -> dict[str, Any]:
     """Run the input layer on one capture. Raises PcapValidationError for a file
-    that is not a usable capture and RuleConfigError for a bad rule-base."""
+    that is not a usable capture and RuleConfigError for a bad rule-base.
+
+    max_packets / max_extract_flows bound the parse of a large capture (the web
+    service sets both); selection then runs on the flows parsed, unchanged."""
     src = Path(pcap_path)
     rb = rules.load_rulebase(rules_path)            # fail fast on a bad rule-base
     stats = pcap.validate_pcap(src, max_packets=max_packets)
-    ext = flows.extract_flows(src, max_packets=max_packets)
+    ext = flows.extract_flows(src, max_packets=max_packets, max_extract_flows=max_extract_flows)
     fmap = feature_map.mapping_report(ext.extracted_keys if len(ext.flows) else None)
     sel = rules.select_flows(ext.flows, rb, max_flows=max_flows)
     audit = sel.audit()
@@ -97,6 +100,8 @@ def process_pcap(pcap_path: str | Path, *, name: Optional[str] = None,
             "packets_seen": ext.packets_seen, "packets_used": ext.packets_used,
             "packets_skipped": ext.packets_skipped,
             "skipped_note": "CICFlowMeter (Python port) builds flows from IPv4 TCP/UDP only",
+            "flow_cap": ext.flow_cap, "capped": ext.capped,
+            "packet_cap": max_packets, "packets_capped": stats.truncated_at is not None,
         },
         "feature_map": {k: fmap[k] for k in ("reference", "extractor", "counts", "comparable",
                                              "unmapped_extractor_keys")},
@@ -135,7 +140,9 @@ def schema_markdown(report: dict[str, Any], metadata: dict[str, Any]) -> str:
         f"**{metadata['evaluation_mode']}**",
         f"- Class scheme: **{(metadata['class_scheme'] or {}).get('name', 'n/a (unlabelled)')}** · "
         f"selection: **{metadata['selection_mode']}**",
-    ] + [f"- Note: {n}" for n in report.get("notes", [])]
+    ] + ([f"- Large input: read stopped at max_rows={report['truncated_at']:,}; selection is "
+          f"drawn from the first {report['truncated_at']:,} rows"] if report.get("truncated_at") else []
+         ) + [f"- Note: {n}" for n in report.get("notes", [])]
     if lab["found"]:
         oa = lab["other_attack"]
         out += [f"- Other Attack: {'enabled' if oa['enabled'] else 'off'} — {oa['rows']:,} rows "

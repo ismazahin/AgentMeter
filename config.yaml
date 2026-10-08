@@ -151,3 +151,18 @@ storage:
 
 output:
   results_dir: results
+
+# Phase 43 — web service input guards (the /service upload flow only; the CLI and
+# the locked study are unaffected). Each has an env override for ops:
+# AGENTMETER_MAX_UPLOAD_MB, AGENTMETER_MAX_PCAP_PACKETS, AGENTMETER_MAX_PCAP_FLOWS,
+# AGENTMETER_MAX_CSV_ROWS. A larger upload is rejected (HTTP 413) before it is
+# read; a larger capture/CSV is parsed up to the cap and the summary says so —
+# the rule-base then selects its bounded set (max_flows) from what was parsed.
+service:
+  max_upload_mb: 200          # hard upload limit (rejected above this)
+  # PCAP parsing is the slow part (~0.6 ms/packet on CPU: validation pass + CICFlowMeter),
+  # so these keep the worst-case ingest near a minute. 20k flows is still a 40x larger
+  # pool than the largest selection (max_flows <= 500).
+  max_pcap_packets: 100000    # PCAP: stop reading after this many packets
+  max_pcap_flows: 20000       # PCAP: stop extraction once this many flows exist
+  max_csv_rows: 500000        # CSV: read at most this many data rows

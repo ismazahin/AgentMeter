@@ -37,4 +37,6 @@ include = ["agentmeter*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Put the repo root on sys.path so `pytest` (not only `python -m pytest`) imports agentmeter.
+pythonpath = ["."]
 addopts = "-q"

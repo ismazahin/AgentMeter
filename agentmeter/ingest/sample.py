@@ -71,7 +71,9 @@ def build_packets():
         emit(L2() / IP(src=ntp, dst=cli) / UDP(sport=123, dport=123 + 1000 * (i + 1)) / Raw(b"t" * 48))
     for _ in range(3):                       # ignored by CICFlowMeter
         emit(L2() / IP(src=cli, dst=web) / ICMP())
-    emit(L2() / ARP(psrc=cli, pdst=web))
+    # hwsrc pinned too: unset, scapy fills it from THIS host's MAC (CI differs from the
+    # machine that wrote the committed sample). The value is the committed file's.
+    emit(L2() / ARP(hwsrc="02:fc:00:00:00:01", psrc=cli, pdst=web))
     emit(L2() / IPv6(src="fd00::5", dst="fd00::53") / UDP(sport=50100, dport=53) / Raw(b"6" * 32))
     return pkts
 

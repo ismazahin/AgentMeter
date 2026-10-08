@@ -68,9 +68,9 @@ def service(tmp_path_factory):
     return client, mgr
 
 
-def finished_job(service, path, max_flows, models):
+def finished_job(service, path, max_flows, models, **form):
     c, mgr = service
-    data = {"file": (io.BytesIO(path.read_bytes()), path.name), "max_flows": str(max_flows)}
+    data = {"file": (io.BytesIO(path.read_bytes()), path.name), "max_flows": str(max_flows), **form}
     run = c.post("/api/ingest", data=data, content_type="multipart/form-data").get_json()["run"]
     jid = c.post("/api/jobs", json={"run": run, "models": models, "provider": "mock"}).get_json()["job_id"]
     mgr.wait(jid, timeout=120)
@@ -191,6 +191,20 @@ def test_pcap_report_is_efficiency_only(service):
 
 
 # --- single model + robustness ----------------------------------------------------------------------
+def test_other_attack_report_shows_all_six_classes(service):
+    jid, res = finished_job(service, SAMPLE_CSV, 12,
+                            ["mistralai/Mistral-7B-Instruct-v0.3", "microsoft/Phi-3-mini-4k-instruct"],
+                            other_attack="1")
+    assert res["session"]["class_scheme"] == "6-class" and "Other Attack" in res["session"]["class_set"]
+    t = pdf_text(service[0].get(f"/api/jobs/{jid}/report.pdf").data)
+    six = ("Benign", "Brute Force", "DoS Hulk", "Port Scanning", "Volumetric DDoS", "Other Attack")
+    row = t[t.index("Class set (scored)"):t.index("Feature match")]          # input class-set row
+    assert "6-class" in row and all(c in row for c in six)
+    acc = t[t.index("Accuracy by class"):t.index("Caveats")]                # accuracy-by-class table
+    assert "6-class class set" in acc and all(c in acc for c in six)
+    assert "6-class run: 'Other Attack'" in t[t.index("Caveats"):]          # caveat names the 6th class
+
+
 def test_single_model_and_unicode_are_handled(labelled):
     _, res, _, _ = labelled
     one = copy.deepcopy(res)

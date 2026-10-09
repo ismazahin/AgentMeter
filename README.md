@@ -128,12 +128,13 @@ AgentMeter/
 │   ├── providers/        model backends (mock / Hugging Face)
 │   ├── run/              execution: runner, worker, pilot, measure
 │   ├── analysis/         accuracy + SAW + per-class + advanced analysis
-│   ├── server/           web/API layer (pull-eval, CRUD, config builder, HF metadata)
+│   ├── server/           benchmark service API (prepare, jobs, access, runtime), HF metadata, notify
 │   └── util/             env/token helpers, env check, Vast.ai shutdown
 │
-├── configs/              run configs — run_full_l4.yaml is the LOCKED study; user/ holds generated ones
-├── dashboard/            self-contained results dashboard (HTML/CSS/JS + saw.js/report.js)
-├── scripts/              server + helper scripts (pull_eval_server.py, report.py, demo_run.py, …)
+├── configs/              run configs — run_full_l4.yaml is the LOCKED study
+├── dashboard/            read-only Validation-baseline page (Overview + Detailed analysis)
+├── web/                  the benchmark service front-end (static: Prepare -> Benchmark)
+├── scripts/              serve.py (backend), vast_up.sh, CLI tools (ingest, benchmark, …)
 ├── tests/                pytest suite (CPU only)
 ├── data/                 datasets (cicids_full_300.csv is the study dataset)
 ├── notebooks/            Colab pilot notebook
@@ -194,35 +195,16 @@ validated numbers.
   re-run by tooling).
 - Its analysis is the validated SAW ranking + statistics.
 
-**Custom / reconfigurable runs (kept separate, flagged non-validated):**
+**Your own data (kept separate, flagged non-validated):** use the benchmark service
+(`/service`: Prepare → Benchmark; docs/SESSION_BENCHMARK.md, docs/DEPLOY.md) or its CLI
+twins (`scripts/ingest.py`, `scripts/benchmark.py`). Every such run writes its own
+session DB under `results/csv_runs|pcap_runs/<name>/`, is labelled `non_validated`, and
+never changes the locked SAW ranking or statistics.
 
-1. Build a config without hand-editing YAML — the dashboard **Config builder**
-   panel (Phase 18), or copy `configs/run_full_l4.yaml`. Generated configs land
-   in `configs/user/<name>.yaml` and set
-   `storage.sqlite_path: results/user_runs/<name>.db` — a **separate per-config
-   DB**, never the locked study DB.
-2. Run it (a GPU/operator action — there is deliberately **no web button** that
-   triggers a run):
-
-   ```bash
-   python main.py --config configs/user/<name>.yaml run-full     # writes results/user_runs/<name>.db
-   python main.py --config configs/user/<name>.yaml analyze --out results/analysis_<name>
-   ```
-
-3. The resulting `analysis.json` carries a `provenance` block:
-
-   ```json
-   "provenance": { "run_kind": "user_run", "non_validated": true,
-                   "validated_study": false, "db_path": "results/user_runs/<name>.db" }
-   ```
-
-   `analyze` classifies a run as the validated baseline **only** when it reads
-   the locked study DB; every other DB is flagged `non_validated: true`. The
-   analysis summary prints a `USER/CUSTOM RUN — NOT the validated baseline`
-   banner, and the dashboard shows a distinct warning banner when such an
-   analysis is loaded. Custom runs still measure **resource efficiency only** —
-   they never change the locked SAW ranking or statistics, and are never merged
-   into them.
+`analyze` classifies a run as the validated baseline **only** when it reads the locked
+study DB; any other DB gets a `provenance` block with `"run_kind": "user_run",
+"non_validated": true`. To reproduce the locked baseline itself, see
+[docs/REPRODUCE_BASELINE.md](docs/REPRODUCE_BASELINE.md).
 
 Sessions imported into the dashboard can be organised with **tags** (Phase 19):
 add/remove tags per session and filter the session list by tag. Tags live in

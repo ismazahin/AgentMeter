@@ -1,5 +1,7 @@
 # Deploying the AgentMeter pilot to a Hugging Face Space (1× L4)
 
+> **ARCHIVED (Phase 44).** The Phase 5 pilot Space, kept for the record. Current entry points: the benchmark service (docs/DEPLOY.md) and docs/REPRODUCE_BASELINE.md.
+
 Prepare-only checklist. Nothing here has been run on paid hardware — you run it.
 
 ## 0. Before you start (no cost yet)

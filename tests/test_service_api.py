@@ -12,6 +12,8 @@ import io
 import time
 
 import pytest
+
+from svc import prepare  # noqa: E402
 import yaml
 
 from agentmeter.config import PROJECT_ROOT
@@ -31,27 +33,24 @@ def _sha(p):
 def env(tmp_path, monkeypatch):
     pytest.importorskip("flask")
     monkeypatch.delenv("AGENTMETER_SERVICE_PROVIDER", raising=False)
-    from agentmeter import pull_eval
-    spec = importlib.util.spec_from_file_location("pull_eval_server",
-                                                  PROJECT_ROOT / "scripts" / "pull_eval_server.py")
+    spec = importlib.util.spec_from_file_location("serve",
+                                                  PROJECT_ROOT / "scripts" / "serve.py")
     srv = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(srv)
     base = tmp_path / "cfg.yaml"
     base.write_text(yaml.safe_dump({"run": {"models": ["mock/m"]}, "model": {"provider": "mock"},
                                     "dataset": {}, "pipeline": {}, "classes": [], "scoring": {},
                                     "storage": {}}))
-    pmgr = pull_eval.JobManager(base_config=str(base), canonical_json=str(tmp_path / "c.json"),
-                                out_dir=str(tmp_path / "pulls"))
     mgr = JobManager(jobs_dir=tmp_path / "jobs", results_root=tmp_path / "results",
                      gpu_available=lambda: False)
-    client = srv.create_app(pmgr, local_results_dir=str(tmp_path / "results"),
+    client = srv.create_app(local_results_dir=str(tmp_path / "results"),
                             job_manager=mgr).test_client()
     return client, mgr, tmp_path
 
 
 def upload(client, path, name=None, **form):
     data = {"file": (io.BytesIO(path.read_bytes()), name or path.name), **form}
-    return client.post("/api/ingest", data=data, content_type="multipart/form-data")
+    return prepare(client, data)
 
 
 def test_service_page_and_config(env):
@@ -88,7 +87,7 @@ def test_csv_upload_gives_the_validation_summary(env):
     assert (tmp / "results" / "csv_runs" / name / "input.json").exists()
     assert (tmp / "results" / "uploads" / f"{name}.csv").exists()
     # the same summary is re-readable after a reload
-    again = c.get(f"/api/runs/{s['run']}").get_json()
+    again = c.get(f"/api/prepared/{s['run']}").get_json()
     assert again["rows_selected"] == 12 and again["run"] == s["run"]
 
 
@@ -117,18 +116,19 @@ def test_same_file_twice_gets_two_runs(env):
 def test_bad_uploads_are_rejected_with_a_reason(env, content, name, form, status, code, msg):
     pytest.importorskip("scapy") if name.endswith(".pcap") else None
     c, _, _ = env
-    r = c.post("/api/ingest", data={"file": (io.BytesIO(content), name), **form},
-               content_type="multipart/form-data")
+    r = prepare(c, {"file": (io.BytesIO(content), name), **form})
     body = r.get_json()
     assert r.status_code == status and body["code"] == code and msg in body["error"]
 
 
 def test_missing_file_and_bad_run_names(env):
     c, _, _ = env
-    assert c.post("/api/ingest", data={}, content_type="multipart/form-data").get_json()["code"] == "invalid_file"
+    assert c.post("/api/prepare", data={}, content_type="multipart/form-data").get_json()["code"] == "invalid_file"
+    assert c.get("/api/prepared/csv_runs/nope").status_code == 404
+    assert c.get("/api/prepared/etc/passwd").status_code == 400
+    assert c.get("/api/prepared/csv_runs/..%2F..").status_code in (400, 404)
+    assert c.post("/api/ingest", data={}).status_code in (404, 405)       # legacy route removed
     assert c.get("/api/runs/csv_runs/nope").status_code == 404
-    assert c.get("/api/runs/etc/passwd").status_code == 400
-    assert c.get("/api/runs/csv_runs/..%2F..").status_code in (400, 404)
 
 
 def test_pcap_upload_is_efficiency_only(env):

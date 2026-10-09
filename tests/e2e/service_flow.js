@@ -1,7 +1,7 @@
 // Phases 41-43b — headless walk-through of the two-step service (Playwright):
 // Prepare (upload | URL) -> prepared set -> Benchmark -> results -> PDF.
 // Needs a LIVE server (one process) and Node Playwright; not part of pytest.
-//   AGENTMETER_MAX_UPLOAD_MB=1 python scripts/pull_eval_server.py --port 8766   # mock demo mode
+//   AGENTMETER_MAX_UPLOAD_MB=1 python scripts/serve.py --port 8766   # mock demo mode
 //   node tests/e2e/service_flow.js [base_url] [out_dir]
 // URL import is walked too when E2E_URL_BASE names an https server with big.csv on it
 // (the server must then run with the TEST-ONLY AGENTMETER_TEST_ALLOW_LOOPBACK_URLS=1 +

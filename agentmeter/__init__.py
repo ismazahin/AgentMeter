@@ -12,7 +12,7 @@ Modules are grouped into subpackages by role (see agentmeter/README.md):
   providers/        model backends (mock / Hugging Face)
   run/              execution: runner, worker, pilot, measure-vram
   analysis/         accuracy + SAW + per-class + advanced analysis
-  server/           web/API layer: pull-eval, CRUD, local sessions, HF metadata, config builder
+  server/           web/API layer: benchmark service (prepare, jobs, access, runtime), HF metadata, notify
   util/             env/token helpers, env check, Vast.ai shutdown
 
 Submodules are re-exported here so `from agentmeter import <module>` keeps working.
@@ -23,7 +23,7 @@ from .data import dataprep, dataset
 from .pipeline import agents, instrument
 from .run import measure, pilot, runner, worker
 from .analysis import analyze, analyze_advanced, analyze_by_class, integrity
-from .server import config_builder, crud_api, hf_metadata, local_sessions, pull_eval
+from .server import hf_metadata
 from .util import env_check, envtools, vast_shutdown
 
 __version__ = "0.0.0"

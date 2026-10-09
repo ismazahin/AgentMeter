@@ -14,7 +14,8 @@ Consequences of the unified file:
   * there is still no CRUD on datasets or the model set — out of scope by design.
 
 This module has no Flask dependency so it is fully testable on CPU. The HTTP
-layer (agentmeter/crud_api.py) is a thin wrapper over these methods.
+layer was removed in Phase 44; these methods remain for the archived check-integrity /
+combine-db tools, and the hf_metadata_cache table backs agentmeter/server/hf_metadata.py.
 """
 from __future__ import annotations
 

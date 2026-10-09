@@ -14,9 +14,6 @@ Benchmark:
   POST /api/jobs                (jobs_api.py) {run: <prepared-set id>, models[<=2]}
 Other:
   GET  /api/service/config      canonical models, max 2, provider, demo flag, limits
-  GET  /api/runs/<kind>/<name>  = /api/prepared/<kind>/<name> (Phase 41 name)
-  POST /api/ingest              LEGACY synchronous prepare of a small upload (same
-                                prepare.prepare_file code path); the UI uses /api/prepare.
 
 Input guards (config.yaml `service:`): an upload above max_upload_mb is rejected
 with 413 before its body is read; a URL import above max_url_download_gb is
@@ -35,7 +32,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .jobs import RUN_ROOTS, JobError, JobManager
-from .prepare import (MAX_IMPORT_BYTES, PrepareError, prepare_file, prepared_file,
+from .prepare import (MAX_IMPORT_BYTES, PrepareError, prepared_file,
                       summarize, unique_name)
 
 DEFAULT_SERVICE_MAX_FLOWS = 50
@@ -144,24 +141,6 @@ def save_upload(fileobj, filename: str, uploads_dir: Path, limits: dict[str, Any
                                      "size_bytes": n, "sha256": sha}}
 
 
-def ingest_upload(fileobj, filename: str, results_root: Path, uploads_dir: Path,
-                  max_flows: int, other_attack: bool,
-                  limits: dict[str, Any] | None = None) -> dict[str, Any]:
-    """LEGACY synchronous prepare (the /api/ingest route and Python callers): save,
-    then the SAME prepare_file a prepare job runs. Returns the summary."""
-    lim = limits or service_limits()
-    up = save_upload(fileobj, filename, uploads_dir, lim)
-    src = dict(up["source"])
-    path = Path(src.pop("path"))
-    try:
-        prepared = prepare_file(path, source=src, results_root=results_root, name=up["name"],
-                                max_flows=max_flows, other_attack=other_attack, limits=lim)
-    except PrepareError as e:
-        raise ServiceError(str(e), e.code, e.status) from e
-    kind, name = prepared.split("/")
-    return summarize(results_root / kind / name)
-
-
 def service_config(gpu_available: bool, limits: dict[str, Any] | None = None,
                    mode: str | None = None) -> dict[str, Any]:
     from ..session.benchmark import MAX_MODELS, canonical_models
@@ -266,7 +245,6 @@ def register_service(app, get_manager: Callable[[], JobManager]) -> None:
         return jsonify(job), 202
 
     @app.route("/api/prepared/<kind>/<name>", methods=["GET"])
-    @app.route("/api/runs/<kind>/<name>", methods=["GET"])
     def svc_prepared(kind, name):
         try:
             return jsonify(summarize(run_dir(kind, name)))
@@ -302,21 +280,3 @@ def register_service(app, get_manager: Callable[[], JobManager]) -> None:
             return jsonify(summarize(mgr.results_root / kind / name)), 201
         except PrepareError as e:
             return fail(e)
-
-    # --- legacy synchronous route (same code path as a prepare job) ------------------------
-    @app.route("/api/ingest", methods=["POST"])
-    def svc_ingest():
-        mgr = get_manager()
-        # Rejected on the declared size alone: the body is never read.
-        if request.content_length and request.content_length > body_cap:
-            return fail(too_large(limits["max_upload_bytes"]))
-        f = request.files.get("file")
-        if f is None or not f.filename:
-            return fail(ServiceError("no file uploaded (form field 'file')", "invalid_file", 400))
-        try:
-            max_flows, other = _form_options(request.form)
-            summary = ingest_upload(f, f.filename, mgr.results_root, mgr.results_root / "uploads",
-                                    max_flows, other, limits)
-        except ServiceError as e:
-            return fail(e)
-        return jsonify(summary), 201

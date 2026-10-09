@@ -15,7 +15,7 @@ fetched (no duplicate original/ or .pth checkpoints).
 
 --verify loads a model exactly as the benchmark does (HFProvider with the study
 config: uniform 4-bit NF4, double quant, fp16 compute), generates a few tokens,
-and unloads it. Exit code 0 = ready for `pull_eval_server.py --provider real`.
+and unloads it. Exit code 0 = ready for `serve.py --provider real`.
 """
 from __future__ import annotations
 

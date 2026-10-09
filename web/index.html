@@ -12,7 +12,7 @@
   AgentMeter BENCHMARK SERVICE (Phase 41) — the user-facing web flow:
   upload a CSV/PCAP -> validation summary -> pick <=2 models -> Run -> live
   progress -> comparison. VIEW LAYER ONLY: it calls the same-origin API
-  (/api/ingest, /api/runs, /api/jobs) and renders the JSON the server computed
+  (/api/prepare, /api/prepared, /api/jobs) and renders the JSON the server computed
   (session_results.json). It computes no benchmark, SAW or comparison itself.
   CSV export reuses dashboard/report.js (REPORT.sawCsv / REPORT.perAgentCsv);
   the PDF report is built server-side (GET /api/jobs/<id>/report.pdf).
@@ -386,7 +386,7 @@
   // ({"api_base": "https://<tunnel>"}; "" = same origin), overridable with ?api=<url>
   // (kept in this browser) so a new tunnel URL needs no redeploy. ?api=reset clears it.
   var API = "", HEALTH = null;
-  var MUTATING = /^\/api\/(prepare|prepared\/import|ingest|jobs(\/[^/]+\/resume)?)$/;
+  var MUTATING = /^\/api\/(prepare|prepared\/import|jobs(\/[^/]+\/resume)?)$/;
   function passGet() { try { return sessionStorage.getItem("agentmeter.passcode") || ""; } catch (e) { return ""; } }
   function passSet(v) { try { if (v) sessionStorage.setItem("agentmeter.passcode", v); else sessionStorage.removeItem("agentmeter.passcode"); } catch (e) {} }
   function askPasscode(message) {

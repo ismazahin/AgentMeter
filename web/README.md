@@ -6,7 +6,7 @@ results), `report.js` (a copy of `dashboard/report.js`, kept identical by
 server functions.
 
 - `config.json` → `api_base`: the GPU backend's URL. When it's empty, the page talks to its own
-  origin (that's how `scripts/pull_eval_server.py` serves it at `/service`).
+  origin (that's how `scripts/serve.py` serves it at `/service`).
 - Every API call, upload and download goes from the browser **straight to `api_base`**. Nothing
   passes through the static host, so its request-body limits (Vercel functions: ~4.5 MB) don't
   apply.

@@ -43,18 +43,20 @@ agentmeter/
 │   ├── analyze_by_class.py  Per-attack-class resource breakdown (additive).
 │   └── analyze_advanced.py  Pareto, CoV, prefill/decode, throughput, misclass (additive).
 │
-├── server/             ← WEB / API layer (Flask; served by scripts/pull_eval_server.py)
-│   ├── crud_api.py        REST routes for sessions/presets/notes/tags (over appdb).
-│   ├── pull_eval.py       Pull ONE extra HF model + on-demand eval (separate DB).
-│   ├── local_sessions.py  Read-only discovery of result JSON under results/.
-│   ├── hf_metadata.py     Hugging Face Hub metadata (external CONTEXT only, cached).
-│   ├── config_builder.py  Build a user config → configs/user/ (never the locked one).
-│   ├── jobs.py            Persistent background benchmark JOBS (single-job lock, FIFO queue,
-│   │                      restart → interrupted, resume) wrapping session.run_session.
-│   ├── jobs_api.py        /api/jobs create / status / result / list / resume endpoints.
-│   └── service_api.py     /api/ingest (upload → existing ingestion), /api/runs summary,
-│                          /api/service/config — backend of the /service web flow
-│                          (page: web/index.html — static, also served at /service).
+├── server/             ← WEB / API layer (Flask; served by scripts/serve.py)
+│   ├── service_api.py     /api/prepare, /api/prepared/..., /api/prepared/import,
+│   │                      /api/service/config — backend of the /service web flow
+│   │                      (page: web/index.html — static, also served at /service).
+│   ├── prepare.py         Prepare: raw file → downloadable prepared set (+ summary).
+│   ├── urlfetch.py        SSRF-safe URL import for Prepare.
+│   ├── jobs.py            Persistent background JOBS — prepare + benchmark (single-job
+│   │                      lock, FIFO queue, restart → interrupted, resume).
+│   ├── jobs_api.py        /api/jobs create / status / result / PDF / list / resume.
+│   ├── access.py          CORS allow-list, access passcode, rate limits.
+│   ├── runtime.py         Provider (real | mock, decided once), GPU facts, real-mode preflight.
+│   ├── hf_metadata.py     Hugging Face Hub metadata (external CONTEXT, cached in the app DB);
+│   │                      shown on the baseline page via /api/model-metadata.
+│   └── notify.py          Telegram notifications (status/test routes; new-analysis watcher).
 │
 ├── ingest/             ← INPUT LAYER (service pivot; not re-exported — PCAP needs optional deps)
 │   ├── csv_input.py       CIC-IDS2017-format CSV: schema check, label isolation (accuracy).
@@ -94,8 +96,8 @@ is one connected database — one file to open, back up and diagram.
 | `db/appdb.py`   | `session`, `weight_preset`, `note`, `tag`, `session_tag`, `hf_metadata_cache` (app metadata) |
 | `db/combine.py` | `combine-db`: merge a legacy study DB + app DB into one unified file |
 
-Custom/user runs may still be written to their own `results/user_runs/<name>.db`,
-and the on-demand model **pull** writes its own `results/pulls/…` file. `.db` files
+Runs of your own data (the benchmark service) write their own session DB under
+`results/csv_runs|pcap_runs/<name>/`. `.db` files
 are gitignored — they live on your machine, not in the repo.
 
 **Migrating from the old two-file layout:** copy your files as backups, then

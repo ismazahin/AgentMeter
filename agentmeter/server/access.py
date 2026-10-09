@@ -8,8 +8,8 @@ CORS (the static front-end is on another origin):
   * unset, MOCK mode -> permissive (local development, file:// dashboards).
 
 Passcode (AGENTMETER_PASSCODE): when set, every state-changing request
-(POST/PUT/PATCH/DELETE: prepare, import, benchmark jobs, resume, pull-eval,
-config builder ...) and the job list need header X-AgentMeter-Passcode. Read-only
+(POST/PUT/PATCH/DELETE: prepare, import, benchmark jobs, resume, notify-test ...)
+and the job list need header X-AgentMeter-Passcode. Read-only
 pages stay open: /health, the static pages, a job's status/results/PDF by its id,
 a prepared set by its id. No accounts.
 
@@ -29,8 +29,7 @@ from collections import deque
 from typing import Callable, Optional
 
 PASSCODE_HEADER = "X-AgentMeter-Passcode"
-JOB_CREATING = {("POST", "/api/prepare"), ("POST", "/api/prepared/import"), ("POST", "/api/ingest"),
-                ("POST", "/api/jobs"), ("POST", "/pull-eval")}
+JOB_CREATING = {("POST", "/api/prepare"), ("POST", "/api/prepared/import"), ("POST", "/api/jobs")}
 _WRITE = {"POST", "PUT", "PATCH", "DELETE"}
 
 

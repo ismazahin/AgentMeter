@@ -483,6 +483,7 @@ class JobManager:
             msg = str(e) if getattr(e, "code", None) else f"{type(e).__name__}: {e}"
             self._update(job_id, status="failed", finished_at=_now(), error=msg,
                          error_code=getattr(e, "code", "prepare_failed"),
+                         error_status=int(getattr(e, "status", 500)),
                          error_trace=traceback.format_exc(limit=5),
                          message="failed — fix the input or resume to retry")
             return

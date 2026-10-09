@@ -19,6 +19,8 @@ import shutil
 import subprocess
 
 import pytest
+
+from svc import prepare  # noqa: E402
 import yaml
 
 from agentmeter.config import PROJECT_ROOT
@@ -52,26 +54,23 @@ def pdf_text(data: bytes) -> str:
 def service(tmp_path_factory):
     pytest.importorskip("flask")
     root = tmp_path_factory.mktemp("svc")
-    from agentmeter import pull_eval
-    spec = importlib.util.spec_from_file_location("pull_eval_server",
-                                                  PROJECT_ROOT / "scripts" / "pull_eval_server.py")
+    spec = importlib.util.spec_from_file_location("serve",
+                                                  PROJECT_ROOT / "scripts" / "serve.py")
     srv = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(srv)
     base = root / "cfg.yaml"
     base.write_text(yaml.safe_dump({"run": {"models": ["mock/m"]}, "model": {"provider": "mock"},
                                     "dataset": {}, "pipeline": {}, "classes": [], "scoring": {},
                                     "storage": {}}))
-    pmgr = pull_eval.JobManager(base_config=str(base), canonical_json=str(root / "c.json"),
-                                out_dir=str(root / "pulls"))
     mgr = JobManager(jobs_dir=root / "jobs", results_root=root / "results", gpu_available=lambda: False)
-    client = srv.create_app(pmgr, local_results_dir=str(root / "results"), job_manager=mgr).test_client()
+    client = srv.create_app(local_results_dir=str(root / "results"), job_manager=mgr).test_client()
     return client, mgr
 
 
 def finished_job(service, path, max_flows, models, **form):
     c, mgr = service
     data = {"file": (io.BytesIO(path.read_bytes()), path.name), "max_flows": str(max_flows), **form}
-    run = c.post("/api/ingest", data=data, content_type="multipart/form-data").get_json()["run"]
+    run = prepare(c, data).get_json()["run"]
     jid = c.post("/api/jobs", json={"run": run, "models": models, "provider": "mock"}).get_json()["job_id"]
     mgr.wait(jid, timeout=120)
     return jid, c.get(f"/api/jobs/{jid}/result").get_json()

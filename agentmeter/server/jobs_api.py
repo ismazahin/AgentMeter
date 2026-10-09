@@ -1,6 +1,6 @@
 """HTTP API for benchmark jobs (Phase 40). Same-origin routes on the existing
-Flask app (scripts/pull_eval_server.py); the server's Basic Auth gate, when
-enabled, covers them like every other route.
+Flask app (scripts/serve.py); access.py (passcode, CORS, rate limits)
+covers them like every other route.
 
   POST /api/jobs                {run, models[<=2], provider?, base_config?} -> 202 {job}
   GET  /api/jobs                ?limit=N  -> recent jobs, newest first

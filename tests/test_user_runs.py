@@ -2,8 +2,6 @@
 
 Guarantees that a user/custom config run is kept STRICTLY separate from the locked
 validation study:
-  * a config from the config builder writes to results/user_runs/<name>.db — never
-    the locked study DB;
   * analyze() flags an analysis from any non-locked DB as non_validated / a "user
     run", and flags the locked study DB as the validated baseline;
   * running analyze on a user DB never alters a separate (locked) DB or its analysis
@@ -17,22 +15,11 @@ from pathlib import Path
 
 import yaml
 
-from agentmeter import analyze, config_builder as cb
+from agentmeter import analyze
 
 CLASSES = ["Brute Force", "Volumetric DDoS", "Port Scanning", "DoS Hulk", "Benign"]
 TARGETS = {"accuracy_pct": 80.0, "latency_s": 5.0, "vram_mb": 16000.0, "tokens_total": 1200.0}
 TIERS = {"healthy_min": 80.0, "degraded_min": 60.0}
-
-
-# --- A user config never targets the locked study DB -------------------
-
-def test_user_config_writes_to_user_runs_dir():
-    cfg = cb.build_config(name="my custom run", models=["m/x"],
-                          dataset_path="data/x.csv")
-    path = cfg["storage"]["sqlite_path"]
-    assert path == "results/user_runs/my-custom-run.db"
-    # explicitly NOT the locked study DB
-    assert "agentmeter_full_l4.db" not in path
 
 
 # --- provenance classification (pure) ----------------------------------

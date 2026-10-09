@@ -4,7 +4,7 @@ Provider ("real" = Hugging Face models on this machine's GPU, 4-bit NF4; "mock" 
 deterministic heuristic, not a language model) is chosen ONCE when the server
 starts, in this order:
 
-    --provider real|mock|auto   (scripts/pull_eval_server.py)
+    --provider real|mock|auto   (scripts/serve.py)
     AGENTMETER_SERVICE_PROVIDER = real|hf|mock|auto
     auto (default): real when CUDA is visible, else mock (local development).
 

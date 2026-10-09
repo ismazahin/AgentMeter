@@ -8,6 +8,8 @@ app_file: app.py
 pinned: false
 ---
 
+> **ARCHIVED (Phase 44).** The Phase 5 pilot Space, kept for the record. Current entry points: the benchmark service (docs/DEPLOY.md) and docs/REPRODUCE_BASELINE.md.
+
 # AgentMeter — Pilot Space
 
 Per-agent resource benchmarking of an open-source LLM in a minimal linear

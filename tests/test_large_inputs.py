@@ -17,6 +17,8 @@ import io
 
 import pandas as pd
 import pytest
+
+from svc import prepare  # noqa: E402
 import yaml
 
 from agentmeter.config import PROJECT_ROOT
@@ -47,20 +49,17 @@ def make(tmp_path, monkeypatch):
     def build(**env):
         for k, v in env.items():
             monkeypatch.setenv(k, str(v))
-        from agentmeter import pull_eval
-        spec = importlib.util.spec_from_file_location("pull_eval_server",
-                                                      PROJECT_ROOT / "scripts" / "pull_eval_server.py")
+        spec = importlib.util.spec_from_file_location("serve",
+                                                      PROJECT_ROOT / "scripts" / "serve.py")
         srv = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(srv)
         base = tmp_path / "cfg.yaml"
         base.write_text(yaml.safe_dump({"run": {"models": ["mock/m"]}, "model": {"provider": "mock"},
                                         "dataset": {}, "pipeline": {}, "classes": [], "scoring": {},
                                         "storage": {}}))
-        pmgr = pull_eval.JobManager(base_config=str(base), canonical_json=str(tmp_path / "c.json"),
-                                    out_dir=str(tmp_path / "pulls"))
         mgr = JobManager(jobs_dir=tmp_path / "jobs", results_root=tmp_path / "results",
                          gpu_available=lambda: False)
-        client = srv.create_app(pmgr, local_results_dir=str(tmp_path / "results"),
+        client = srv.create_app(local_results_dir=str(tmp_path / "results"),
                                 job_manager=mgr).test_client()
         return client, mgr, tmp_path
 
@@ -69,7 +68,7 @@ def make(tmp_path, monkeypatch):
 
 def upload(client, path, **form):
     data = {"file": (io.BytesIO(path.read_bytes()), path.name), **form}
-    return client.post("/api/ingest", data=data, content_type="multipart/form-data")
+    return prepare(client, data)
 
 
 class _CountingStream:
@@ -116,7 +115,7 @@ def test_limits_come_from_config_with_env_overrides(make, monkeypatch):
 def test_oversized_upload_is_rejected_before_the_body_is_read(make):
     c, _, tmp = make(AGENTMETER_MAX_UPLOAD_MB=1)
     body = _CountingStream(5 * 1024 ** 2)
-    r = c.post("/api/ingest", content_type="multipart/form-data; boundary=b",
+    r = c.post("/api/prepare", content_type="multipart/form-data; boundary=b",
                environ_overrides={"wsgi.input": body, "CONTENT_LENGTH": str(body.size)})
     j = r.get_json()
     assert r.status_code == 413 and j["code"] == "too_large"
@@ -127,7 +126,7 @@ def test_oversized_upload_is_rejected_before_the_body_is_read(make):
 
 def test_oversized_real_multipart_upload_gets_the_clear_message(make):
     c, _, tmp = make(AGENTMETER_MAX_UPLOAD_MB=1)
-    r = c.post("/api/ingest", data={"file": (io.BytesIO(b"a" * (3 * 1024 ** 2)), "big.csv")},
+    r = c.post("/api/prepare", data={"file": (io.BytesIO(b"a" * (3 * 1024 ** 2)), "big.csv")},
                content_type="multipart/form-data")
     assert r.status_code == 413 and r.get_json()["code"] == "too_large"
     assert "1 MB" in r.get_json()["error"]
@@ -170,7 +169,7 @@ def test_large_csv_is_sampled_across_the_file_and_the_run_proceeds(make):
     assert s["sampling"]["method"] == "stratified_reservoir"
     name = s["run"].split("/")[1]
     assert "stratified random sample" in (tmp / "results" / "csv_runs" / name / "schema_report.md").read_text()
-    assert c.get(f"/api/runs/{s['run']}").get_json()["large_input"] == big   # survives a reload
+    assert c.get(f"/api/prepared/{s['run']}").get_json()["large_input"] == big   # survives a reload
     cfg = c.get("/api/service/config").get_json()
     j = c.post("/api/jobs", json={"run": s["run"], "models": cfg["canonical_models"][:1],
                                   "provider": cfg["provider"], "base_config": cfg["base_config"]})

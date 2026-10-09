@@ -166,8 +166,8 @@ def test_metadata_cache_never_opens_locked_db(tmp_path, monkeypatch):
 # --- Flask endpoint (mocked fetcher; graceful) -------------------------
 
 def _load_server():
-    path = REPO / "scripts" / "pull_eval_server.py"
-    spec = importlib.util.spec_from_file_location("pull_eval_server", path)
+    path = REPO / "scripts" / "serve.py"
+    spec = importlib.util.spec_from_file_location("serve", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -176,7 +176,6 @@ def _load_server():
 def _client(tmp_path):
     pytest.importorskip("flask")
     import yaml
-    from agentmeter import pull_eval
     srv = _load_server()
     csv = tmp_path / "f.csv"; csv.write_text("A,Label\n1,Benign\n")
     cfg = {"run": {"mode": "pilot", "device": "cpu", "require_gpu": False, "seed": 1, "models": ["mock/m"]},
@@ -189,9 +188,7 @@ def _client(tmp_path):
            "scoring": {"weights": {"accuracy": 0.4, "latency": 0.25, "vram": 0.2, "tokens": 0.15}},
            "storage": {"sqlite_path": str(tmp_path / "study.db")}}
     base = tmp_path / "cfg.yaml"; base.write_text(yaml.safe_dump(cfg))
-    mgr = pull_eval.JobManager(base_config=str(base), canonical_json=str(tmp_path / "c.json"),
-                               out_dir=str(tmp_path / "pulls"))
-    app = srv.create_app(mgr, app_db_path=str(tmp_path / "appmeta.db"))
+    app = srv.create_app(app_db_path=str(tmp_path / "appmeta.db"))
     return app.test_client()
 
 

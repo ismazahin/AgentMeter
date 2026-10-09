@@ -37,20 +37,17 @@ def make(tmp_path, monkeypatch):
     def build(mode=None, mgr=None, **env):
         for k, v in env.items():
             monkeypatch.setenv(k, str(v))
-        from agentmeter import pull_eval
-        spec = importlib.util.spec_from_file_location("pull_eval_server",
-                                                      PROJECT_ROOT / "scripts" / "pull_eval_server.py")
+        spec = importlib.util.spec_from_file_location("serve",
+                                                      PROJECT_ROOT / "scripts" / "serve.py")
         srv = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(srv)
         base = tmp_path / "cfg.yaml"
         base.write_text(yaml.safe_dump({"run": {"models": ["mock/m"]}, "model": {"provider": "mock"},
                                         "dataset": {}, "pipeline": {}, "classes": [], "scoring": {},
                                         "storage": {}}))
-        pmgr = pull_eval.JobManager(base_config=str(base), canonical_json=str(tmp_path / "c.json"),
-                                    out_dir=str(tmp_path / "pulls"))
         mgr = mgr or JobManager(jobs_dir=tmp_path / "jobs", results_root=tmp_path / "results",
                                 gpu_available=lambda: False)
-        app = srv.create_app(pmgr, local_results_dir=str(tmp_path / "results"), job_manager=mgr, mode=mode)
+        app = srv.create_app(local_results_dir=str(tmp_path / "results"), job_manager=mgr, mode=mode)
         return app.test_client(), mgr, srv
     return build
 
@@ -219,9 +216,15 @@ def test_real_server_forces_real_jobs(make, tmp_path, monkeypatch):
                      gpu_available=lambda: True, autostart=False)
     c, _, _ = make(mode="real", mgr=mgr, AGENTMETER_PASSCODE=PASS)
     hdr = {"X-AgentMeter-Passcode": PASS}
-    from agentmeter.server.service_api import ingest_upload, service_limits
-    s = ingest_upload(io.BytesIO(SAMPLE_CSV.read_bytes()), SAMPLE_CSV.name, mgr.results_root,
-                      mgr.results_root / "uploads", 5, False, service_limits())
+    from agentmeter.server.prepare import prepare_file
+    from agentmeter.server.service_api import save_upload, service_limits
+    up = save_upload(io.BytesIO(SAMPLE_CSV.read_bytes()), SAMPLE_CSV.name, mgr.results_root / "uploads",
+                     service_limits())
+    src = dict(up["source"])
+    path = src.pop("path")
+    sid = prepare_file(path, source=src, results_root=mgr.results_root, name=up["name"], max_flows=5,
+                       other_attack=False, limits=service_limits())
+    s = {"prepared_set": sid}
     run = s["prepared_set"]
     r = c.post("/api/jobs", json={"run": run, "models": ["Qwen/Qwen2.5-7B-Instruct"], "provider": "mock"},
                headers=hdr)
@@ -271,7 +274,7 @@ def test_pdf_names_the_real_gpu(make):
 def test_real_mode_refuses_to_start_without_a_gpu(tmp_path):
     env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "PYTHONPATH": str(PROJECT_ROOT),
            "HF_HOME": str(tmp_path / "hf"), "AGENTMETER_PASSCODE": PASS}
-    p = subprocess.run([sys.executable, str(PROJECT_ROOT / "scripts" / "pull_eval_server.py"),
+    p = subprocess.run([sys.executable, str(PROJECT_ROOT / "scripts" / "serve.py"),
                         "--provider", "real", "--port", "8791", "--results-dir", str(tmp_path)],
                        env=env, capture_output=True, text=True, timeout=120)
     assert p.returncode == 2, p.stdout + p.stderr
@@ -311,13 +314,9 @@ def test_preflight_lists_every_problem_and_passes_when_ready(tmp_path, monkeypat
 def test_health_polling_does_not_keep_the_instance_alive(make):
     c, mgr, srv = make()
     calls = []
-    guard = srv.CostGuard(manager=None, auto_destroy=True, idle_timeout_min=0.001, instance_id="1",
-                          destroy=lambda instance_id=None: calls.append(instance_id) or True)
-    from agentmeter import pull_eval
-    pm = pull_eval.JobManager(base_config=str(PROJECT_ROOT / "configs" / "run_full_mock.yaml"),
-                              canonical_json=str(mgr.results_root / "c.json"), out_dir=str(mgr.results_root / "p"))
-    app = srv.create_app(pm, guard=guard, local_results_dir=str(mgr.results_root), job_manager=mgr)
-    guard.manager = pm
+    guard = srv.CostGuard(auto_destroy=True, idle_timeout_min=0.001, instance_id="1",
+                          destroy=lambda instance_id=None: calls.append(instance_id) or True, job_manager=mgr)
+    app = srv.create_app(guard=guard, local_results_dir=str(mgr.results_root), job_manager=mgr)
     t0 = guard.last_activity
     app.test_client().get("/health")
     app.test_client().get("/config.json")
@@ -337,13 +336,8 @@ def test_watchdog_waits_while_a_service_job_is_queued(make, tmp_path):
     idle.create_prepare_job(up["source"], name=up["name"], max_flows=5, other_attack=False,
                             limits=service_limits())
     fired = []
-
-    class Idle:
-        def snapshot(self):
-            return type("S", (), {"is_active": lambda s: False})()
-    guard = srv.CostGuard(manager=Idle(), auto_destroy=True, idle_timeout_min=0.0005, instance_id="1",
-                          destroy=lambda instance_id=None: fired.append(1) or True)
-    guard.job_manager = idle
+    guard = srv.CostGuard(auto_destroy=True, idle_timeout_min=0.0005, instance_id="1",
+                          destroy=lambda instance_id=None: fired.append(1) or True, job_manager=idle)
     stop = threading.Event()
     t = threading.Thread(target=guard.watchdog, args=(stop,), kwargs={"poll": 0.01}, daemon=True)
     t.start()

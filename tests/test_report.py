@@ -162,8 +162,8 @@ def test_report_html_has_findings_and_ranking():
 # --- server still never opens the locked DB; report.js is served ---------
 
 def _load_server():
-    path = REPO / "scripts" / "pull_eval_server.py"
-    spec = importlib.util.spec_from_file_location("pull_eval_server", path)
+    path = REPO / "scripts" / "serve.py"
+    spec = importlib.util.spec_from_file_location("serve", path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -173,7 +173,6 @@ def test_report_js_served_and_no_locked_db(tmp_path, monkeypatch):
     pytest.importorskip("flask")
     import yaml
     srv = _load_server()
-    from agentmeter import pull_eval
 
     csv = tmp_path / "f.csv"; csv.write_text("A,Label\n1,Benign\n")
     cfg = {"run": {"mode": "pilot", "device": "cpu", "require_gpu": False, "seed": 1, "models": ["mock/m"]},
@@ -195,8 +194,6 @@ def test_report_js_served_and_no_locked_db(tmp_path, monkeypatch):
         return real(target, *a, **k)
     monkeypatch.setattr(sqlite3, "connect", guard)
 
-    mgr = pull_eval.JobManager(base_config=str(base), canonical_json=str(tmp_path / "c.json"),
-                               out_dir=str(tmp_path / "pulls"))
-    client = srv.create_app(mgr).test_client()
+    client = srv.create_app().test_client()
     r = client.get("/report.js")
     assert r.status_code == 200 and b"REPORT" in r.data

@@ -73,7 +73,7 @@ export HF_HUB_OFFLINE=1        # from here on nothing is fetched: a missing mode
 # --- 5. server (ONE process, REAL provider, loopback only — the tunnel is the way in) ---
 say "5/6 starting the AgentMeter backend (provider REAL) on 127.0.0.1:$PORT"
 if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
-  die "something already listens on port $PORT (an earlier run?). Stop it: pkill -f pull_eval_server.py"
+  die "something already listens on port $PORT (an earlier run?). Stop it: pkill -f serve.py"
 fi
 GUARD=()
 if [ -n "${VAST_API_KEY:-}" ] && [ -n "${IDLE_MIN:-}" ]; then
@@ -82,7 +82,7 @@ if [ -n "${VAST_API_KEY:-}" ] && [ -n "${IDLE_MIN:-}" ]; then
 else
   echo "cost guard: off (set VAST_API_KEY and IDLE_MIN to destroy the instance when idle)."
 fi
-nohup python3 scripts/pull_eval_server.py --provider real --host 127.0.0.1 --port "$PORT" \
+nohup python3 scripts/serve.py --provider real --host 127.0.0.1 --port "$PORT" \
   ${GUARD[@]+"${GUARD[@]}"} > "$LOGS/server.log" 2>&1 &
 echo $! > "$LOGS/server.pid"
 for _ in $(seq 1 60); do

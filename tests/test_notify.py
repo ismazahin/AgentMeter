@@ -99,19 +99,16 @@ def test_watcher_no_flood_when_enabled_later(tmp_path):
 
 def _client(tmp_path, monkeypatch, env=None, results_dir=None):
     pytest.importorskip("flask")
-    from agentmeter import pull_eval
     from agentmeter.util import envtools
-    path = REPO / "scripts" / "pull_eval_server.py"
-    spec = importlib.util.spec_from_file_location("pull_eval_server", path)
+    path = REPO / "scripts" / "serve.py"
+    spec = importlib.util.spec_from_file_location("serve", path)
     srv = importlib.util.module_from_spec(spec); spec.loader.exec_module(srv)
     monkeypatch.setattr(envtools, "read_dotenv_live", lambda *a, **k: dict(env or {}))
     base = tmp_path / "cfg.yaml"
     base.write_text(yaml.safe_dump({"run": {"models": ["mock/m"]}, "model": {"provider": "mock"},
                                     "dataset": {}, "pipeline": {}, "classes": [], "scoring": {},
                                     "storage": {}}))
-    mgr = pull_eval.JobManager(base_config=str(base), canonical_json=str(tmp_path / "c.json"),
-                               out_dir=str(tmp_path / "pulls"))
-    app = srv.create_app(mgr, local_results_dir=str(results_dir or (tmp_path / "results")))
+    app = srv.create_app(local_results_dir=str(results_dir or (tmp_path / "results")))
     return app.test_client()
 
 

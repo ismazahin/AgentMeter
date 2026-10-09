@@ -33,20 +33,17 @@ def _sha(p):
 def _app(tmp_path, monkeypatch, mgr=None):
     pytest.importorskip("flask")
     monkeypatch.delenv("AGENTMETER_SERVICE_PROVIDER", raising=False)
-    from agentmeter import pull_eval
-    spec = importlib.util.spec_from_file_location("pull_eval_server",
-                                                  PROJECT_ROOT / "scripts" / "pull_eval_server.py")
+    spec = importlib.util.spec_from_file_location("serve",
+                                                  PROJECT_ROOT / "scripts" / "serve.py")
     srv = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(srv)
     base = tmp_path / "cfg.yaml"
     base.write_text(yaml.safe_dump({"run": {"models": ["mock/m"]}, "model": {"provider": "mock"},
                                     "dataset": {}, "pipeline": {}, "classes": [], "scoring": {},
                                     "storage": {}}))
-    pmgr = pull_eval.JobManager(base_config=str(base), canonical_json=str(tmp_path / "c.json"),
-                                out_dir=str(tmp_path / "pulls"))
     mgr = mgr or JobManager(jobs_dir=tmp_path / "jobs", results_root=tmp_path / "results",
                             gpu_available=lambda: False)
-    return srv.create_app(pmgr, local_results_dir=str(tmp_path / "results"), job_manager=mgr).test_client(), mgr
+    return srv.create_app(local_results_dir=str(tmp_path / "results"), job_manager=mgr).test_client(), mgr
 
 
 @pytest.fixture

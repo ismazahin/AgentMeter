@@ -194,7 +194,7 @@ way a benchmark is computed does not change.
 
 ## The service web flow (`/service`)
 
-`python scripts/pull_eval_server.py`, then open `http://<host>:8000/service`. The
+`python scripts/serve.py`, then open `http://<host>:8000/service`. The
 analysis dashboard of the locked study stays at `/`, labelled "Validation
 baseline", and links to the service with **Run a benchmark**.
 

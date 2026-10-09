@@ -277,8 +277,8 @@
   .lead { margin: -6px 0 14px; font-size: 12.5px; color: var(--muted); }
   .note { margin: 12px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
   .note b { color: var(--ink-2); }
-  .note.err, #pull-status.err { color: var(--critical); }
-  .note.ok, #pull-status.ok { color: var(--loaded); }
+  .note.err { color: var(--critical); }
+  .note.ok { color: var(--loaded); }
   .finding {
     margin: 0; padding: 12px 16px; font-size: 13.5px; line-height: 1.6; color: var(--ink);
     background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--ink); border-radius: var(--radius);
@@ -286,7 +286,6 @@
   .ds-caveat { margin-top: 12px; padding: 0 0 0 16px; border-left: 3px solid var(--critical); font-size: 13px; font-weight: 500; color: var(--ink); }
   .crud-h3 { margin: 0 0 12px; font: 600 14px/1.4 var(--sans); }
   .crud-h3 .hint, h3 .hint { font-weight: 400; font-size: 12px; color: var(--muted); }
-  .crud-block { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
 
   /* "How to read this chart" expanders */
   details.howto { margin-top: 16px; font-size: 12.5px; }
@@ -303,7 +302,7 @@
 
   /* ---------------- controls ---------------- */
   .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
-  .controls label, .admin label, .ds-filter-controls label { font-size: 12.5px; color: var(--ink-2); }
+  .controls label, .ds-filter-controls label { font-size: 12.5px; color: var(--ink-2); }
   select, button, input[type=text], input[type=number], textarea { font: inherit; }
   select, input[type=text], input[type=number] {
     height: 32px; padding: 0 10px; font-size: 13px; color: var(--ink); background: var(--panel);
@@ -520,39 +519,6 @@
   .stat-row .k { color: var(--muted); }
   .sig { font-weight: 600; } .sig.yes { color: var(--healthy); } .sig.no { color: var(--muted); }
 
-  /* ---------------- sessions / compare / config / settings ---------------- */
-  .admin { display: grid; gap: 12px; }
-  .admin .row label { min-width: 110px; }
-  .progress { display: none; height: 6px; background: var(--chip); border-radius: 999px; overflow: hidden; }
-  .progress .fill { width: 0; height: 100%; background: var(--ink); border-radius: 999px; transition: width .3s ease; }
-  #pull-status { min-height: 18px; font-size: 13px; color: var(--muted); }
-  .note-item { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
-  .note-item .nbody { flex: 1; font-size: 13px; }
-  .note-item .nmeta { margin-top: 2px; font-size: 11px; color: var(--muted); }
-  .cmp-slots { display: grid; grid-template-columns: 1fr; gap: 12px; }
-  @media (min-width: 760px) { .cmp-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-  .cmp-slot { padding: 14px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-lg); }
-  .cmp-slot h4 { margin: 0 0 10px; font: 600 12px/1.3 var(--sans); color: var(--muted); }
-  .cmp-slot select, .cmp-slot input[type=file] { width: 100%; margin-bottom: 8px; }
-  .cmp-slot .loaded { font-size: 12px; color: var(--loaded); }
-  .cmp-slot .empty { font-size: 12px; color: var(--muted); }
-  .cfg-grid { display: grid; grid-template-columns: 1fr; gap: 12px 16px; }
-  @media (min-width: 640px) { .cfg-grid { grid-template-columns: 1fr 1fr; } }
-  @media (min-width: 960px) { .cfg-grid { grid-template-columns: repeat(3, 1fr); } }
-  .cfg-grid label, .cfg-weights label { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--ink-2); }
-  .cfg-grid input, .cfg-grid select, .cfg-weights input { width: 100%; }
-  .cfg-ta { width: 100%; padding: 10px 12px; font: 12.5px/1.5 var(--mono); color: var(--ink); background: var(--panel); border: 1px solid var(--line-strong); border-radius: var(--radius-lg); resize: vertical; }
-  .cfg-weights { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
-  .cfg-weights label { width: 112px; }
-  .cfg-wsum { padding-bottom: 8px; font: 600 12.5px var(--mono); }
-  .cfg-wsum.ok { color: var(--loaded); } .cfg-wsum.bad { color: var(--critical); }
-  .cfg-yaml { max-height: 460px; margin: 14px 0 0; padding: 14px 16px; overflow: auto; white-space: pre; font: 12.5px/1.55 var(--mono); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-lg); }
-  .cfg-yaml.locked { border-left: 3px solid var(--ink); }
-  #view-config h3, #view-settings h3 { font-family: var(--sans); font-weight: 600; }
-  .status-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
-  @media (min-width: 640px) { .status-grid { grid-template-columns: 1fr 1fr; } }
-  .status-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-lg); }
-  .status-item .lbl { color: var(--ink-2); }
   .glossary { margin: 0; }
   .glossary div { padding: 10px 0; font-size: 13px; line-height: 1.55; border-bottom: 1px solid var(--line); }
   .glossary div:last-child { border-bottom: 0; }
@@ -640,18 +606,6 @@
     <button data-view="detailed">
       <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M8 16v-5"/><path d="M13 16V8"/><path d="M18 16v-3"/></svg>
       <span>Detailed Analysis</span></button>
-    <button data-view="sessions">
-      <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
-      <span>Sessions</span></button>
-    <button data-view="compare">
-      <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><path d="M12 3v18"/><path d="M5 8H3l2-3 2 3H5v8"/><path d="M19 16h2l-2 3-2-3h2V8"/></svg>
-      <span>Compare</span></button>
-    <button data-view="config">
-      <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M19 12a7 7 0 00-.1-1l2-1.5-2-3.5-2.4 1a7 7 0 00-1.7-1L14.5 2h-5l-.3 2.5a7 7 0 00-1.7 1l-2.4-1-2 3.5L2.1 11a7 7 0 000 2l-2 1.5 2 3.5 2.4-1a7 7 0 001.7 1L9.5 22h5l.3-2.5a7 7 0 001.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1z"/></svg>
-      <span>Config builder</span></button>
-    <button data-view="settings">
-      <svg viewBox="0 0 24 24" class="nav-i" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
-      <span>Settings</span></button>
   </nav>
 
     <div class="tools">
@@ -672,7 +626,7 @@
     <div id="getting-started" class="getting-started" hidden>
       <div class="gs-body"><b>New here?</b> Start on <b>Overview</b> for the model ranking, open
         <b>Detailed Analysis</b> for the breakdowns, and click any <span class="gs-q">?</span> to learn
-        what a metric means — or open the <button type="button" class="gs-link" onclick="document.querySelector('#nav [data-view=&quot;settings&quot;]').click()">Glossary</button>
+        what a metric means — or open the <button type="button" class="gs-link" onclick="document.querySelector('#nav [data-view=&quot;detailed&quot;]').click();document.getElementById('glossary-panel').scrollIntoView()">Glossary</button>
         for every term. AgentMeter measures <b>resource efficiency</b> — speed, memory and token
         use — with accuracy as one factor; it does not claim to pick the single "best" threat detector.</div>
       <button id="gs-dismiss" class="gs-x" type="button">Got it</button>
@@ -691,7 +645,6 @@
     overall efficiency score and lets you change how much each factor (accuracy, speed, memory, tokens)
     counts using the sliders. The ranking re-computes live in your browser.</p>
       </div>
-      <div class="hero-aside"><button type="button" class="cta" onclick="document.querySelector('#nav [data-view=&quot;compare&quot;]').click()">Compare runs <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg></button></div>
       <div class="index-card">
         <h2>AgentMeter composite (SAW)</h2>
         <p>One score built from four measured criteria, each normalised against a target value:</p>
@@ -790,42 +743,11 @@
     <div class="sliders" id="sliders"></div>
     <p class="note" id="wsum"></p>
 
-    <div class="crud-block" id="saved-presets-block">
-      <h3 class="crud-h3">Saved weight presets <span class="hint">save the live weights, load them back later; applies to the live ranking above, not to Config builder</span></h3>
-      <div class="row" style="margin-bottom:10px">
-        <input type="text" id="preset-name" placeholder="Preset name (e.g. my-weighting)" autocomplete="off">
-        <button class="primary" id="preset-save-btn">Save current weights</button>
-      </div>
-      <div id="preset-list" class="chips"></div>
-      <p class="note" id="preset-msg"></p>
-    </div>
   </div>
 
   <div class="panel">
     <h2>VRAM finding<span class="help"><button class="help-btn" type="button" data-help="vram-finding" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="finding"></p>
-  </div>
-
-  <h2 class="section-label">Run a model</h2>
-  <p class="section-desc">Benchmark one extra model on the GPU server. Its row stays labelled exploratory and never enters the validated study.</p>
-  <div class="panel">
-    <h2>Run one model now (exploratory) <span class="hint">benchmarks a single Hugging Face model on this GPU server right now and adds it below as an unvalidated, exploratory row</span><span class="help right"><button class="help-btn" type="button" data-help="addmodel" aria-label="What is this?">?</button></span></h2>
-    <p class="note"><b>Requires the GPU pull/eval server.</b> This runs a real benchmark now, so it only works when the dashboard is opened from a running <code>pull_eval_server.py</code> on a GPU box (e.g. Vast.ai) — not over <code>file://</code> or on a CPU-only machine.</p>
-    <p class="note"><b>Not sure which?</b> <b>Run one model now</b> executes immediately on the server and shows an exploratory result here. <b>Config builder</b> (Config tab) writes a config you run yourself later (and can list many models).</p>
-    <div class="admin">
-      <div class="row">
-        <label for="pull-base">Server base URL</label>
-        <input type="text" id="pull-base" placeholder="leave EMPTY when opened from the server; set only for file:// (e.g. http://INSTANCE_IP:8000)" autocomplete="off">
-      </div>
-      <div class="row">
-        <label for="pull-model">HF model id</label>
-        <input type="text" id="pull-model" placeholder="org/Model-Name (≤ 8B params, causal-LM)" autocomplete="off">
-        <button class="primary" id="pull-btn">Pull &amp; evaluate</button>
-      </div>
-      <div class="progress" id="pull-progress"><div class="fill" id="pull-fill"></div></div>
-      <p id="pull-status"></p>
-      <p class="note" style="margin:0">Open this dashboard from the pull/eval server (Vast.ai) and the base URL stays <b>empty</b> — the API is same-origin. Only set it when viewing over <code>file://</code>. The server validates the size from HF metadata <b>before</b> any download (rejects &gt; 8B), runs all 300 scenarios under the identical harness (4-bit NF4, sequential VRAM isolation) into a <b>separate</b> DB, and appends the result below as <b>exploratory</b>. The locked study, its statistics and canonical rows are never modified.</p>
-    </div>
   </div>
 
     <h2 class="section-label">Frequently asked questions</h2>
@@ -840,8 +762,8 @@
       <p><b>Total device VRAM</b> is the memory footprint while the model runs, and it is what the ranking uses. <b>Marginal working memory</b> (<code>vram_delta</code>) is the memory an agent adds above the fresh-context baseline; it excludes the model weights and is shown only in the per-agent diagnostics.</p></details>
     <details><summary>What does the sample banner mean?</summary>
       <p>The dashboard opens on a bundled sample: accuracy, composite, rank and tier are the locked real results, while latency and token magnitudes and all per-agent numbers are illustrative placeholders. Load a real <code>analysis.json</code> with <b>Load results.json</b> and the banner turns green.</p></details>
-    <details><summary>Are exploratory and custom runs comparable with the study?</summary>
-      <p>They are ranked with the same SAW configuration so you can read them side by side, but they are excluded from the validated study and its statistics, and they are always labelled. The locked study numbers are never modified.</p></details>
+    <details><summary>Are runs from the benchmark service comparable with the study?</summary>
+      <p>Service runs use the same pipeline, scoring and 4-bit NF4 settings, but on your data and on whichever GPU the service runs on (named in every result). They are labelled non-validated and never enter this page's locked study or its statistics.</p></details>
   </div>
 
   </section><!-- /overview -->
@@ -886,14 +808,14 @@
   <div class="panel">
     <h2>Misclassification resource cost <span class="hint">cost when right vs wrong (resource comparison only, not a detection ranking)</span><span class="help"><button class="help-btn" type="button" data-help="misclass" aria-label="What is this?">?</button></span></h2>
     <div class="controls" style="margin-bottom:14px">
-      <label>Metric: <select id="mc-metric">
+      <label>Metric: <select id="mcost-metric">
         <option value="mean_latency_s">Mean latency (s)</option>
         <option value="mean_tokens">Mean tokens</option>
       </select></label>
     </div>
-    <div id="mc-bars"></div>
-    <table id="mc-table" style="margin-top:16px"></table>
-    <p class="note" id="mc-note"></p>
+    <div id="mcost-bars"></div>
+    <table id="mcost-table" style="margin-top:16px"></table>
+    <p class="note" id="mcost-note"></p>
   </div>
 
   </div>
@@ -1011,248 +933,8 @@
   </div><!-- /dpanes -->
   </div><!-- /dlayout -->
 
-  </section><!-- /detailed -->
-
-  <!-- ===================== SESSIONS (CRUD) ===================== -->
-  <section id="view-sessions" class="view">
-  <header class="view-hero">
-    <div class="hero-grid">
-      <div class="hero-main">
-        <h1>Sessions</h1>
-        <p class="tab-intro">Import an <code>analysis.json</code> as a
-    named session, add tags to group runs, and reopen any session to load it into the Overview and Detailed
-    Analysis tabs. Stored results are read-only once saved. (Needs the AgentMeter server.)</p>
-        <p class="note"><b>Local results</b> = result files the server found under <code>results/</code>; <b>Saved sessions</b> = ones you named and kept in the app; <b>Import</b> = upload an <code>analysis.json</code> file.</p>
-      </div>
-    </div>
-  </header>
-  <div class="panel" id="crud-unavailable" style="display:none">
-    <h2>Sessions</h2>
-    <p class="finding">Saved sessions, presets and notes are stored by the server. Open this dashboard <b>from the pull/eval server</b> (or set the server base URL in the Overview → Add a model panel) to manage them. Over <code>file://</code> this is read-only.</p>
-  </div>
-
-  <div id="crud-live" style="display:none">
-    <div class="panel">
-      <h2>Local results <span class="hint">result JSON files found under <code>results/</code> on the server (read-only)</span></h2>
-      <table id="local-table"></table>
-      <p class="note" id="local-msg"></p>
-    </div>
-
-    <div class="panel">
-      <h2>Import a session <span class="hint">save an analysis.json as a named session (read-only once stored)</span></h2>
-      <div class="row">
-        <input type="text" id="sess-name" placeholder="Session name" autocomplete="off">
-        <label class="filelabel">analysis.json <input type="file" id="sess-file" accept="application/json,.json"></label>
-        <button class="primary" id="sess-import-btn">Import session</button>
-      </div>
-      <p class="note" id="sess-import-msg"></p>
-    </div>
-
-    <div class="panel">
-      <h2>Saved sessions <span class="hint">tag sessions to organise them; filter by tag</span></h2>
-      <div class="controls" id="tag-filter-bar" style="margin-bottom:10px">
-        <label>Filter by tag:
-          <select id="sess-tag-filter"><option value="">All sessions</option></select>
-        </label>
-        <span class="note" id="tag-filter-msg" style="margin:0 0 0 10px"></span>
-      </div>
-      <table id="sess-table"></table>
-      <p class="note" id="sess-list-msg"></p>
-    </div>
-
-    <div class="panel" id="open-session-panel" style="display:none">
-      <h2>Open session: <span id="open-sess-name"></span></h2>
-      <p class="lead" id="open-sess-summary"></p>
-      <p class="note">Its analysis is now loaded across the Overview and Detailed Analysis tabs (read-only).</p>
-      <h3 class="crud-h3">Notes</h3>
-      <div class="row" style="margin-bottom:10px">
-        <input type="text" id="note-input" placeholder="Add a note / annotation" autocomplete="off">
-        <button class="primary" id="note-add-btn">Add note</button>
-      </div>
-      <div id="note-list"></div>
-      <p class="note" id="note-msg"></p>
-    </div>
-  </div>
-  </section><!-- /sessions -->
-
-  <!-- ===================== COMPARE (multi-session workspace) ===================== -->
-  <section id="view-compare" class="view">
-  <header class="view-hero">
-    <div class="hero-grid">
-      <div class="hero-main">
-        <h1>Compare runs side by side</h1>
-        <p class="tab-intro">Pick 2–3 saved sessions (for example the same
-    models on different GPUs) to see how their resource cost and scores differ, then export the comparison.
-    Read-only — it changes no numbers.</p>
-      </div>
-    </div>
-  </header>
-  <div class="panel">
-    <h2>Compare sessions <span class="hint">pick 2–3 saved sessions and see resource cost + SAW composite side-by-side (read-only)</span><span class="help"><button class="help-btn" type="button" data-help="compare" aria-label="What is this?">?</button></span></h2>
-    <div class="cmp-slots" id="cmp-slots"></div>
-    <div class="controls" style="margin-top:14px">
-      <label>Metric: <select id="cmp-metric">
-        <option value="composite">SAW composite</option>
-        <option value="accuracy_pct">Accuracy (%)</option>
-        <option value="latency_s">Mean latency (s)</option>
-        <option value="vram">VRAM (GB)</option>
-        <option value="tokens_total">Tokens</option>
-      </select></label>
-      <span class="note" id="cmp-msg" style="margin:0 0 0 12px"></span>
-    </div>
-    <table id="cmp-table" style="margin-top:16px"></table>
-    <div class="exportbar" id="cmp-export" style="display:none">
-      <span class="lbl">Export comparison:</span>
-      <button class="ghost" id="cmp-csv-btn">Comparison CSV</button>
-      <button class="ghost" id="cmp-print-btn">Print comparison</button>
-    </div>
-  </div>
-  </section><!-- /compare -->
-
-  <!-- ===================== CONFIG BUILDER ===================== -->
-  <section id="view-config" class="view">
-  <header class="view-hero">
-    <div class="hero-grid">
-      <div class="hero-main">
-        <h1>Config builder: set up a custom run without editing YAML</h1>
-        <p class="tab-intro">Fill in the form to
-    generate a configuration file for your own choice of models, dataset and weights. It only <b>writes a
-    file</b> — it never starts a run or uses a GPU, and it can't touch the locked validated study.</p>
-      </div>
-    </div>
-  </header>
-  <div class="panel">
-    <h2>Config builder <span class="hint">write a reusable run config (a plan). This only saves a file — nothing runs here.</span></h2>
-    <p class="note"><b>Not sure which?</b> <b>Run one model now</b> (Overview → bottom) executes immediately on the GPU server and shows an exploratory result. <b>Config builder</b> writes a config you run yourself later (and can list many models).</p>
-    <p class="finding" id="cfg-scope">This writes a config to <code>configs/user/&lt;name&gt;.yaml</code>. It does <b>not</b> run inference or use a GPU, and it can <b>never</b> overwrite the locked study config (<code>configs/run_full_l4.yaml</code>) or the root <code>config.yaml</code>. Scope: models, dataset, SAW weights, targets, tiers, agent token budgets.</p>
-    <p class="note" id="cfg-offline" style="display:none">Config builder needs the AgentMeter server (same-origin API). Open this dashboard from a running <code>pull_eval_server.py</code>, or set the server URL in the pull panel.</p>
-
-    <div class="cfg-grid">
-      <label>Config name
-        <input type="text" id="cfg-name" placeholder="my-experiment" value="my-experiment">
-      </label>
-      <label>Dataset path
-        <input type="text" id="cfg-dataset" placeholder="data/cicids_full_300.csv" value="data/cicids_full_300.csv">
-      </label>
-      <label>Provider
-        <select id="cfg-provider">
-          <option value="hf" selected>hf (real models, GPU)</option>
-          <option value="mock">mock (CPU, no GPU)</option>
-        </select>
-      </label>
-    </div>
-
-    <h3 style="margin:18px 0 6px;font-size:14px">Models
-      <span class="hint">one HF id per line. The validated study uses the fixed 5 below.</span></h3>
-    <textarea id="cfg-models" rows="5" class="cfg-ta" spellcheck="false"></textarea>
-    <div class="controls" style="margin-top:6px">
-      <button class="ghost" id="cfg-use-study">Use the validated study's 5 models</button>
-    </div>
-
-    <h3 style="margin:18px 0 6px;font-size:14px">SAW weights
-      <span class="hint">must sum to 1.00</span></h3>
-    <div class="cfg-weights" id="cfg-weights">
-      <label>Accuracy <input type="number" step="0.01" min="0" data-w="accuracy" value="0.40"></label>
-      <label>Latency <input type="number" step="0.01" min="0" data-w="latency" value="0.25"></label>
-      <label>VRAM <input type="number" step="0.01" min="0" data-w="vram" value="0.20"></label>
-      <label>Tokens <input type="number" step="0.01" min="0" data-w="tokens" value="0.15"></label>
-      <span class="cfg-wsum" id="cfg-wsum"></span>
-    </div>
-
-    <h3 style="margin:18px 0 6px;font-size:14px">Targets
-      <span class="hint">normalisation reference values</span></h3>
-    <div class="cfg-grid">
-      <label>Accuracy (%) <input type="number" step="1" min="0" data-t="accuracy_pct" value="80"></label>
-      <label>Latency (s) <input type="number" step="0.1" min="0" data-t="latency_s" value="5"></label>
-      <label>VRAM (MB) <input type="number" step="100" min="0" data-t="vram_mb" value="16000"></label>
-      <label>Tokens total <input type="number" step="10" min="0" data-t="tokens_total" value="1200"></label>
-    </div>
-
-    <h3 style="margin:18px 0 6px;font-size:14px">Tiers
-      <span class="hint">composite thresholds (0–100)</span></h3>
-    <div class="cfg-grid">
-      <label>Healthy min <input type="number" step="1" min="0" max="100" data-tier="healthy_min" value="80"></label>
-      <label>Degraded min <input type="number" step="1" min="0" max="100" data-tier="degraded_min" value="60"></label>
-    </div>
-
-    <h3 style="margin:18px 0 6px;font-size:14px">Agent token budgets
-      <span class="hint">max_new_tokens per pipeline agent</span></h3>
-    <div class="cfg-grid">
-      <label>Perceive <input type="number" step="1" min="1" data-agent="perceive" value="160"></label>
-      <label>Reason <input type="number" step="1" min="1" data-agent="reason" value="200"></label>
-      <label>Decide <input type="number" step="1" min="1" data-agent="decide" value="12"></label>
-      <label>Act <input type="number" step="1" min="1" data-agent="act" value="160"></label>
-    </div>
-
-    <div class="controls" style="margin-top:18px">
-      <button class="ghost" id="cfg-preview-btn">Preview YAML</button>
-      <button class="primary" id="cfg-save-btn">Save config</button>
-      <span class="note" id="cfg-msg" style="margin:0 0 0 12px"></span>
-    </div>
-  </div>
-
-  <div class="panel">
-    <h2>Generated config <span class="hint">review &amp; download</span></h2>
-    <div class="exportbar" id="cfg-preview-bar" style="display:none">
-      <span class="lbl" id="cfg-preview-path"></span>
-      <button class="ghost" id="cfg-download-btn">Download .yaml</button>
-    </div>
-    <div class="exportbar" id="cfg-runner-bar" style="display:none">
-      <span class="lbl">Run it later:</span>
-      <button class="ghost" id="cfg-runner-bat">Download runner (.bat)</button>
-      <button class="ghost" id="cfg-runner-sh">Download runner (.sh)</button>
-      <span class="note" id="cfg-runner-msg" style="margin-left:12px"></span>
-    </div>
-    <p class="note" id="cfg-runner-note" style="display:none">Download this, put it in the
-      AgentMeter folder, and double-click to run. Requires a GPU and the Python environment set up.
-      It wraps <code>python main.py --config configs/user/&lt;name&gt;.yaml run-full</code> — the dashboard
-      never runs it. Results appear in <b>Local results</b> afterward.</p>
-    <div class="exportbar" id="cfg-remote-bar" style="display:none">
-      <span class="lbl">Run on your Vast/SSH GPU box:</span>
-      <button class="ghost" id="cfg-remote-test">Test SSH connection</button>
-      <button class="ghost" id="cfg-remote-bat">Remote runner (.bat)</button>
-      <button class="ghost" id="cfg-remote-sh">Remote runner (.sh)</button>
-      <span class="note" id="cfg-remote-msg" style="margin-left:12px"></span>
-    </div>
-    <p class="note" id="cfg-remote-note" style="display:none"></p>
-    <div class="exportbar" id="cfg-notify-bar" style="display:none">
-      <span class="lbl">Phone alerts (Telegram):</span>
-      <button class="ghost" id="cfg-notify-test">Test Telegram</button>
-      <span class="note" id="cfg-notify-msg" style="margin-left:12px"></span>
-    </div>
-    <p class="note" id="cfg-notify-note" style="display:none"></p>
-    <pre class="cfg-yaml" id="cfg-yaml">Fill in the form and click <b>Preview YAML</b> or <b>Save config</b>.</pre>
-  </div>
-
-  <div class="panel">
-    <h2>Locked study config <span class="hint">validated study, not editable here</span></h2>
-    <p class="note">This is the config behind the locked results. It is shown read-only for reference; the builder will never write to it.</p>
-    <pre class="cfg-yaml locked" id="cfg-locked">Loading locked config…</pre>
-  </div>
-  </section><!-- /config -->
-
-  <!-- ===================== SETTINGS (STATUS ONLY) ===================== -->
-  <section id="view-settings" class="view">
-  <header class="view-hero">
-    <div class="hero-grid">
-      <div class="hero-main">
-        <h1>Settings &amp; glossary</h1>
-        <p class="tab-intro">Shows which API tokens the server has configured
-    (set / not set) and the cost-safety options. No secrets are ever entered or displayed here.</p>
-      </div>
-    </div>
-  </header>
-  <div class="panel">
-    <h2>Settings <span class="hint">status only</span></h2>
-    <p class="finding" id="settings-note">Tokens are configured via the server-side <code>.env</code> file for security and are never entered or shown here.</p>
-    <h3 style="margin:6px 0 10px;font-size:14px">Token status</h3>
-    <div class="status-grid" id="settings-tokens"></div>
-    <h3 style="margin:20px 0 10px;font-size:14px">Cost safety</h3>
-    <div class="status-grid" id="settings-cost"></div>
-    <p class="note" id="settings-status"></p>
-  </div>
-
-  <div class="panel">
+  <h2 class="section-label">Glossary</h2>
+  <div class="panel" id="glossary-panel">
     <h2>Glossary <span class="hint">key terms in plain language</span></h2>
     <div class="glossary" id="glossary">
       <div><span class="term">SAW composite score</span> — <span class="def">one 0–1 number blending accuracy, latency, memory and tokens by the chosen weights; higher is better.</span></div>
@@ -1266,7 +948,8 @@
       <div><span class="term">Pareto front</span> — <span class="def">the models where you can't improve one metric without worsening another — the best available trade-offs.</span></div>
     </div>
   </div>
-  </section><!-- /settings -->
+  </section><!-- /detailed -->
+
   </main>
 
 <footer class="site-foot">
@@ -1278,8 +961,8 @@
       </div>
       <div class="about"><p>Resource efficiency of open-source LLMs in agentic threat-detection pipelines.</p></div>
       <div class="cols">
-        <div><h4>Results</h4><ul><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;overview&quot;]').click();window.scrollTo(0,0)">Overview</button></li><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;detailed&quot;]').click();window.scrollTo(0,0)">Detailed analysis</button></li><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;compare&quot;]').click();window.scrollTo(0,0)">Compare runs</button></li></ul></div>
-        <div><h4>Workspace</h4><ul><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;sessions&quot;]').click();window.scrollTo(0,0)">Sessions</button></li><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;config&quot;]').click();window.scrollTo(0,0)">Config builder</button></li><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;settings&quot;]').click();window.scrollTo(0,0)">Settings &amp; glossary</button></li></ul></div>
+        <div><h4>Results</h4><ul><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;overview&quot;]').click();window.scrollTo(0,0)">Overview</button></li><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;detailed&quot;]').click();window.scrollTo(0,0)">Detailed analysis</button></li></ul></div>
+        <div><h4>Benchmark service</h4><ul><li><a href="/service#/prepare">Prepare data</a></li><li><a href="/service#/benchmark">Benchmark</a></li></ul></div>
         <div><h4>Method</h4><ul><li>Four-agent pipeline: Perceive &rarr; Reason &rarr; Decide &rarr; Act</li><li>Per-agent wall time, TTFT, VRAM, tokens</li><li>SAW composite + Kruskal-Wallis / Dunn</li></ul></div>
       </div>
     </div>
@@ -2594,7 +2277,6 @@
 
 <script src="saw.js"></script>
 <script src="report.js"></script>
-<script src="pull-config.js"></script>
 <script>
 (function () {
   "use strict";
@@ -3383,10 +3065,10 @@
   }
 
   function renderMisclass() {
-    var a = adv(); var el = document.getElementById("mc-table"); if (!el) return;
+    var a = adv(); var el = document.getElementById("mcost-table"); if (!el) return;
     var rows = (a && a.misclass_cost && a.misclass_cost.rows) || [];
-    if (!rows.length) { document.getElementById("mc-bars").innerHTML = "<span class='note'>(no advanced data)</span>"; el.innerHTML = ""; return; }
-    var metric = (document.getElementById("mc-metric") || {}).value || "mean_latency_s";
+    if (!rows.length) { document.getElementById("mcost-bars").innerHTML = "<span class='note'>(no advanced data)</span>"; el.innerHTML = ""; return; }
+    var metric = (document.getElementById("mcost-metric") || {}).value || "mean_latency_s";
     var fmt = metric === "mean_tokens" ? function (v) { return Math.round(v).toLocaleString(); } : function (v) { return v.toFixed(2) + " s"; };
     var byModel = {};
     rows.forEach(function (r) { (byModel[r.model] = byModel[r.model] || {})[r.group] = r; });
@@ -3394,7 +3076,7 @@
     var gr = models.map(function (m) {
       return { model: m, correct: (byModel[m].correct || {})[metric], incorrect: (byModel[m].incorrect || {})[metric] };
     });
-    groupedBars("mc-bars", gr, "correct", "incorrect", "correct (TP/TN)", "incorrect (FP/FN)", fmt);
+    groupedBars("mcost-bars", gr, "correct", "incorrect", "correct (TP/TN)", "incorrect (FP/FN)", fmt);
     el.innerHTML = "<thead><tr><th class='l'>Model</th><th>Group</th><th>n</th><th>Mean latency</th><th>Mean tokens</th></tr></thead><tbody>" +
       rows.map(function (r) {
         return "<tr><td class='model l'>" + esc(r.model) + "</td><td class='l'>" + esc(r.group) + "</td>" +
@@ -3402,317 +3084,15 @@
           "<td>" + (r.mean_latency_s != null ? r.mean_latency_s.toFixed(2) + " s" : "—") + "</td>" +
           "<td>" + (r.mean_tokens != null ? Math.round(r.mean_tokens).toLocaleString() : "—") + "</td></tr>";
       }).join("") + "</tbody>";
-    document.getElementById("mc-note").textContent =
+    document.getElementById("mcost-note").textContent =
       "RESOURCE cost only — how much latency/tokens a model spends when its prediction is right vs wrong. Not an analysis of why models misclassify, and not a detection ranking.";
   }
 
   function renderAdvanced() {
     renderPareto(); renderCov(); renderPrefillDecode(); renderThroughput(); renderMisclass();
-    var msel = document.getElementById("mc-metric");
+    var msel = document.getElementById("mcost-metric");
     if (msel && !msel._wired) { msel._wired = true; msel.onchange = renderMisclass; }
   }
-
-  // ==== Settings (STATUS ONLY — never any token value) ====
-  function statusItem(label, on, onText, offText) {
-    return "<div class='status-item'><span class='lbl'>" + esc(label) + "</span>" +
-      "<span class='pill " + (on ? "on" : "off") + "'>" + esc(on ? onText : offText) + "</span></div>";
-  }
-  var TOKEN_LABELS = { HF_TOKEN: "HF token", VAST_API_KEY: "Vast API key",
-                       VAST_INSTANCE_ID: "Vast instance id", GITHUB_TOKEN: "GitHub token" };
-  function renderSettings() {
-    var base = (typeof pullBaseUrl === "function") ? pullBaseUrl() : "";
-    var tEl = document.getElementById("settings-tokens");
-    var cEl = document.getElementById("settings-cost");
-    var sEl = document.getElementById("settings-status");
-    if (!base && location.protocol === "file:") {
-      tEl.innerHTML = ""; cEl.innerHTML = "";
-      sEl.textContent = "Status unavailable — open via the server to see live status.";
-      return;
-    }
-    sEl.textContent = "Loading status…";
-    fetch(base + "/settings-status").then(function (r) {
-      if (!r.ok) throw new Error("HTTP " + r.status); return r.json();
-    }).then(function (d) {
-      var toks = d.tokens || {};
-      tEl.innerHTML = Object.keys(TOKEN_LABELS).map(function (k) {
-        return statusItem(TOKEN_LABELS[k], !!toks[k], "set", "not set");
-      }).join("");
-      var cs = d.cost_safety || {};
-      cEl.innerHTML =
-        statusItem("Auto-destroy", !!cs.auto_destroy, "on", "off") +
-        "<div class='status-item'><span class='lbl'>Idle-timeout</span><span class='pill " +
-          (cs.idle_timeout_min ? "on" : "off") + "'>" +
-          (cs.idle_timeout_min ? (cs.idle_timeout_min + " min") : "disabled") + "</span></div>";
-      sEl.textContent = "";
-    }).catch(function (err) {
-      tEl.innerHTML = ""; cEl.innerHTML = "";
-      sEl.textContent = "Status unavailable — open via the server to see live status. (" + err.message + ")";
-    });
-  }
-
-  // ==== CRUD: sessions / presets / notes (Phase 12) ====
-  var CRUD = (function () {
-    var WKEY = { accuracy: "w_accuracy", latency: "w_latency", vram: "w_vram", tokens: "w_tokens" };
-    var openSessionId = null;
-
-    function base() { return (typeof pullBaseUrl === "function") ? pullBaseUrl() : ""; }
-    function available() { return !(location.protocol === "file:" && !base()); }
-
-    function j(method, path, payload) {
-      var opts = { method: method, headers: {} };
-      if (payload !== undefined) { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(payload); }
-      return fetch(base() + path, opts).then(function (r) {
-        return r.text().then(function (t) {
-          var d = {}; try { d = t ? JSON.parse(t) : {}; } catch (e) {}
-          if (!r.ok) throw new Error((d && d.error) || ("HTTP " + r.status));
-          return d;
-        });
-      });
-    }
-
-    function setMsg(id, text, cls) { var el = document.getElementById(id); if (el) { el.className = "note" + (cls ? " " + cls : ""); el.textContent = text || ""; } }
-
-    // ---- presets ----
-    function currentWeights() {
-      return { w_accuracy: +state.weights.accuracy || 0, w_latency: +state.weights.latency || 0,
-               w_vram: +state.weights.vram || 0, w_tokens: +state.weights.tokens || 0 };
-    }
-    function refreshPresets() {
-      var block = document.getElementById("saved-presets-block");
-      if (!block) return;
-      if (!available()) { document.getElementById("preset-list").innerHTML =
-        "<span class='note'>Connect via the server to save/load presets.</span>"; return; }
-      j("GET", "/presets").then(function (d) { renderPresets(d.presets || []); })
-        .catch(function (e) { setMsg("preset-msg", "Could not load presets: " + e.message, "err"); });
-    }
-    function renderPresets(list) {
-      var el = document.getElementById("preset-list");
-      el.innerHTML = list.map(function (p) {
-        var w = [p.w_accuracy, p.w_latency, p.w_vram, p.w_tokens].map(function (x) { return (+x).toFixed(2); }).join("/");
-        var actions = '<button data-act="load" data-id="' + p.id + '">Load</button>';
-        if (p.is_builtin) actions += '<span class="builtin">builtin</span>';
-        else actions += '<button data-act="update" data-id="' + p.id + '">Update</button>' +
-                        '<button class="danger" data-act="delete" data-id="' + p.id + '">Delete</button>';
-        return '<span class="chip"><span class="cname">' + esc(p.name) + '</span>' +
-          '<span class="cw">' + w + '</span>' + actions + '</span>';
-      }).join("");
-      Array.prototype.forEach.call(el.querySelectorAll("button"), function (b) {
-        b.addEventListener("click", function () {
-          var id = +b.dataset.id, act = b.dataset.act;
-          var p = list.filter(function (x) { return x.id === id; })[0];
-          if (act === "load") { setWeights({ accuracy: p.w_accuracy, latency: p.w_latency, vram: p.w_vram, tokens: p.w_tokens }); setMsg("preset-msg", "Loaded preset '" + p.name + "' into the sliders.", "ok"); }
-          else if (act === "update") { j("PATCH", "/presets/" + id, currentWeights()).then(function () { setMsg("preset-msg", "Updated '" + p.name + "'.", "ok"); refreshPresets(); }).catch(function (e) { setMsg("preset-msg", e.message, "err"); }); }
-          else if (act === "delete") { if (!confirm("Delete preset '" + p.name + "'?")) return; j("DELETE", "/presets/" + id).then(function () { setMsg("preset-msg", "Deleted '" + p.name + "'.", "ok"); refreshPresets(); }).catch(function (e) { setMsg("preset-msg", e.message, "err"); }); }
-        });
-      });
-    }
-    function savePreset() {
-      var name = (document.getElementById("preset-name").value || "").trim();
-      if (!name) { setMsg("preset-msg", "Enter a preset name.", "err"); return; }
-      var payload = currentWeights(); payload.name = name;
-      j("POST", "/presets", payload).then(function () {
-        document.getElementById("preset-name").value = "";
-        setMsg("preset-msg", "Saved preset '" + name + "'.", "ok"); refreshPresets();
-      }).catch(function (e) { setMsg("preset-msg", e.message, "err"); });
-    }
-
-    // ---- sessions ----
-    var tagFilter = "";   // current tag filter (tag id as string; "" = all)
-    function refreshSessions() {
-      var live = available();
-      document.getElementById("crud-unavailable").style.display = live ? "none" : "block";
-      document.getElementById("crud-live").style.display = live ? "block" : "none";
-      if (!live) return;
-      loadLocal();
-      loadTagFilter();
-      var q = tagFilter ? ("?tag=" + encodeURIComponent(tagFilter)) : "";
-      j("GET", "/sessions" + q).then(function (d) { renderSessions(d.sessions || []); })
-        .catch(function (e) { setMsg("sess-list-msg", "Could not load sessions: " + e.message, "err"); });
-    }
-
-    // ---- tags (Phase 19) ----
-    function loadTagFilter() {
-      j("GET", "/tags").then(function (d) {
-        var tags = d.tags || [];
-        var sel = document.getElementById("sess-tag-filter");
-        if (!sel) return;
-        var cur = tagFilter;
-        sel.innerHTML = '<option value="">All sessions</option>' + tags.map(function (t) {
-          return '<option value="' + t.id + '"' + (String(t.id) === cur ? " selected" : "") +
-            ">" + esc(t.name) + " (" + t.session_count + ")</option>";
-        }).join("");
-        if (!sel._wired) {
-          sel._wired = true;
-          sel.addEventListener("change", function () { tagFilter = sel.value; refreshSessions(); });
-        }
-      }).catch(function () { /* tags optional */ });
-    }
-    function addTagToSession(id, name) {
-      j("POST", "/sessions/" + id + "/tags", { name: name }).then(function () {
-        setMsg("sess-list-msg", "Tag added.", "ok"); refreshSessions();
-      }).catch(function (e) { setMsg("sess-list-msg", e.message, "err"); });
-    }
-    function removeTagFromSession(sid, tid) {
-      j("DELETE", "/sessions/" + sid + "/tags/" + tid).then(function () {
-        setMsg("sess-list-msg", "Tag removed.", "ok"); refreshSessions();
-      }).catch(function (e) { setMsg("sess-list-msg", e.message, "err"); });
-    }
-
-    // ---- local results (Phase 16: read-only discovery under results/) ----
-    function loadLocal() {
-      j("GET", "/api/local-sessions").then(function (d) { renderLocal(d.files || []); })
-        .catch(function (e) { setMsg("local-msg", "Could not list local results: " + e.message, "err"); });
-    }
-    function fmtBytes(n) {
-      if (n == null) return "—";
-      if (n < 1024) return n + " B";
-      if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
-      return (n / 1048576).toFixed(1) + " MB";
-    }
-    function renderLocal(files) {
-      var el = document.getElementById("local-table");
-      if (!files.length) { el.innerHTML = "<tbody><tr><td class='l'>No result JSON files under results/ on the server.</td></tr></tbody>"; return; }
-      el.innerHTML = "<thead><tr><th class='l'>File</th><th>Size</th><th class='l'>Modified</th><th class='l'></th></tr></thead><tbody>" +
-        files.map(function (f) {
-          return "<tr><td class='model l'>" + esc(f.name) + "</td>" +
-            "<td>" + fmtBytes(f.size) + "</td>" +
-            "<td class='l'>" + esc((f.modified || "").replace("T", " ").replace("+00:00", "")) + "</td>" +
-            "<td class='l rowact'><button data-name=\"" + esc(f.name) + "\">Load</button></td></tr>";
-        }).join("") + "</tbody>";
-      Array.prototype.forEach.call(el.querySelectorAll("button"), function (b) {
-        b.addEventListener("click", function () { openLocal(b.dataset.name); });
-      });
-    }
-    function openLocal(name) {
-      j("GET", "/api/local-sessions/" + name.split("/").map(encodeURIComponent).join("/"))
-        .then(function (data) {
-          state.exploratory = null;
-          load(validate(data), "loaded", "results/" + name);
-          setMsg("local-msg", "Loaded results/" + name + " — see the Overview / Detailed Analysis tabs.", "ok");
-        })
-        .catch(function (e) { setMsg("local-msg", "Could not load " + name + ": " + e.message, "err"); });
-    }
-    function tagsCellHtml(s) {
-      var chips = (s.tags || []).map(function (t) {
-        return '<span class="tagchip">' + esc(t.name) +
-          '<span class="tag-x" data-act="untag" data-id="' + s.id + '" data-tid="' + t.id +
-          '" title="Remove tag">×</span></span>';
-      }).join("");
-      return "<td class='l tagcell'>" + chips +
-        '<button class="addtag" data-act="addtag" data-id="' + s.id + '">+ tag</button></td>';
-    }
-    function renderSessions(list) {
-      var el = document.getElementById("sess-table");
-      if (!list.length) {
-        var empty = tagFilter ? "No sessions carry this tag." : "No saved sessions yet — import an analysis.json above.";
-        el.innerHTML = "<tbody><tr><td class='l'>" + empty + "</td></tr></tbody>"; return;
-      }
-      el.innerHTML = "<thead><tr><th class='l'>Name</th><th class='l'>Top model</th><th>Models</th><th class='l'>Tags</th><th class='l'>Created</th><th class='l'></th></tr></thead><tbody>" +
-        list.map(function (s) {
-          var sm = s.summary || {};
-          return "<tr><td class='model l'>" + esc(s.name) + "</td>" +
-            "<td class='l'>" + esc(sm.top_model || "—") + "</td>" +
-            "<td>" + (sm.model_count != null ? sm.model_count : "—") + "</td>" +
-            tagsCellHtml(s) +
-            "<td class='l'>" + esc((s.created_at || "").replace("T", " ").replace("+00:00", "")) + "</td>" +
-            "<td class='l rowact'>" +
-              '<button data-act="open" data-id="' + s.id + '">Open</button>' +
-              '<button data-act="rename" data-id="' + s.id + '">Rename</button>' +
-              '<button class="danger" data-act="delete" data-id="' + s.id + '">Delete</button>' +
-            "</td></tr>";
-        }).join("") + "</tbody>";
-      Array.prototype.forEach.call(el.querySelectorAll("button, .tag-x"), function (b) {
-        b.addEventListener("click", function () {
-          var id = +b.dataset.id, act = b.dataset.act;
-          var s = list.filter(function (x) { return x.id === id; })[0];
-          if (act === "open") openSession(id);
-          else if (act === "addtag") {
-            var tn = prompt("Add a tag to '" + s.name + "':", ""); if (tn == null) return;
-            tn = tn.trim(); if (!tn) return;
-            addTagToSession(id, tn);
-          } else if (act === "untag") {
-            removeTagFromSession(id, +b.dataset.tid);
-          } else if (act === "rename") {
-            var nn = prompt("Rename session:", s.name); if (nn == null) return;
-            j("PATCH", "/sessions/" + id, { name: nn }).then(function () { setMsg("sess-list-msg", "Renamed.", "ok"); refreshSessions(); }).catch(function (e) { setMsg("sess-list-msg", e.message, "err"); });
-          } else if (act === "delete") {
-            if (!confirm("Delete session '" + s.name + "' and its notes?")) return;
-            j("DELETE", "/sessions/" + id).then(function () { if (openSessionId === id) { openSessionId = null; document.getElementById("open-session-panel").style.display = "none"; } setMsg("sess-list-msg", "Deleted.", "ok"); refreshSessions(); }).catch(function (e) { setMsg("sess-list-msg", e.message, "err"); });
-          }
-        });
-      });
-    }
-    function openSession(id) {
-      j("GET", "/sessions/" + id).then(function (s) {
-        openSessionId = id;
-        state.exploratory = null;
-        load(validate(s.analysis), "loaded", "session: " + s.name);
-        document.getElementById("open-session-panel").style.display = "block";
-        document.getElementById("open-sess-name").textContent = s.name;
-        var sm = s.summary || {};
-        document.getElementById("open-sess-summary").textContent =
-          "Imported " + (s.source_filename || "analysis.json") + " · " + (sm.model_count || 0) +
-          " models · top: " + (sm.top_model || "—");
-        refreshNotes();
-        setMsg("sess-list-msg", "Opened '" + s.name + "' — see the Overview / Detailed Analysis tabs.", "ok");
-      }).catch(function (e) { setMsg("sess-list-msg", e.message, "err"); });
-    }
-    function importSession() {
-      var name = (document.getElementById("sess-name").value || "").trim();
-      var f = document.getElementById("sess-file").files[0];
-      if (!name) { setMsg("sess-import-msg", "Enter a session name.", "err"); return; }
-      if (!f) { setMsg("sess-import-msg", "Choose an analysis.json file.", "err"); return; }
-      var rd = new FileReader();
-      rd.onload = function () {
-        var a; try { a = validate(JSON.parse(rd.result)); } catch (e) { setMsg("sess-import-msg", "Not a valid analysis.json: " + e.message, "err"); return; }
-        j("POST", "/sessions", { name: name, analysis: a, source_filename: f.name }).then(function () {
-          document.getElementById("sess-name").value = ""; document.getElementById("sess-file").value = "";
-          setMsg("sess-import-msg", "Imported session '" + name + "'.", "ok"); refreshSessions();
-        }).catch(function (e) { setMsg("sess-import-msg", e.message, "err"); });
-      };
-      rd.readAsText(f);
-    }
-
-    // ---- notes ----
-    function refreshNotes() {
-      if (openSessionId == null) return;
-      j("GET", "/sessions/" + openSessionId + "/notes").then(function (d) { renderNotes(d.notes || []); })
-        .catch(function (e) { setMsg("note-msg", e.message, "err"); });
-    }
-    function renderNotes(list) {
-      var el = document.getElementById("note-list");
-      el.innerHTML = list.length ? list.map(function (n) {
-        return '<div class="note-item"><div class="nbody">' + esc(n.body) +
-          '<div class="nmeta">' + esc((n.updated_at || "").replace("T", " ").replace("+00:00", "")) + '</div></div>' +
-          '<div class="rowact"><button data-act="edit" data-id="' + n.id + '">Edit</button>' +
-          '<button class="danger" data-act="delete" data-id="' + n.id + '">Delete</button></div></div>';
-      }).join("") : "<span class='note'>No notes yet.</span>";
-      Array.prototype.forEach.call(el.querySelectorAll("button"), function (b) {
-        b.addEventListener("click", function () {
-          var id = +b.dataset.id, act = b.dataset.act;
-          var n = list.filter(function (x) { return x.id === id; })[0];
-          if (act === "edit") { var nb = prompt("Edit note:", n.body); if (nb == null) return; j("PATCH", "/notes/" + id, { body: nb }).then(refreshNotes).catch(function (e) { setMsg("note-msg", e.message, "err"); }); }
-          else if (act === "delete") { if (!confirm("Delete this note?")) return; j("DELETE", "/notes/" + id).then(refreshNotes).catch(function (e) { setMsg("note-msg", e.message, "err"); }); }
-        });
-      });
-    }
-    function addNote() {
-      if (openSessionId == null) return;
-      var body = (document.getElementById("note-input").value || "").trim();
-      if (!body) { setMsg("note-msg", "Enter a note.", "err"); return; }
-      j("POST", "/notes", { session_id: openSessionId, body: body }).then(function () {
-        document.getElementById("note-input").value = ""; setMsg("note-msg", "", ""); refreshNotes();
-      }).catch(function (e) { setMsg("note-msg", e.message, "err"); });
-    }
-
-    function init() {
-      var sb = document.getElementById("preset-save-btn"); if (sb) sb.addEventListener("click", savePreset);
-      var ib = document.getElementById("sess-import-btn"); if (ib) ib.addEventListener("click", importSession);
-      var nb = document.getElementById("note-add-btn"); if (nb) nb.addEventListener("click", addNote);
-      refreshPresets();
-    }
-    return { init: init, refreshSessions: refreshSessions, refreshPresets: refreshPresets };
-  })();
 
   // ==== export helpers (offline, no external services) ====
   function downloadText(filename, text, mime) {
@@ -3751,468 +3131,9 @@
     });
   }
 
-  // ==== Compare workspace (multi-session, read-only) ====
-  var COMPARE = (function () {
-    var N = 3;
-    var slots = [];                 // [{data, label}]
-    var sources = [];               // [{key,label,kind,ref}]
-    for (var i = 0; i < N; i++) slots.push({ data: null, label: "" });
-
-    function base() { return (typeof pullBaseUrl === "function") ? pullBaseUrl() : ""; }
-    function live() { return !(location.protocol === "file:" && !base()); }
-    function jget(path) {
-      return fetch(base() + path).then(function (r) {
-        if (!r.ok) throw new Error("HTTP " + r.status); return r.json();
-      });
-    }
-
-    function refresh() {
-      // rebuild the source list: current session + (live) saved sessions + local results
-      sources = [];
-      if (state.data) sources.push({ key: "current", label: "Current loaded session", kind: "current" });
-      var done = function () { renderSlots(); render(); };
-      if (!live()) { done(); return; }
-      Promise.all([
-        jget("/sessions").then(function (d) { return d.sessions || []; }).catch(function () { return []; }),
-        jget("/api/local-sessions").then(function (d) { return d.files || []; }).catch(function () { return []; })
-      ]).then(function (res) {
-        (res[0] || []).forEach(function (s) {
-          sources.push({ key: "session:" + s.id, label: "Session: " + s.name, kind: "session", ref: s.id }); });
-        (res[1] || []).forEach(function (f) {
-          sources.push({ key: "local:" + f.name, label: "results/" + f.name, kind: "local", ref: f.name }); });
-        done();
-      }).catch(done);
-    }
-
-    function optionsHtml(selKey) {
-      var opts = ['<option value="">— none —</option>'];
-      sources.forEach(function (s) {
-        opts.push('<option value="' + esc(s.key) + '"' + (s.key === selKey ? " selected" : "") + ">" + esc(s.label) + "</option>");
-      });
-      return opts.join("");
-    }
-    function renderSlots() {
-      var box = document.getElementById("cmp-slots");
-      box.innerHTML = slots.map(function (sl, i) {
-        var status = sl.data ? ('<span class="loaded">✓ ' + esc(sl.label || "loaded") + "</span>")
-                             : '<span class="empty">empty</span>';
-        return '<div class="cmp-slot"><h4>Session ' + (i + 1) + "</h4>" +
-          '<select data-slot="' + i + '" class="cmp-src">' + optionsHtml(sl.srcKey) + "</select>" +
-          '<input type="file" data-slot="' + i + '" class="cmp-file" accept="application/json,.json">' +
-          status + "</div>";
-      }).join("");
-      Array.prototype.forEach.call(box.querySelectorAll(".cmp-src"), function (sel) {
-        sel.addEventListener("change", function () { pickSource(+sel.dataset.slot, sel.value); });
-      });
-      Array.prototype.forEach.call(box.querySelectorAll(".cmp-file"), function (inp) {
-        inp.addEventListener("change", function (e) { pickFile(+inp.dataset.slot, e.target.files[0]); });
-      });
-    }
-
-    function setSlot(i, data, label, srcKey) {
-      try { data = validate(data); } catch (e) { setMsgC("Slot " + (i + 1) + ": " + e.message, true); return; }
-      slots[i] = { data: data, label: label, srcKey: srcKey };
-      renderSlots(); render();
-    }
-    function pickSource(i, key) {
-      if (!key) { slots[i] = { data: null, label: "" }; renderSlots(); render(); return; }
-      var src = sources.filter(function (s) { return s.key === key; })[0];
-      if (!src) return;
-      if (src.kind === "current") { setSlot(i, state.data, "current session", key); return; }
-      var p = src.kind === "session" ? jget("/sessions/" + src.ref).then(function (s) { return s.analysis; })
-                                     : jget("/api/local-sessions/" + src.ref.split("/").map(encodeURIComponent).join("/"));
-      p.then(function (d) { setSlot(i, d, src.label, key); })
-       .catch(function (e) { setMsgC("Slot " + (i + 1) + ": " + e.message, true); });
-    }
-    function pickFile(i, f) {
-      if (!f) return;
-      var rd = new FileReader();
-      rd.onload = function () {
-        try { setSlot(i, JSON.parse(rd.result), f.name, null); }
-        catch (e) { setMsgC("Slot " + (i + 1) + ": not valid JSON", true); }
-      };
-      rd.readAsText(f);
-    }
-
-    function filled() {
-      return slots.filter(function (s) { return s.data; })
-                  .map(function (s) { return { label: s.label || "session", data: s.data }; });
-    }
-    function setMsgC(t, err) { var el = document.getElementById("cmp-msg"); el.className = "note" + (err ? " err" : ""); el.textContent = t || ""; }
-
-    function fmtMetric(v, key) {
-      if (v == null || isNaN(v)) return "—";
-      if (key === "composite") return (+v).toFixed(3);
-      if (key === "accuracy_pct") return (+v).toFixed(1) + "%";
-      if (key === "latency_s") return (+v).toFixed(2) + " s";
-      if (key === "vram") return (+v / 1024).toFixed(1) + " GB";
-      if (key === "tokens_total") return Math.round(v).toLocaleString();
-      return String(v);
-    }
-    function render() {
-      var f = filled();
-      var tbl = document.getElementById("cmp-table");
-      var exp = document.getElementById("cmp-export");
-      if (f.length < 2) {
-        tbl.innerHTML = "<tbody><tr><td class='l'>Pick at least 2 sessions above to compare.</td></tr></tbody>";
-        exp.style.display = "none";
-        if (f.length === 0) setMsgC("");
-        return;
-      }
-      var metric = (document.getElementById("cmp-metric") || {}).value || "composite";
-      var cmp = REPORT.compareSessions(f);
-      var head = "<thead><tr><th class='l'>Model</th>" +
-        cmp.sessions.map(function (s) {
-          return "<th>" + esc(s.label) + "<br><span class='note' style='font-weight:400'>top: " + esc(s.top || "—") + "</span></th>";
-        }).join("") + "</tr></thead>";
-      var body = cmp.rows.map(function (row) {
-        var bestIdx = row.best[metric];
-        return "<tr><td class='model l'>" + esc(row.model) + "</td>" +
-          row.cells.map(function (c, i) {
-            var v = REPORT.metricValue(c, metric);
-            return "<td class='" + (i === bestIdx ? "cmp-best" : "") + "'>" + fmtMetric(v, metric) + "</td>";
-          }).join("") + "</tr>";
-      }).join("");
-      tbl.innerHTML = head + "<tbody>" + body + "</tbody>";
-      exp.style.display = "flex";
-      var better = REPORT.HIGHER_BETTER[metric] ? "higher" : "lower";
-      setMsgC("Best value per model highlighted (" + better + " is better). Composites/tiers are read verbatim from each session's analysis.json (same SAW config).");
-    }
-
-    function init() {
-      var m = document.getElementById("cmp-metric"); if (m) m.addEventListener("change", render);
-      var csv = document.getElementById("cmp-csv-btn");
-      if (csv) csv.addEventListener("click", function () {
-        var f = filled(); if (f.length < 2) return;
-        downloadText("agentmeter_comparison.csv", REPORT.comparisonCsv(f));
-      });
-      var pr = document.getElementById("cmp-print-btn");
-      if (pr) pr.addEventListener("click", function () {
-        var f = filled(); if (f.length < 2) return;
-        printReport(comparisonReportHtml(f));
-      });
-    }
-    // a small print report for the comparison (reuses each session's report body is overkill;
-    // build a compact composite table)
-    function comparisonReportHtml(f) {
-      var cmp = REPORT.compareSessions(f);
-      function esch(s) { return String(s == null ? "" : s).replace(/[&<>]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]; }); }
-      var head = "<tr><th>Model</th>" + cmp.sessions.map(function (s) { return "<th>" + esch(s.label) + " (composite)</th>"; }).join("") + "</tr>";
-      var rows = cmp.rows.map(function (r) {
-        return "<tr><td class='l'>" + esch(r.model) + "</td>" + r.cells.map(function (c) {
-          var v = REPORT.metricValue(c, "composite"); return "<td>" + (v == null ? "—" : (+v).toFixed(3)) + "</td>";
-        }).join("") + "</tr>";
-      }).join("");
-      return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>AgentMeter comparison</title>" +
-        "<style>body{font:14px/1.5 system-ui,sans-serif;max-width:900px;margin:24px auto;padding:0 16px;color:#1c2128;}" +
-        "h1{font-size:20px;} table{width:100%;border-collapse:collapse;} th,td{border-bottom:1px solid #e2e6ec;padding:6px 8px;text-align:right;}" +
-        "th:first-child,td:first-child,.l{text-align:left;} thead th{color:#5b6675;font-size:12px;text-transform:uppercase;}</style></head><body>" +
-        "<h1>AgentMeter — session comparison (SAW composite)</h1>" +
-        "<p style='color:#5b6675'>Sessions: " + cmp.sessions.map(function (s) { return esch(s.label) + " (top: " + esch(s.top || "—") + ")"; }).join(" · ") +
-        " · generated " + new Date().toISOString().slice(0, 19).replace("T", " ") + " UTC</p>" +
-        "<table><thead>" + head + "</thead><tbody>" + rows + "</tbody></table>" +
-        "<p style='color:#8a8f98;font-size:12px;margin-top:24px'>Resource-efficiency composite (read-only). Not a detection-quality ranking.</p></body></html>";
-    }
-
-    return { init: init, refresh: refresh };
-  })();
-
-  // ==== Config builder (Phase 18) — generate a run config; never starts a run ====
-  var CONFIG = (function () {
-    var STUDY = [
-      "mistralai/Mistral-7B-Instruct-v0.3",
-      "meta-llama/Meta-Llama-3-8B-Instruct",
-      "Qwen/Qwen2.5-7B-Instruct",
-      "microsoft/Phi-3-mini-4k-instruct",
-      "google/gemma-2-9b-it"
-    ];
-    var lastYaml = "", lastName = "config.yaml", lastConfigStem = "", loadedLocked = false;
-
-    function base() { return (typeof pullBaseUrl === "function") ? pullBaseUrl() : ""; }
-    function live() { return !(location.protocol === "file:" && !base()); }
-    function $(id) { return document.getElementById(id); }
-
-    function readWeights() {
-      var w = {};
-      Array.prototype.forEach.call(document.querySelectorAll("#cfg-weights input[data-w]"), function (el) {
-        w[el.dataset.w] = parseFloat(el.value);
-      });
-      return w;
-    }
-    function collect(kind, sel) {
-      var out = {};
-      Array.prototype.forEach.call(document.querySelectorAll(sel), function (el) {
-        var v = parseFloat(el.value);
-        if (!isNaN(v)) out[el.dataset[kind]] = v;
-      });
-      return out;
-    }
-    function models() {
-      return ($("cfg-models").value || "").split(/\r?\n/).map(function (s) { return s.trim(); })
-        .filter(function (s) { return s.length; });
-    }
-    function payload() {
-      return {
-        name: $("cfg-name").value,
-        provider: $("cfg-provider").value,
-        dataset_path: $("cfg-dataset").value,
-        models: models(),
-        weights: readWeights(),
-        targets: collect("t", "#view-config input[data-t]"),
-        tiers: collect("tier", "#view-config input[data-tier]"),
-        agent_tokens: collect("agent", "#view-config input[data-agent]")
-      };
-    }
-
-    function updateWsum() {
-      var w = readWeights(), sum = 0, ok = true;
-      Object.keys(w).forEach(function (k) { if (isNaN(w[k])) ok = false; else sum += w[k]; });
-      var el = $("cfg-wsum");
-      var good = ok && Math.abs(sum - 1.0) < 1e-6;
-      el.textContent = "sum = " + (isNaN(sum) ? "?" : sum.toFixed(2)) + (good ? " ✓" : " (must be 1.00)");
-      el.className = "cfg-wsum " + (good ? "ok" : "bad");
-      return good;
-    }
-
-    function setMsg(text, bad) {
-      var el = $("cfg-msg");
-      el.textContent = text || "";
-      el.style.color = bad ? "#c0392b" : "var(--loaded)";
-    }
-
-    function showYaml(yaml, path) {
-      lastYaml = yaml;
-      $("cfg-yaml").textContent = yaml;
-      if (path) {
-        // the saved path may use "/" (Unix) or "\" (Windows) separators
-        lastName = path.split(/[\\/]/).pop();
-        lastConfigStem = lastName.replace(/\.yaml$/i, "");
-        $("cfg-preview-path").textContent = "Saved: " + path;
-        $("cfg-preview-bar").style.display = "flex";
-        // runner is offered only for a SAVED user config (needs a real file)
-        $("cfg-runner-bar").style.display = "flex";
-        $("cfg-runner-note").style.display = "block";
-        refreshVastStatus();   // show the remote-runner option + .env readiness
-        refreshNotifyStatus(); // show the Telegram alert status
-      } else {
-        // a preview is not written, so there is nothing to make a runner for
-        $("cfg-runner-bar").style.display = "none";
-        $("cfg-runner-note").style.display = "none";
-        $("cfg-remote-bar").style.display = "none";
-        $("cfg-remote-note").style.display = "none";
-        $("cfg-notify-bar").style.display = "none";
-        $("cfg-notify-note").style.display = "none";
-      }
-    }
-
-    function runnerMsg(text, isErr, elId) {
-      var el = $(elId || "cfg-runner-msg");
-      if (el) { el.textContent = text; el.style.color = isErr ? "var(--bad, #d33)" : ""; }
-      setMsg(text, isErr);   // also mirror to the main config-builder status line
-    }
-    function downloadRunner(osKind, target) {
-      if (!lastConfigStem) return;
-      var remote = target === "remote";
-      var msgEl = remote ? "cfg-remote-msg" : "cfg-runner-msg";
-      var ext = osKind === "win" ? ".bat" : ".sh";
-      if (!live()) { runnerMsg("Server not available — start pull_eval_server.py, then reload.", true, msgEl); return; }
-      runnerMsg("Preparing " + (remote ? "remote " : "") + "runner (" + ext + ")…", false, msgEl);
-      var url = base() + "/api/config-runner?name=" + encodeURIComponent(lastConfigStem) + "&os=" + osKind
-        + (remote ? "&target=remote" : "");
-      // Fetch first so we can DETECT an old server (no route -> JSON 404) and tell the
-      // user to restart it, instead of the browser silently saving a failed
-      // "config-runner.json". On success we download the real file via a blob.
-      fetch(url).then(function (r) {
-        var ct = r.headers.get("content-type") || "";
-        if (!r.ok || ct.indexOf("application/json") !== -1) {
-          // a JSON body carries the server's real reason (e.g. "set VAST_SSH_* in .env")
-          return r.json().then(function (d) {
-            throw new Error((d && d.error) ? d.error
-              : (r.status === 404 ? "this server has no /api/config-runner route — restart pull_eval_server.py."
-                 : "server rejected the runner (HTTP " + r.status + ")."));
-          }, function () {
-            throw new Error(r.status === 404
-              ? "this server has no /api/config-runner route — restart pull_eval_server.py."
-              : "server rejected the runner (HTTP " + r.status + ").");
-          });
-        }
-        var cd = r.headers.get("content-disposition") || "";
-        var m = cd.match(/filename="([^"]+)"/);
-        var fname = m ? m[1] : ("run_" + lastConfigStem + ext);
-        return r.blob().then(function (b) { return { blob: b, fname: fname }; });
-      }).then(function (res) {
-        if (!res) return;
-        var a = document.createElement("a");
-        a.href = URL.createObjectURL(res.blob);
-        a.download = res.fname;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-        runnerMsg("Downloaded " + res.fname + " — " + (remote
-          ? "double-click to run on your GPU box."
-          : "put it in the AgentMeter folder and double-click."), false, msgEl);
-      }).catch(function (e) { runnerMsg("Runner download failed: " + e.message, true, msgEl); });
-    }
-
-    function testSsh() {
-      if (!live()) { runnerMsg("Server not available — start pull_eval_server.py.", true, "cfg-remote-msg"); return; }
-      runnerMsg("Testing SSH connection…", false, "cfg-remote-msg");
-      $("cfg-remote-test").disabled = true;
-      fetch(base() + "/api/vast-test", { method: "POST" }).then(function (r) {
-        return r.json();
-      }).then(function (d) {
-        runnerMsg((d.ok ? (d.warn ? "⚠ " : "✓ ") : "✗ ") + (d.message || (d.ok ? "OK" : "failed")), !d.ok, "cfg-remote-msg");
-      }).catch(function (e) {
-        runnerMsg("SSH test failed: " + e.message, true, "cfg-remote-msg");
-      }).then(function () { $("cfg-remote-test").disabled = false; });
-    }
-
-    function testTelegram() {
-      if (!live()) { runnerMsg("Server not available — start pull_eval_server.py.", true, "cfg-notify-msg"); return; }
-      runnerMsg("Sending a test message…", false, "cfg-notify-msg");
-      $("cfg-notify-test").disabled = true;
-      fetch(base() + "/api/notify-test", { method: "POST" }).then(function (r) {
-        return r.json();
-      }).then(function (d) {
-        runnerMsg(d.ok ? "✓ Sent — check your phone."
-          : (d.disabled ? "Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env first."
-             : "✗ Failed: " + (d.error || "unknown")), !d.ok, "cfg-notify-msg");
-      }).catch(function (e) {
-        runnerMsg("Telegram test failed: " + e.message, true, "cfg-notify-msg");
-      }).then(function () { $("cfg-notify-test").disabled = false; });
-    }
-
-    function refreshNotifyStatus() {
-      if (!live()) { $("cfg-notify-bar").style.display = "none"; $("cfg-notify-note").style.display = "none"; return; }
-      fetch(base() + "/api/notify-status").then(function (r) {
-        return r.ok ? r.json() : null;
-      }).then(function (d) {
-        if (!d) return;
-        $("cfg-notify-bar").style.display = "flex";
-        var note = $("cfg-notify-note"); note.style.display = "block";
-        note.textContent = d.enabled
-          ? "On: the server pushes a Telegram message when a new analysis appears in results/. Reads .env live; the token is never shown."
-          : ("To enable, set in .env: " + d.missing.join(", ") + " (from @BotFather + /getUpdates).");
-      }).catch(function () {});
-    }
-
-    function refreshVastStatus() {
-      if (!live()) { $("cfg-remote-bar").style.display = "none"; $("cfg-remote-note").style.display = "none"; return; }
-      fetch(base() + "/api/vast-status").then(function (r) {
-        return r.ok ? r.json() : null;
-      }).then(function (d) {
-        if (!d) return;
-        $("cfg-remote-bar").style.display = "flex";
-        $("cfg-remote-bat").disabled = !d.ready;
-        $("cfg-remote-sh").disabled = !d.ready;
-        $("cfg-remote-test").disabled = !d.ready;
-        var note = $("cfg-remote-note"); note.style.display = "block";
-        note.textContent = d.ready
-          ? "Reads your .env SSH details live: SSHes into your GPU box, runs the benchmark there, and copies results back to Local results. Your private key and API key are never written into the file."
-          : ("To enable, set these in .env: " + d.missing.join(", ")
-             + " (plus optional VAST_SSH_USER, VAST_SSH_KEY, VAST_REMOTE_DIR). The web app re-reads .env on each click.");
-      }).catch(function () {});
-    }
-
-    function post(path, cb) {
-      if (!live()) { setMsg("Server not available — start pull_eval_server.py.", true); return; }
-      fetch(base() + path, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload())
-      }).then(function (r) {
-        // The endpoint always answers JSON. An HTML body (Flask's 404/405 page)
-        // means this server predates the config builder — usually an old
-        // pull_eval_server.py still running; restarting it registers the route.
-        var ct = r.headers.get("content-type") || "";
-        if (ct.indexOf("application/json") === -1) {
-          return r.text().then(function () {
-            throw new Error(r.status === 404 || r.status === 405
-              ? "the server has no " + path + " route — restart pull_eval_server.py "
-                + "so it loads the config builder (Phase 18)."
-              : "server returned a non-JSON response (HTTP " + r.status + ").");
-          });
-        }
-        return r.json().then(function (d) { return { ok: r.ok, d: d }; });
-      }).then(function (res) {
-        if (!res.ok) { setMsg(res.d.error || "rejected", true); return; }
-        cb(res.d);
-      }).catch(function (e) { setMsg("request failed: " + e.message, true); });
-    }
-
-    function preview() {
-      if (!updateWsum()) { setMsg("Fix the SAW weights (must sum to 1.00).", true); return; }
-      post("/api/preview-config", function (d) {
-        showYaml(d.yaml, null);
-        $("cfg-preview-bar").style.display = "none";
-        setMsg("Preview generated — nothing written.");
-      });
-    }
-    function save() {
-      if (!updateWsum()) { setMsg("Fix the SAW weights (must sum to 1.00).", true); return; }
-      post("/api/build-config", function (d) {
-        showYaml(d.yaml, d.path);
-        setMsg("Saved to " + d.path);
-      });
-    }
-    function download() {
-      if (!lastYaml) return;
-      var blob = new Blob([lastYaml], { type: "text/yaml" });
-      var a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = lastName || "config.yaml";
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
-    }
-
-    function loadLocked() {
-      if (loadedLocked || !live()) {
-        if (!live()) $("cfg-locked").textContent = "(server not available — locked config preview needs the AgentMeter server)";
-        return;
-      }
-      fetch(base() + "/api/locked-config").then(function (r) {
-        if (!r.ok) throw new Error("HTTP " + r.status); return r.json();
-      }).then(function (d) {
-        $("cfg-locked").textContent = d.yaml;
-        loadedLocked = true;
-      }).catch(function (e) {
-        $("cfg-locked").textContent = "(could not load locked config: " + e.message + ")";
-      });
-    }
-
-    function refresh() {
-      var off = !live();
-      $("cfg-offline").style.display = off ? "block" : "none";
-      $("cfg-save-btn").disabled = off;
-      $("cfg-preview-btn").disabled = off;
-      updateWsum();
-      loadLocked();
-    }
-
-    function init() {
-      $("cfg-models").value = STUDY.join("\n");
-      $("cfg-use-study").addEventListener("click", function () {
-        $("cfg-models").value = STUDY.join("\n"); setMsg("Loaded the validated study's 5 models.");
-      });
-      $("cfg-preview-btn").addEventListener("click", preview);
-      $("cfg-save-btn").addEventListener("click", save);
-      $("cfg-download-btn").addEventListener("click", download);
-      $("cfg-runner-bat").addEventListener("click", function () { downloadRunner("win"); });
-      $("cfg-runner-sh").addEventListener("click", function () { downloadRunner("unix"); });
-      $("cfg-remote-bat").addEventListener("click", function () { downloadRunner("win", "remote"); });
-      $("cfg-remote-sh").addEventListener("click", function () { downloadRunner("unix", "remote"); });
-      $("cfg-remote-test").addEventListener("click", testSsh);
-      $("cfg-notify-test").addEventListener("click", testTelegram);
-      Array.prototype.forEach.call(document.querySelectorAll("#cfg-weights input[data-w]"), function (el) {
-        el.addEventListener("input", updateWsum);
-      });
-      updateWsum();
-    }
-
-    return { init: init, refresh: refresh };
-  })();
-
   // ==== nav ====
   function showView(name) {
-    ["overview", "detailed", "sessions", "compare", "config", "settings"].forEach(function (v) {
+    ["overview", "detailed"].forEach(function (v) {
       var sec = document.getElementById("view-" + v);
       if (sec) sec.classList.toggle("active", v === name);
     });
@@ -4221,10 +3142,6 @@
       b.classList.toggle("active", on);
       if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
     });
-    if (name === "settings") renderSettings();
-    if (name === "sessions") CRUD.refreshSessions();
-    if (name === "compare") COMPARE.refresh();
-    if (name === "config") CONFIG.refresh();
     if (name === "overview") MODELCTX.load();
     if (name === "detailed") showDetailSub(_detailSub);   // reveal active sub-tab (render-on-reveal)
   }
@@ -4333,7 +3250,6 @@
     "saw": "Ranks the models by one overall score that combines accuracy, speed (latency), memory (VRAM) and token usage. <b>Higher is better.</b> Use the sliders below to change how much each factor matters — the table re-ranks instantly. <span class=\"g\">It measures resource efficiency, not which model is the 'best' threat detector.</span>",
     "sens-live": "Drag a slider to change how much each factor counts, then watch the ranking above update live. Ask questions like 'if I cared more about speed, would the order change?'. <span class=\"g\">Weights are automatically re-normalised to sum to 1.</span>",
     "vram-finding": "A plain-language note about memory use in this run. On this hardware every model sits far below the memory target, so VRAM doesn't separate them — the ranking is driven mainly by accuracy, latency and tokens.",
-    "addmodel": "Optional: pull one extra Hugging Face model and run it through the same pipeline for a side-by-side look. <span class=\"g\">It is exploratory and clearly marked — it never joins or changes the validated 5-model study.</span>",
     "peragent": "<b>What:</b> where time and working memory go across the 4 pipeline steps (Perceive → Reason → Decide → Act), per model. <b>How to read:</b> a taller bar means that step costs more. <b>Look for:</b> the step that dominates — that is the bottleneck to target if you want to cut cost. <span class=\"g\">In the real run, Reason dominates latency and Decide dominates working memory for every model.</span>",
     "perclass": "<b>What:</b> average latency, memory and tokens broken down by attack class (Port Scanning, Benign, …). <b>How to read:</b> pick a model and a metric; a taller bar means that class costs more to process. <b>Look for:</b> classes that are unusually expensive. <span class=\"g\">This is a cost breakdown only — not a judgement of how well each class is detected.</span>",
     "sensitivity": "<b>What:</b> the ranking recomputed under several fixed weightings (equal, accuracy-heavy, efficiency-heavy). <b>How to read:</b> each column is one weighting — follow a model across them. <b>Look for:</b> whether the top model stays on top; if it does, the ranking is robust to how you weight the factors.",
@@ -4344,7 +3260,6 @@
     "prefill": "<b>What:</b> each response's time split into prefill (time to the first token, TTFT) and decode (writing the rest). <b>How to read:</b> compare the two bars per model. <b>Look for:</b> whether time goes mostly into reading the prompt or generating the answer — the two are optimised differently.",
     "throughput": "<b>What:</b> how fast each model writes its answer once generating — output tokens per second. <b>How to read:</b> higher = quicker to finish a response. <b>Look for:</b> the fastest generator. <span class=\"g\">Raw generation speed, independent of how long the answer ends up being.</span>",
     "misclass": "<b>What:</b> the resource cost (latency, tokens) when a model is right vs when it's wrong. <b>How to read:</b> compare the right-bar and wrong-bar per model. <b>Look for:</b> whether wrong answers cost more. <span class=\"g\">A cost comparison only — not a measure of detection quality.</span>",
-    "compare": "Line up 2–3 saved sessions to see how their resource cost and scores differ — e.g. the same models on different GPUs. Pick a metric to compare; the best value in each row is highlighted. <span class=\"g\">Read-only: it changes no numbers.</span>",
     "modelctx": "Live reference facts about each model, pulled from the Hugging Face Hub — size, downloads, likes, license and last update. <b>This is context only</b>, not part of the score and never used to re-rank models. <span class=\"g\">If the Hub is unreachable it simply shows as unavailable; the rest of the dashboard is unaffected.</span>",
     "ds-rec": "A plain-language reading of the current ranking: which model is the most resource-efficient choice under the weights you've set. It updates live as you move the sliders. <b>Honesty note:</b> every model is in the Critical tier (accuracy below target), so this is a <b>starting point, not a deployment sign-off</b>.",
     "ds-filter": "Enter the limits your use case can tolerate (max latency / VRAM / tokens, min accuracy). Each model is checked against its <b>already-measured</b> values and marked PASS or FAIL, with the failing constraint named. <span class=\"g\">It filters existing data only — it never launches a new run, and a limit on a dimension this analysis didn't measure is simply ignored.</span>",
@@ -4395,7 +3310,7 @@
   // ==== Phase 22 — Model context (HF Hub metadata; external, read-only) ====
   var MODELCTX = (function () {
     var loaded = false;
-    function base() { return (typeof pullBaseUrl === "function") ? pullBaseUrl() : ""; }
+    function base() { return ""; }                       // served by the backend: same origin
     function live() { return !(location.protocol === "file:" && !base()); }
     function num(n) { return (n == null) ? "—" : Number(n).toLocaleString(); }
     function shortId(id) { var p = String(id).split("/"); return p[p.length - 1]; }
@@ -4534,135 +3449,6 @@
     rd.readAsText(f);
   });
 
-  // ---- admin: pull & evaluate one extra model (Phase 11) ----
-  var pull = { timer: null, running: false };
-
-  function pullCfg() { return (window.PULL_CONFIG || {}); }
-
-  function pullBaseUrl() {
-    var el = document.getElementById("pull-base");
-    var v = (el && el.value ? el.value : (pullCfg().PULL_BASE_URL || "")).trim();
-    return v.replace(/\/+$/, "");   // strip trailing slash(es)
-  }
-
-  function pullMsg(text, cls) {
-    var el = document.getElementById("pull-status");
-    el.className = cls || "";
-    el.textContent = text || "";
-  }
-
-  function setProgress(frac) {
-    var bar = document.getElementById("pull-progress");
-    var fill = document.getElementById("pull-fill");
-    bar.style.display = "block";
-    fill.style.width = Math.max(0, Math.min(100, frac * 100)).toFixed(1) + "%";
-  }
-
-  function pullButtonEnabled(on) {
-    document.getElementById("pull-btn").disabled = !on;
-    pull.running = !on;
-  }
-
-  function stopPolling() { if (pull.timer) { clearInterval(pull.timer); pull.timer = null; } }
-
-  function applyPullResult(merged, label) {
-    // merged = canonical (read-only) + an `exploratory` block. Load the real
-    // canonical it carries AND surface the exploratory row, ranked distinctly.
-    try {
-      state.exploratory = merged.exploratory || null;
-      load(validate(merged), "loaded", label);
-      var m = state.exploratory ? (state.exploratory.model || "model") : "model";
-      pullMsg("✓ Done — " + m + " added below as an exploratory row (not in the validated set).", "ok");
-    } catch (err) {
-      pullMsg("Loaded pull result but could not render it: " + err.message, "err");
-    }
-  }
-
-  function pollStatus(base) {
-    fetch(base + "/status").then(function (r) { return r.json(); }).then(function (s) {
-      var scn = s.scenario || {};
-      var frac = (typeof s.progress === "number") ? s.progress
-                 : (scn.total ? (scn.completed || 0) / scn.total : 0);
-      setProgress(frac);
-      var label = s.state || "…";
-      if (s.state === "pulling") label = "pulling model weights…";
-      else if (s.state === "running") label = "running scenario " + (scn.completed || 0) + " / " + (scn.total || "?");
-      else if (s.state === "validating") label = "validating model size…";
-      else if (s.state === "analyzing") label = "analyzing results…";
-      if (s.state !== "done" && s.state !== "error") pullMsg(label);
-
-      if (s.state === "error") {
-        stopPolling(); pullButtonEnabled(true);
-        pullMsg("Error: " + (s.error || "unknown error"), "err");
-      } else if (s.state === "done") {
-        stopPolling();
-        pullMsg("Fetching merged analysis…");
-        fetch(base + "/analysis").then(function (r) {
-          if (!r.ok) throw new Error("HTTP " + r.status);
-          return r.json();
-        }).then(function (merged) {
-          setProgress(1);
-          applyPullResult(merged, "pull/eval: " + (s.model_id || "model"));
-          pullButtonEnabled(true);
-        }).catch(function (err) {
-          pullMsg("Run finished but /analysis failed: " + err.message, "err");
-          pullButtonEnabled(true);
-        });
-      }
-    }).catch(function (err) {
-      stopPolling(); pullButtonEnabled(true);
-      pullMsg("Lost contact with the server: " + err.message, "err");
-    });
-  }
-
-  function startPull() {
-    if (pull.running) return;
-    // Empty base -> same-origin relative paths (dashboard served BY the server).
-    // Only file:// needs an explicit base URL to reach the server cross-origin.
-    var base = pullBaseUrl();
-    var model = (document.getElementById("pull-model").value || "").trim();
-    if (!base && location.protocol === "file:") {
-      pullMsg("Opened via file:// — set the server base URL (e.g. http://INSTANCE_IP:8000), or open the dashboard from the server instead.", "err");
-      return;
-    }
-    if (!model) { pullMsg("Enter an HF model id, e.g. org/Model-Name.", "err"); return; }
-    try { if (base) localStorage.setItem("agentmeter.pullBase", base); } catch (e) {}
-
-    pullButtonEnabled(false);
-    setProgress(0);
-    pullMsg("Requesting pull & evaluate for " + model + " …");
-    fetch(base + "/pull-eval", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model_id: model })
-    }).then(function (r) {
-      return r.json().then(function (body) { return { ok: r.ok, status: r.status, body: body }; });
-    }).then(function (res) {
-      if (!res.ok) {
-        pullButtonEnabled(true);
-        pullMsg("Rejected (" + res.status + "): " + ((res.body && res.body.error) || "unknown"), "err");
-        return;
-      }
-      pullMsg("Accepted — starting…");
-      pull.timer = setInterval(function () { pollStatus(base); }, pullCfg().POLL_INTERVAL_MS || 3000);
-      pollStatus(base);
-    }).catch(function (err) {
-      pullButtonEnabled(true);
-      pullMsg("Could not reach the server at " + base + ": " + err.message, "err");
-    });
-  }
-
-  function initPullPanel() {
-    var baseEl = document.getElementById("pull-base");
-    var saved = "";
-    try { saved = localStorage.getItem("agentmeter.pullBase") || ""; } catch (e) {}
-    baseEl.value = saved || (pullCfg().PULL_BASE_URL || "");
-    document.getElementById("pull-btn").addEventListener("click", startPull);
-    document.getElementById("pull-model").addEventListener("keydown", function (e) {
-      if (e.key === "Enter") startPull();
-    });
-  }
-
   // ---- boot: bundled sample first, then try to fetch a real analysis.json ----
   function bootSample() {
     try {
@@ -4675,14 +3461,10 @@
     }
   }
   bootSample();
-  initPullPanel();
   initNav();
   initDetailSubtabs();
   initDecision();
-  CRUD.init();
   initExport();
-  COMPARE.init();
-  CONFIG.init();
   initHelp();
   initGettingStarted();
   MODELCTX.load();

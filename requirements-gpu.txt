@@ -8,9 +8,7 @@ huggingface_hub>=0.23
 sentencepiece>=0.2
 pynvml>=11.5
 bitsandbytes>=0.43    # 4-bit/8-bit quantization (e.g. to fit a 7-8B model on a 15GB T4)
-# Phase 11 — admin model-pull + on-demand eval server (scripts/pull_eval_server.py).
-# Runs on a Vast.ai GPU instance: serves the dashboard AND the API from one origin.
-flask>=3.0            # serves dashboard/index.html + the /pull-eval /status /analysis API
-flask-cors>=4.0       # no longer used by the server (Phase E: agentmeter/server/access.py); kept for old scripts
-pyngrok>=7.0          # OPTIONAL public tunnel (--ngrok); Vast.ai's mapped port is usually reachable
+# Backend server (scripts/serve.py): the benchmark service API + the read-only baseline
+# page. On Vast.ai it sits behind a Cloudflare Tunnel (scripts/vast_up.sh).
+flask>=3.0
 python-dotenv>=1.0    # load tokens from a local .env (copy .env.example); optional — a builtin parser is the fallback

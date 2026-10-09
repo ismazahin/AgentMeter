@@ -88,12 +88,13 @@ def load_rules(path: Optional[str | Path] = None) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # external metadata (Hugging Face Hub)
 # ---------------------------------------------------------------------------
-_HF_FIELDS = ("gated", "license", "params", "params_b", "downloads", "likes", "last_modified",
-              "pipeline_tag", "source_url", "fetched_at")
+_HF_FIELDS = ("gated", "license", "license_name", "license_link", "params", "params_b", "downloads",
+              "likes", "last_modified", "pipeline_tag", "source_url", "fetched_at")
 
 
 def fetch_model_context(models: list[str], *, fetcher: Optional[Callable] = None,
-                        cache: Any = None, enabled: Optional[bool] = None) -> dict[str, Any]:
+                        cache: Any = None, enabled: Optional[bool] = None,
+                        use_cache: bool = True) -> dict[str, Any]:
     """Hugging Face metadata for the session's models. Never raises."""
     from ..server import hf_metadata
 
@@ -106,7 +107,7 @@ def fetch_model_context(models: list[str], *, fetcher: Optional[Callable] = None
                 "models": {m: {"status": "unavailable", "reason": f"disabled ({METADATA_ENV}=off)",
                                "source_url": f"https://huggingface.co/{m}", "fetched_at": None}
                            for m in models}}
-    if cache is None:
+    if cache is None and use_cache:
         try:
             from ..db import appdb
             # reuse the server's metadata cache when it exists; a benchmark never creates the app DB
@@ -170,6 +171,9 @@ def _facts(payload: dict, context: dict) -> list[dict[str, Any]]:
         }
         for k in _HF_FIELDS:
             f[f"hf.{k}"] = hf.get(k)
+        if hf.get("license"):            # the licence id as HF names it (custom ones: license: other + license_name)
+            f["derived.licence_label"] = (f"{hf['license']} ({hf['license_name']})"
+                                          if hf.get("license_name") else str(hf["license"]))
         if f["measured.peak_vram_mb"] is not None and f["env.gpu_vram_total_mb"]:
             head = float(f["env.gpu_vram_total_mb"]) - float(f["measured.peak_vram_mb"])
             f["derived.vram_headroom_mb"] = head
@@ -276,6 +280,64 @@ def evaluate(payload: dict, context: dict, rules: Optional[dict] = None) -> dict
         "metadata_status": (context or {}).get("status", "unavailable"),
         "fired": sorted({n["rule"] for n in notes}),
     }
+
+
+# ---------------------------------------------------------------------------
+# live check without a benchmark (python main.py stage3-check)
+# ---------------------------------------------------------------------------
+def canonical_models() -> list[str]:
+    """The 5 study models, read from the locked run config (read-only)."""
+    cfg = yaml.safe_load((PROJECT_ROOT / "configs" / "run_full_l4.yaml").read_text(encoding="utf-8"))
+    return list(cfg["run"]["models"])
+
+
+def check_models(models: list[str], *, fetcher: Optional[Callable] = None,
+                 rules_path: Optional[str | Path] = None) -> dict[str, Any]:
+    """Fetch LIVE metadata (no cache, ignores AGENTMETER_HF_METADATA) and evaluate every
+    rule per model with no measured data, so the metadata rules can be checked
+    against real Hugging Face records before any benchmark runs."""
+    ctx = fetch_model_context(models, fetcher=fetcher, enabled=True, use_cache=False)
+    payload = {"per_model": [{"model": m} for m in models]}
+    return {"context": ctx, "stage3": evaluate(payload, ctx, load_rules(rules_path))}
+
+
+_NEEDS = (("measured.", "needs a benchmark session"), ("env.", "needs a benchmark session"),
+          ("derived.vram_", "needs a benchmark session"), ("derived.smaller_than_other", "needs a 2-model session"),
+          ("derived.other_params_b", "needs a 2-model session"),
+          ("hf.", "Hugging Face metadata unavailable"), ("derived.", "Hugging Face metadata unavailable"))
+
+
+def format_check(result: dict[str, Any], *, token_used: bool) -> str:
+    ctx, s3 = result["context"], result["stage3"]
+    lines = [f"Stage-3 rule check: live Hugging Face metadata ({ctx.get('api')}), "
+             f"HF_TOKEN {'used' if token_used else 'not set'}; rules {s3['rulebase']} v{s3['version']}.",
+             "Context only: none of this changes any score, rank, SAW value or verdict.", ""]
+    for m, md in (ctx.get("models") or {}).items():
+        lines.append(f"== {m}")
+        lines.append(f"   status: {md.get('status')}" + (f"  ({md.get('reason')})" if md.get("reason") else "")
+                     + f"   fetched_at: {md.get('fetched_at') or '-'}   {md.get('source_url')}")
+        if md.get("status") in ("ok", "stale"):
+            lic = md.get("license") or "-"
+            if md.get("license_name"):
+                lic += f" (license_name: {md['license_name']})"
+            p = md.get("params")
+            dl = md.get("downloads")
+            lines.append(f"   licence: {lic}   gated: {md.get('gated')}   params: "
+                         + (f"{md.get('params_b')} B ({p:,})" if p is not None else "-"))
+            lines.append(f"   last_modified: {md.get('last_modified') or '-'}   downloads (30 d): "
+                         + (f"{dl:,}" if isinstance(dl, int) else str(dl)))
+        for row in (r for r in s3["rules"] if r["model"] == m):
+            detail = row["detail"]
+            if row["result"] == "no_data":
+                for prefix, why in _NEEDS:
+                    if f"no data for {prefix}" in detail:
+                        detail += f" ({why})"
+                        break
+            elif row["result"] == "fired":
+                detail = row.get("note", detail)
+            lines.append(f"   {row['rule']:<34} {row['result']:<10} {detail}")
+        lines.append("")
+    return "\n".join(lines)
 
 
 def add_stage3(payload: dict[str, Any], *, context: Optional[dict] = None,

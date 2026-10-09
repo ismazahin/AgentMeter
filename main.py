@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -81,7 +82,31 @@ def main(argv: list[str] | None = None) -> int:
     p_cb.add_argument("--out", type=str, required=True, help="path to write the unified DB (must not exist)")
     p_cb.add_argument("--overwrite", action="store_true", help="replace the output file if it already exists")
 
+    p_s3 = sub.add_parser(
+        "stage3-check",
+        help="Fetch LIVE Hugging Face metadata for the 5 study models and show every stage-3 rule's result (no benchmark)",
+    )
+    p_s3.add_argument("--models", nargs="+", default=None,
+                      help="model ids to check (default: the 5 models of configs/run_full_l4.yaml)")
+    p_s3.add_argument("--rules", type=str, default=None,
+                      help="rule file (default: configs/recommendation_rules.yaml)")
+    p_s3.add_argument("--json", type=str, default=None, help="also write the raw result to this JSON file")
+
     args = parser.parse_args(argv)
+
+    if args.command == "stage3-check":
+        import json as _json
+
+        from agentmeter.server.hf_metadata import token_from_env
+        from agentmeter.session import stage3
+
+        models = args.models or stage3.canonical_models()
+        result = stage3.check_models(models, rules_path=args.rules)
+        print(stage3.format_check(result, token_used=bool(token_from_env())))
+        if args.json:
+            Path(args.json).write_text(_json.dumps(result, indent=2, default=str), encoding="utf-8")
+            print(f"Wrote {args.json}")
+        return 0 if result["context"].get("status") != "unavailable" else 1
 
     if args.command == "check-env":
         from agentmeter.util.env_check import check_environment, format_report

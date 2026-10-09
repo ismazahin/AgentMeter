@@ -24,8 +24,9 @@
 #   measured.verdict              more_efficient | mixed | tie | single_model
 #   env.gpu_name, env.gpu_vram_total_mb   the GPU the session ran on (null on CPU/mock)
 #   hf.status                     ok | stale | unavailable
-#   hf.gated, hf.license, hf.params_b, hf.downloads, hf.likes, hf.last_modified,
+#   hf.gated, hf.license, hf.license_name, hf.params_b, hf.downloads, hf.likes, hf.last_modified,
 #   hf.source_url, hf.fetched_at  from https://huggingface.co/api/models/<id>
+#   derived.licence_label         hf.license, plus hf.license_name when HF gives one
 #   derived.vram_headroom_mb      env.gpu_vram_total_mb - measured.peak_vram_mb
 #   derived.vram_headroom_pct     headroom as % of the GPU's VRAM
 #   derived.age_months            months between hf.last_modified and hf.fetched_at
@@ -40,22 +41,25 @@ version: 1
 constants:
   stale_after_months: 12          # "not updated in > N months"
   low_downloads: 10000            # below this (HF "downloads", last 30 days) = low adoption
-  # Licences that restrict use (non-commercial, or a custom acceptable-use licence).
-  restrictive_licence: "^(cc-by-nc.*|llama[0-9.]*|gemma|other|openrail.*|deepseek|qwen-research)$"
+  # Custom (model-specific) and non-OSI licence ids, exactly as Hugging Face names them
+  # (cardData.license). OSI-approved licences (apache-2.0, mit, bsd-*, gpl-*, mpl-2.0 …)
+  # and open content licences (cc-by-4.0, cc0-1.0) never match: tests/test_stage3.py checks
+  # that. HF records any other custom licence as "other" (+ license_name).
+  custom_licence: "^(other|llama[0-9.]*|gemma|deepseek|qwen-research|tongyi-qianwen|cc-by-nc.*|(bigscience-|creativeml-|bigcode-)?openrail(-m|\\+\\+)?|bigscience-bloom-rail-1\\.0)$"
 
 rules:
   - id: gated_access
     description: The model is gated on Hugging Face.
     when:
       - {field: hf.gated, op: truthy}
-    note: "{model} is gated on Hugging Face: you must accept its licence ({hf.license}) with your HF account before its weights can be downloaded."
+    note: "{model} is gated on Hugging Face: you must accept its licence ({derived.licence_label}) with your HF account before its weights can be downloaded."
     sources: [huggingface]
 
-  - id: restrictive_licence
-    description: The model's licence is non-commercial or restrictive.
+  - id: custom_licence
+    description: The model uses a custom or non-OSI licence; its terms should be checked.
     when:
-      - {field: hf.license, op: matches, value: $restrictive_licence}
-    note: "{model} is released under '{hf.license}', a non-commercial or restrictive licence — check its terms before any production use."
+      - {field: hf.license, op: matches, value: $custom_licence}
+    note: "{model} is released under the licence '{derived.licence_label}', which is not an OSI-approved open-source licence. Check its terms for your intended use ({hf.source_url})."
     sources: [huggingface]
 
   - id: vram_headroom
@@ -74,11 +78,11 @@ rules:
     sources: [huggingface]
 
   - id: efficiency_consistent_with_size
-    description: The efficiency winner is also the smaller model.
+    description: The more efficient model is also the smaller one (co-occurrence, not a cause).
     when:
       - {field: measured.is_efficiency_winner, op: eq, value: true}
       - {field: derived.smaller_than_other, op: eq, value: true}
-    note: "{model} won on resource efficiency and is also the smaller model ({hf.params_b} B vs {derived.other_params_b} B parameters): the efficiency advantage is consistent with model size."
+    note: "{model}, the more resource-efficient model in this session, is also the smaller one ({hf.params_b} B vs {derived.other_params_b} B parameters). The two occur together here; this does not show that model size caused the efficiency difference."
     sources: [measured, huggingface]
 
   - id: low_adoption

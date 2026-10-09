@@ -91,7 +91,7 @@ def fired(block, rule, model=None):
 def test_rule_file_loads_with_the_starter_rules():
     rb = load_rules()
     assert rb["source"] == "configs/recommendation_rules.yaml"
-    assert [r["id"] for r in rb["rules"]] == ["gated_access", "restrictive_licence", "vram_headroom",
+    assert [r["id"] for r in rb["rules"]] == ["gated_access", "custom_licence", "vram_headroom",
                                                "model_age", "efficiency_consistent_with_size", "low_adoption"]
 
 
@@ -123,14 +123,38 @@ def test_gated_access(sessions):
     assert "accept its licence" in note["note"] and note["source_url"] == f"https://huggingface.co/{QWEN}"
 
 
-def test_restrictive_licence(sessions):
-    b = evaluate(sessions["csv"], ctx(**{QWEN: raw(QWEN, cardData={"license": "cc-by-nc-4.0"}),
+# HF licence ids (cardData.license). OSI-approved and open content licences must never fire.
+OPEN_LICENCES = ["apache-2.0", "mit", "bsd", "bsd-2-clause", "bsd-3-clause", "gpl-2.0", "gpl-3.0",
+                 "lgpl-2.1", "lgpl-3.0", "agpl-3.0", "mpl-2.0", "isc", "artistic-2.0", "epl-2.0",
+                 "unlicense", "cc-by-4.0", "cc-by-sa-4.0", "cc0-1.0", "Apache-2.0", "MIT"]
+CUSTOM_LICENCES = ["other", "llama2", "llama3", "llama3.1", "llama3.2", "llama3.3", "gemma", "deepseek",
+                   "cc-by-nc-4.0", "cc-by-nc-sa-4.0", "openrail", "openrail++", "bigscience-openrail-m",
+                   "creativeml-openrail-m", "bigcode-openrail-m", "bigscience-bloom-rail-1.0"]
+
+
+@pytest.mark.parametrize("lic", OPEN_LICENCES)
+def test_custom_licence_never_fires_on_open_licences(sessions, lic):
+    b = evaluate(sessions["csv"], ctx(**{QWEN: raw(QWEN, cardData={"license": lic}), PHI: raw(PHI)}))
+    assert fired(b, "custom_licence", QWEN)[0]["result"] == "not_fired", lic
+
+
+@pytest.mark.parametrize("lic", CUSTOM_LICENCES)
+def test_custom_licence_fires_on_custom_licences(sessions, lic):
+    b = evaluate(sessions["csv"], ctx(**{QWEN: raw(QWEN, cardData={"license": lic}), PHI: raw(PHI)}))
+    assert fired(b, "custom_licence", QWEN)[0]["result"] == "fired", lic
+    note = next(n["note"] for n in b["notes"] if n["rule"] == "custom_licence")
+    assert f"'{lic}'" in note and "Check its terms" in note
+
+
+def test_custom_licence_wording_is_neutral_and_names_the_licence(sessions):
+    b = evaluate(sessions["csv"], ctx(**{QWEN: raw(QWEN, cardData={"license": "other", "license_name": "qwen-research"}),
                                         PHI: raw(PHI, cardData={"license": "mit"})}))
-    assert fired(b, "restrictive_licence", QWEN)[0]["result"] == "fired"
-    assert fired(b, "restrictive_licence", PHI)[0]["result"] == "not_fired"
-    assert "'cc-by-nc-4.0'" in next(n["note"] for n in b["notes"] if n["rule"] == "restrictive_licence")
-    b2 = evaluate(sessions["csv"], ctx(**{QWEN: raw(QWEN, cardData={"license": "llama3"}), PHI: raw(PHI)}))
-    assert fired(b2, "restrictive_licence", QWEN)[0]["result"] == "fired"
+    assert fired(b, "custom_licence", PHI)[0]["result"] == "not_fired"
+    note = next(n["note"] for n in b["notes"] if n["rule"] == "custom_licence")
+    assert "'other (qwen-research)'" in note and "not an OSI-approved open-source licence" in note
+    rb = load_rules()
+    text = json.dumps(rb["rules"]).lower() + json.dumps(b).lower()
+    assert "restrictive" not in text
 
 
 def test_vram_headroom(sessions):
@@ -158,7 +182,12 @@ def test_efficiency_consistent_with_size(sessions):
     b = evaluate(gpu_payload(sessions["csv"], winner=PHI), c)
     assert fired(b, "efficiency_consistent_with_size", PHI)[0]["result"] == "fired"
     assert fired(b, "efficiency_consistent_with_size", QWEN)[0]["result"] == "not_fired"
-    assert "3.82 B vs 7.62 B" in next(n["note"] for n in b["notes"] if n["rule"] == "efficiency_consistent_with_size")
+    note = next(n["note"] for n in b["notes"] if n["rule"] == "efficiency_consistent_with_size")
+    assert "3.82 B vs 7.62 B" in note and "is also the smaller one" in note
+    # co-occurrence, never causation
+    assert "does not show that model size caused" in note
+    for causal in ("because", "consistent with", "due to", "explains"):
+        assert causal not in note.lower(), causal
     # the bigger model winning, or a tie, does not fire it
     big = evaluate(gpu_payload(sessions["csv"], winner=QWEN), c)
     assert not [n for n in big["notes"] if n["rule"] == "efficiency_consistent_with_size"]
@@ -191,7 +220,7 @@ def test_unavailable_metadata_is_recorded_and_rules_report_no_data(sessions):
     q = c["models"][QWEN]
     assert q["status"] == "unavailable" and "unreachable" in q["reason"] and q["fetched_at"] is None
     b = evaluate(sessions["csv"], c)
-    for rid in ("gated_access", "restrictive_licence", "model_age", "low_adoption"):
+    for rid in ("gated_access", "custom_licence", "model_age", "low_adoption"):
         assert fired(b, rid, QWEN)[0]["result"] == "no_data", rid
     off = fetch_model_context([QWEN], enabled=False)
     assert off["status"] == "unavailable" and "disabled" in off["models"][QWEN]["reason"]
@@ -315,3 +344,78 @@ def test_session_results_carry_the_full_analysis_sections(sessions):
         assert p["advanced"]["pareto"] is None and p["advanced"]["misclass_cost"] is None
         assert p["advanced"]["accuracy_note"] == "accuracy not measured for unlabelled input"
         assert p["advanced"]["throughput"]
+
+
+# ---------------------------------------------------------------------------
+# python main.py stage3-check (live metadata, no benchmark)
+# ---------------------------------------------------------------------------
+# Fixture records shaped like the HF API for the 5 study models (licence ids as on
+# their model cards); the real values come from running the command on a networked machine.
+STUDY_RECORDS = {
+    "mistralai/Mistral-7B-Instruct-v0.3": dict(cardData={"license": "apache-2.0"}, gated="auto"),
+    "meta-llama/Meta-Llama-3-8B-Instruct": dict(cardData={"license": "llama3"}, gated="manual",
+                                                safetensors={"total": 8_030_261_248}),
+    "Qwen/Qwen2.5-7B-Instruct": dict(cardData={"license": "apache-2.0"}, gated=False),
+    "microsoft/Phi-3-mini-4k-instruct": dict(cardData={"license": "mit"}, gated=False,
+                                             safetensors={"total": 3_821_079_552}),
+    "google/gemma-2-9b-it": dict(cardData={"license": "gemma"}, gated="manual", downloads=8_000),
+}
+
+
+def _study_fetcher(calls):
+    def fetch(model_id, token=None):
+        calls.append((model_id, token))
+        return raw(model_id, **STUDY_RECORDS[model_id])
+    return fetch
+
+
+def test_stage3_check_covers_the_5_study_models_with_live_fetches(monkeypatch, tmp_path):
+    from agentmeter.db import appdb
+    from agentmeter.server import hf_metadata
+    calls = []
+    monkeypatch.setattr(hf_metadata, "default_fetcher", _study_fetcher(calls))
+    monkeypatch.setattr(appdb, "DEFAULT_APP_DB", tmp_path / "app.db")
+    monkeypatch.setenv("HF_TOKEN", "hf_test_token")
+    models = stage3.canonical_models()
+    assert models == list(STUDY_RECORDS)
+    res = stage3.check_models(models)
+    # live: every model fetched once, with the token, even though tests set AGENTMETER_HF_METADATA=off
+    assert [m for m, _ in calls] == models and all(t == "hf_test_token" for _, t in calls)
+    assert not (tmp_path / "app.db").exists()                       # no cache, nothing written
+    b = res["stage3"]
+    result = {(r["rule"], r["model"]): r["result"] for r in b["rules"]}
+    assert len(result) == 6 * 5
+    assert {m for (rid, m), v in result.items() if rid == "custom_licence" and v == "fired"} == {
+        "meta-llama/Meta-Llama-3-8B-Instruct", "google/gemma-2-9b-it"}
+    assert {m for (rid, m), v in result.items() if rid == "gated_access" and v == "fired"} == {
+        "mistralai/Mistral-7B-Instruct-v0.3", "meta-llama/Meta-Llama-3-8B-Instruct", "google/gemma-2-9b-it"}
+    assert result[("low_adoption", "google/gemma-2-9b-it")] == "fired"
+    for m in models:                                                 # no benchmark: measured rules have no data
+        assert result[("vram_headroom", m)] == "no_data"
+        assert result[("efficiency_consistent_with_size", m)] == "no_data"
+    text = stage3.format_check(res, token_used=True)
+    assert "hf_test_token" not in text and "HF_TOKEN used" in text
+    for m in models:
+        assert f"== {m}" in text
+    assert "licence: llama3   gated: True   params: 8.03 B (8,030,261,248)" in text
+    assert "last_modified: 2026-06-01T00:00:00.000Z   downloads (30 d): 8,000" in text
+    assert "needs a benchmark session" in text and "needs a 2-model session" in text
+
+
+def test_stage3_check_cli(monkeypatch, tmp_path, capsys):
+    import main
+    from agentmeter.server import hf_metadata
+    monkeypatch.setattr(hf_metadata, "default_fetcher", _study_fetcher([]))
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    out = tmp_path / "s3.json"
+    assert main.main(["stage3-check", "--json", str(out)]) == 0
+    text = capsys.readouterr().out
+    assert "HF_TOKEN not set" in text and "custom_licence" in text and "fired" in text
+    assert json.loads(out.read_text())["stage3"]["rules"]
+    # offline: every model unavailable, the metadata rules say why, exit 1
+    def down(model_id, token=None):
+        raise OSError("Network is unreachable")
+    monkeypatch.setattr(hf_metadata, "default_fetcher", down)
+    assert main.main(["stage3-check", "--models", QWEN]) == 1
+    text = capsys.readouterr().out
+    assert "unreachable" in text and "Hugging Face metadata unavailable" in text

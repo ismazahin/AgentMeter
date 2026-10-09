@@ -81,6 +81,12 @@ def _license(raw: dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _card(raw: dict[str, Any], key: str) -> Optional[str]:
+    card = raw.get("cardData")
+    v = card.get(key) if isinstance(card, dict) else None
+    return str(v) if v else None
+
+
 def parse_metadata(raw: dict[str, Any], model_id: str) -> dict[str, Any]:
     """Reduce a raw HF API record to the small, clean shape the dashboard shows."""
     params = _param_count(raw)
@@ -91,6 +97,9 @@ def parse_metadata(raw: dict[str, Any], model_id: str) -> dict[str, Any]:
         "downloads": raw.get("downloads"),
         "likes": raw.get("likes"),
         "license": _license(raw),
+        # cardData.license_name / license_link: how HF names a custom licence (license: other)
+        "license_name": _card(raw, "license_name"),
+        "license_link": _card(raw, "license_link"),
         "last_modified": raw.get("lastModified") or raw.get("last_modified"),
         "pipeline_tag": raw.get("pipeline_tag"),
         # false | "auto" | "manual" on the HF API: True when a licence must be accepted.

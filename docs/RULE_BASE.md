@@ -68,12 +68,25 @@ no later stage can change an earlier stage's result.
   | id | fires when | source |
   |---|---|---|
   | `gated_access` | the model is gated on HF | huggingface |
-  | `restrictive_licence` | the licence matches the non-commercial/custom-licence pattern | huggingface |
+  | `custom_licence` | the HF licence id is a custom or non-OSI one (`other`, `llama*`, `gemma`, `deepseek`, `qwen-research`, `tongyi-qianwen`, `cc-by-nc*`, the OpenRAIL family); the note states the licence id and advises checking its terms. OSI-approved licences (Apache-2.0, MIT, BSD, GPL, MPL …) and open content licences (CC-BY, CC0) never fire | huggingface |
   | `vram_headroom` | a peak-VRAM reading and the GPU's total VRAM both exist (the note reports the headroom) | measured, session_gpu, huggingface |
   | `model_age` | last modified > `stale_after_months` (12) before the fetch | huggingface |
-  | `efficiency_consistent_with_size` | this model won on efficiency and is also the smaller model | measured, huggingface |
+  | `efficiency_consistent_with_size` | the more efficient model is also the smaller one; the note states this as co-occurrence, not as a cause | measured, huggingface |
   | `low_adoption` | downloads (last 30 days) < `low_downloads` (10 000) | huggingface |
 
+- **Checking the rules against live metadata (no benchmark):**
+  ```bash
+  export HF_TOKEN=hf_...            # optional; used for gated models and rate limits, never printed
+  python main.py stage3-check       # the 5 models of configs/run_full_l4.yaml
+  python main.py stage3-check --models Qwen/Qwen2.5-7B-Instruct --json results/stage3_check.json
+  ```
+  It always fetches live, with no cache, and writes nothing unless you pass `--json`. It
+  ignores `AGENTMETER_HF_METADATA`. Per model, it prints the fields the rules use
+  (licence + `license_name`, gated, params, last_modified, downloads) and every rule's
+  result: `fired` with its note, `not_fired` with the failed condition, or `no_data`
+  with the reason. Without a benchmark, the measured rules (`vram_headroom`,
+  `efficiency_consistent_with_size`) always report `no_data`. It exits 1 when no
+  model's metadata could be fetched.
 - **Outputs**, in `session_results.json`:
   - `model_context`: per model, the metadata fields used, `source_url` and
     `fetched_at`, or `status: "unavailable"` with a reason;

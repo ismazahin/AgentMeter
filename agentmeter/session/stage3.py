@@ -109,7 +109,9 @@ def fetch_model_context(models: list[str], *, fetcher: Optional[Callable] = None
     if cache is None:
         try:
             from ..db import appdb
-            cache = hf_metadata.make_store_cache(appdb.AppStore(appdb.DEFAULT_APP_DB))
+            # reuse the server's metadata cache when it exists; a benchmark never creates the app DB
+            if appdb.DEFAULT_APP_DB.exists():
+                cache = hf_metadata.make_store_cache(appdb.AppStore(appdb.DEFAULT_APP_DB))
         except Exception:  # noqa: BLE001 — the cache is optional
             cache = None
     out: dict[str, dict] = {}

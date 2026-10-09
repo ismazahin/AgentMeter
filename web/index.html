@@ -313,6 +313,12 @@
         <div id="svc-import-error" class="notice error" role="alert" hidden></div>
       </form>
     </div>
+    <div class="card" id="svc-sessions-card">
+      <h2>Recent benchmark sessions</h2>
+      <p class="muted" style="font-size:13px">Each finished session has a full analysis view (Overview + Detailed analysis, the same views
+        as the Validation baseline) — labelled <b>Session analysis (non-validated)</b> and kept separate from the locked study.</p>
+      <div class="table-wrap" id="svc-sessions"></div>
+    </div>
   </section>
 
   <!-- 3. MODELS -->
@@ -557,8 +563,17 @@
     });
   }
   // ---------- 3. benchmark: choose a set, then models ----------
+  function analysisUrl(jobId) { return apiUrl("/?session=" + encodeURIComponent(jobId)); }
   function loadRecentSets() {
     api("/api/jobs?limit=30").then(function (r) {
+      var done = ((r.ok && r.data.jobs) || []).filter(function (j) { return (j.kind || "benchmark") === "benchmark" && j.status === "done"; });
+      $("svc-sessions").innerHTML = !r.ok ? '<p class="muted">' + esc(r.data.error || "Jobs unavailable.") + '</p>'
+        : !done.length ? '<p class="muted">No finished sessions yet.</p>'
+        : '<table id="svc-sessions-table"><thead><tr><th>Job</th><th>Prepared set</th><th>Models</th><th></th></tr></thead><tbody>' +
+          done.slice(0, 10).map(function (j) {
+            return '<tr><td class="mono"><a href="#/job/' + encodeURIComponent(j.job_id) + '">' + esc(j.job_id) + '</a></td><td class="mono">' + esc(j.run_name) +
+              '</td><td class="mono">' + esc((j.models || []).join(", ")) + '</td><td><a class="btn" data-analysis="' + esc(j.job_id) + '" href="' + analysisUrl(j.job_id) + '">View full analysis</a></td></tr>';
+          }).join("") + '</tbody></table>';
       var sets = ((r.ok && r.data.jobs) || []).filter(function (j) { return j.kind === "prepare" && j.status === "done" && j.prepared; });
       $("svc-recent-sets").innerHTML = sets.length ? "Recently prepared: " + sets.slice(0, 5).map(function (j) {
         return '<a href="#/run/' + setPath(j.prepared) + '" class="mono">' + esc(j.prepared) + '</a>';
@@ -810,6 +825,28 @@
     }
     h.push('</div>');
 
+    // rule-base stage 3: the measured verdict first, then context notes from HF metadata
+    var s3 = res.recommendation_stage3;
+    if (s3) {
+      var mstat = s3.metadata_status;
+      var notes = (s3.notes || []).map(function (n) {
+        return '<li><span class="chip mono">' + esc(n.rule) + '</span> ' + esc(n.note) + ' <span class="muted" style="font-size:12px">— source: ' +
+          esc((n.sources || []).join(", ")) + (n.fetched_at ? ' · <a href="' + esc(n.source_url) + '" target="_blank" rel="noopener">Hugging Face</a>, fetched ' + esc(n.fetched_at) : "") + '</span></li>';
+      }).join("");
+      var rows = (s3.rules || []).map(function (r) {
+        return '<tr><td class="mono">' + esc(r.rule) + '</td><td class="mono">' + esc(r.model) + '</td><td class="mono" style="font-size:12px">' + esc(r.condition) +
+          '</td><td>' + esc(r.result) + (r.result === "no_data" ? ' <span class="muted" style="font-size:12px">(' + esc(r.detail) + ')</span>' : "") +
+          '</td><td>' + esc((r.sources || []).join(", ")) + '</td><td class="mono" style="font-size:12px">' + esc(r.fetched_at || "—") + '</td></tr>';
+      }).join("");
+      h.push('<div class="card" id="svc-stage3"><h2>Recommendation — stage 3</h2>' +
+        '<p><b>Measured verdict:</b> ' + esc((s3.verdict || {}).text || "—") + '</p>' +
+        (notes ? '<ul class="caveats" id="svc-stage3-notes">' + notes + '</ul>'
+               : '<p class="muted" id="svc-stage3-notes">No context rule fired' + (mstat === "ok" ? "" : " — Hugging Face metadata " + esc(mstat) + ", so the metadata rules had no data") + '.</p>') +
+        '<p class="muted" style="font-size:13px">' + esc(s3.framing || "") + ' Rule set: <span class="mono">' + esc(s3.rulebase || "") + '</span>.</p>' +
+        '<details><summary>Rules evaluated (' + (s3.rules || []).length + ', ' + (s3.fired || []).length + ' fired)</summary><div class="table-wrap"><table id="svc-stage3-rules"><thead><tr><th>Rule</th><th>Model</th><th>Condition</th><th>Result</th><th>Source</th><th>Fetched at</th></tr></thead><tbody>' +
+        rows + '</tbody></table></div></details></div>');
+    }
+
     // per-model metrics
     var rows = pm.map(function (m) {
       var e = m.efficiency.end_to_end;
@@ -886,6 +923,7 @@
     var cav = (rel ? rel.caveats : s.caveats) || [];
     h.push('<div class="card" id="svc-caveats-card"><h2>Read this before quoting the numbers</h2><ul class="caveats" id="svc-caveats">' +
       cav.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join("") + '</ul><div class="actions">' +
+      '<a class="btn" id="svc-full-analysis" href="' + analysisUrl(id) + '">View full analysis</a>' +
       '<a class="btn primary" id="svc-dl-pdf" href="' + apiUrl('/api/jobs/' + encodeURIComponent(id) + '/report.pdf') + '" download>Download PDF report</a>' +
       '<button type="button" class="btn" id="svc-dl-json">Results JSON</button>' +
       '<button type="button" class="btn" id="svc-dl-saw">SAW CSV</button><button type="button" class="btn" id="svc-dl-agent">Per-agent CSV</button></div></div>');
@@ -905,11 +943,12 @@
       if (!r.ok) { el.innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
       var jobs = r.data.jobs || [];
       if (!jobs.length) { el.innerHTML = '<p class="muted">No jobs yet. <a href="#/prepare">Prepare a file</a> to start.</p>'; return; }
-      el.innerHTML = '<table id="svc-jobs"><thead><tr><th>Job</th><th>Kind</th><th>Status</th><th>Input</th><th>Models</th><th>Created (UTC)</th></tr></thead><tbody>' +
+      el.innerHTML = '<table id="svc-jobs"><thead><tr><th>Job</th><th>Kind</th><th>Status</th><th>Input</th><th>Models</th><th>Created (UTC)</th><th></th></tr></thead><tbody>' +
         jobs.map(function (j) {
           var link = j.kind === "prepare" && j.prepared ? "#/prepared/" + setPath(j.prepared) : "#/job/" + encodeURIComponent(j.job_id);
           return '<tr><td class="mono"><a href="' + link + '">' + esc(j.job_id) + '</a></td><td>' + esc(j.kind || "benchmark") + '</td><td><span class="status ' + esc(j.status) + '">' + esc(j.status) +
-            '</span></td><td class="mono">' + esc(j.kind === "prepare" ? (j.prepared || j.run_name) : j.run_name) + '</td><td class="mono">' + esc((j.models || []).join(", ")) + '</td><td class="mono">' + esc((j.created_at || "").replace("T", " ").replace("+00:00", "")) + '</td></tr>';
+            '</span></td><td class="mono">' + esc(j.kind === "prepare" ? (j.prepared || j.run_name) : j.run_name) + '</td><td class="mono">' + esc((j.models || []).join(", ")) + '</td><td class="mono">' + esc((j.created_at || "").replace("T", " ").replace("+00:00", "")) + '</td><td>' +
+            ((j.kind || "benchmark") === "benchmark" && j.status === "done" ? '<a data-analysis="' + esc(j.job_id) + '" href="' + analysisUrl(j.job_id) + '">View full analysis</a>' : "") + '</td></tr>';
         }).join("") + '</tbody></table>';
     });
   }

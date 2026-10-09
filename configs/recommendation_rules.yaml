@@ -1,0 +1,89 @@
+# AgentMeter — recommendation rule-base, STAGE 3 (measured metrics + external metadata).
+#
+# AgentMeter MEASURES LLM resource efficiency; it is not a threat-detection product.
+# Stage 3 adds CONTEXT to a finished benchmark session: facts about each model from
+# the Hugging Face Hub (licence, gating, size, age, adoption), read next to what was
+# measured. It NEVER changes a score, a rank, a SAW value or the efficiency verdict.
+# Those are fixed before stage 3 runs (agentmeter/session/scoring.py, relative.py),
+# and stage 3 only reads a copy of them.
+#
+# Evaluation (agentmeter/session/stage3.py):
+#   * every rule is evaluated once per model in the session ("subject" = that model);
+#   * `when` is a list of conditions, ALL of which must hold (logical AND);
+#   * a condition on a field that is missing (e.g. metadata offline, no VRAM reading on
+#     a CPU/mock run) makes the rule "no_data" — it does not fire and says why;
+#   * `note` is a template: {field} or {field:format} (Python format spec), filled from
+#     the same facts the conditions read;
+#   * `sources` names where the facts come from: measured | huggingface | session_gpu.
+#
+# Fields (facts):
+#   model                         the subject model id
+#   measured.peak_vram_mb         mean peak device VRAM per flow (MB); null on CPU/mock
+#   measured.mean_latency_s       mean end-to-end latency per flow (s)
+#   measured.is_efficiency_winner true when the head-to-head verdict names this model
+#   measured.verdict              more_efficient | mixed | tie | single_model
+#   env.gpu_name, env.gpu_vram_total_mb   the GPU the session ran on (null on CPU/mock)
+#   hf.status                     ok | stale | unavailable
+#   hf.gated, hf.license, hf.params_b, hf.downloads, hf.likes, hf.last_modified,
+#   hf.source_url, hf.fetched_at  from https://huggingface.co/api/models/<id>
+#   derived.vram_headroom_mb      env.gpu_vram_total_mb - measured.peak_vram_mb
+#   derived.vram_headroom_pct     headroom as % of the GPU's VRAM
+#   derived.age_months            months between hf.last_modified and hf.fetched_at
+#   derived.other_params_b        the other model's parameter count (2-model sessions)
+#   derived.smaller_than_other    hf.params_b < derived.other_params_b
+#
+# Operators: present, truthy, eq, ne, lt, le, gt, ge, in, not_in, matches (regex).
+# A value written as $name refers to `constants` below.
+
+version: 1
+
+constants:
+  stale_after_months: 12          # "not updated in > N months"
+  low_downloads: 10000            # below this (HF "downloads", last 30 days) = low adoption
+  # Licences that restrict use (non-commercial, or a custom acceptable-use licence).
+  restrictive_licence: "^(cc-by-nc.*|llama[0-9.]*|gemma|other|openrail.*|deepseek|qwen-research)$"
+
+rules:
+  - id: gated_access
+    description: The model is gated on Hugging Face.
+    when:
+      - {field: hf.gated, op: truthy}
+    note: "{model} is gated on Hugging Face: you must accept its licence ({hf.license}) with your HF account before its weights can be downloaded."
+    sources: [huggingface]
+
+  - id: restrictive_licence
+    description: The model's licence is non-commercial or restrictive.
+    when:
+      - {field: hf.license, op: matches, value: $restrictive_licence}
+    note: "{model} is released under '{hf.license}', a non-commercial or restrictive licence — check its terms before any production use."
+    sources: [huggingface]
+
+  - id: vram_headroom
+    description: How much VRAM headroom the session's GPU had for this model.
+    when:
+      - {field: measured.peak_vram_mb, op: present}
+      - {field: env.gpu_vram_total_mb, op: present}
+    note: "{model} ({hf.params_b} B parameters) peaked at {measured.peak_vram_mb:,.0f} MB of the {env.gpu_name}'s {env.gpu_vram_total_mb:,.0f} MB in 4-bit NF4: {derived.vram_headroom_mb:,.0f} MB ({derived.vram_headroom_pct:.0f}%) headroom."
+    sources: [measured, session_gpu, huggingface]
+
+  - id: model_age
+    description: The model has not been updated on Hugging Face for a long time.
+    when:
+      - {field: derived.age_months, op: gt, value: $stale_after_months}
+    note: "{model} was last updated on Hugging Face {derived.age_months:.0f} months before this session (last modified {hf.last_modified}) — newer versions may exist."
+    sources: [huggingface]
+
+  - id: efficiency_consistent_with_size
+    description: The efficiency winner is also the smaller model.
+    when:
+      - {field: measured.is_efficiency_winner, op: eq, value: true}
+      - {field: derived.smaller_than_other, op: eq, value: true}
+    note: "{model} won on resource efficiency and is also the smaller model ({hf.params_b} B vs {derived.other_params_b} B parameters): the efficiency advantage is consistent with model size."
+    sources: [measured, huggingface]
+
+  - id: low_adoption
+    description: Few downloads on Hugging Face.
+    when:
+      - {field: hf.downloads, op: lt, value: $low_downloads}
+    note: "{model} has {hf.downloads:,} downloads on Hugging Face (last 30 days) — low community adoption, so fewer third-party reports to compare against."
+    sources: [huggingface]

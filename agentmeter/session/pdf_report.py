@@ -299,6 +299,30 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
         block.append(P(rec["hint"], "small"))
     story.append(KeepTogether(block))
 
+    # --- rule-base stage 3: measured verdict + external Hugging Face context --------------------
+    s3 = res.get("recommendation_stage3")
+    if s3:
+        story.append(P("Recommendation — stage 3 (measured result + external model context)", "h"))
+        story.append(P("Measured head-to-head verdict: " + str((s3.get("verdict") or {}).get("text") or "-")))
+        mstat = s3.get("metadata_status")
+        if s3.get("notes"):
+            for n in s3["notes"]:
+                story.append(P(f"- [{n['rule']}] {n['note']}  (source: {', '.join(n.get('sources') or [])}"
+                               + (f"; {n['source_url']}, fetched {n['fetched_at']}" if n.get("fetched_at") else "")
+                               + ")", "p"))
+        else:
+            story.append(P("No context rule fired" + ("" if mstat == "ok" else
+                           f" (Hugging Face metadata {mstat}: the metadata rules had no data)") + ".", "p"))
+        story.append(P("External metadata adds context only: it never changes any score, rank, SAW value "
+                       f"or the verdict above. Rule set: {s3.get('rulebase')}.", "small"))
+        rows = [["Rule", "Model", "Condition", "Result", "Source", "Fetched at"]]
+        for r in s3.get("rules") or []:
+            rows.append([r["rule"], r["model"].split("/")[-1], r["condition"],
+                         r["result"] + ("" if r["result"] != "no_data" else f" ({r['detail']})"),
+                         ", ".join(r.get("sources") or []), r.get("fetched_at") or "-"])
+        story.append(P("Rules fired", "h"))
+        story.append(table(rows, [28 * mm, 26 * mm, 46 * mm, 30 * mm, 24 * mm, W - 154 * mm]))
+
     # --- accuracy (labelled only) ------------------------------------------------------------------
     if labelled:
         story.append(P("Accuracy by class", "h"))

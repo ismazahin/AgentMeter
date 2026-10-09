@@ -326,6 +326,17 @@ def score_session(plan: dict[str, Any], run_id: str) -> dict[str, Any]:
         "statistics": stats,
         "provenance": provenance,
     }
+    # Phase 45: the same read-only analytical sections the baseline analysis.json has,
+    # from this session's own DB, so the full analysis view can show them. Additive
+    # only — nothing above (scores, ranks, verdicts) reads them.
+    from ..analysis import analyze_advanced, analyze_by_class
+    if labelled:
+        payload["per_class"] = analyze_by_class.aggregate_per_class(sr, am, classes)
+    adv = analyze_advanced.aggregate_advanced(sr, am)
+    if not labelled:                 # accuracy-based views are meaningless without labels
+        adv["pareto"] = adv["misclass_cost"] = None
+        adv["accuracy_note"] = "accuracy not measured for unlabelled input"
+    payload["advanced"] = adv
     if labelled:
         payload["phase7"] = {"per_model": p7["per_model"].to_dict("records"),
                              "per_class": p7["per_class"].to_dict("records"),

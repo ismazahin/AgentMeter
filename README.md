@@ -200,6 +200,10 @@ validated numbers.
 twins (`scripts/ingest.py`, `scripts/benchmark.py`). Every such run writes its own
 session DB under `results/csv_runs|pcap_runs/<name>/`, is labelled `non_validated`, and
 never changes the locked SAW ranking or statistics.
+Each finished job has a **View full analysis** page (Overview + Detailed, labelled
+"Session analysis (non-validated)"). The three rule-base stages (flow selection,
+scoring/verdict, and stage-3 context from Hugging Face metadata that never changes a
+score) are documented in [docs/RULE_BASE.md](docs/RULE_BASE.md).
 
 `analyze` classifies a run as the validated baseline **only** when it reads the locked
 study DB; any other DB gets a `provenance` block with `"run_kind": "user_run",

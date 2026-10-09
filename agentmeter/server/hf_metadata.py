@@ -93,6 +93,9 @@ def parse_metadata(raw: dict[str, Any], model_id: str) -> dict[str, Any]:
         "license": _license(raw),
         "last_modified": raw.get("lastModified") or raw.get("last_modified"),
         "pipeline_tag": raw.get("pipeline_tag"),
+        # false | "auto" | "manual" on the HF API: True when a licence must be accepted.
+        "gated": (bool(raw.get("gated")) if raw.get("gated") is not None else None),
+        "source_url": f"https://huggingface.co/{model_id}",
     }
 
 
@@ -128,6 +131,7 @@ def get_metadata(
         out = dict(cached["data"])
         out["status"] = "ok"
         out["cached"] = True
+        out["fetched_at"] = _iso(cached.get("fetched_at"))
         return out
 
     try:
@@ -141,6 +145,7 @@ def get_metadata(
         out = dict(data)
         out["status"] = "ok"
         out["cached"] = False
+        out["fetched_at"] = _iso(now)
         return out
     except Exception as e:  # noqa: BLE001 — 429 / timeout / offline / 404 / parse
         if cached and cached.get("data"):
@@ -148,8 +153,18 @@ def get_metadata(
             out["status"] = "stale"
             out["cached"] = True
             out["error"] = str(e)
+            out["fetched_at"] = _iso(cached.get("fetched_at"))
             return out
-        return {"model": model_id, "status": "unavailable", "error": str(e)}
+        return {"model": model_id, "status": "unavailable", "error": str(e),
+                "source_url": f"https://huggingface.co/{model_id}", "fetched_at": None}
+
+
+def _iso(ts: Any) -> Optional[str]:
+    from datetime import datetime, timezone
+    try:
+        return datetime.fromtimestamp(float(ts), tz=timezone.utc).isoformat(timespec="seconds")
+    except (TypeError, ValueError, OSError):
+        return None
 
 
 def get_many(

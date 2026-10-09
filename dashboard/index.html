@@ -519,6 +519,19 @@
   .stat-row .k { color: var(--muted); }
   .sig { font-weight: 600; } .sig.yes { color: var(--healthy); } .sig.no { color: var(--muted); }
 
+  /* Phase 45 — session analysis mode (one benchmark session, non-validated) */
+  .acc-missing { display: none; }
+  body.no-accuracy .acc-only { display: none !important; }
+  body.no-accuracy .acc-missing { display: block; }
+  body.no-accuracy #saw th:nth-child(3), body.no-accuracy #saw td:nth-child(3),
+  body.no-accuracy #cf-table th:nth-child(2), body.no-accuracy #cf-table td:nth-child(2) { display: none; }
+  .session-panel { margin-top: 14px; border-left: 3px solid var(--critical); }
+  .session-panel h2 { margin-top: 0; }
+  .session-panel .kvs { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; margin: 8px 0; }
+  .session-panel .kvs b { font-weight: 600; }
+  .session-panel ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+  .session-panel .s3 li { margin-bottom: 4px; }
+  .session-panel .actions a { margin-right: 12px; font-size: 13px; }
   .glossary { margin: 0; }
   .glossary div { padding: 10px 0; font-size: 13px; line-height: 1.55; border-bottom: 1px solid var(--line); }
   .glossary div:last-child { border-bottom: 0; }
@@ -632,6 +645,7 @@
       <button id="gs-dismiss" class="gs-x" type="button">Got it</button>
     </div>
     <div id="banner" class="banner sample"></div>
+    <div id="session-panel" class="panel session-panel" hidden></div>
   </div>
 
   <!-- ===================== OVERVIEW ===================== -->
@@ -640,8 +654,8 @@
   <header class="view-hero">
     <div class="hero-grid">
       <div class="hero-main">
-        <h1>AgentMeter LLM Resource-Efficiency Benchmarks</h1>
-        <p class="tab-intro">This page ranks the benchmarked models by one
+        <h1 id="ov-title">AgentMeter LLM Resource-Efficiency Benchmarks</h1>
+        <p class="tab-intro" id="ov-intro">This page ranks the benchmarked models by one
     overall efficiency score and lets you change how much each factor (accuracy, speed, memory, tokens)
     counts using the sliders. The ranking re-computes live in your browser.</p>
       </div>
@@ -666,11 +680,13 @@
       <p class="sub">SAW composite ×100 · Higher is better</p>
       <div class="vbars" id="hc-composite"></div>
     </div>
-    <div class="hcard">
+    <div class="hcard acc-only">
       <div class="hhead"><span class="sq" style="background:var(--hi-2)"></span><h3>Accuracy</h3><span class="help"><button class="help-btn" type="button" data-help="hc-accuracy" aria-label="What is this?">?</button></span></div>
-      <p class="sub">Detection accuracy across 300 scenarios · Higher is better</p>
+      <p class="sub" id="hc-acc-sub">Detection accuracy across 300 scenarios · Higher is better</p>
       <div class="vbars" id="hc-accuracy"></div>
     </div>
+    <div class="hcard acc-missing"><div class="hhead"><h3>Accuracy</h3></div><p class="sub">Not measured</p>
+      <p class="note">Accuracy not measured for unlabelled input: this session's flows have no ground-truth labels, so it measures resource efficiency only.</p></div>
     <div class="hcard">
       <div class="hhead"><span class="sq" style="background:var(--hi-3)"></span><h3>Latency per scenario</h3><span class="help right"><button class="help-btn" type="button" data-help="hc-latency" aria-label="What is this?">?</button></span></div>
       <p class="sub">Mean wall time per scenario · Lower is better</p>
@@ -717,7 +733,7 @@
       <label>Max latency (s): <input type="number" id="cf-latency" min="0" step="0.1" autocomplete="off"></label>
       <label style="margin-left:14px">Max VRAM (MB): <input type="number" id="cf-vram" min="0" step="100" autocomplete="off"></label>
       <label style="margin-left:14px">Max tokens: <input type="number" id="cf-tokens" min="0" step="50" autocomplete="off"></label>
-      <label style="margin-left:14px">Min accuracy (%): <input type="number" id="cf-accuracy" min="0" max="100" step="1" autocomplete="off"></label>
+      <label class="acc-only" style="margin-left:14px">Min accuracy (%): <input type="number" id="cf-accuracy" min="0" max="100" step="1" autocomplete="off"></label>
       <button class="ghost" id="cf-clear" type="button" style="margin-left:14px">Clear</button>
     </div>
     <table id="cf-table"></table>
@@ -796,7 +812,10 @@
   <h2 class="section-label">Accuracy &amp; correctness</h2>
   <p class="section-desc">How often each model was right, where it confused classes, and what a wrong answer cost in time and tokens.</p>
 
-  <div class="panel">
+  <div class="panel acc-missing"><h2>Accuracy not measured</h2>
+    <p class="lead">Accuracy not measured for unlabelled input: this session's flows (a raw PCAP or an unlabelled CSV) have no ground-truth labels, so there is no accuracy, per-class accuracy, confusion matrix or misclassification cost to show. The resource-efficiency views are complete.</p></div>
+
+  <div class="panel acc-only">
     <h2>Accuracy detail<span class="help"><button class="help-btn" type="button" data-help="accuracy" aria-label="What is this?">?</button></span></h2>
     <p class="lead">Per-model accuracy from the stored <code>correct</code> flag (not recomputed).</p>
     <table id="acc-table"></table>
@@ -805,7 +824,7 @@
     <details class="howto"><summary>How to read this table</summary><p>accuracy is how often a model's final label matched the true class across all scenarios — higher is better. When a confusion matrix is shown below, rows are the <b>true</b> class and columns are what the model <b>predicted</b>: the diagonal is correct calls, off-diagonal cells are mix-ups.</p></details>
   </div>
 
-  <div class="panel">
+  <div class="panel acc-only">
     <h2>Misclassification resource cost <span class="hint">cost when right vs wrong (resource comparison only, not a detection ranking)</span><span class="help"><button class="help-btn" type="button" data-help="misclass" aria-label="What is this?">?</button></span></h2>
     <div class="controls" style="margin-bottom:14px">
       <label>Metric: <select id="mcost-metric">
@@ -905,7 +924,8 @@
     <p class="note" id="sens-note"></p>
   </div>
 
-  <div class="panel">
+  <div class="panel acc-missing"><h2>Pareto frontier</h2><p class="lead">Accuracy not measured for unlabelled input, so there is no accuracy-vs-cost trade-off to plot.</p></div>
+  <div class="panel acc-only">
     <h2>Pareto frontier <span class="hint">accuracy vs resource cost; the best trade-offs sit on the front line</span><span class="help"><button class="help-btn" type="button" data-help="pareto" aria-label="What is this?">?</button></span></h2>
     <div class="pareto-grid">
       <div class="chartwm"><h3 class="crud-h3">Accuracy vs mean latency</h3><div id="pareto-latency"></div></div>
@@ -2431,6 +2451,13 @@
     var c = document.getElementById("ds-rec-caveat");
     if (h) h.textContent = rec.headline;
     if (c) c.textContent = rec.caveat;      // textContent: the honesty caveat, never HTML
+    // Session analysis: lead with the session's MEASURED head-to-head verdict (the same
+    // sentence as the service results and PDF), never a SAW rank-1 picked inside a tie.
+    if (state.session && d.relative_comparison) {
+      if (h) h.textContent = d.relative_comparison.verdict;
+      if (c) c.textContent = "Session analysis (non-validated): measured on this session's flows and GPU. " +
+        "See the stage-3 recommendation at the top for external model context.";
+    }
     var o = document.getElementById("ds-optim");
     if (o) o.textContent = REPORT.optimisationHint(d, rec.top).text;
   }
@@ -3339,6 +3366,15 @@
     function load() {
       if (loaded) return;
       var note = document.getElementById("mc-note");
+      if (state.session) {                // the metadata stage 3 used for THIS session
+        var ctx = (state.data && state.data.model_context) || {};
+        var ms = ctx.models || {};
+        render(Object.keys(ms).map(function (k) { return Object.assign({ model: k }, ms[k]); }));
+        loaded = true;
+        if (note) note.textContent = "Source: Hugging Face Hub, fetched when this session finished (" +
+          (ctx.status || "unavailable") + (ctx.reason ? ": " + ctx.reason : "") + "). Context only — not part of any score.";
+        return;
+      }
       if (!live()) {
         if (note) note.textContent = "Reference metadata needs the AgentMeter server (Hugging Face Hub is fetched server-side). The rest of the dashboard is unaffected.";
         loaded = true; return;
@@ -3376,6 +3412,14 @@
     // Phase 19 — a loaded analysis flagged non_validated (a user/custom run) gets a
     // distinct warning banner so it is never mistaken for the validated baseline.
     var prov = (state.data && state.data.provenance) || null;
+    if (kind === "session") {
+      b.className = "banner unvalidated";
+      b.innerHTML = "<b>⚠ Session analysis (non-validated)</b>" +
+        '<span class="src">' + esc(sourceLabel) + "</span>" +
+        "<span>One benchmark session on your data. It is <b>not</b> the Validation baseline (the locked " +
+        "5-model L4 study) and is never merged into it. <a href='/'>Open the Validation baseline</a></span>";
+      return;
+    }
     if (kind !== "sample" && prov && prov.non_validated) {
       b.className = "banner unvalidated";
       b.innerHTML = "<b>⚠ USER / CUSTOM RUN — not the validated baseline</b>" +
@@ -3460,13 +3504,64 @@
         "<b>Could not parse bundled sample:</b> " + esc(err.message) + " — load an analysis.json manually.";
     }
   }
-  bootSample();
+  // ---- Phase 45: full analysis view of ONE benchmark session (?session=<job id>) ----
+  function renderSessionPanel(d, jobId) {
+    var s = d.session || {}, env = d.environment || {}, s3 = d.recommendation_stage3 || null;
+    var el = document.getElementById("session-panel");
+    var models = (d.per_model || []).map(function (m) { return m.model; });
+    var gpu = env.provider === "real" ? "Real GPU: " + (env.gpu_name || "unknown") : "DEMO (mock) — no GPU, not a model measurement";
+    var api = "/api/jobs/" + encodeURIComponent(jobId);
+    el.innerHTML = "<h2>Session analysis (non-validated)</h2>" +
+      "<div class='kvs'><span><b>Sample size:</b> " + esc(s.n_flows) + " flows × " + models.length + " model" + (models.length === 1 ? "" : "s") +
+      "</span><span><b>Models:</b> " + esc(models.join(" vs ")) + "</span><span><b>Input:</b> " + esc(String(s.source_type || "").toUpperCase()) +
+      " · " + esc(s.accuracy_available ? "labelled → accuracy + efficiency (" + s.class_scheme + ")" : "unlabelled → efficiency only") +
+      "</span><span><b>Measured on:</b> " + esc(gpu) + "</span><span><b>Job:</b> <span class='mono'>" + esc(jobId) + "</span></span></div>" +
+      (s3 ? "<h3 style='margin:12px 0 4px;font-size:14px'>Recommendation — stage 3</h3><p style='margin:0;font-size:13px'><b>Measured verdict:</b> " +
+        esc((s3.verdict || {}).text || "—") + "</p>" + ((s3.notes || []).length ? "<ul class='s3' id='session-stage3'>" +
+        s3.notes.map(function (n) { return "<li><code>" + esc(n.rule) + "</code> " + esc(n.note) + " <span class='note'>(" + esc((n.sources || []).join(", ")) + ")</span></li>"; }).join("") + "</ul>"
+        : "<p class='note' id='session-stage3'>No context rule fired (Hugging Face metadata " + esc(s3.metadata_status || "unavailable") + ").</p>") : "") +
+      "<h3 style='margin:12px 0 4px;font-size:14px'>Caveats</h3><ul id='session-caveats'>" +
+      ((d.relative_comparison ? d.relative_comparison.caveats : s.caveats) || []).map(function (c) { return "<li>" + esc(c) + "</li>"; }).join("") + "</ul>" +
+      "<p class='actions' style='margin-top:10px'><a href='/service#/job/" + encodeURIComponent(jobId) + "'>Back to this job</a>" +
+      "<a href='" + api + "/report.pdf'>PDF report</a><a href='" + api + "/result' download='session_results.json'>Results JSON</a></p>";
+    el.hidden = false;
+    document.getElementById("ov-title").textContent = "Session analysis (non-validated)";
+    document.getElementById("ov-intro").textContent = "This session's models, ranked by the same SAW composite and views as the " +
+      "Validation baseline — on " + s.n_flows + " flows of your data. Small samples: differences may not be meaningful.";
+    var sub = document.getElementById("hc-acc-sub");
+    if (sub) sub.textContent = "Accuracy across " + s.n_flows + " flows · Higher is better";
+    document.title = "AgentMeter — Session analysis (non-validated)";
+  }
+  var SESSION_ID = new URLSearchParams(location.search).get("session");
+  if (SESSION_ID && !/^job_[0-9]{8}_[0-9]{6}_[0-9a-f]{6}$/.test(SESSION_ID)) SESSION_ID = null;
+  if (SESSION_ID) {
+    state.session = true;
+    document.body.classList.add("session-mode");
+    document.getElementById("banner").innerHTML = "<b>Loading session analysis…</b>";
+  } else {
+    bootSample();
+  }
   initNav();
   initDetailSubtabs();
   initDecision();
   initExport();
   initHelp();
   initGettingStarted();
+  if (SESSION_ID) {
+    fetch("/api/jobs/" + encodeURIComponent(SESSION_ID) + "/result").then(function (r) {
+      return r.json().then(function (d) { if (!r.ok) throw new Error(d.error || ("HTTP " + r.status)); return d; });
+    }).then(function (d) {
+      if (!(d.session && d.session.accuracy_available)) document.body.classList.add("no-accuracy");
+      load(validate(d), "session", "job " + SESSION_ID + " · " + ((d.session && d.session.run_dir) || "").split("/").slice(-1)[0]);
+      renderSessionPanel(d, SESSION_ID);
+      MODELCTX.load();
+    }).catch(function (e) {
+      var b = document.getElementById("banner");
+      b.className = "banner unvalidated";
+      b.innerHTML = "<b>Session analysis unavailable</b><span>" + esc(e.message) + "</span><span><a href='/service#/jobs'>Recent jobs</a> · <a href='/'>Validation baseline</a></span>";
+    });
+    return;
+  }
   MODELCTX.load();
   // Optional convenience: if a real analysis.json sits next to this page (served
   // over http, or some browsers allow it over file://), auto-load it.

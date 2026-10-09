@@ -282,6 +282,10 @@ The report contains:
 - **Caveats:** non-validated, balanced sample, the hardware note, the mock note
   when it applies, and the scope statement.
 
+- **Recommendation — stage 3:** the measured head-to-head verdict, then the
+  context notes from Hugging Face model metadata, and a **Rules fired** table. These
+  notes never change a score or the verdict; see [RULE_BASE.md](RULE_BASE.md).
+
 **Values are never recomputed.** Every number comes from `session_results.json`
 (plus `input.json` and `selection_audit.json` for the input and rule-base
 sections).

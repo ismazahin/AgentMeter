@@ -164,6 +164,10 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
         environment = _env("real" if plan["provider"] == "hf" else "mock")
     # Phase E: provider, GPU, driver/CUDA and library versions — traceability only.
     payload["environment"] = environment
+    # Phase 45: rule-base stage 3 — external HF metadata as CONTEXT (model_context +
+    # recommendation_stage3). Runs after scoring on a copy; never fails the session.
+    from .stage3 import add_stage3
+    add_stage3(payload)
     write_results(Path(plan["run_dir"]) / RESULTS_JSON, payload)
     return payload
 

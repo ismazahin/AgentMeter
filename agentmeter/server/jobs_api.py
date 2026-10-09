@@ -15,12 +15,17 @@ not_resumable, bad_request.
 """
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, Optional
 
 from .jobs import JobError, JobManager
 
 
-def register_jobs(app, get_manager: Callable[[], JobManager]) -> None:
+def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional[str] = None,
+                  base_config: Optional[str] = None,
+                  environment: Optional[Callable[[], dict]] = None) -> None:
+    """provider/base_config: when given (Phase E), the SERVER decides them — a client
+    can not run a mock job on a real-GPU server or vice versa. environment() is
+    stamped into each new job (GPU, driver, CUDA, provider)."""
     from flask import jsonify, request
 
     def fail(e: JobError):
@@ -51,8 +56,17 @@ def register_jobs(app, get_manager: Callable[[], JobManager]) -> None:
         if not isinstance(models, list):
             return fail(JobError("'models' must be a list of 1 or 2 model ids", "bad_models", 400))
         try:
-            job = mgr.create_job(run, models, provider=body.get("provider"),
-                                 base_config=body.get("base_config"))
+            asked = body.get("provider")
+            if provider is not None:
+                if asked not in (None, "", provider):
+                    return fail(JobError(
+                        f"this server runs provider {provider!r} only ({'real models on its GPU' if provider == 'hf' else 'mock demo'}); "
+                        f"{asked!r} was requested", "provider_mismatch", 400))
+                asked = provider
+            job = mgr.create_job(run, models, provider=asked,
+                                 base_config=base_config if provider is not None and base_config
+                                 else body.get("base_config"),
+                                 environment=environment() if environment else None)
         except JobError as e:
             return fail(e)
         return jsonify(with_links(job)), 202

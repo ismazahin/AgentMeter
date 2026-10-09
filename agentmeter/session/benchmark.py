@@ -149,7 +149,8 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
 
 
 def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional[str] = None,
-                provider: Optional[str] = None, fresh: bool = False) -> dict[str, Any]:
+                provider: Optional[str] = None, fresh: bool = False,
+                environment: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """Prepare, execute (existing sequential runner), score, and write
     <run_dir>/session_results.json. Returns the results payload."""
     from ..run.runner import run_full
@@ -158,6 +159,11 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
     plan = prepare_session(run_dir, models, base_config=base_config, provider=provider)
     result = run_full(config_path=plan["config_path"], fresh=fresh, auto_analyze=False)
     payload = score_session(plan, run_id=result.run_id)
+    if environment is None:                     # CLI: describe this machine the same way
+        from ..server.runtime import environment as _env
+        environment = _env("real" if plan["provider"] == "hf" else "mock")
+    # Phase E: provider, GPU, driver/CUDA and library versions — traceability only.
+    payload["environment"] = environment
     write_results(Path(plan["run_dir"]) / RESULTS_JSON, payload)
     return payload
 

@@ -311,7 +311,8 @@ def test_server_serves_dashboard_and_api_same_origin(tmp_path):
     assert client.get("/agentmeter/pull_eval.py").status_code == 404
 
     # (4) API works with RELATIVE (same-origin) paths
-    assert client.get("/health").get_json() == {"ok": True}
+    h = client.get("/health").get_json()                # Phase E: richer, still cheap + open
+    assert h["ok"] is True and h["provider"] in ("real", "mock") and "queue" in h
     assert client.get("/status").get_json()["state"] == "idle"
     assert client.get("/analysis").status_code == 404   # nothing run yet
 

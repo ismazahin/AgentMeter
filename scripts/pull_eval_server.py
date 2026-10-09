@@ -72,6 +72,7 @@ class CostGuard:
         self.last_activity = time.time()
         self._lock = threading.Lock()
         self._destroyed = False
+        self.job_manager = None          # Phase E: service jobs also keep the box alive
 
     def touch(self) -> None:
         self.last_activity = time.time()
@@ -100,7 +101,10 @@ class CostGuard:
         while not stop.wait(interval):
             # NEVER destroy while a job is running (a 300-scenario run is long);
             # treat an active job as activity so the idle clock restarts after it.
-            if self.manager.snapshot().is_active():
+            jm = getattr(self, "job_manager", None)
+            busy_jobs = bool(jm is not None and any(
+                j["status"] in ("queued", "running") for j in jm.list_jobs(limit=200)))
+            if self.manager.snapshot().is_active() or busy_jobs:
                 self.touch()
                 continue
             if time.time() - self.last_activity >= self.idle_timeout:
@@ -110,28 +114,23 @@ class CostGuard:
                 return
 
 DASHBOARD_DIR = REPO_ROOT / "dashboard"
+WEB_DIR = REPO_ROOT / "web"                 # Phase E: the static service front-end
 # Only these dashboard assets are servable (no arbitrary file access). analysis.json
 # is included so a canonical results file dropped in dashboard/ auto-loads in the
 # served dashboard (the "view real results" path); it is gitignored, never a secret.
 _ALLOWED_ASSETS = {
     "index.html", "saw.js", "report.js", "pull-config.js", "sample_analysis.json",
-    "README.md", "analysis.json", "service.html",
+    "README.md", "analysis.json",
 }
-
-
-def _manual_cors(resp):
-    """Fallback permissive CORS (used only if flask-cors is not installed), so a
-    file:// dashboard (origin "null") can still reach the API."""
-    resp.headers.setdefault("Access-Control-Allow-Origin", "*")
-    resp.headers.setdefault("Access-Control-Allow-Headers", "Content-Type")
-    resp.headers.setdefault("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-    return resp
+# Requests that must not count as "activity" for the idle cost guard: a front-end
+# polling /health would otherwise keep a rented GPU alive forever.
+_PASSIVE_PATHS = {"/health", "/config.json"}
 
 
 def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_DIR,
                guard: "CostGuard" = None, app_store=None,
                app_db_path: Path = None, local_results_dir: Path = None,
-               start_watcher: bool = False, job_manager=None):
+               start_watcher: bool = False, job_manager=None, mode: str = None):
     import json as _json
 
     from flask import Flask, Response, jsonify, request, send_from_directory
@@ -162,21 +161,18 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
     # quiet server (registered first so it always runs).
     @app.after_request
     def _bump_activity(resp):  # noqa: ANN001
-        if guard is not None:
+        if guard is not None and request.path not in _PASSIVE_PATHS and request.method != "OPTIONS":
             guard.touch()
         return resp
 
-    # Prefer flask-cors; fall back to manual headers if it is not installed. The
-    # dashboard is served SAME-ORIGIN from this app, so CORS is only a fallback
-    # for the file:// case (permissive across all routes, including CRUD).
-    try:
-        from flask_cors import CORS
-
-        CORS(app)
-    except Exception:  # noqa: BLE001 — flask-cors optional
-        @app.after_request
-        def after(resp):  # noqa: ANN001
-            return _manual_cors(resp)
+    # Phase E — provider decided ONCE here (real | mock; no fallback later), and
+    # CORS / passcode / rate limits (agentmeter/server/access.py). CORS is
+    # restricted to AGENTMETER_ALLOWED_ORIGINS; only a MOCK dev server without that
+    # setting stays permissive (file:// dashboards). A real server never sends "*".
+    from agentmeter.server import access, runtime
+    if mode is None:
+        mode = runtime.resolve_mode(None, gpu_available=job_manager.gpu_available() if job_manager else None)
+    app.config["SERVICE_MODE"] = mode
 
     # Phase 31 — optional HTTP Basic Auth gate (for internet exposure). OFF by
     # default (local use unchanged); ENABLED when AGENTMETER_AUTH_PASS is set in the
@@ -215,7 +211,13 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
             _jobs_holder["mgr"] = _jobs.JobManager()
         return _jobs_holder["mgr"]
 
-    jobs_api.register_jobs(app, get_job_manager)
+    def _queue_depth():
+        return sum(1 for j in get_job_manager().list_jobs(limit=200) if j["status"] in ("queued", "running"))
+
+    access.install(app, mode=mode, queue_depth=_queue_depth)
+    jobs_api.register_jobs(app, get_job_manager, provider=runtime.job_provider(mode),
+                           base_config=(str(runtime.REAL_BASE_CONFIG) if mode == "real" else None),
+                           environment=lambda: runtime.environment(mode))
 
     # Phase 41 — the service web flow: upload/ingest, run summaries, service config,
     # and the /service page (same origin; the analysis dashboard stays at /).
@@ -224,7 +226,12 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
 
     @app.route("/service", methods=["GET"])
     def service_page():
-        return send_from_directory(dashboard_dir, "service.html")
+        return send_from_directory(WEB_DIR, "index.html")
+
+    @app.route("/config.json", methods=["GET"])
+    def web_config():
+        # Served by the backend itself, the page talks to its own origin.
+        return jsonify({"api_base": ""})
 
     # Phase 43b — the two steps have their own entry URLs (menu / bookmarks).
     @app.route("/service/prepare", methods=["GET"])
@@ -417,7 +424,23 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
     # --- API -----------------------------------------------------------
     @app.route("/health", methods=["GET"])
     def health():
-        return jsonify({"ok": True})
+        """Open, cheap: what the front-end shows before anyone clicks Run."""
+        jm = get_job_manager()
+        jobs = jm.list_jobs(limit=200)
+        env = runtime.environment(mode)
+        acc = app.config.get("ACCESS") or {}
+        return jsonify({
+            "ok": True, "service": "AgentMeter benchmark backend — measures LLM resource efficiency "
+                                   "(not a threat-detection product)",
+            "provider": mode,
+            "gpu": ({"name": env["gpu_name"], "vram_total_mb": env["gpu_vram_total_mb"],
+                     "driver_version": env["driver_version"], "cuda": env["cuda_runtime_version"]}
+                    if mode == "real" else None),
+            "models_local": runtime.models_local() if mode == "real" else {},
+            "queue": {"running": jm.running_job() is not None,
+                      "queued": sum(1 for j in jobs if j["status"] == "queued")},
+            "auth_required": bool(acc.get("auth_required")),
+        })
 
     @app.route("/pull-eval", methods=["POST", "OPTIONS"])
     def pull_eval_ep():
@@ -561,6 +584,13 @@ def main(argv=None) -> int:
     ap.add_argument("--canonical", default=str(pull_eval.DEFAULT_CANONICAL_JSON),
                     help="locked canonical analysis.json (read-only, for merging)")
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--host", default="0.0.0.0",
+                    help="bind address; 127.0.0.1 when only a Cloudflare Tunnel on the same "
+                         "box should reach it (scripts/vast_up.sh does this)")
+    ap.add_argument("--provider", choices=("real", "mock", "auto"), default=None,
+                    help="real = HF models on this GPU (refuses to start without a GPU, the "
+                         "models on disk and AGENTMETER_PASSCODE); mock = demo; auto (default, or "
+                         "AGENTMETER_SERVICE_PROVIDER) = real iff CUDA is visible")
     ap.add_argument("--n", type=int, default=None,
                     help="cap scenarios (debug only; omit for the full 300)")
     ap.add_argument("--ngrok", action="store_true",
@@ -597,6 +627,21 @@ def main(argv=None) -> int:
         print(f"WARNING: canonical analysis not found at {canonical}. /analysis will "
               "fail until the locked study analysis.json exists.", file=sys.stderr)
 
+    # Phase E — decide the provider ONCE; real mode must pass its preflight or the
+    # server does not start (never a silent fallback to mock).
+    from agentmeter.server import runtime
+    try:
+        mode = runtime.resolve_mode(args.provider)
+        if mode == "real":
+            env = runtime.preflight()
+            print(f"  provider     : REAL — {env['gpu_name']} ({env['gpu_vram_total_mb']} MB), driver "
+                  f"{env['driver_version']}, CUDA {env['cuda_runtime_version']}", flush=True)
+        else:
+            print("  provider     : MOCK (demo) — no language model runs on this server", flush=True)
+    except runtime.RealModeError as e:
+        print(f"\nERROR: {e}\n", file=sys.stderr)
+        return 2
+
     instance_id = args.instance_id or vast_shutdown.get_instance_id()
     guard = CostGuard(manager=None, auto_destroy=args.auto_destroy,
                       idle_timeout_min=args.idle_timeout, instance_id=instance_id)
@@ -612,7 +657,8 @@ def main(argv=None) -> int:
     job_manager = JobManager()
     app = create_app(manager, guard=guard, app_db_path=args.app_db,
                      local_results_dir=args.results_dir, start_watcher=True,
-                     job_manager=job_manager)
+                     job_manager=job_manager, mode=mode)
+    guard.job_manager = job_manager
 
     _print_startup(args.port)
     _log_safety_modes(args, instance_id)
@@ -637,8 +683,9 @@ def main(argv=None) -> int:
             print(f"ngrok tunnel failed ({e}); the direct URL above still works.",
                   file=sys.stderr)
 
-    # Bind 0.0.0.0 so the Vast.ai port mapping can reach it.
-    app.run(host="0.0.0.0", port=args.port, threaded=True)
+    # 0.0.0.0 lets a Vast.ai port mapping reach it; 127.0.0.1 keeps it behind the tunnel.
+    # ONE process (threaded, no extra workers): the job layer's single-job lock is per process.
+    app.run(host=args.host, port=args.port, threaded=True)
     return 0
 
 

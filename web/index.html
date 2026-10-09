@@ -99,6 +99,14 @@
   .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
   .field { display: flex; flex-direction: column; gap: 4px; }
   input[type="url"], input[type="text"].id-input { font: inherit; padding: 7px 10px; width: 100%; max-width: 640px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink); }
+  .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; border: 1px solid var(--line-strong); white-space: nowrap; }
+  .badge.real { background: var(--ok-bg, #e7f6ec); color: var(--ok, #1d7a3e); border-color: currentColor; }
+  .badge.demo { background: var(--warn-bg); color: var(--warn); border-color: var(--warn-line); }
+  .badge.off { background: var(--critical-bg); color: var(--critical); border-color: var(--critical); }
+  .badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .run-mode { margin: 12px 0 0; font-size: 14px; }
+  dialog#svc-pass-dialog { border: 1px solid var(--line-strong); border-radius: var(--radius); padding: 20px; max-width: 420px; width: calc(100% - 32px); background: var(--panel); color: var(--ink); }
+  dialog#svc-pass-dialog::backdrop { background: rgba(0,0,0,.35); }
   .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; margin-bottom: 12px; }
   .seg label { padding: 6px 14px; cursor: pointer; font-size: 14px; display: flex; gap: 6px; align-items: center; }
   .seg label + label { border-left: 1px solid var(--line-strong); }
@@ -178,11 +186,12 @@
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="0" y="12" width="4" height="4" fill="currentColor"/><rect x="4" y="8" width="4" height="4" fill="currentColor"/><rect x="8" y="4" width="4" height="4" fill="currentColor"/><rect x="12" y="0" width="4" height="4" fill="#7f4bf3"/></svg>
       AgentMeter <small>Benchmark service</small>
     </a>
+    <span id="svc-backend-badge" class="badge" role="status" aria-live="polite">Checking backend…</span>
     <nav aria-label="Service">
       <a href="#/prepare" data-nav="prepare">Prepare data</a>
       <a href="#/benchmark" data-nav="benchmark">Benchmark</a>
       <a href="#/jobs" data-nav="jobs">Recent jobs</a>
-      <a href="/">Validation baseline</a>
+      <a href="/" id="svc-baseline-link">Validation baseline</a>
     </nav>
   </div>
 </header>
@@ -196,6 +205,31 @@
     <li data-step="results">5 · Results</li>
   </ol>
   <div id="svc-demo" class="notice info" hidden></div>
+
+  <!-- OFFLINE / LANDING: shown when the GPU backend cannot be reached -->
+  <section id="view-offline" class="view" hidden aria-labelledby="h-offline">
+    <div class="hero">
+      <h1 id="h-offline">AgentMeter — benchmark the resource efficiency of LLMs on your network flows</h1>
+      <p>AgentMeter <b>measures</b> how efficiently open-source language models run a fixed 4-agent analysis
+        task: latency, GPU memory and tokens, plus accuracy when your data has labels. It compares up to two
+        models head-to-head on the same flows and the same GPU. It is a measurement tool — not a threat-detection
+        product — and it makes no security decision about your network.</p>
+    </div>
+    <div class="notice error" id="svc-offline-notice" role="alert">
+      <b>GPU backend offline.</b> The benchmark server only runs while a GPU is rented, so Prepare and Benchmark
+      are unavailable right now. Finished results you have a link to will open again when it is back.
+      <div class="mono" style="font-size:12px;margin-top:6px" id="svc-offline-detail"></div>
+      <div class="actions"><button type="button" class="btn" id="svc-retry">Check again</button></div>
+    </div>
+    <div class="grid two">
+      <div class="card"><h2>1 · Prepare</h2><p>Upload a CIC-IDS2017-format CSV or a raw PCAP, or give a direct https link.
+        AgentMeter validates it, draws a bounded, representative sample across the whole file and applies its
+        flow-selection rules. You get a small, downloadable prepared set.</p></div>
+      <div class="card"><h2>2 · Benchmark</h2><p>Pick up to two of the five study models. Each runs the same flows on
+        the same GPU, one at a time, in 4-bit NF4. You get a head-to-head efficiency verdict, accuracy when
+        labelled, and a PDF report that names the GPU it was measured on.</p></div>
+    </div>
+  </section>
 
   <!-- 1. PREPARE -->
   <section id="view-prepare" class="view" aria-labelledby="h-prepare">
@@ -290,6 +324,7 @@
       <p class="muted" id="svc-mode-line"></p>
       <div class="models" id="svc-models" role="group" aria-describedby="svc-model-hint"></div>
       <p id="svc-model-hint" class="muted" aria-live="polite">Select 1 or 2 models.</p>
+      <p class="run-mode" id="svc-run-mode"></p>
       <div class="row"><button type="button" class="btn primary" id="svc-run" disabled>Run benchmark</button></div>
       <div id="svc-run-error" class="notice error" role="alert" hidden></div>
     </div>
@@ -316,6 +351,17 @@
     <div class="hero"><h1 id="h-jobs">Recent jobs</h1></div>
     <div class="card"><div class="table-wrap" id="svc-jobs-table"></div></div>
   </section>
+  <dialog id="svc-pass-dialog" aria-labelledby="h-pass">
+    <form method="dialog" id="svc-pass-form">
+      <h2 id="h-pass" style="margin-top:0">Access passcode</h2>
+      <p class="muted" style="font-size:14px">This server runs on a rented GPU, so preparing and benchmarking need the
+        passcode from its operator. It is kept for this browser tab only.</p>
+      <input type="password" id="svc-pass-input" class="id-input" autocomplete="current-password" aria-label="Passcode" required>
+      <p id="svc-pass-error" class="notice error" hidden></p>
+      <div class="actions"><button type="submit" class="btn primary" id="svc-pass-ok" value="ok">Continue</button>
+        <button type="submit" class="btn" value="cancel" formnovalidate>Cancel</button></div>
+    </form>
+  </dialog>
 </main>
 
 <footer><div class="wrap">AgentMeter benchmark service — measures LLM resource efficiency (and accuracy where labels exist).
@@ -335,15 +381,59 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
-  function api(path, opts) {
-    return fetch(path, opts).then(function (r) {
-      return r.text().then(function (t) {
-        var data = null;
-        try { data = t ? JSON.parse(t) : null; } catch (e) { data = { error: t || r.statusText }; }
-        return { ok: r.ok, status: r.status, data: data || {} };
-      });
-    }, function () { return { ok: false, status: 0, data: { error: "Cannot reach the server.", code: "network" } }; });
+  // ---------- backend location + access ----------
+  // The page is static. The backend (GPU server) is named at runtime by config.json
+  // ({"api_base": "https://<tunnel>"}; "" = same origin), overridable with ?api=<url>
+  // (kept in this browser) so a new tunnel URL needs no redeploy. ?api=reset clears it.
+  var API = "", HEALTH = null;
+  var MUTATING = /^\/api\/(prepare|prepared\/import|ingest|jobs(\/[^/]+\/resume)?)$/;
+  function passGet() { try { return sessionStorage.getItem("agentmeter.passcode") || ""; } catch (e) { return ""; } }
+  function passSet(v) { try { if (v) sessionStorage.setItem("agentmeter.passcode", v); else sessionStorage.removeItem("agentmeter.passcode"); } catch (e) {} }
+  function askPasscode(message) {
+    return new Promise(function (resolve) {
+      var d = $("svc-pass-dialog"), inp = $("svc-pass-input"), er = $("svc-pass-error");
+      er.hidden = !message; er.textContent = message || "";
+      inp.value = "";
+      d.onclose = function () { resolve(d.returnValue === "ok" ? inp.value : null); };
+      d.returnValue = "";
+      d.showModal(); inp.focus();
+    });
   }
+  function needsPass(path, opts) {
+    var m = ((opts && opts.method) || "GET").toUpperCase();
+    return HEALTH && HEALTH.auth_required && ((m !== "GET" && MUTATING.test(path)) || (m === "GET" && /^\/api\/jobs(\?|$)/.test(path)));
+  }
+  function api(path, opts, retried) {
+    opts = Object.assign({ credentials: "omit" }, opts || {});
+    var go = function () {
+      var h = Object.assign({}, opts.headers || {});
+      if (needsPass(path, opts)) h["X-AgentMeter-Passcode"] = passGet();
+      return fetch(API + path, Object.assign({}, opts, { headers: h })).then(function (r) {
+        return r.text().then(function (t) {
+          var data = null;
+          try { data = t ? JSON.parse(t) : null; } catch (e) { data = { error: t || r.statusText }; }
+          return { ok: r.ok, status: r.status, data: data || {} };
+        });
+      }, function () { return { ok: false, status: 0, data: { error: "Cannot reach the GPU backend (" + (API || location.origin) + "). It may be offline.", code: "network" } }; });
+    };
+    var start = needsPass(path, opts) && !passGet()
+      ? askPasscode().then(function (v) { if (v) passSet(v); return v; }) : Promise.resolve(true);
+    return start.then(function (ok) {
+      if (!ok) return { ok: false, status: 401, data: { error: "A passcode is needed to prepare or benchmark on this server.", code: "passcode_required" } };
+      return go().then(function (r) {
+        if (r.status === 401 && /passcode/.test(r.data.code || "") && !retried) {
+          passSet("");
+          return askPasscode(r.data.error).then(function (v) {
+            if (!v) return r;
+            passSet(v);
+            return api(path, opts, true);
+          });
+        }
+        return r;
+      });
+    });
+  }
+  function apiUrl(path) { return API + path; }
   function showError(el, data) {
     el.hidden = false;
     el.innerHTML = esc((data && data.error) || "Something went wrong.") +
@@ -461,7 +551,7 @@
       $("svc-set-id").innerHTML = 'Prepared-set id: <span class="mono" id="svc-set-id-value">' + esc(r.data.prepared_set) + '</span>' +
         ' — keep it to benchmark later, or download the files and re-upload them on the Benchmark page.';
       $("svc-downloads").innerHTML = (r.data.downloads || []).map(function (f) {
-        return '<a class="btn" data-dl="' + esc(f) + '" href="/api/prepared/' + setPath(id) + '/' + encodeURIComponent(f) + '" download>' + esc(f) + '</a>';
+        return '<a class="btn" data-dl="' + esc(f) + '" href="' + apiUrl('/api/prepared/' + setPath(id) + '/' + encodeURIComponent(f)) + '" download>' + esc(f) + '</a>';
       }).join("");
       $("svc-to-benchmark").setAttribute("href", "#/run/" + setPath(id));
     });
@@ -707,6 +797,11 @@
     h.push('<div class="card" id="svc-verdict-card"><h2>Result</h2><div class="chips">' + modeChip(lab) +
       '<span class="chip">' + esc(s.class_scheme) + '</span><span class="chip">' + esc(s.n_flows) + ' flows</span>' +
       '<span class="chip">' + esc(s.provider) + ' · ' + esc(s.hardware) + '</span><span class="chip bad">non-validated</span></div>');
+    var env = res.environment || {};
+    h.push('<p id="svc-env" style="margin:8px 0 0">' + (env.provider === "real"
+      ? '<span class="badge real">Real GPU: ' + esc(env.gpu_name || "unknown") + '</span> <span class="muted mono" style="font-size:12px">driver ' +
+        esc(env.driver_version || "—") + ' · CUDA ' + esc(env.cuda_runtime_version || "—") + ' · 4-bit NF4</span>'
+      : '<span class="badge demo">DEMO (mock)</span> <span class="muted">not a model measurement</span>') + '</p>');
     if (rel) {
       h.push('<p class="verdict" id="svc-verdict">' + esc(rel.verdict) + '</p>');
       if (cmp) h.push('<p class="muted" id="svc-absolute"><b>Absolute SAW</b> (scored against fixed L4-study targets): ' + esc(cmp.statement) + '</p>');
@@ -791,14 +886,15 @@
     var cav = (rel ? rel.caveats : s.caveats) || [];
     h.push('<div class="card" id="svc-caveats-card"><h2>Read this before quoting the numbers</h2><ul class="caveats" id="svc-caveats">' +
       cav.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join("") + '</ul><div class="actions">' +
-      '<a class="btn primary" id="svc-dl-pdf" href="/api/jobs/' + encodeURIComponent(id) + '/report.pdf" download>Download PDF report</a>' +
-      '<a class="btn" id="svc-dl-json" href="/api/jobs/' + encodeURIComponent(id) + '/result" download="session_results.json">Results JSON</a>' +
+      '<a class="btn primary" id="svc-dl-pdf" href="' + apiUrl('/api/jobs/' + encodeURIComponent(id) + '/report.pdf') + '" download>Download PDF report</a>' +
+      '<button type="button" class="btn" id="svc-dl-json">Results JSON</button>' +
       '<button type="button" class="btn" id="svc-dl-saw">SAW CSV</button><button type="button" class="btn" id="svc-dl-agent">Per-agent CSV</button></div></div>');
 
     var box = $("svc-results");
     box.innerHTML = h.join("");
     box.hidden = false;
     $("svc-dl-saw").addEventListener("click", function () { download("agentmeter_session_saw.csv", window.REPORT.sawCsv(res)); });
+    $("svc-dl-json").addEventListener("click", function () { download("session_results.json", JSON.stringify(res, null, 2), "application/json"); });
     $("svc-dl-agent").addEventListener("click", function () { download("agentmeter_session_per_agent.csv", window.REPORT.perAgentCsv(res)); });
   }
 
@@ -818,22 +914,82 @@
     });
   }
 
-  // ---------- boot ----------
-  api("/api/service/config").then(function (r) {
-    CONFIG = r.ok ? r.data : { canonical_models: [], max_models: 2, provider: "mock", base_config: null, demo_mode: true, note: "Service config unavailable." };
-    var demo = $("svc-demo");
-    demo.hidden = !CONFIG.demo_mode;
-    demo.textContent = CONFIG.note || "";
-    $("svc-max-flows").value = CONFIG.default_max_flows || 50;
-    var L = CONFIG.limits;
-    if (L) {
-      $("svc-limits").textContent = "Maximum upload: " + L.max_upload_label + " — for larger files use Import from URL (up to " +
-        L.max_url_download_label + "). Large inputs are sampled across the whole file.";
-      $("svc-url-limits").textContent = "The server downloads the file itself (up to " + L.max_url_download_label +
-        "). Use a direct download link — Google Drive / Dropbox “share” pages are refused. Only public internet addresses are allowed.";
-    }
-    window.addEventListener("hashchange", route);
-    route();
+  // ---------- boot: config.json -> /health -> online | offline ----------
+  var ONLINE = false, offlineTimer = null;
+  function badge(h) {
+    var b = $("svc-backend-badge");
+    if (!h) { b.className = "badge off"; b.textContent = "GPU backend offline"; return; }
+    if (h.provider === "real") {
+      var g = h.gpu || {};
+      b.className = "badge real";
+      b.textContent = "Real GPU: " + (g.name || "unknown") + (g.vram_total_mb ? " · " + fmtNum(g.vram_total_mb / 1024, 0) + " GB" : "");
+    } else { b.className = "badge demo"; b.textContent = "DEMO (mock) — no GPU"; }
+    b.title = (h.provider === "real" ? "Runs use real models on this GPU" : "Runs use the MOCK provider: not a language model") +
+      (h.queue ? " · queue: " + (h.queue.running ? "1 running" : "idle") + ", " + (h.queue.queued || 0) + " queued" : "");
+  }
+  function runModeLine() {
+    var h = HEALTH || {}, el = $("svc-run-mode");
+    if (!el) return;
+    el.innerHTML = h.provider === "real"
+      ? '<span class="badge real">Real GPU: ' + esc((h.gpu || {}).name || "unknown") + '</span> Runs the selected models in 4-bit NF4 on this GPU, one at a time.'
+      : '<span class="badge demo">DEMO (mock)</span> No GPU: the run uses a deterministic heuristic, not a language model. Numbers are not model measurements.';
+  }
+  function health(timeoutMs) {
+    var ctl = window.AbortController ? new AbortController() : null;
+    var t = setTimeout(function () { if (ctl) ctl.abort(); }, timeoutMs || 6000);
+    return fetch(API + "/health", { credentials: "omit", cache: "no-store", signal: ctl ? ctl.signal : undefined })
+      .then(function (r) { clearTimeout(t); return r.ok ? r.json() : null; })
+      .then(function (h) { return h && h.ok ? h : null; }, function () { clearTimeout(t); return null; });
+  }
+  function goOffline() {
+    ONLINE = false; HEALTH = null; badge(null);
+    VIEWS.forEach(function (v) { $("view-" + v).hidden = true; });
+    $("view-offline").hidden = false; $("svc-steps").hidden = true; $("svc-demo").hidden = true;
+    $("svc-offline-detail").textContent = "Backend: " + (API || location.origin) + " — no answer from /health.";
+    clearTimeout(offlineTimer);
+    offlineTimer = setTimeout(checkBackend, 30000);   // come back by itself when the GPU is rented
+  }
+  function goOnline(h) {
+    var first = !ONLINE;
+    ONLINE = true; HEALTH = h; badge(h); runModeLine();
+    $("view-offline").hidden = true;
+    if (!first) return;
+    api("/api/service/config").then(function (r) {
+      CONFIG = r.ok ? r.data : { canonical_models: [], max_models: 2, provider: "mock", base_config: null, demo_mode: true, note: "Service config unavailable." };
+      var demo = $("svc-demo");
+      demo.hidden = !CONFIG.demo_mode;
+      demo.textContent = CONFIG.note || "";
+      $("svc-max-flows").value = CONFIG.default_max_flows || 50;
+      var L = CONFIG.limits;
+      if (L) {
+        $("svc-limits").textContent = "Maximum upload: " + L.max_upload_label + " — for larger files use Import from URL (up to " +
+          L.max_url_download_label + "). Large inputs are sampled across the whole file.";
+        $("svc-url-limits").textContent = "The server downloads the file itself (up to " + L.max_url_download_label +
+          "). Use a direct download link — Google Drive / Dropbox “share” pages are refused. Only public internet addresses are allowed.";
+      }
+      route();
+    });
+  }
+  function checkBackend() {
+    return health().then(function (h) { if (h) goOnline(h); else goOffline(); });
+  }
+  $("svc-retry").addEventListener("click", function () { $("svc-offline-detail").textContent = "Checking…"; checkBackend(); });
+  window.addEventListener("hashchange", function () { if (ONLINE) route(); });
+  function resolveApi() {
+    var q = new URLSearchParams(location.search).get("api");
+    try {
+      if (q === "reset") localStorage.removeItem("agentmeter.api");
+      else if (q) localStorage.setItem("agentmeter.api", q.replace(/\/+$/, ""));
+      var saved = localStorage.getItem("agentmeter.api");
+      if (saved) return Promise.resolve(saved);
+    } catch (e) {}
+    return fetch("config.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : {}; })
+      .then(function (c) { return String((c && c.api_base) || "").replace(/\/+$/, ""); }, function () { return ""; });
+  }
+  resolveApi().then(function (base) {
+    API = base;
+    document.querySelectorAll('a[href="/"]').forEach(function (a) { a.setAttribute("href", (API || "") + "/"); });
+    checkBackend();
   });
 })();
 </script>

@@ -191,6 +191,17 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
     story.append(P("Resource-efficiency benchmark of LLMs on a 4-agent threat-analysis pipeline "
                    "(+ accuracy where labels exist). Not a threat-detection product. NON-VALIDATED user run.",
                    "sub"))
+    env = res.get("environment") or {}
+    if env:
+        if env.get("provider") == "real":
+            mem = f", {env['gpu_vram_total_mb'] / 1024:.0f} GB" if env.get("gpu_vram_total_mb") else ""
+            story.append(P(f"Measured on: REAL GPU {env.get('gpu_name') or 'unknown'}{mem}; NVIDIA driver "
+                           f"{env.get('driver_version') or '-'}, CUDA {env.get('cuda_runtime_version') or '-'}; "
+                           f"torch {env.get('torch') or '-'}, transformers {env.get('transformers') or '-'}, "
+                           f"bitsandbytes {env.get('bitsandbytes') or '-'}; provider real (4-bit NF4); "
+                           f"host {env.get('host') or '-'}.", "sub"))
+        else:
+            story.append(P("Measured on: no GPU — provider mock (demo).", "sub"))
     if mock:
         story.append(Spacer(1, 4))
         story.append(P("DEMO RUN — mock provider: a deterministic heuristic, not a language model. "

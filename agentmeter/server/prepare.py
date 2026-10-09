@@ -109,7 +109,7 @@ def _dump(path: Path, obj: Any) -> None:
 # ---------------------------------------------------------------------------
 def prepare_file(src: Path, *, source: dict[str, Any], results_root: Path, name: str,
                  max_flows: int, other_attack: bool, limits: dict[str, int],
-                 progress: Optional[Progress] = None) -> str:
+                 progress: Optional[Progress] = None, environment: Optional[dict] = None) -> str:
     """Run the existing ingestion on `src` and finish the prepared set. Returns
     its id ("csv_runs/<name>" or "pcap_runs/<name>"). Raises PrepareError."""
     from ..ingest import run as ingest_run
@@ -146,7 +146,7 @@ def prepare_file(src: Path, *, source: dict[str, Any], results_root: Path, name:
                            f"cicflowmeter==0.2.0): {e}", "pcap_unsupported", 501) from e
     run_dir = out_root / name
     report(phase="writing", message="writing the prepared set")
-    finish_prepared_set(run_dir, source=source, limits=limits, started_at=started)
+    finish_prepared_set(run_dir, source=source, limits=limits, started_at=started, environment=environment)
     return f"{out_root.name}/{name}"
 
 
@@ -173,7 +173,8 @@ def _class_counts(meta: dict, man: dict) -> dict[str, Any]:
 
 
 def finish_prepared_set(run_dir: Path, *, source: dict[str, Any], limits: dict[str, int],
-                        started_at: Optional[str] = None) -> dict[str, Any]:
+                        started_at: Optional[str] = None,
+                        environment: Optional[dict] = None) -> dict[str, Any]:
     """Write features.csv and the manifest's prepared_set block for a run dir."""
     run_dir = Path(run_dir)
     meta = _read(run_dir / "input.json")
@@ -216,6 +217,7 @@ def finish_prepared_set(run_dir: Path, *, source: dict[str, Any], limits: dict[s
         "files": files,
         "started_at": started_at, "finished_at": _now(),
         "tool_versions": tool_versions(),
+        "backend": environment,                # provider / GPU of the server that prepared it
         "input_metadata": meta,                # the input.json record, for re-import
     }
     _dump(run_dir / MANIFEST, man)

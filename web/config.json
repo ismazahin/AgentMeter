@@ -1,0 +1,4 @@
+{
+  "api_base": "",
+  "_help": "URL of the AgentMeter GPU backend, e.g. https://agentmeter-api.example.org or the https://<random>.trycloudflare.com URL that scripts/vast_up.sh prints. Empty = same origin (the page is served by the backend itself). Editing this file needs a redeploy but no build; for a one-off change open the page with ?api=<url> instead (kept in that browser; ?api=reset clears it)."
+}

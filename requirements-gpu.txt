@@ -11,6 +11,6 @@ bitsandbytes>=0.43    # 4-bit/8-bit quantization (e.g. to fit a 7-8B model on a 
 # Phase 11 — admin model-pull + on-demand eval server (scripts/pull_eval_server.py).
 # Runs on a Vast.ai GPU instance: serves the dashboard AND the API from one origin.
 flask>=3.0            # serves dashboard/index.html + the /pull-eval /status /analysis API
-flask-cors>=4.0       # permissive CORS fallback so a file:// dashboard can also reach the API
+flask-cors>=4.0       # no longer used by the server (Phase E: agentmeter/server/access.py); kept for old scripts
 pyngrok>=7.0          # OPTIONAL public tunnel (--ngrok); Vast.ai's mapped port is usually reachable
 python-dotenv>=1.0    # load tokens from a local .env (copy .env.example); optional — a builtin parser is the fallback

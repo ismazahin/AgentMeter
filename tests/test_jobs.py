@@ -295,7 +295,9 @@ def test_http_endpoints_end_to_end(root):
     ({"run": "csv_runs/missing", "models": ["a"], "provider": "mock"}, 404, "run_missing"),
     ({"run": "/etc/passwd", "models": ["a"], "provider": "mock"}, 400, "bad_request"),
     ({"models": ["a"], "provider": "mock"}, 400, "run_missing"),
-    ({"run": RUN, "models": ["Qwen/Qwen2.5-7B-Instruct"], "provider": "hf"}, 503, "no_gpu"),
+    # Phase E: the server decides the provider; a mock server refuses "hf" outright
+    # (the no_gpu guard still covers direct JobManager callers, tested above).
+    ({"run": RUN, "models": ["Qwen/Qwen2.5-7B-Instruct"], "provider": "hf"}, 400, "provider_mismatch"),
 ])
 def test_http_errors_have_clear_payloads(root, body, status, code):
     mgr = manager(root, gpu_available=lambda: False, autostart=False)

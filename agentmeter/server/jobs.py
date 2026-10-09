@@ -94,7 +94,7 @@ def run_benchmark_job(job: dict[str, Any]) -> str:
     from ..session.benchmark import RESULTS_JSON, run_session
 
     run_session(job["run_dir"], job["models"], base_config=job.get("base_config"),
-                provider=job.get("provider"), fresh=False)
+                provider=job.get("provider"), fresh=False, environment=job.get("environment"))
     return str(Path(job["run_dir"]) / RESULTS_JSON)
 
 
@@ -120,7 +120,7 @@ def run_prepare_job(job: dict[str, Any], report: Callable[..., None]) -> str:
                                        "content_type", "redirects") if src.get(k) is not None}
     return prepare_file(path, source=public, results_root=Path(job["results_root"]), name=job["name"],
                         max_flows=int(job["max_flows"]), other_attack=bool(job["other_attack"]),
-                        limits=lim, progress=report)
+                        limits=lim, progress=report, environment=job.get("environment"))
 
 
 def session_progress(job: dict[str, Any]) -> dict[str, Any]:
@@ -288,7 +288,8 @@ class JobManager:
 
     # --- public API ------------------------------------------------------------------
     def create_job(self, run: str | Path, models: list[str], provider: Optional[str] = None,
-                   base_config: Optional[str] = None) -> dict[str, Any]:
+                   base_config: Optional[str] = None,
+                   environment: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """Validate, persist as 'queued', enqueue; returns immediately."""
         run_dir = Path(run).resolve() if Path(str(run)).is_absolute() else self.resolve_run(run)
         if not (run_dir / "input.json").exists():
@@ -304,7 +305,7 @@ class JobManager:
             "created_at": _now(), "created_ns": time.time_ns(),   # FIFO order key
             "started_at": None, "finished_at": None,
             "attempts": 0, "message": "queued", "error": None, "result_path": None,
-            "non_validated": True,
+            "non_validated": True, "environment": environment,
         }
         with self._lock:
             self._save(job)
@@ -312,7 +313,8 @@ class JobManager:
         return self.get(job["job_id"])
 
     def create_prepare_job(self, source: dict[str, Any], *, name: str, max_flows: int,
-                           other_attack: bool, limits: dict[str, Any]) -> dict[str, Any]:
+                           other_attack: bool, limits: dict[str, Any],
+                           environment: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """Queue a Prepare job. `source` is {"kind": "upload", "path", "filename",
         "size_bytes", "sha256"} (already saved) or {"kind": "url", "url"}."""
         if source.get("kind") not in ("upload", "url"):
@@ -332,7 +334,7 @@ class JobManager:
             "name": name, "source": source, "max_flows": max_flows,
             "other_attack": bool(other_attack), "limits": limits,
             "results_root": str(self.results_root), "uploads_dir": str(self.results_root / "uploads"),
-            "prepared": None, "prep_progress": {"phase": "queued"},
+            "prepared": None, "prep_progress": {"phase": "queued"}, "environment": environment,
             "run_name": source.get("filename") or source.get("url"), "models": [],
             "created_at": _now(), "created_ns": time.time_ns(),
             "started_at": None, "finished_at": None,

@@ -162,12 +162,14 @@ def ingest_upload(fileobj, filename: str, results_root: Path, uploads_dir: Path,
     return summarize(results_root / kind / name)
 
 
-def service_config(gpu_available: bool, limits: dict[str, Any] | None = None) -> dict[str, Any]:
+def service_config(gpu_available: bool, limits: dict[str, Any] | None = None,
+                   mode: str | None = None) -> dict[str, Any]:
     from ..session.benchmark import MAX_MODELS, canonical_models
 
     lim = limits or service_limits()
-    forced = os.environ.get("AGENTMETER_SERVICE_PROVIDER")      # "mock" | "hf" (ops override)
-    provider = forced or ("hf" if gpu_available else "mock")
+    from .runtime import job_provider, resolve_mode
+    # Phase E: the server's startup decision (create_app); never re-decided per request.
+    provider = job_provider(mode or resolve_mode(None, gpu_available=gpu_available))
     demo = provider == "mock"
     return {
         "canonical_models": canonical_models(), "max_models": MAX_MODELS,
@@ -221,7 +223,8 @@ def register_service(app, get_manager: Callable[[], JobManager]) -> None:
 
     @app.route("/api/service/config", methods=["GET"])
     def svc_config():
-        return jsonify(service_config(get_manager().gpu_available(), limits))
+        return jsonify(service_config(get_manager().gpu_available(), limits,
+                                      mode=app.config.get("SERVICE_MODE")))
 
     # --- Prepare -------------------------------------------------------------------------
     @app.route("/api/prepare", methods=["POST"])
@@ -251,8 +254,10 @@ def register_service(app, get_manager: Callable[[], JobManager]) -> None:
             else:
                 raise ServiceError("upload a file (form field 'file') or give an https 'url'",
                                    "invalid_file", 400)
+            from .runtime import environment as _env
             job = mgr.create_prepare_job(source, name=name, max_flows=max_flows, other_attack=other,
-                                         limits=limits)
+                                         limits=limits,
+                                         environment=_env(app.config.get("SERVICE_MODE") or "mock"))
         except (ServiceError, JobError) as e:
             return fail(e)
         job.pop("error_trace", None)

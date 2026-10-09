@@ -237,7 +237,8 @@ def test_destroy_fires_only_after_analysis_flushed(tmp_path, monkeypatch):
     holder["mgr"] = mgr
 
     mgr.start("org/model-7b")
-    for _ in range(300):
+    deadline = time.monotonic() + 30          # generous: the job is fast, a loaded CI box is not
+    while time.monotonic() < deadline:
         if mgr.snapshot().state in ("done", "error"):
             break
         time.sleep(0.01)

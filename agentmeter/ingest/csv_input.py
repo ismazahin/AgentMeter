@@ -48,6 +48,8 @@ from .feature_map import CIC_FEATURES, META_COLUMNS
 from .pcap import _MAGIC
 
 DEFAULT_MAX_BYTES = 2 * 1024 ** 3
+DEFAULT_SEED = 42                 # config.yaml run.seed: the pool draw is reproducible
+POOL_CHUNK_ROWS = 100_000
 
 # Identification columns of the full "TrafficLabelling" CIC-IDS2017 CSVs, mapped
 # onto the shared META_COLUMNS. They are not features (MachineLearningCVE CSVs
@@ -104,32 +106,111 @@ def required_columns(rule_fields: set[str]) -> set[str]:
     return {f for f in rule_fields if f in CIC_FEATURES}
 
 
+def _allocate(counts: dict[str, int], total: int) -> dict[str, int]:
+    """Split `total` pool slots across strata: rare strata keep every row, the
+    rest share what is left equally (water-filling)."""
+    out: dict[str, int] = {}
+    left, todo = total, sorted(counts, key=lambda k: counts[k])
+    for i, k in enumerate(todo):
+        share = left // (len(todo) - i)
+        out[k] = min(counts[k], share)
+        left -= out[k]
+    return out
+
+
+def read_pool(p: Path, *, max_rows: Optional[int], label_col: Optional[str], read_kw: dict,
+              seed: int = DEFAULT_SEED, progress=None) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """One streaming pass over the WHOLE file -> the candidate pool (<= max_rows).
+
+    A file with <= max_rows data rows is returned whole, in file order (identical
+    to reading it at once). A larger file gets a stratified random sample: every
+    row draws a uniform random key; per stratum (raw label, or one stratum when
+    unlabelled) the rows with the smallest keys are kept, up to a water-filled
+    share of max_rows. That is a uniform sample within each stratum, drawn from
+    the whole file in one pass with bounded memory, and no label present in the
+    file is lost. Rows keep their file position (index), so flow ids are the
+    original data-row numbers."""
+    rng = np.random.default_rng(seed)
+    pool: Optional[pd.DataFrame] = None
+    seen: dict[str, int] = {}
+    n = 0
+    trimmed = False
+    for chunk in pd.read_csv(p, chunksize=POOL_CHUNK_ROWS, **read_kw):
+        chunk.columns = _normalize_columns(chunk.columns)
+        chunk.index = pd.RangeIndex(n, n + len(chunk))
+        n += len(chunk)
+        strat = (chunk[label_col].fillna("").astype(str).str.strip() if label_col
+                 else pd.Series("(all rows)", index=chunk.index))
+        for k, v in strat.value_counts().items():
+            seen[str(k)] = seen.get(str(k), 0) + int(v)
+        if max_rows is not None:
+            chunk["__stratum"] = strat.to_numpy()
+            chunk["__key"] = rng.random(len(chunk))
+        pool = chunk if pool is None else pd.concat([pool, chunk])
+        if max_rows is not None and len(pool) > max_rows:
+            cap = _allocate(seen, max_rows)
+            rank = pool.groupby("__stratum")["__key"].rank(method="first")
+            pool = pool[rank.to_numpy() <= pool["__stratum"].map(cap).to_numpy()]
+            trimmed = True
+        if progress:
+            progress(phase="sampling", rows_scanned=n,
+                     message=f"scanning rows across the file ({n:,} so far)")
+    if pool is None:
+        pool = pd.read_csv(p, nrows=0, **read_kw)
+        pool.columns = _normalize_columns(pool.columns)
+    pool = pool.drop(columns=["__stratum", "__key"], errors="ignore").sort_index()
+    in_pool = ((pool[label_col].fillna("").astype(str).str.strip() if label_col
+                else pd.Series("(all rows)", index=pool.index)).value_counts())
+    return pool, {
+        "method": "stratified_reservoir" if trimmed else "full_file",
+        "description": (f"stratified random sample of {len(pool):,} rows drawn from all {n:,} rows "
+                        f"of the file (per-label reservoir, seed {seed})" if trimmed else
+                        f"all {n:,} rows of the file (within the {max_rows:,}-row pool cap)"
+                        if max_rows is not None else f"all {n:,} rows of the file"),
+        "rows_in_file": n, "pool_rows": int(len(pool)), "max_pool_rows": max_rows,
+        "stratified_by": (label_col if label_col else None), "seed": seed if trimmed else None,
+        "strata_in_file": dict(sorted(seen.items())),
+        "strata_in_pool": {str(k): int(v) for k, v in sorted(in_pool.items())},
+    }
+
+
+def _canonical_counts(raw: dict[str, int], by_map: dict, by_class: dict, other_attack: bool) -> dict[str, int]:
+    """Raw-label counts (whole file) -> counts per canonical class."""
+    out: dict[str, int] = {}
+    for v, n in raw.items():
+        hit = by_map.get(v.casefold()) or by_class.get(v.casefold())
+        if hit is None and other_attack and v.casefold() not in _MISSING_LABELS:
+            hit = OTHER_ATTACK
+        if hit is not None:
+            out[hit] = out.get(hit, 0) + int(n)
+    return dict(sorted(out.items()))
+
+
 def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
              allow_partial: bool = False, other_attack: bool = False, max_rows: Optional[int] = None,
-             max_bytes: int = DEFAULT_MAX_BYTES, config_path: Optional[str] = None) -> CsvInput:
-    """Validate and load a CIC-IDS2017-format CSV, or raise CsvValidationError."""
+             max_bytes: int = DEFAULT_MAX_BYTES, config_path: Optional[str] = None,
+             seed: int = DEFAULT_SEED, progress=None) -> CsvInput:
+    """Validate and load a CIC-IDS2017-format CSV, or raise CsvValidationError.
+
+    max_rows caps the CANDIDATE POOL, drawn from across the whole file (read_pool);
+    a file within the cap is loaded in full, exactly as before."""
     p = Path(path)
     _sniff(p)
     size = p.stat().st_size
     if size > max_bytes:
         raise CsvValidationError(f"{p.name}: {size:,} bytes exceeds the {max_bytes:,}-byte limit")
 
+    # Official CIC files contain a mis-encoded byte in 'Web Attack – …' labels.
+    read_kw = dict(low_memory=False, encoding_errors="replace", skipinitialspace=True)
     try:
-        # Official CIC files contain a mis-encoded byte in 'Web Attack – …' labels.
-        # One row past max_rows tells "capped" apart from "exactly max_rows long".
-        df = pd.read_csv(p, nrows=None if max_rows is None else max_rows + 1, low_memory=False,
-                         encoding_errors="replace", skipinitialspace=True)
+        # A short sample surfaces a malformed file before any long scan.
+        cols = list(_normalize_columns(pd.read_csv(p, nrows=1000, **read_kw).columns))
     except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as e:
         raise CsvValidationError(f"{p.name}: not a readable CSV ({e})") from e
-    capped = max_rows is not None and len(df) > max_rows
-    if capped:
-        df = df.iloc[:max_rows]
-    try:
-        df.columns = _normalize_columns(df.columns)
     except ValueError as e:
         raise CsvValidationError(f"{p.name}: {e}") from e
 
-    cols = list(df.columns)
+    # Schema checks on the header + sample, before the whole file is scanned.
     present = [c for c in CIC_FEATURES if c in cols]
     missing = [c for c in CIC_FEATURES if c not in cols]
     label_col = next((c for c in cols if c.lower() == "label"), None)
@@ -149,6 +230,14 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
     if need_missing:
         raise CsvValidationError(
             f"{p.name}: columns required by the flow-selection rules are missing: {need_missing}")
+
+    try:
+        df, sampling = read_pool(p, max_rows=max_rows, label_col=label_col, read_kw=read_kw,
+                                 seed=seed, progress=progress)
+    except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as e:
+        raise CsvValidationError(f"{p.name}: not a readable CSV ({e})") from e
+    except ValueError as e:
+        raise CsvValidationError(f"{p.name}: {e}") from e
     if len(df) == 0:
         raise CsvValidationError(f"{p.name}: no data rows")
 
@@ -219,11 +308,13 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
 
     report = {
         "file": p.name, "file_size_bytes": size,
-        "rows_read": int(len(df)), "rows_usable": int(len(out)),
+        "rows_read": int(sampling["rows_in_file"]), "rows_in_pool": int(len(df)),
+        "rows_usable": int(len(out)),
         "rows_dropped_nan_inf": n_bad,
         "rows_excluded_out_of_taxonomy": int(sum(excluded_labels.values())),
         "rows_excluded_missing_label": n_missing_label,
-        "truncated_at": max_rows if capped else None,
+        "sampling": {**sampling, "class_counts_in_file": _canonical_counts(
+            sampling.get("strata_in_file") or {}, by_map, by_class, other_attack) if label_col else {}},
         "columns": {"expected": len(CIC_FEATURES), "present": len(present),
                     "missing": missing, "extra_ignored": extra,
                     "meta_found": [c for c in CSV_META_SOURCES if c in cols]},

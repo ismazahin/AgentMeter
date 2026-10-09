@@ -97,7 +97,8 @@ def register_jobs(app, get_manager: Callable[[], JobManager]) -> None:
             return _json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
         try:
             pdf = build_report_pdf(res, job=job, input_meta=read("input.json"),
-                                   audit=read("selection_audit.json"))
+                                   audit=read("selection_audit.json"),
+                                   prepared=read("manifest.json").get("prepared_set"))
         except ImportError as e:
             return fail(JobError(f"PDF reports need reportlab on the server (pip install reportlab): {e}",
                                  "pdf_unavailable", 501))

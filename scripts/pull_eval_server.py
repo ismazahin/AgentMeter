@@ -226,6 +226,13 @@ def create_app(manager: "pull_eval.JobManager", dashboard_dir: Path = DASHBOARD_
     def service_page():
         return send_from_directory(dashboard_dir, "service.html")
 
+    # Phase 43b — the two steps have their own entry URLs (menu / bookmarks).
+    @app.route("/service/prepare", methods=["GET"])
+    @app.route("/service/benchmark", methods=["GET"])
+    def service_step_page():
+        from flask import redirect
+        return redirect("/service#/" + request.path.rsplit("/", 1)[-1], code=302)
+
     # Phase 16 — read-only discovery of result JSON files under results/.
     @app.route("/api/local-sessions", methods=["GET"])
     def local_sessions_list():

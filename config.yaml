@@ -152,17 +152,23 @@ storage:
 output:
   results_dir: results
 
-# Phase 43 — web service input guards (the /service upload flow only; the CLI and
+# Phase 43/43b — web service input guards (the /service Prepare flow only; the CLI and
 # the locked study are unaffected). Each has an env override for ops:
-# AGENTMETER_MAX_UPLOAD_MB, AGENTMETER_MAX_PCAP_PACKETS, AGENTMETER_MAX_PCAP_FLOWS,
-# AGENTMETER_MAX_CSV_ROWS. A larger upload is rejected (HTTP 413) before it is
-# read; a larger capture/CSV is parsed up to the cap and the summary says so —
-# the rule-base then selects its bounded set (max_flows) from what was parsed.
+# AGENTMETER_MAX_UPLOAD_MB, AGENTMETER_MAX_URL_DOWNLOAD_GB, AGENTMETER_URL_TIMEOUT_S,
+# AGENTMETER_MAX_PCAP_PACKETS, AGENTMETER_MAX_PCAP_FLOWS, AGENTMETER_PCAP_WINDOWS,
+# AGENTMETER_MAX_CSV_ROWS. An over-limit upload/download is rejected; a large input
+# is sampled across its WHOLE extent (never its first N rows/packets) and the summary
+# says how. The rule-base then selects its bounded set (max_flows <= 500) from the pool.
 service:
-  max_upload_mb: 200          # hard upload limit (rejected above this)
-  # PCAP parsing is the slow part (~0.6 ms/packet on CPU: validation pass + CICFlowMeter),
-  # so these keep the worst-case ingest near a minute. 20k flows is still a 40x larger
-  # pool than the largest selection (max_flows <= 500).
-  max_pcap_packets: 100000    # PCAP: stop reading after this many packets
-  max_pcap_flows: 20000       # PCAP: stop extraction once this many flows exist
-  max_csv_rows: 500000        # CSV: read at most this many data rows
+  # Browser uploads go through the tunnel (Cloudflare free/pro plans cap a request
+  # body at 100 MB), so the default stays below that; larger files use URL import.
+  max_upload_mb: 90
+  max_url_download_gb: 10     # URL import: refused above this (Content-Length or mid-stream)
+  url_timeout_s: 3600         # URL import: total download time limit
+  # PCAP parsing is the slow part (~0.6 ms/packet on CPU: validation + CICFlowMeter).
+  # A capture with more packets than this is sampled as pcap_windows evenly spaced
+  # time windows, max_pcap_packets in total, instead of being parsed in full.
+  max_pcap_packets: 100000
+  pcap_windows: 10
+  max_pcap_flows: 20000       # PCAP candidate pool: seeded random subsample above this
+  max_csv_rows: 500000        # CSV candidate pool: stratified sample across the whole file

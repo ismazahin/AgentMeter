@@ -145,34 +145,61 @@ bad pcapng block, then stops as if at end of file. Those warnings are captured a
 reject the file. There is a size limit (default 2 GiB) and an optional `max_packets`
 read cap, which is reported in the stats.
 
-### Large inputs on the web service (Phase 43)
+### Large inputs on the web service (Phases 43 / 43b)
 
-The `/service` upload flow applies tighter, configurable bounds (`config.yaml`
-`service:`, each with an env override). These only bound the **upload and the parse**.
-How flows are sampled and how a benchmark is computed are unchanged.
+The `/service` flow has two steps. **Prepare** (data preparation for benchmarking, not
+analysis) turns a raw file into a small prepared set. **Benchmark** reads only that
+set. Prepare runs as a background job on the Phase 40 job layer (status, resume, the
+same single-job lock as benchmarks), so the upload request only saves the file. Limits
+are set in `config.yaml` `service:`, and each has an env override:
 
-| limit | default | env override | over the limit |
-|---|---|---|---|
-| `max_upload_mb` | 200 | `AGENTMETER_MAX_UPLOAD_MB` (or exact `AGENTMETER_MAX_UPLOAD_BYTES`) | **rejected**, HTTP 413 `too_large`, message states the limit |
-| `max_pcap_packets` | 100,000 | `AGENTMETER_MAX_PCAP_PACKETS` | parsed up to the cap |
-| `max_pcap_flows` | 20,000 | `AGENTMETER_MAX_PCAP_FLOWS` | extraction stops; table = first N flows |
-| `max_csv_rows` | 500,000 | `AGENTMETER_MAX_CSV_ROWS` | read stops; selection from first N rows |
+| limit | default | over the limit |
+|---|---|---|
+| `max_upload_mb` | 90 (below Cloudflare's 100 MB) | rejected, HTTP 413, before the body is read; the page points to URL import |
+| `max_url_download_gb` | 10 | refused from Content-Length, or stopped mid-stream; the partial file is deleted |
+| `url_timeout_s` | 3600 | the download is stopped |
+| `max_csv_rows` | 500,000 | the CSV candidate pool is a stratified sample of the **whole** file |
+| `max_pcap_packets` / `pcap_windows` | 100,000 / 10 | the capture is sampled as 10 evenly spaced **time windows** |
+| `max_pcap_flows` | 20,000 | the PCAP pool is a seeded **uniform** subsample of the extracted flows |
 
-- **Upload:** an over-limit `Content-Length` is rejected before any of the body is
-  read. Flask's `MAX_CONTENT_LENGTH` (limit + 1 MiB of multipart slack) cuts off a
-  body sent without a length (chunked). The file is streamed to disk in 1 MiB chunks
-  with a running byte count, so it is never held whole in memory. The page also
-  checks `file.size` first, so a browser never sends an oversized file.
-- **Caps:** when one applies, the run summary's `large_input` says so
-  (`{"capped": true, "unit": "rows"|"flows"|"packets", "cap": N, "message": …}`),
-  the UI shows it as a notice, and the CSV `schema_report.md` gets a "Large input" line.
-  The rule-base then selects its bounded set (`max_flows` ≤ 500) from what was parsed.
-- **Why these defaults:** PCAP parsing is the slow step, at about 0.6 ms per packet
-  on CPU (validation pass plus CICFlowMeter). The packet/flow caps keep a worst-case
-  ingest near a minute. A 520k-row (166 MB) CSV ingests in about 17 s at the
-  500k-row cap.
-- The CLI (`scripts/ingest.py`) keeps its own options (`--max-packets`, `--max-rows`)
-  and the 2 GiB file bound. Phase 43 does not change it.
+**Sampling never takes the first N rows or packets:**
+- **CSV** (`csv_input.read_pool`) makes one streaming pass in 100k-row chunks. Each row
+  gets a seeded uniform random key. Per stratum (the raw label, or one stratum when
+  unlabelled), the rows with the smallest keys are kept, up to a water-filled share
+  of the pool: rare labels keep every row, the rest share the remainder equally. That
+  is a uniform sample within each label, drawn from the whole file in bounded memory,
+  and no label present in the file is lost from the pool. Pooled rows keep their file
+  position, so `flow_id` is still the data-row number. A file within the cap is read
+  in full and is byte-for-byte what it was before.
+- **PCAP** (`pcap_window.py`): a header-only pass (no decoding) counts packets, finds
+  the time span and rejects a structurally broken file. A capture within
+  `max_pcap_packets` is parsed in full, unchanged. Otherwise K windows start at
+  `first_ts + i·span/K`, each taking the next `max_packets/K` packets. Those records
+  are copied verbatim (libpcap or pcapng, all non-packet pcapng blocks kept) into a
+  smaller capture that the existing validation and CICFlowMeter read. Flows crossing a
+  window edge are cut there. Every window (start, packets taken) is recorded.
+- The flow-selection rules (`flow_rules.yaml`, including `class_balance`) then run on
+  the pool, unchanged.
+
+**Reporting.** The summary, the UI notice, `manifest.json` (`prepared_set.sampling`,
+`class_counts` with `in_file` / `in_pool` / `selected` and the classes lost at each
+stage) and the PDF all state the method, the pool size or windows, and any class
+absent from the prepared set.
+
+**Prepared set** (`server/prepare.py`): the run directory plus `features.csv`
+(identification columns, 78 features and selection provenance; no labels),
+`labels.csv` (labelled CSV only) and `manifest.json` (source filename or URL, size,
+sha256, input type, limits, sampling, every rule fired and flows admitted, class
+counts, timestamps, tool versions and the `input.json` record). It is downloadable
+and can be re-uploaded on the Benchmark page. The import checks the manifest
+schema, the file hashes, the column contract, label isolation and alignment.
+
+Measured on CPU (URL import from a local https server, default limits): a 384 MB,
+1.2M-row CSV prepared in 22.5 s (pool 500k, peak memory about 1.6 GB). A 172 MB,
+2M-packet capture prepared in 59 s (10 windows, 100k packets parsed, about 45 s of
+that in CICFlowMeter).
+
+The CLI (`scripts/ingest.py`) keeps its own options and the 2 GiB file bound.
 
 ## 2. PCAP flow extraction (`flows.py`, `feature_map.py`)
 

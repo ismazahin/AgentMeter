@@ -66,18 +66,50 @@ For a long-lived public deployment:
   For a single user, the built-in threaded dev server behind a tunnel is acceptable;
   the real security win is **auth + HTTPS**, which the steps above give you.
 
-## Upload limits
-The `/service` upload is capped at **200 MB** by default (`config.yaml`
-`service.max_upload_mb`, or `AGENTMETER_MAX_UPLOAD_MB`), and large captures/CSVs are
-parsed only up to a flow/row cap. See docs/INPUT_LAYER.md, "Large inputs on the
-web service". If a reverse proxy sits in front, set its body limit to at least the
-same value (nginx `client_max_body_size 201m;`), or the proxy rejects the file
-first with its own HTML error. Ingestion runs inside the upload request, so the
-proxy/tunnel read timeout should allow about 2 minutes.
+## Uploads, URL import and where requests go
+
+**Browser uploads go straight to the backend through the tunnel, never through a
+Vercel function.** If the UI is also published on Vercel, that deployment is
+static files only (HTML/JS). The page calls the backend's `/api/...` routes on the
+tunnel origin directly. Vercel serverless functions cap a request body at about
+4.5 MB, so no upload, prepared-set file or API call may be proxied through one (no
+`rewrites` to the backend, no API route in front of it).
+
+**Upload limit: 90 MB by default** (`config.yaml` `service.max_upload_mb`, or
+`AGENTMETER_MAX_UPLOAD_MB`). Cloudflare limits a request body to **100 MB on the
+Free and Pro plans** (200 MB Business, 500 MB Enterprise by default), and a Cloudflare
+Tunnel is covered by the same limit. An upload above it fails at Cloudflare with an
+HTML 413 before it reaches AgentMeter, so the default stays below it, and the page
+refuses a larger file before sending it. Raise `max_upload_mb` only if your plan
+allows larger bodies.
+
+**Larger files: Import from URL.** The Prepare page accepts a direct `https://` link.
+The server downloads the file itself, server to server, so nothing large crosses
+the tunnel. Limits: `service.max_url_download_gb` (default 10 GB) and
+`service.url_timeout_s` (default 3600 s). The size is refused up front from
+Content-Length and enforced again while streaming. SSRF protection is always on:
+https only, port 443, public addresses only (DNS checked on every redirect and the
+connection pinned to the checked IP), at most 5 redirects. HTML pages (Google
+Drive / Dropbox "share" links) are refused with a "use a direct download link"
+message. If the server must reach the internet through an outbound proxy, URL
+import does not use it (the IP pinning needs a direct connection).
+
+**Large inputs** are sampled across the whole file: CSV with a stratified reservoir,
+PCAP with evenly spaced time windows. Preparing runs as a background job, so no
+request waits on ingestion. See docs/INPUT_LAYER.md. If a reverse proxy sits in
+front, set its body limit to at least the upload limit (nginx
+`client_max_body_size 91m;`).
+
+**Test-only switches (never in production):** `AGENTMETER_TEST_ALLOW_LOOPBACK_URLS=1`
+(plus `AGENTMETER_TEST_URL_CAFILE`) lets URL import fetch from a loopback https
+server for the end-to-end test. They are read only from the server's environment,
+not from any request or UI field, never open private or link-local ranges, and
+log a warning when used.
 
 ## Checklist before going public
 - [ ] `AGENTMETER_AUTH_USER` / `AGENTMETER_AUTH_PASS` set to a strong password.
 - [ ] Served over **HTTPS** (tunnel or reverse proxy), never plain http.
+- [ ] `AGENTMETER_TEST_ALLOW_LOOPBACK_URLS` is **not** set.
 - [ ] `.env` is **not** committed (it's gitignored) and secrets stay in it.
 - [ ] You've confirmed `/pull-eval` returns **401** without credentials
       (`python -m pytest tests/test_auth.py`).

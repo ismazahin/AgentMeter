@@ -34,8 +34,6 @@ class FlowExtraction:
     packets_skipped: int         # non-IPv4 or not TCP/UDP (CICFlowMeter ignores them)
     extracted_keys: set[str] = field(default_factory=set)
     backend: str = "cicflowmeter-python"
-    flow_cap: Optional[int] = None       # the max_extract_flows bound in force, if any
-    capped: bool = False                 # True when the cap stopped the read early
 
 
 class _Collector:
@@ -64,43 +62,24 @@ def _make_session():
     return _OfflineFlowSession()
 
 
-def extract_flows(pcap_path: str | Path, max_packets: Optional[int] = None,
-                  max_extract_flows: Optional[int] = None) -> FlowExtraction:
-    """Run CICFlowMeter over `pcap_path` and return the normalised flow table.
-
-    max_extract_flows bounds the work on a large capture: once that many flows
-    (finished + still open) exist, reading stops, the open flows are flushed and
-    the table holds the FIRST N flows of the capture (capped=True says so).
-    Selection runs on that table unchanged."""
+def extract_flows(pcap_path: str | Path, max_packets: Optional[int] = None) -> FlowExtraction:
+    """Run CICFlowMeter over `pcap_path` and return the normalised flow table."""
     from scapy.layers.inet import IP, TCP, UDP
 
     session = _make_session()
     seen = used = 0
-    capped = False
     for pkt in iter_packets(pcap_path, max_packets=max_packets):
         seen += 1
         if IP in pkt and (TCP in pkt or UDP in pkt):
             session.on_packet_received(pkt)
             used += 1
-            # Stop only once a flow BEYOND the cap exists, so a capture with exactly
-            # max_extract_flows flows is not reported as capped.
-            if (max_extract_flows is not None
-                    and len(session.output_writer.rows) + len(session.flows) > max_extract_flows):
-                capped = True
-                break
     session.garbage_collect(None)  # flush every still-open flow
     raw = session.output_writer.rows
-    if max_extract_flows is not None and len(raw) > max_extract_flows:
-        # Finished flows come first, then open ones in creation order, so this drops
-        # the newest flow(s) — the one that crossed the cap (or a timeout split).
-        raw = raw[:max_extract_flows]
-        capped = True
 
     extracted_keys = set(raw[0].keys()) if raw else set()
     df = normalise(raw)
     return FlowExtraction(flows=df, packets_seen=seen, packets_used=used,
-                          packets_skipped=seen - used, extracted_keys=extracted_keys,
-                          flow_cap=max_extract_flows, capped=capped)
+                          packets_skipped=seen - used, extracted_keys=extracted_keys)
 
 
 def normalise(raw_rows: list[dict[str, Any]]) -> pd.DataFrame:

@@ -87,6 +87,7 @@
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 20px; margin: 0 0 16px; }
   .card > h2, .card > h3 { margin-bottom: 12px; }
   .grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  .grid > * { min-width: 0; }
   @media (min-width: 860px) { .grid.two { grid-template-columns: 1fr 1fr; } }
 
   /* form controls */
@@ -97,6 +98,14 @@
   .drop input { display: block; margin: 12px auto 0; max-width: 100%; }
   .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-top: 16px; }
   .field { display: flex; flex-direction: column; gap: 4px; }
+  input[type="url"], input[type="text"].id-input { font: inherit; padding: 7px 10px; width: 100%; max-width: 640px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink); }
+  .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; margin-bottom: 12px; }
+  .seg label { padding: 6px 14px; cursor: pointer; font-size: 14px; display: flex; gap: 6px; align-items: center; }
+  .seg label + label { border-left: 1px solid var(--line-strong); }
+  .seg input { accent-color: var(--accent, #7f4bf3); }
+  .files { display: grid; gap: 8px; margin: 8px 0; }
+  .files label { display: grid; grid-template-columns: 140px 1fr; gap: 8px; align-items: center; font-size: 14px; }
+  @media (max-width: 520px) { .files label { grid-template-columns: 1fr; } }
   input[type="number"] { font: inherit; padding: 6px 8px; width: 110px; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink); }
   .check { display: inline-flex; gap: 8px; align-items: flex-start; font-weight: 400; }
   .check input { margin-top: 4px; }
@@ -150,7 +159,8 @@
   tr.win td.res { font-weight: 600; }
   .kv { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 14px; }
   .kv dt { color: var(--muted); }
-  .kv dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .kv dd { margin: 0; font-family: var(--mono); font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+  #svc-set-id, #svc-run-set-card p { overflow-wrap: anywhere; }
 
   .verdict { font-family: var(--serif); font-size: clamp(20px, 2.6vw, 26px); line-height: 1.35; margin: 4px 0 12px; }
   .caveats { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; }
@@ -164,12 +174,13 @@
 <body>
 <header class="top">
   <div class="wrap top-in">
-    <a class="logo" href="#/upload" aria-label="AgentMeter benchmark service home">
+    <a class="logo" href="#/prepare" aria-label="AgentMeter benchmark service home">
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="0" y="12" width="4" height="4" fill="currentColor"/><rect x="4" y="8" width="4" height="4" fill="currentColor"/><rect x="8" y="4" width="4" height="4" fill="currentColor"/><rect x="12" y="0" width="4" height="4" fill="#7f4bf3"/></svg>
       AgentMeter <small>Benchmark service</small>
     </a>
     <nav aria-label="Service">
-      <a href="#/upload" data-nav="upload">New benchmark</a>
+      <a href="#/prepare" data-nav="prepare">Prepare data</a>
+      <a href="#/benchmark" data-nav="benchmark">Benchmark</a>
       <a href="#/jobs" data-nav="jobs">Recent jobs</a>
       <a href="/">Validation baseline</a>
     </nav>
@@ -178,28 +189,40 @@
 
 <main class="wrap">
   <ol class="steps" id="svc-steps" aria-label="Progress through the benchmark">
-    <li data-step="upload">1 · Upload</li>
-    <li data-step="run">2 · Choose models</li>
-    <li data-step="job">3 · Run</li>
-    <li data-step="results">4 · Results</li>
+    <li data-step="prepare">1 · Prepare</li>
+    <li data-step="prepared">2 · Prepared set</li>
+    <li data-step="run">3 · Choose models</li>
+    <li data-step="job">4 · Run</li>
+    <li data-step="results">5 · Results</li>
   </ol>
   <div id="svc-demo" class="notice info" hidden></div>
 
-  <!-- 1. UPLOAD -->
-  <section id="view-upload" class="view" aria-labelledby="h-upload">
+  <!-- 1. PREPARE -->
+  <section id="view-prepare" class="view" aria-labelledby="h-prepare">
     <div class="hero">
-      <h1 id="h-upload">Benchmark two LLMs on your network flows</h1>
-      <p>Upload a CIC-IDS2017-format CSV or a raw PCAP. AgentMeter selects a bounded, representative set of flows,
-        runs them through a 4-agent pipeline for up to two models, and measures resource efficiency — plus accuracy
-        when your file has labels. It measures models; it does not detect threats on your network.</p>
+      <h1 id="h-prepare">Prepare your network flows for benchmarking</h1>
+      <p>Step 1 of 2. Give a CIC-IDS2017-format CSV or a raw PCAP, by upload or by link. Prepare validates it, draws a
+        bounded, representative sample across the whole file, and applies the flow-selection rules. The result is a small
+        <b>prepared set</b> you can download and then benchmark. This is data preparation for measuring LLM efficiency,
+        not an analysis — AgentMeter measures models; it does not detect threats on your network.</p>
     </div>
     <form id="svc-upload-form" class="card" novalidate>
+      <div class="seg" role="radiogroup" aria-label="Input source">
+        <label><input type="radio" name="svc-src" value="file" id="svc-src-file" checked> Upload a file</label>
+        <label><input type="radio" name="svc-src" value="url" id="svc-src-url"> Import from URL</label>
+      </div>
       <label class="drop" id="svc-drop" for="svc-file">
         <strong>Choose a .csv, .pcap or .pcapng file</strong>
         <span class="muted">Labelled CSV → accuracy + efficiency · PCAP → efficiency only</span>
-        <span class="muted" id="svc-limits">Maximum file size: 200 MB</span>
-        <input type="file" id="svc-file" name="file" accept=".csv,.pcap,.pcapng" required>
+        <span class="muted" id="svc-limits">Maximum upload: 90 MB — use Import from URL for larger files</span>
+        <input type="file" id="svc-file" name="file" accept=".csv,.pcap,.pcapng">
       </label>
+      <div id="svc-url-box" hidden>
+        <label for="svc-url"><strong>Direct https link to the file</strong></label>
+        <input type="url" id="svc-url" name="url" placeholder="https://example.org/capture.pcap" inputmode="url" autocomplete="off">
+        <p class="muted" id="svc-url-limits" style="font-size:13px">The server downloads the file itself (up to 10 GB). Use a direct
+          download link — Google Drive / Dropbox “share” pages are refused. Only public internet addresses are allowed.</p>
+      </div>
       <div class="row">
         <div class="field">
           <label for="svc-max-flows">Flows to benchmark</label>
@@ -210,18 +233,58 @@
           <span class="muted">CSV only — otherwise those rows are excluded</span></span></label>
       </div>
       <div class="row">
-        <button type="submit" class="btn primary" id="svc-upload-btn">Upload and validate</button>
-        <span id="svc-upload-busy" class="muted" hidden role="status">Validating and selecting flows…</span>
+        <button type="submit" class="btn primary" id="svc-upload-btn">Prepare</button>
+        <span id="svc-upload-busy" class="muted" hidden role="status">Uploading…</span>
       </div>
       <div id="svc-upload-error" class="notice error" role="alert" hidden></div>
     </form>
     <p id="svc-last-job" class="muted" hidden></p>
   </section>
 
-  <!-- 2. SUMMARY + MODELS -->
-  <section id="view-run" class="view" hidden aria-labelledby="h-run">
-    <div class="hero"><h1 id="h-run">Validation summary</h1></div>
+  <!-- 2. PREPARED SET -->
+  <section id="view-prepared" class="view" hidden aria-labelledby="h-prepared">
+    <div class="hero"><h1 id="h-prepared">Prepared set</h1>
+      <p class="muted">Validation summary and how the sample was drawn. Download the files to keep them, or benchmark the set now.</p></div>
     <div id="svc-summary"></div>
+    <div class="card" id="svc-downloads-card">
+      <h2>Prepared files</h2>
+      <p class="muted" id="svc-set-id"></p>
+      <div class="actions" id="svc-downloads"></div>
+      <div class="actions"><a class="btn primary" id="svc-to-benchmark" href="#/benchmark">Benchmark this prepared set →</a></div>
+    </div>
+  </section>
+
+  <!-- BENCHMARK: pick a prepared set -->
+  <section id="view-benchmark" class="view" hidden aria-labelledby="h-benchmark">
+    <div class="hero"><h1 id="h-benchmark">Benchmark a prepared set</h1>
+      <p>Step 2 of 2. Choose a prepared set — one prepared on this server, or the files you downloaded from Prepare —
+        then pick up to two models. Benchmarking reads only the small prepared set; the raw file is not needed again.</p></div>
+    <div class="grid two">
+      <form class="card" id="svc-bench-id-form" novalidate>
+        <h2>Prepared on this server</h2>
+        <label for="svc-bench-id" class="muted">Prepared-set id</label>
+        <input type="text" class="id-input mono" id="svc-bench-id" placeholder="csv_runs/… or pcap_runs/…" autocomplete="off">
+        <div id="svc-recent-sets" class="muted" style="font-size:13px;margin-top:8px"></div>
+        <div class="row"><button type="submit" class="btn primary" id="svc-bench-id-btn">Use this set</button></div>
+        <div id="svc-bench-id-error" class="notice error" role="alert" hidden></div>
+      </form>
+      <form class="card" id="svc-import-form" novalidate>
+        <h2>Re-upload a prepared set</h2>
+        <div class="files">
+          <label for="svc-imp-manifest">manifest.json <input type="file" id="svc-imp-manifest" accept=".json,application/json"></label>
+          <label for="svc-imp-features">features.csv <input type="file" id="svc-imp-features" accept=".csv,text/csv"></label>
+          <label for="svc-imp-labels">labels.csv <span class="muted">(labelled only)</span><input type="file" id="svc-imp-labels" accept=".csv,text/csv"></label>
+        </div>
+        <div class="row"><button type="submit" class="btn" id="svc-import-btn">Upload prepared set</button></div>
+        <div id="svc-import-error" class="notice error" role="alert" hidden></div>
+      </form>
+    </div>
+  </section>
+
+  <!-- 3. MODELS -->
+  <section id="view-run" class="view" hidden aria-labelledby="h-run">
+    <div class="hero"><h1 id="h-run">Choose models</h1></div>
+    <div id="svc-run-set"></div>
     <div class="card">
       <h2>Choose up to two models</h2>
       <p class="muted" id="svc-mode-line"></p>
@@ -235,12 +298,12 @@
   <!-- 3/4. PROGRESS + RESULTS -->
   <section id="view-job" class="view" hidden aria-labelledby="h-job">
     <div class="hero">
-      <h1 id="h-job">Benchmark job</h1>
+      <h1 id="h-job">Job</h1>
       <p class="muted">You can close this page — the job keeps running on the server. Reopen this link to check on it: <span id="svc-job-link" class="mono"></span></p>
     </div>
     <div class="card" id="svc-job-card">
       <div class="row" style="margin-top:0"><span id="svc-job-status" class="status">…</span><span id="svc-job-models" class="muted"></span></div>
-      <div class="bar" id="svc-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Benchmark progress"><span id="svc-progress-bar"></span></div>
+      <div class="bar" id="svc-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Job progress"><span id="svc-progress-bar"></span></div>
       <p id="svc-progress-text" class="mono" aria-live="polite"></p>
       <div id="svc-job-error" class="notice error" role="alert" hidden></div>
       <div class="actions"><button type="button" class="btn" id="svc-resume" hidden>Resume job</button></div>
@@ -304,30 +367,37 @@
   }
 
   // ---------- routing ----------
+  var VIEWS = ["prepare", "prepared", "benchmark", "run", "job", "jobs"];
   function route() {
     pollToken++;                                   // stop any previous poll loop
     var h = location.hash.replace(/^#\/?/, "");
     var parts = h.split("/").filter(Boolean).map(decodeURIComponent);
-    var view = parts[0] || "upload";
-    ["upload", "run", "job", "jobs"].forEach(function (v) { $("view-" + v).hidden = v !== view; });
+    var view = parts[0] || (/\/benchmark\/?$/.test(location.pathname) ? "benchmark" : "prepare");
+    if (view === "upload") view = "prepare";       // Phase 41 links
+    if (VIEWS.indexOf(view) < 0) view = "prepare";
+    VIEWS.forEach(function (v) { $("view-" + v).hidden = v !== view; });
+    var nav = view === "prepared" ? "prepare" : (view === "run" ? "benchmark" : view);
     document.querySelectorAll(".top nav a[data-nav]").forEach(function (a) {
-      if (a.getAttribute("data-nav") === view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+      if (a.getAttribute("data-nav") === nav) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
     });
-    setStep(view === "jobs" ? null : view === "job" ? "job" : view);
-    if (view === "run" && parts.length === 3) loadRun(parts[1] + "/" + parts[2]);
+    setStep(view === "jobs" ? null : view === "benchmark" ? "prepared" : view);
+    if (view === "prepared" && parts.length === 3) loadPrepared(parts[1] + "/" + parts[2]);
+    else if (view === "run" && parts.length === 3) loadRun(parts[1] + "/" + parts[2]);
     else if (view === "job" && parts[1]) watchJob(parts[1]);
     else if (view === "jobs") loadJobs();
-    else if (view === "upload") showLastJob();
+    else if (view === "benchmark") loadRecentSets();
+    else if (view === "prepare") showLastJob();
     window.scrollTo(0, 0);
   }
   function setStep(step) {
-    var order = ["upload", "run", "job", "results"], idx = order.indexOf(step);
+    var order = ["prepare", "prepared", "run", "job", "results"], idx = order.indexOf(step);
     $("svc-steps").hidden = step === null;
     document.querySelectorAll("#svc-steps li").forEach(function (li, i) {
       li.classList.toggle("done", idx > i);
       if (li.getAttribute("data-step") === step) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
     });
   }
+  function setPath(id) { return id.split("/").map(encodeURIComponent).join("/"); }
 
   // ---------- 1. upload ----------
   function showLastJob() {
@@ -335,27 +405,41 @@
     el.hidden = !id;
     if (id) el.innerHTML = 'Your last job: <a href="#/job/' + encodeURIComponent(id) + '">' + esc(id) + '</a>';
   }
+  function srcMode() { return $("svc-src-url").checked ? "url" : "file"; }
+  ["svc-src-file", "svc-src-url"].forEach(function (id) {
+    $(id).addEventListener("change", function () {
+      var url = srcMode() === "url";
+      $("svc-drop").hidden = url; $("svc-url-box").hidden = !url; $("svc-upload-error").hidden = true;
+    });
+  });
   $("svc-upload-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
-    var file = $("svc-file").files[0], err = $("svc-upload-error");
+    var err = $("svc-upload-error"), lim = (CONFIG && CONFIG.limits) || null, fd = new FormData();
     err.hidden = true;
-    if (!file) { showError(err, { error: "Choose a .csv, .pcap or .pcapng file first." }); return; }
-    var lim = (CONFIG && CONFIG.limits) || null;
-    if (lim && file.size > lim.max_upload_bytes) {   // checked here too, so a huge file is never sent
-      showError(err, { error: "File too large: the upload limit is " + lim.max_upload_label + " (this file is " +
-        fmtSize(file.size) + "). Upload a smaller slice — AgentMeter benchmarks a bounded sample of flows anyway.",
-        code: "too_large" });
-      return;
+    if (srcMode() === "url") {
+      var url = $("svc-url").value.trim();
+      if (!/^https:\/\//i.test(url)) { showError(err, { error: "Give a direct https:// link to the .pcap/.pcapng/.csv file." }); return; }
+      fd.append("url", url);
+    } else {
+      var file = $("svc-file").files[0];
+      if (!file) { showError(err, { error: "Choose a .csv, .pcap or .pcapng file first — or switch to Import from URL." }); return; }
+      if (lim && file.size > lim.max_upload_bytes) {   // checked here too, so a huge file is never sent
+        showError(err, { error: "File too large to upload: the limit is " + lim.max_upload_label + " (this file is " +
+          fmtSize(file.size) + "). Use Import from URL instead — the server downloads files up to " +
+          lim.max_url_download_label + " from a direct https link.", code: "too_large" });
+        return;
+      }
+      fd.append("file", file);
     }
-    var fd = new FormData();
-    fd.append("file", file);
     fd.append("max_flows", $("svc-max-flows").value || "50");
     if ($("svc-other-attack").checked) fd.append("other_attack", "1");
     $("svc-upload-btn").disabled = true; $("svc-upload-busy").hidden = false;
-    api("/api/ingest", { method: "POST", body: fd }).then(function (r) {
+    $("svc-upload-busy").textContent = srcMode() === "url" ? "Checking the link…" : "Uploading…";
+    api("/api/prepare", { method: "POST", body: fd }).then(function (r) {
       $("svc-upload-btn").disabled = false; $("svc-upload-busy").hidden = true;
       if (!r.ok) { showError(err, r.data); return; }
-      location.hash = "#/run/" + r.data.run.split("/").map(encodeURIComponent).join("/");
+      lastJobSet(r.data.job_id);
+      location.hash = "#/job/" + encodeURIComponent(r.data.job_id);
     });
   });
   var drop = $("svc-drop");
@@ -366,38 +450,103 @@
     if (ev.dataTransfer && ev.dataTransfer.files.length) $("svc-file").files = ev.dataTransfer.files;
   });
 
-  // ---------- 2. summary + model selection ----------
+  // ---------- 2. prepared set (summary + downloads) ----------
   var currentRun = null;
-  function loadRun(run) {
-    currentRun = run;
+  function loadPrepared(id) {
     $("svc-summary").innerHTML = '<div class="card muted">Loading…</div>';
-    $("svc-run-error").hidden = true;
-    api("/api/runs/" + run).then(function (r) {
-      if (!r.ok) { $("svc-summary").innerHTML = ""; showError($("svc-run-error"), r.data); $("svc-run").disabled = true; return; }
+    $("svc-downloads").innerHTML = "";
+    api("/api/prepared/" + setPath(id)).then(function (r) {
+      if (!r.ok) { $("svc-summary").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
       renderSummary(r.data);
-      renderModels(r.data);
+      $("svc-set-id").innerHTML = 'Prepared-set id: <span class="mono" id="svc-set-id-value">' + esc(r.data.prepared_set) + '</span>' +
+        ' — keep it to benchmark later, or download the files and re-upload them on the Benchmark page.';
+      $("svc-downloads").innerHTML = (r.data.downloads || []).map(function (f) {
+        return '<a class="btn" data-dl="' + esc(f) + '" href="/api/prepared/' + setPath(id) + '/' + encodeURIComponent(f) + '" download>' + esc(f) + '</a>';
+      }).join("");
+      $("svc-to-benchmark").setAttribute("href", "#/run/" + setPath(id));
     });
   }
-  function distTable(all, sel) {
-    var keys = Object.keys(all || {}).length ? Object.keys(all) : Object.keys(sel || {});
+  // ---------- 3. benchmark: choose a set, then models ----------
+  function loadRecentSets() {
+    api("/api/jobs?limit=30").then(function (r) {
+      var sets = ((r.ok && r.data.jobs) || []).filter(function (j) { return j.kind === "prepare" && j.status === "done" && j.prepared; });
+      $("svc-recent-sets").innerHTML = sets.length ? "Recently prepared: " + sets.slice(0, 5).map(function (j) {
+        return '<a href="#/run/' + setPath(j.prepared) + '" class="mono">' + esc(j.prepared) + '</a>';
+      }).join(" · ") : "";
+    });
+  }
+  $("svc-bench-id-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var id = $("svc-bench-id").value.trim().replace(/^\/+|\/+$/g, ""), err = $("svc-bench-id-error");
+    err.hidden = true;
+    if (!/^(csv_runs|pcap_runs)\/[A-Za-z0-9_.-]+$/.test(id)) { showError(err, { error: "A prepared-set id looks like csv_runs/<name> or pcap_runs/<name>." }); return; }
+    api("/api/prepared/" + setPath(id)).then(function (r) {
+      if (!r.ok) { showError(err, r.data); return; }
+      location.hash = "#/run/" + setPath(id);
+    });
+  });
+  $("svc-import-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var err = $("svc-import-error"), fd = new FormData();
+    err.hidden = true;
+    var m = $("svc-imp-manifest").files[0], f = $("svc-imp-features").files[0], l = $("svc-imp-labels").files[0];
+    if (!m || !f) { showError(err, { error: "Choose the manifest.json and features.csv of the prepared set (and labels.csv if it is labelled)." }); return; }
+    fd.append("manifest", m); fd.append("features", f); if (l) fd.append("labels", l);
+    $("svc-import-btn").disabled = true;
+    api("/api/prepared/import", { method: "POST", body: fd }).then(function (r) {
+      $("svc-import-btn").disabled = false;
+      if (!r.ok) { showError(err, r.data); return; }
+      location.hash = "#/run/" + setPath(r.data.prepared_set);
+    });
+  });
+  function loadRun(run) {
+    currentRun = run;
+    $("svc-run-set").innerHTML = '<div class="card muted">Loading…</div>';
+    $("svc-run-error").hidden = true;
+    api("/api/prepared/" + setPath(run)).then(function (r) {
+      if (!r.ok) { $("svc-run-set").innerHTML = ""; showError($("svc-run-error"), r.data); $("svc-run").disabled = true; return; }
+      var s = r.data;
+      $("svc-run-set").innerHTML = '<div class="card" id="svc-run-set-card"><div class="chips">' + modeChip(s.accuracy_available) +
+        '<span class="chip">' + esc(s.source_type.toUpperCase()) + '</span>' + (s.class_scheme ? '<span class="chip">' + esc(s.class_scheme.name) + '</span>' : "") +
+        '<span class="chip">' + fmtNum(s.rows_selected) + ' flows</span>' + (s.large_input && s.large_input.capped ? '<span class="chip">sampled</span>' : "") + '</div>' +
+        '<p style="margin:10px 0 0">Prepared set <span class="mono">' + esc(s.prepared_set) + '</span> from <span class="mono">' + esc((s.source && (s.source.filename || s.source.url)) || s.source_file) +
+        '</span> · <a href="#/prepared/' + setPath(s.prepared_set) + '">details and downloads</a></p></div>';
+      renderModels(s);
+    });
+  }
+  function distTable(s) {
+    var cc = s.class_counts || {}, pool = cc.in_pool || s.class_distribution || {}, sel = s.label_distribution_selected || {};
+    var file = cc.in_file || pool;
+    var keys = (cc.class_set && cc.class_set.length) ? cc.class_set.slice() : Object.keys(pool).sort();
     if (!keys.length) return "";
-    keys.sort();
-    return '<div class="table-wrap"><table id="svc-class-table"><thead><tr><th>Class</th><th class="num">Usable rows</th><th class="num">Selected</th></tr></thead><tbody>' +
-      keys.map(function (k) { return '<tr><td>' + esc(k) + '</td><td class="num">' + fmtNum((all || {})[k]) + '</td><td class="num">' + fmtNum((sel || {})[k] || 0) + '</td></tr>'; }).join("") +
-      '</tbody></table></div>';
+    return '<div class="table-wrap"><table id="svc-class-table"><thead><tr><th>Class</th><th class="num">In file</th><th class="num">Usable in pool</th><th class="num">Selected</th></tr></thead><tbody>' +
+      keys.map(function (k) {
+        var lost = (file[k] || pool[k]) && !sel[k];
+        return '<tr' + (lost ? ' class="lost"' : '') + '><td>' + esc(k) + (lost ? ' <span class="chip bad">absent</span>' : '') + '</td><td class="num">' + fmtNum(file[k] || 0) +
+          '</td><td class="num">' + fmtNum(pool[k] || 0) + '</td><td class="num">' + fmtNum(sel[k] || 0) + '</td></tr>';
+      }).join("") + '</tbody></table></div>';
   }
   function renderSummary(s) {
     var fm = s.feature_match || {}, csv = s.source_type === "csv";
     var counts = csv
-      ? [["File", s.source_file], ["Rows read", fmtNum(s.rows_read)], ["Usable rows", fmtNum(s.rows_usable)],
+      ? [["File", s.source_file], ["Rows in file", fmtNum(s.rows_read)], ["Candidate pool", fmtNum(s.rows_in_pool)], ["Usable rows (pool)", fmtNum(s.rows_usable)],
          ["Dropped (NaN/Inf)", fmtNum(s.rows_dropped)], ["Excluded (outside 5 classes)", fmtNum(s.rows_excluded_out_of_taxonomy)],
          ["Feature columns", (s.columns_present == null ? "—" : s.columns_present + " / 78")],
          ["Label column", s.label_column || "none"]]
-      : [["File", s.source_file], ["Packets", fmtNum(s.packets)], ["Capture length", fmtNum(s.capture_duration_s, 1) + " s"],
-         ["Flows extracted", fmtNum(s.flows_extracted)], ["Packets skipped", fmtNum(s.packets_skipped)]];
+      : [["File", s.source_file], ["Packets in capture", fmtNum(s.packets)], ["Packets parsed", fmtNum(s.packets_parsed)],
+         ["Capture length", fmtNum(s.capture_duration_s, 1) + " s"],
+         ["Flows extracted", fmtNum(s.flows_extracted)], ["Candidate pool", fmtNum(s.rows_total)], ["Packets skipped", fmtNum(s.packets_skipped)]];
+    var src = s.source || {};
+    if (src.url) counts.splice(1, 0, ["Imported from", src.final_url || src.url]);
+    if (src.sha256) counts.push(["SHA-256", src.sha256.slice(0, 16) + "…"]);
     if (s.file_size_bytes != null) counts.splice(1, 0, ["File size", fmtSize(s.file_size_bytes)]);
     counts.push(["Flows selected", fmtNum(s.rows_selected) + " of " + fmtNum(s.rows_total)]);
-    var big = s.large_input || {};
+    var big = s.large_input || {}, samp = s.sampling || {};
+    var sampTxt = samp.description ? '<p id="svc-sampling" style="font-size:14px"><b>Sampling:</b> ' + esc(samp.description) +
+      (samp.pool_method && samp.pool_capped ? "; pool: " + esc(samp.pool_method) : "") + '.</p>' : "";
+    var wins = (samp.windows || []).length ? '<details><summary>Time windows (' + samp.windows.length + ')</summary><div class="table-wrap"><table id="svc-windows-table"><thead><tr><th>#</th><th class="num">Starts at (s into capture)</th><th class="num">Packets taken</th></tr></thead><tbody>' +
+      samp.windows.map(function (w) { return '<tr><td>' + (w.index + 1) + '</td><td class="num">' + fmtNum(w.start_ts - samp.capture_first_ts, 1) + '</td><td class="num">' + fmtNum(w.packets_taken) + '</td></tr>'; }).join("") +
+      '</tbody></table></div></details>' : "";
     var rules = (s.rules || []).map(function (r) {
       return '<tr><td class="mono">' + esc(r.id) + '</td><td>' + esc(r.kind === "constraint" ? "constraint" : r.type) +
         '</td><td>' + (r.fired ? "fired" : '<span class="muted">' + (r.enabled ? "did not fire" : "disabled") + '</span>') +
@@ -410,23 +559,23 @@
       '<span class="chip">Features: ' + esc(fm.status || "—") + '</span>' +
       (s.class_scheme ? '<span class="chip">' + esc(s.class_scheme.name) + '</span>' : "") +
       '<span class="chip">' + esc((s.selection_mode || "").replace(/_/g, " ")) + '</span>' +
-      '<span class="chip">non-validated</span>' + (big.capped ? '<span class="chip">large input · capped</span>' : "") + '</div>' +
-      (big.capped ? '<div class="notice warn" id="svc-large-input" role="status">' + esc(big.message) + '</div>' : "") +
+      '<span class="chip">non-validated</span>' + (big.capped ? '<span class="chip">large input · sampled</span>' : "") + '</div>' +
+      (big.capped ? '<div class="notice warn" id="svc-large-input" role="status">' + esc(big.message) + '</div>' : "") + sampTxt +
       '<div class="grid two" style="margin-top:16px"><div><h3>Input</h3><dl class="kv" id="svc-counts">' +
       counts.map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("") +
       '</dl>' + (fm.note ? '<p class="muted" style="font-size:13px">' + esc(fm.note) + '</p>' : "") + '</div>' +
       '<div><h3>' + (csv ? "Class distribution" : "Labels") + '</h3>' +
-      (csv && s.accuracy_available ? distTable(s.class_distribution, s.label_distribution_selected)
+      (csv && s.accuracy_available ? distTable(s)
         : '<p class="muted">No ground-truth labels — accuracy cannot be computed; the run measures efficiency only.</p>') +
       '</div></div>' +
       (notes.length ? '<ul class="caveats" style="margin-top:12px">' + notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join("") + '</ul>' : "") +
       '<details><summary>Flow-selection rules (' + (s.rules_fired || []).length + ' fired)</summary><div class="table-wrap"><table id="svc-rules-table"><thead><tr><th>Rule</th><th>Type</th><th>Result</th><th class="num">Flows admitted</th></tr></thead><tbody>' +
-      rules + '</tbody></table></div></details></div>';
-    $("svc-mode-line").innerHTML = s.accuracy_available
-      ? "This run is <b>labelled</b>: the comparison covers accuracy and resource efficiency."
-      : "This run is <b>unlabelled</b>: the comparison covers resource efficiency only (no accuracy).";
+      rules + '</tbody></table></div></details>' + wins + '</div>';
   }
-  function renderModels() {
+  function renderModels(s) {
+    $("svc-mode-line").innerHTML = s.accuracy_available
+      ? "This prepared set is <b>labelled</b>: the comparison covers accuracy and resource efficiency."
+      : "This prepared set is <b>unlabelled</b>: the comparison covers resource efficiency only (no accuracy).";
     var box = $("svc-models"), max = (CONFIG && CONFIG.max_models) || 2;
     var models = (CONFIG && CONFIG.canonical_models) || [];
     box.innerHTML = models.map(function (m, i) {
@@ -470,6 +619,14 @@
         if (token !== pollToken) return;
         if (!r.ok) { showError($("svc-job-error"), r.data); $("svc-job-status").textContent = "unknown"; return; }
         var j = r.data;
+        if (j.kind === "prepare") {
+          renderPrepareJob(j);
+          if (j.status === "done" && j.prepared) { location.hash = "#/prepared/" + setPath(j.prepared); return; }
+          if (j.status === "failed" || j.status === "interrupted") return;
+          setTimeout(tick, 1000);
+          return;
+        }
+        setStep("job");
         renderJob(j);
         if (j.status === "done") { setStep("results"); loadResult(id, token); return; }
         if (j.status === "failed" || j.status === "interrupted") return;
@@ -477,7 +634,31 @@
       });
     })();
   }
+  var PHASES = { queued: "Queued", downloading: "Downloading", downloaded: "Downloaded", validating: "Validating",
+    sampling: "Sampling rows across the file", indexing: "Indexing the capture", windowing: "Copying time windows",
+    extracting: "Extracting flows", selecting: "Selecting flows", writing: "Writing the prepared set", done: "Done" };
+  function renderPrepareJob(j) {
+    setStep("prepare");
+    $("h-job").textContent = "Preparing " + (j.run_name || "input");
+    var st = $("svc-job-status"), p = j.progress || {}, bar = $("svc-progress");
+    st.textContent = j.status; st.className = "status " + j.status;
+    $("svc-job-models").textContent = "Prepare · " + (PHASES[p.phase] || p.phase || "");
+    var pct = p.phase === "downloading" && p.total ? Math.round(100 * p.bytes / p.total) : (j.status === "done" ? 100 : 0);
+    $("svc-progress-bar").style.width = pct + "%";
+    bar.setAttribute("aria-valuenow", String(pct));
+    bar.classList.toggle("indet", j.status === "running" && !(p.phase === "downloading" && p.total));
+    var t = j.status === "queued" ? "Queued — " + (j.queue_position ? j.queue_position + " job(s) ahead" : "starting next") + ". One job runs at a time."
+      : p.phase === "downloading" ? "Downloaded " + fmtSize(p.bytes || 0) + (p.total ? " of " + fmtSize(p.total) + " · " + pct + "%" : " (size not announced by the server)")
+      : (j.message || "");
+    $("svc-progress-text").textContent = t;
+    $("svc-progress-text").setAttribute("data-phase", p.phase || "");
+    if (j.status === "failed" || j.status === "interrupted") {
+      showError($("svc-job-error"), { error: j.error || j.message, code: j.error_code || j.status });
+      $("svc-resume").hidden = false;
+    }
+  }
   function renderJob(j) {
+    $("h-job").textContent = "Benchmark job";
     var st = $("svc-job-status"), p = j.progress || {}, bar = $("svc-progress");
     st.textContent = j.status; st.className = "status " + j.status;
     $("svc-job-models").textContent = j.models.join("  vs  ") + " · " + j.run_name;
@@ -627,11 +808,12 @@
       var el = $("svc-jobs-table");
       if (!r.ok) { el.innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
       var jobs = r.data.jobs || [];
-      if (!jobs.length) { el.innerHTML = '<p class="muted">No jobs yet. <a href="#/upload">Start a benchmark</a>.</p>'; return; }
-      el.innerHTML = '<table id="svc-jobs"><thead><tr><th>Job</th><th>Status</th><th>Input</th><th>Models</th><th>Created (UTC)</th></tr></thead><tbody>' +
+      if (!jobs.length) { el.innerHTML = '<p class="muted">No jobs yet. <a href="#/prepare">Prepare a file</a> to start.</p>'; return; }
+      el.innerHTML = '<table id="svc-jobs"><thead><tr><th>Job</th><th>Kind</th><th>Status</th><th>Input</th><th>Models</th><th>Created (UTC)</th></tr></thead><tbody>' +
         jobs.map(function (j) {
-          return '<tr><td class="mono"><a href="#/job/' + encodeURIComponent(j.job_id) + '">' + esc(j.job_id) + '</a></td><td><span class="status ' + esc(j.status) + '">' + esc(j.status) +
-            '</span></td><td class="mono">' + esc(j.run_name) + '</td><td class="mono">' + esc((j.models || []).join(", ")) + '</td><td class="mono">' + esc((j.created_at || "").replace("T", " ").replace("+00:00", "")) + '</td></tr>';
+          var link = j.kind === "prepare" && j.prepared ? "#/prepared/" + setPath(j.prepared) : "#/job/" + encodeURIComponent(j.job_id);
+          return '<tr><td class="mono"><a href="' + link + '">' + esc(j.job_id) + '</a></td><td>' + esc(j.kind || "benchmark") + '</td><td><span class="status ' + esc(j.status) + '">' + esc(j.status) +
+            '</span></td><td class="mono">' + esc(j.kind === "prepare" ? (j.prepared || j.run_name) : j.run_name) + '</td><td class="mono">' + esc((j.models || []).join(", ")) + '</td><td class="mono">' + esc((j.created_at || "").replace("T", " ").replace("+00:00", "")) + '</td></tr>';
         }).join("") + '</tbody></table>';
     });
   }
@@ -643,9 +825,13 @@
     demo.hidden = !CONFIG.demo_mode;
     demo.textContent = CONFIG.note || "";
     $("svc-max-flows").value = CONFIG.default_max_flows || 50;
-    if (CONFIG.limits) $("svc-limits").textContent = "Maximum file size: " + CONFIG.limits.max_upload_label +
-      " · large inputs are parsed up to " + fmtNum(CONFIG.limits.max_pcap_flows) + " flows (PCAP) / " +
-      fmtNum(CONFIG.limits.max_csv_rows) + " rows (CSV)";
+    var L = CONFIG.limits;
+    if (L) {
+      $("svc-limits").textContent = "Maximum upload: " + L.max_upload_label + " — for larger files use Import from URL (up to " +
+        L.max_url_download_label + "). Large inputs are sampled across the whole file.";
+      $("svc-url-limits").textContent = "The server downloads the file itself (up to " + L.max_url_download_label +
+        "). Use a direct download link — Google Drive / Dropbox “share” pages are refused. Only public internet addresses are allowed.";
+    }
     window.addEventListener("hashchange", route);
     route();
   });

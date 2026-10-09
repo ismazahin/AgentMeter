@@ -129,7 +129,8 @@ def _relabel(text: str, by_label: dict[str, str]) -> str:
 
 
 def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
-                     input_meta: Optional[dict] = None, audit: Optional[dict] = None) -> bytes:
+                     input_meta: Optional[dict] = None, audit: Optional[dict] = None,
+                     prepared: Optional[dict] = None) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_LEFT
     from reportlab.lib.pagesizes import A4
@@ -147,6 +148,7 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
     names = [m["model"] for m in pm]
     input_meta = input_meta or {}
     audit = audit or {}
+    prepared = prepared or {}           # manifest.json prepared_set block (Phase 43b), if any
     run_name = (job or {}).get("run_name") or s.get("run_dir", "").rstrip("/").split("/")[-1]
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -200,13 +202,23 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
     kv = [
         ["Source", f"{str(s.get('source_type', '')).upper()}  ({input_meta.get('source_file', '-')})"],
         ["Labels", "Labelled -> accuracy + efficiency" if labelled else "Unlabelled -> efficiency only"],
-        ["Rows available after validation", fmt_int(input_meta.get("rows_total"))],
+        ["Candidate pool (after sampling + validation)", fmt_int(input_meta.get("rows_total"))],
         ["Flows selected and benchmarked", fmt_int(s.get("n_flows"))],
         ["Class set (scored)" if labelled else "Labels the model chooses from (not scored)",
          f"{s.get('class_scheme')}: {', '.join(s.get('class_set') or [])}"],
         ["Feature match", f"{fm.get('status', '-')}" + (f" - {fm['note']}" if fm.get("note") else "")],
         ["Selection mode", str(s.get("selection_mode") or "-").replace("_", " ")],
     ]
+    samp = prepared.get("sampling") or {}
+    if samp.get("description"):
+        kv.append(["Sampling", samp["description"]
+                   + (f"; pool: {samp['pool_method']}" if samp.get("pool_capped") else "")])
+    if prepared.get("id"):
+        kv.append(["Prepared set", prepared["id"]])
+    cc = prepared.get("class_counts") or {}
+    lost = (cc.get("lost_in_sampling") or []) + (cc.get("lost_in_selection") or [])
+    if cc.get("available"):
+        kv.append(["Classes absent after sampling", ", ".join(lost) if lost else "none"])
     story.append(table(kv, [52 * mm, W - 52 * mm], head=False))
 
     rules = audit.get("rules") or []

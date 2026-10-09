@@ -6,6 +6,11 @@ The job layer only WRAPS the existing session code: a job's work is exactly
 (sequential subprocess-per-model `run_full`, instrumentation, SAW, comparison).
 Nothing about how a benchmark is computed changes here.
 
+Phase 43b adds a second job KIND on the same layer: "prepare" (download or take
+an uploaded raw file, then prepare.py turns it into a prepared set). Both kinds
+share the one worker thread, so the single-job lock covers ingestion too.
+Jobs without a "kind" are benchmark jobs (records from before Phase 43b).
+
 Design (kept deliberately simple):
   * Store: one JSON file per job in results/jobs/<job_id>.json, written
     atomically (temp file + os.replace), so a crash never leaves a torn record.
@@ -93,6 +98,31 @@ def run_benchmark_job(job: dict[str, Any]) -> str:
     return str(Path(job["run_dir"]) / RESULTS_JSON)
 
 
+def run_prepare_job(job: dict[str, Any], report: Callable[..., None]) -> str:
+    """A prepare job's work: download (URL source) if not done yet, then the
+    existing ingestion via prepare.prepare_file. Returns the prepared-set id."""
+    from .prepare import prepare_file
+    from .urlfetch import download
+
+    src = dict(job["source"])
+    lim = job["limits"]
+    path = Path(src["path"]) if src.get("path") else None
+    if src["kind"] == "url" and (path is None or not path.exists()):
+        report(phase="downloading", bytes=0, total=None, message="connecting")
+        d = download(src["url"], Path(job["uploads_dir"]), max_bytes=lim["max_url_download_bytes"],
+                     timeout_s=lim["url_timeout_s"], progress=report, stem=job["name"])
+        src.update(path=str(d.path), filename=d.filename, size_bytes=d.size_bytes, sha256=d.sha256,
+                   final_url=d.final_url, content_type=d.content_type, redirects=d.redirects,
+                   detected=d.detected)
+        report(source=src)                       # persisted: a resume does not re-download
+        path = d.path
+    public = {k: src.get(k) for k in ("kind", "filename", "url", "final_url", "size_bytes", "sha256",
+                                       "content_type", "redirects") if src.get(k) is not None}
+    return prepare_file(path, source=public, results_root=Path(job["results_root"]), name=job["name"],
+                        max_flows=int(job["max_flows"]), other_attack=bool(job["other_attack"]),
+                        limits=lim, progress=report)
+
+
 def session_progress(job: dict[str, Any]) -> dict[str, Any]:
     """Completed scenarios per model, read-only from the run's session.db (latest run)."""
     from ..session.benchmark import SESSION_DB
@@ -134,12 +164,14 @@ class JobManager:
                  results_root: str | Path = DEFAULT_RESULTS_ROOT,
                  runner: Callable[[dict], str] = run_benchmark_job,
                  progress_fn: Callable[[dict], dict] = session_progress,
+                 prepare_runner: Callable[[dict, Callable], str] = run_prepare_job,
                  gpu_available: Callable[[], bool] = default_gpu_available,
                  autostart: bool = True):
         self.jobs_dir = Path(jobs_dir)
         self.results_root = Path(results_root)
         self.runner = runner
         self.progress_fn = progress_fn
+        self.prepare_runner = prepare_runner
         self.gpu_available = gpu_available
         self._lock = threading.RLock()
         self._queue: "queue.Queue[str]" = queue.Queue()
@@ -279,6 +311,60 @@ class JobManager:
             self._enqueue(job["job_id"])
         return self.get(job["job_id"])
 
+    def create_prepare_job(self, source: dict[str, Any], *, name: str, max_flows: int,
+                           other_attack: bool, limits: dict[str, Any]) -> dict[str, Any]:
+        """Queue a Prepare job. `source` is {"kind": "upload", "path", "filename",
+        "size_bytes", "sha256"} (already saved) or {"kind": "url", "url"}."""
+        if source.get("kind") not in ("upload", "url"):
+            raise JobError("source must be an upload or a URL", "bad_request", 400)
+        if source["kind"] == "upload" and not Path(source.get("path") or "").is_file():
+            raise JobError("the uploaded file was not saved", "invalid_file", 400)
+        if source["kind"] == "url":
+            from .urlfetch import UrlImportError, check_url, test_loopback_allowed
+            try:
+                check_url(source.get("url"), test_loopback_allowed())
+            except UrlImportError as e:
+                raise JobError(str(e), e.code, e.status) from e
+        if not (isinstance(max_flows, int) and 1 <= max_flows <= 500):
+            raise JobError("max_flows must be between 1 and 500", "bad_request", 400)
+        job = {
+            "job_id": _new_job_id(), "kind": "prepare", "status": "queued",
+            "name": name, "source": source, "max_flows": max_flows,
+            "other_attack": bool(other_attack), "limits": limits,
+            "results_root": str(self.results_root), "uploads_dir": str(self.results_root / "uploads"),
+            "prepared": None, "prep_progress": {"phase": "queued"},
+            "run_name": source.get("filename") or source.get("url"), "models": [],
+            "created_at": _now(), "created_ns": time.time_ns(),
+            "started_at": None, "finished_at": None,
+            "attempts": 0, "message": "queued", "error": None, "result_path": None,
+        }
+        with self._lock:
+            self._save(job)
+            self._enqueue(job["job_id"])
+        return self.get(job["job_id"])
+
+    def _reporter(self, job_id: str) -> Callable[..., None]:
+        """Progress callback for a prepare job: merged into prep_progress (source=
+        updates the job's source). Writes at most every 0.5 s unless the phase changes."""
+        state = {"t": 0.0, "phase": None}
+
+        def report(**kw) -> None:
+            src = kw.pop("source", None)
+            now = time.monotonic()
+            phase = kw.get("phase", state["phase"])
+            if src is None and phase == state["phase"] and now - state["t"] < 0.5:
+                return
+            state.update(t=now, phase=phase)
+            with self._lock:
+                job = self._load(job_id)
+                if src is not None:
+                    job["source"] = src
+                job["prep_progress"] = {**(job.get("prep_progress") or {}), **kw}
+                if kw.get("message"):
+                    job["message"] = kw["message"]
+                self._save(job)
+        return report
+
     def resume(self, job_id: str) -> dict[str, Any]:
         with self._lock:
             job = self._load(job_id)
@@ -286,13 +372,17 @@ class JobManager:
                 raise JobError(f"job {job_id} is {job['status']}; only interrupted or failed jobs "
                                "can be resumed", "not_resumable", 409)
             self._update(job_id, status="queued", error=None, finished_at=None,
-                         message="queued to resume (completed flows will be skipped)")
+                         message=("queued to retry the prepare step" if job.get("kind") == "prepare"
+                                  else "queued to resume (completed flows will be skipped)"))
             self._enqueue(job_id)
         return self.get(job_id)
 
     def get(self, job_id: str) -> dict[str, Any]:
         job = self._load(job_id)
-        job["progress"] = job.get("final_progress") or self.progress_fn(job)
+        if job.get("kind") == "prepare":
+            job["progress"] = job.get("prep_progress") or {}
+        else:
+            job["progress"] = job.get("final_progress") or self.progress_fn(job)
         job["result_ready"] = job["status"] == "done" and bool(job.get("result_path")) \
             and Path(job["result_path"]).exists()
         if job["status"] == "queued":
@@ -302,9 +392,10 @@ class JobManager:
         return job
 
     def list_jobs(self, limit: int = 20) -> list[dict[str, Any]]:
-        keys = ("job_id", "status", "run_name", "models", "effective_provider", "created_at",
-                "started_at", "finished_at", "message")
-        return [{k: j.get(k) for k in keys} for j in reversed(self._all())][:max(1, int(limit))]
+        keys = ("job_id", "kind", "status", "run_name", "models", "effective_provider", "prepared",
+                "created_at", "started_at", "finished_at", "message")
+        return [{**{k: j.get(k) for k in keys}, "kind": j.get("kind") or "benchmark"}
+                for j in reversed(self._all())][:max(1, int(limit))]
 
     def result(self, job_id: str) -> dict[str, Any]:
         job = self._load(job_id)
@@ -314,6 +405,9 @@ class JobManager:
         path = Path(job.get("result_path") or "")
         if not path.exists():
             raise JobError(f"results file missing for job {job_id}", "result_missing", 404)
+        if job.get("kind") == "prepare":
+            from .prepare import summarize
+            return {"prepared": job["prepared"], "summary": summarize(path.parent)}
         return json.loads(path.read_text(encoding="utf-8"))
 
     def running_job(self) -> Optional[str]:
@@ -356,9 +450,14 @@ class JobManager:
             return
         if job["status"] != "queued":             # e.g. duplicate queue entry
             return
+        prep = job.get("kind") == "prepare"
         job = self._update(job_id, status="running", started_at=_now(),
                            attempts=int(job.get("attempts") or 0) + 1,
-                           message=f"running {len(job['models'])} model(s) sequentially")
+                           message=("preparing the input" if prep else
+                                    f"running {len(job['models'])} model(s) sequentially"))
+        if prep:
+            self._run_prepare(job)
+            return
         try:
             result_path = self.runner(job)
         except BaseException as e:               # noqa: BLE001 — a job must never kill the worker
@@ -372,3 +471,21 @@ class JobManager:
         done["status"] = "done"
         self._update(job_id, status="done", finished_at=_now(), result_path=str(result_path),
                      final_progress=self.progress_fn(done), message="done — results ready")
+
+    def _run_prepare(self, job: dict[str, Any]) -> None:
+        job_id = job["job_id"]
+        report = self._reporter(job_id)
+        try:
+            prepared = self.prepare_runner(job, report)
+        except BaseException as e:               # noqa: BLE001 — a job must never kill the worker
+            msg = str(e) if getattr(e, "code", None) else f"{type(e).__name__}: {e}"
+            self._update(job_id, status="failed", finished_at=_now(), error=msg,
+                         error_code=getattr(e, "code", "prepare_failed"),
+                         error_trace=traceback.format_exc(limit=5),
+                         message="failed — fix the input or resume to retry")
+            return
+        kind, name = prepared.split("/")
+        self._update(job_id, status="done", finished_at=_now(), prepared=prepared,
+                     result_path=str(self.results_root / kind / name / "manifest.json"),
+                     prep_progress={**(self._load(job_id).get("prep_progress") or {}), "phase": "done"},
+                     message="done — prepared set ready")

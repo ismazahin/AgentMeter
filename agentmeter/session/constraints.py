@@ -109,13 +109,19 @@ def _render(tpl: str, value: Any, limit: Any) -> str:
 def evaluate_constraints(payload: dict[str, Any], limits: Optional[Mapping[str, Any]] = None,
                          rules: Optional[dict[str, Any]] = None) -> dict[str, Any]:
     """Evaluate every measured model against the limits (default: the rule file's defaults)."""
+    return evaluate_facts(facts_for(copy.deepcopy(payload)), limits, rules)
+
+
+def evaluate_facts(facts: list[dict[str, Any]], limits: Optional[Mapping[str, Any]] = None,
+                   rules: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """The decision helper on per-model facts (facts_for). The control plane stores the facts
+    in each session's summary and runs a port of this (worker/src/analytics.ts, parity-tested)."""
     rb = rules or load_rules()
-    snap = copy.deepcopy(payload)
     if limits is None:
         limits = {k: v.get("default") for k, v in rb["inputs"].items() if v.get("default") is not None}
     lim = parse_limits(limits, rb)
     per = []
-    for f in facts_for(snap):
+    for f in facts:
         rows, failed, nodata = [], [], []
         for r in rb["rules"]:
             limit = lim.get(r["limit"])

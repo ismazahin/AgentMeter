@@ -1,0 +1,7 @@
+# Copy to .dev.vars for `wrangler dev` (never commit .dev.vars). Generate each with:
+#   python -c "import secrets; print(secrets.token_urlsafe(48))"
+ACCESS_TOKEN_SECRET=dev-access-secret-change-me
+RUN_TOKEN_SECRET=dev-run-secret-change-me
+BACKEND_SECRET=dev-backend-secret-change-me
+PASSWORD_PEPPER=dev-pepper-change-me
+ALLOW_HTTP_BACKEND=1

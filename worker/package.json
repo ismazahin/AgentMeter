@@ -1,0 +1,21 @@
+{
+  "name": "agentmeter-control-plane",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AgentMeter control plane (Cloudflare Worker + D1 + R2): accounts, settings, sessions, backend registry. AgentMeter measures LLM efficiency; it is not a threat-detection product.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local --port 8787",
+    "deploy": "wrangler deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "bench:pbkdf2": "node scripts/bench-pbkdf2.mjs"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.0",
+    "@cloudflare/workers-types": "^5.20261010.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11",
+    "wrangler": "^4.124.0"
+  }
+}

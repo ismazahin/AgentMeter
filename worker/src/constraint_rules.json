@@ -1,0 +1,60 @@
+{
+  "source": "configs/constraint_rules.yaml",
+  "version": 1,
+  "inputs": {
+    "max_mean_latency_s": {
+      "label": "Max mean latency",
+      "unit": "s",
+      "default": null
+    },
+    "max_p95_latency_s": {
+      "label": "Max p95 latency",
+      "unit": "s",
+      "default": null
+    },
+    "max_peak_vram_mb": {
+      "label": "Max total peak VRAM",
+      "unit": "MB",
+      "default": null
+    },
+    "max_cost_per_1k_flows_usd": {
+      "label": "Max cost per 1,000 flows",
+      "unit": "USD",
+      "default": null
+    }
+  },
+  "rules": [
+    {
+      "id": "mean_latency",
+      "description": "Mean end-to-end latency per flow within the limit.",
+      "field": "measured.mean_latency_s",
+      "op": "le",
+      "limit": "max_mean_latency_s",
+      "note": "mean latency {value:.4g} s vs limit {limit:g} s"
+    },
+    {
+      "id": "p95_latency",
+      "description": "95th-percentile latency per flow within the limit.",
+      "field": "measured.p95_latency_s",
+      "op": "le",
+      "limit": "max_p95_latency_s",
+      "note": "p95 latency {value:.4g} s vs limit {limit:g} s"
+    },
+    {
+      "id": "peak_vram",
+      "description": "Total peak VRAM (weights + working memory) within the limit.",
+      "field": "measured.peak_vram_mb",
+      "op": "le",
+      "limit": "max_peak_vram_mb",
+      "note": "total peak VRAM {value:,.0f} MB (weights + working) vs limit {limit:,.0f} MB"
+    },
+    {
+      "id": "cost_per_1k_flows",
+      "description": "Cost per 1,000 flows within the budget.",
+      "field": "measured.cost_per_1k_flows_usd",
+      "op": "le",
+      "limit": "max_cost_per_1k_flows_usd",
+      "note": "cost ${value:.4f} per 1,000 flows vs budget ${limit:g}"
+    }
+  ]
+}

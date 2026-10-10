@@ -1,0 +1,30 @@
+# AgentMeter control plane — Cloudflare Worker + D1 + R2 (free tier).
+# AgentMeter MEASURES LLM resource efficiency; it is not a threat-detection product.
+# Runbook: docs/DEPLOY.md ("Control plane"). Secrets are NOT in this file:
+#   wrangler secret put ACCESS_TOKEN_SECRET | RUN_TOKEN_SECRET | BACKEND_SECRET | PASSWORD_PEPPER
+#   (optional) TELEGRAM_BOT_TOKEN
+# Local development reads them from worker/.dev.vars (gitignored; see .dev.vars.example).
+name = "agentmeter-control-plane"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+[vars]
+# Exact front-end origins allowed to call this Worker (comma-separated, no trailing slash).
+ALLOWED_ORIGINS = "http://127.0.0.1:8080,http://localhost:8080"
+PBKDF2_ITERATIONS = "40000"
+# The backend is offline when no heartbeat arrived for this many seconds (3 x 60 s beats).
+BACKEND_OFFLINE_AFTER_S = "180"
+# session_results.json above this many bytes goes to R2 (D1 rows max 2 MB).
+RESULTS_R2_THRESHOLD = "1000000"
+# "1" only for local development: accept an http://127.0.0.1 backend URL.
+ALLOW_HTTP_BACKEND = "0"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agentmeter"
+database_id = "00000000-0000-0000-0000-000000000000"   # replace with `wrangler d1 create agentmeter` output
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "agentmeter-sessions"

@@ -52,7 +52,9 @@ agentmeter/
 │   ├── jobs.py            Persistent background JOBS — prepare + benchmark (single-job
 │   │                      lock, FIFO queue, restart → interrupted, resume).
 │   ├── jobs_api.py        /api/jobs create / status / result / PDF / list / resume.
-│   ├── access.py          CORS allow-list, access passcode, rate limits.
+│   ├── access.py          CORS allow-list, run-token gate (Phase 47), rate limits.
+│   ├── runtoken.py        verifies the control plane's run tokens.
+│   ├── control_plane.py   registration, heartbeat, job events, session upload to the Worker.
 │   ├── runtime.py         Provider (real | mock, decided once), GPU facts, real-mode preflight.
 │   ├── hf_metadata.py     Hugging Face Hub metadata (external CONTEXT, cached in the app DB);
 │   │                      shown on the baseline page via /api/model-metadata.

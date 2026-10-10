@@ -101,8 +101,11 @@ def test_front_end_only_talks_to_the_configured_backend():
     assert not re.search(r"""href=["']/api/""", html)               # downloads go through apiUrl()
     assert "fetch(API + path" in html and "fetch(API + \"/health\"" in html
     for hook in ("view-offline", "GPU backend offline", "svc-backend-badge", "Real GPU: ", "DEMO (mock)",
-                 "svc-pass-dialog", "X-AgentMeter-Passcode", "svc-run-mode", "not a threat-detection"):
+                 "svc-run-mode", "not a threat-detection", "view-login", "/api/runs/authorize", "data-auth-dl",
+                 "GPU offline", "agentmeter.refresh"):
         assert hook in html, hook
+    for gone in ("svc-pass-dialog", "X-AgentMeter-Passcode", "agentmeter.passcode"):
+        assert gone not in html, gone
 
 
 def test_backend_serves_the_same_page_same_origin(make):

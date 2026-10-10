@@ -43,7 +43,7 @@ from typing import Any, Callable, Optional
 
 log = logging.getLogger("agentmeter.control_plane")
 
-HEARTBEAT_S = 60
+HEARTBEAT_S = max(1, int(os.environ.get("AGENTMETER_HEARTBEAT_S") or 60))   # the Worker marks it offline after 3 missed
 # The identification columns of a prepared set (ingest.feature_map.META_COLUMNS minus flow_id).
 # "Destination Port" is one of the 78 CIC features the models see, so it stays.
 IDENTIFICATION_COLUMNS = ("src_ip", "src_port", "dst_ip", "protocol", "protocol_name", "timestamp")

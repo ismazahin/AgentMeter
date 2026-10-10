@@ -13,11 +13,15 @@
   Summary / Detailed analysis / Agents / Recommendation / Downloads), Compare, Leaderboard,
   Settings. AgentMeter MEASURES LLM resource efficiency; it is not a threat-detection product.
 
-  VIEW LAYER ONLY. The page is static (Vercel / Pages, or served by the backend at /). It calls
-  the GPU backend named by config.json ({"api_base": ...}; "" = same origin), overridable with
-  ?api=<url>. Every number comes from the server's session_results.json; nothing here computes a
-  score, rank or verdict. The Detailed analysis tab embeds the backend's analysis page
-  (/analysis?session=<id>&embed=1). CSV export reuses report.js.
+  VIEW LAYER ONLY. The page is static (Cloudflare Pages, or served by the backend at /).
+  Phase 47 — with a control plane (config.json {"control_plane": "<Worker URL>"}): users log in
+  (no public sign-up); sessions, Compare and Leaderboard are read from the Worker (D1/R2), so they
+  work with the GPU off; the Worker says where the GPU backend is (it registers itself) and issues
+  short-lived run tokens for every Prepare / Benchmark / resume. Without a control plane (local
+  development) it talks to the backend named by config.json "api_base" ("" = same origin, or
+  ?api=<url>). Every number comes from the server's session_results.json; nothing here computes a
+  score, rank or verdict (weight presets re-rank in the view only). The Detailed analysis tab
+  embeds analysis.html (the same file as the backend's /analysis). CSV export reuses report.js.
 -->
 <script>
   // Theme before first paint: System (default) | Dark | Light, kept per browser.
@@ -249,8 +253,13 @@
   .model:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
   .model:has(input:disabled) { opacity: .5; cursor: not-allowed; }
   .model input { width: 18px; height: 18px; accent-color: var(--accent); }
-  dialog#svc-pass-dialog { border: 1px solid var(--border-2); border-radius: var(--radius-lg); padding: 20px; max-width: 440px; width: calc(100% - 32px); background: var(--surface); color: var(--text); }
-  dialog#svc-pass-dialog::backdrop { background: rgba(0,0,0,.5); }
+  .card.narrow { max-width: 460px; }
+  .small-btn { min-height: 36px; padding: 0 12px; font-size: 13px; }
+  .preset { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .preset .field { flex: 1 1 90px; }
+  .preset .field.name { flex: 2 1 160px; }
+  #cp-user { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 720px) { #cp-user { display: none; } }
   footer { border-top: 1px solid var(--border); padding: 20px 0 36px; color: var(--muted); font-size: 13px; }
 </style>
 </head>
@@ -268,9 +277,12 @@
       <a href="#/sessions" data-nav="sessions">Sessions</a>
       <a href="#/compare" data-nav="compare">Compare</a>
       <a href="#/leaderboard" data-nav="leaderboard">Leaderboard</a>
+      <a href="#/admin" data-nav="admin" id="nav-admin" hidden>Admin</a>
     </nav>
     <div class="top-right">
       <span id="svc-backend-badge" class="chip-gpu" role="status" aria-live="polite">Checking backend…</span>
+      <span id="cp-user" class="small muted" hidden></span>
+      <button type="button" class="btn small-btn" id="cp-logout" hidden>Log out</button>
       <a class="iconbtn" href="#/settings" data-nav="settings" aria-label="Settings" title="Settings">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
       </a>
@@ -280,6 +292,31 @@
 
 <main class="wrap" id="main" tabindex="-1">
   <div id="svc-demo" class="notice warn" hidden></div>
+
+  <!-- LOGIN (control plane): accounts are created by the admin; no public sign-up -->
+  <section id="view-login" class="view" hidden aria-labelledby="h-login">
+    <div class="page-head"><div>
+      <h1 id="h-login">Log in to AgentMeter</h1>
+      <p>AgentMeter <b>measures</b> how efficiently open-source language models run a fixed 4-agent analysis task —
+        latency, GPU memory, tokens, cost and energy. It is a measurement tool, not a threat-detection product.</p>
+    </div></div>
+    <form class="card narrow" id="login-form" novalidate>
+      <div class="field"><label for="login-user">Username</label>
+        <input type="text" id="login-user" name="username" autocomplete="username" required autocapitalize="none" spellcheck="false"></div>
+      <div class="field" style="margin-top:12px"><label for="login-pass">Password</label>
+        <input id="login-pass" name="password" type="password" autocomplete="current-password" required></div>
+      <div id="login-error" class="notice error" role="alert" hidden></div>
+      <div class="actions"><button type="submit" class="btn primary" id="login-go">Log in</button></div>
+      <p class="muted small">No public sign-up: your admin creates accounts (at most five).</p>
+    </form>
+    <form class="card narrow" id="pwchange-form" hidden novalidate>
+      <h2>Choose a new password</h2>
+      <p class="muted small">Your admin set a temporary password. Choose your own (at least 10 characters) to continue.</p>
+      <div class="field"><label for="pwc-new">New password</label><input id="pwc-new" type="password" autocomplete="new-password" minlength="10" required></div>
+      <div id="pwchange-error" class="notice error" role="alert" hidden></div>
+      <div class="actions"><button type="submit" class="btn primary" id="pwc-go">Save and continue</button></div>
+    </form>
+  </section>
 
   <!-- OFFLINE: the GPU backend cannot be reached -->
   <section id="view-offline" class="view" hidden aria-labelledby="h-offline">
@@ -325,6 +362,9 @@
   <section id="view-new" class="view" hidden aria-labelledby="h-new">
     <div class="page-head"><div><h1 id="h-new">New benchmark</h1>
       <p>Three steps. Your data is prepared in the background while you pick the models.</p></div></div>
+    <div id="wiz-offline" class="notice error" role="status" hidden><b>GPU offline.</b> The benchmark backend is not
+      running (no GPU rented), so new benchmarks cannot start. Sessions, Compare and Leaderboard still work. This page
+      notices by itself when the GPU comes back.</div>
     <ol class="stepper" id="wiz-steps" aria-label="Benchmark steps">
       <li data-step="data"><b>1</b>Data</li>
       <li data-step="models"><b>2</b>Models and settings</li>
@@ -527,7 +567,7 @@
   <!-- SETTINGS -->
   <section id="view-settings" class="view" hidden aria-labelledby="h-settings">
     <div class="page-head"><div><h1 id="h-settings">Settings</h1>
-      <p>Saved in this browser only. Accounts and credentials come in a later version.</p></div></div>
+      <p id="set-intro">Theme is saved in this browser.</p></div></div>
     <div class="card">
       <fieldset style="border:0;padding:0;margin:0">
         <legend><h2>Theme</h2></legend>
@@ -538,25 +578,87 @@
         </div>
       </fieldset>
     </div>
+    <form class="card" id="set-account" hidden novalidate>
+      <h2>Notifications</h2>
+      <div class="row" style="margin-top:8px">
+        <div class="field"><label for="set-tg">Telegram chat ID <span class="hint">(message the bot, then /getUpdates)</span></label>
+          <input type="text" id="set-tg" inputmode="numeric" autocomplete="off" placeholder="e.g. 123456789"></div>
+        <div class="field"><label for="set-notify">Notify me when a session</label>
+          <select id="set-notify"><option value="none">never</option><option value="done">is done</option><option value="failed">failed</option><option value="both">is done or failed</option></select></div>
+        <button type="button" class="btn" id="set-tg-test" style="align-self:flex-end">Send a test message</button>
+      </div>
+      <p class="small muted" id="set-tg-status"></p>
+      <hr class="sep">
+      <h2>New benchmark defaults</h2>
+      <div class="field" style="margin-top:8px"><span class="small" style="font-weight:600">Default models (up to two)</span>
+        <div class="models" id="set-models" role="group" aria-label="Default models"></div></div>
+      <div class="row">
+        <div class="field"><label for="set-flows">Default flows</label><input id="set-flows" type="number" min="1" max="500"></div>
+        <label class="check" style="align-self:flex-end"><input type="checkbox" id="set-other"> Default: add the "Other Attack" class</label>
+        <div class="field"><label for="set-tz">Time zone</label><input type="text" id="set-tz" list="set-tz-list" autocomplete="off"><datalist id="set-tz-list"></datalist></div>
+      </div>
+      <hr class="sep">
+      <h2>SAW weight presets</h2>
+      <p class="muted small">A preset re-ranks the models <b>in the view only</b>: stored scores never change, and every view shows
+        which weights it uses. Weights: accuracy, latency, VRAM, tokens (they are scaled to sum to 1).</p>
+      <div id="set-presets"></div>
+      <div class="actions"><button type="button" class="btn" id="set-preset-add">Add a preset</button></div>
+      <div id="set-error" class="notice error" role="alert" hidden></div>
+      <div class="actions"><button type="submit" class="btn primary" id="set-save">Save settings</button>
+        <span class="small muted" id="set-saved" role="status" aria-live="polite"></span></div>
+    </form>
+    <form class="card" id="set-password" hidden novalidate>
+      <h2>Change password</h2>
+      <div class="row" style="margin-top:8px">
+        <div class="field"><label for="set-pw-cur">Current password</label><input id="set-pw-cur" type="password" autocomplete="current-password"></div>
+        <div class="field"><label for="set-pw-new">New password <span class="hint">(10+ characters)</span></label><input id="set-pw-new" type="password" autocomplete="new-password"></div>
+        <button type="submit" class="btn" id="set-pw-go" style="align-self:flex-end">Change password</button>
+      </div>
+      <p class="small muted">Changing it logs out your other devices.</p>
+      <div id="set-pw-msg" class="notice" role="status" hidden></div>
+    </form>
     <div class="card">
       <h2>Backend</h2>
       <dl class="kv small" id="set-backend"></dl>
-      <p class="muted small">A new backend address can be given once with <span class="mono">?api=&lt;url&gt;</span> (remembered in this
+      <p class="muted small" id="set-backend-note">A new backend address can be given once with <span class="mono">?api=&lt;url&gt;</span> (remembered in this
         browser; <span class="mono">?api=reset</span> forgets it).</p>
     </div>
   </section>
 
-  <dialog id="svc-pass-dialog" aria-labelledby="h-pass">
-    <form method="dialog" id="svc-pass-form">
-      <h2 id="h-pass">Access passcode</h2>
-      <p class="muted small">This server runs on a rented GPU, so running benchmarks and listing sessions need the passcode
-        from its operator. It is kept for this browser tab only.</p>
-      <input type="password" id="svc-pass-input" class="wide" autocomplete="current-password" aria-label="Passcode" required>
-      <p id="svc-pass-error" class="notice error" hidden></p>
-      <div class="actions"><button type="submit" class="btn primary" id="svc-pass-ok" value="ok">Continue</button>
-        <button type="submit" class="btn" value="cancel" formnovalidate>Cancel</button></div>
+  <!-- ADMIN (control plane, admins only) -->
+  <section id="view-admin" class="view" hidden aria-labelledby="h-admin">
+    <div class="page-head"><div><h1 id="h-admin">Admin</h1>
+      <p>Accounts (at most five), credential status and system limits. Secrets are never shown here — only whether they are set.</p></div></div>
+    <div class="card">
+      <div class="row" style="margin-top:0;justify-content:space-between"><h2>Users</h2><span class="chip" id="adm-count"></span></div>
+      <div class="table-wrap" style="margin-top:10px" id="adm-users"></div>
+      <form class="row" id="adm-new" novalidate>
+        <div class="field"><label for="adm-new-user">Username</label><input type="text" id="adm-new-user" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+        <div class="field"><label for="adm-new-pass">Temporary password <span class="hint">(10+)</span></label><input id="adm-new-pass" type="password" autocomplete="new-password"></div>
+        <div class="field"><label for="adm-new-role">Role</label><select id="adm-new-role"><option value="user">user</option><option value="admin">admin</option></select></div>
+        <button type="submit" class="btn primary" id="adm-new-go" style="align-self:flex-end">Create user</button>
+      </form>
+      <div id="adm-error" class="notice error" role="alert" hidden></div>
+    </div>
+    <div class="card">
+      <h2>Credentials</h2>
+      <p class="muted small">Set on the GPU backend (Hugging Face token, Vast API key) or as a Worker secret (Telegram bot token). Status only.</p>
+      <dl class="kv" id="adm-creds"></dl>
+    </div>
+    <form class="card" id="adm-limits" novalidate>
+      <h2>System limits</h2>
+      <div class="row" style="margin-top:8px">
+        <div class="field"><label for="lim-sph">Sessions per hour, per user</label><input id="lim-sph" type="number" min="1" max="100"></div>
+        <div class="field"><label for="lim-mq">Max queued sessions</label><input id="lim-mq" type="number" min="1" max="50"></div>
+        <div class="field"><label for="lim-mb">Max upload (MB)</label><input id="lim-mb" type="number" min="1" max="90"></div>
+        <div class="field"><label for="lim-idle">Idle minutes before the GPU stops</label><input id="lim-idle" type="number" min="5" max="1440"></div>
+      </div>
+      <label class="check"><input type="checkbox" id="lim-ident"> Keep identification columns (IPs, ports, protocol, timestamp) in the stored copy of
+        features.csv. Off by default: the models never use them; they stay only in the backend's run folder.</label>
+      <div id="lim-error" class="notice error" role="alert" hidden></div>
+      <div class="actions"><button type="submit" class="btn primary" id="lim-save">Save limits</button><span class="small muted" id="lim-saved" role="status"></span></div>
     </form>
-  </dialog>
+  </section>
 </main>
 
 <footer><div class="wrap">AgentMeter measures LLM resource efficiency — latency, memory, tokens, cost and energy — with
@@ -587,63 +689,170 @@
   function fmtSize(b) { return b >= 1048576 ? fmtNum(b / 1048576, 1) + " MB" : fmtNum(b / 1024, 1) + " KB"; }
   function fmtUsd(v) { return v == null ? "—" : "$" + (v < 0.01 ? v.toFixed(5) : v.toFixed(4)); }
   function fmtWh(v) { return v == null ? "—" : (v < 1 ? v.toFixed(4) : v.toFixed(2)) + " Wh"; }
-  function fmtDate(s) { return s ? String(s).replace("T", " ").replace("+00:00", " UTC") : "—"; }
+  function fmtDate(s) {
+    if (!s) return "—";
+    var tz = SETTINGS && SETTINGS.timezone, d = new Date(s);
+    if (tz && tz !== "UTC" && !isNaN(d)) {                  // the user's time zone (Settings)
+      try { return d.toLocaleString("sv-SE", { timeZone: tz }) + " " + tz; } catch (e) { /* unknown zone */ }
+    }
+    return String(s).replace("T", " ").replace("+00:00", " UTC").replace(/Z$/, " UTC");
+  }
   function short(m) { return String(m || "").split("/").pop(); }
+  // 128-bit job ids are long: show the date part + the first random hex digits (full id on hover)
+  function shortId(id) { id = String(id || ""); var m = /^(job_\d{8}_\d{6}_)([0-9a-f]{32})$/.exec(id); return m ? m[1] + m[2].slice(0, 8) + "…" : id; }
   var METRIC_FMT = { s: fmtTime, MB: fmtMB, tokens: function (v) { return fmtNum(v); }, share: fmtPct,
                      "flows/s": function (v) { return v == null ? "—" : fmtNum(v, 2); }, USD: fmtUsd, Wh: fmtWh };
 
   // ---------- backend location + access ----------
-  var MUTATING = /^\/api\/(prepare|prepared\/import|jobs(\/[^/]+\/resume)?)$/;
-  var LISTING = /^\/api\/(jobs|sessions|leaderboard)(\?|$)/;
-  function passGet() { try { return sessionStorage.getItem("agentmeter.passcode") || ""; } catch (e) { return ""; } }
-  function passSet(v) { try { if (v) sessionStorage.setItem("agentmeter.passcode", v); else sessionStorage.removeItem("agentmeter.passcode"); } catch (e) { /* storage blocked */ } }
-  function askPasscode(message) {
-    return new Promise(function (resolve) {
-      var d = $("svc-pass-dialog"), inp = $("svc-pass-input"), er = $("svc-pass-error");
-      er.hidden = !message; er.textContent = message || "";
-      inp.value = "";
-      d.onclose = function () { resolve(d.returnValue === "ok" ? inp.value : null); };
-      d.returnValue = "";
-      d.showModal(); inp.focus();
+  // Phase 47. CP = the control plane (Cloudflare Worker) URL from config.json "control_plane".
+  // With CP: log in (access token in memory, refresh token in localStorage — the page is served
+  // with a strict CSP), sessions / Compare / Leaderboard / settings come from the Worker, and the
+  // GPU backend's URL comes from the Worker too (the backend registers itself). Every backend
+  // request that starts work or reads stored work carries a short-lived run token the Worker
+  // issued (POST /api/runs/authorize). Without CP (local development) the backend is called
+  // directly, without tokens.
+  var CP = "", AUTH = { access: null, exp: 0, user: null }, SETTINGS = null, BACKEND = null;
+  var WORKER_PATHS = /^\/api\/(sessions(\/|\?|$)|compare(\?|$)|leaderboard(\?|$)|settings(\/|$)|me(\/|$)|admin\/|backend$|runs\/|auth\/)/;
+  var STRONG_JOB = /^job_\d{8}_\d{6}_[0-9a-f]{32}$/;
+  var READ_TOK = null, FILE_TOK = {}, GRANTS = {};          // cached read/files tokens; jti of my prepare/import
+  function refreshGet() { try { return localStorage.getItem("agentmeter.refresh") || ""; } catch (e) { return ""; } }
+  function refreshSet(v) { try { if (v) localStorage.setItem("agentmeter.refresh", v); else localStorage.removeItem("agentmeter.refresh"); } catch (e) { /* storage blocked */ } }
+  function parse(r) {
+    return r.text().then(function (t) {
+      var data = null;
+      try { data = t ? JSON.parse(t) : null; } catch (e) { data = { error: t || r.statusText }; }
+      return { ok: r.ok, status: r.status, data: data || {}, headers: r.headers };
     });
   }
-  function needsPass(path, opts) {
-    var m = ((opts && opts.method) || "GET").toUpperCase();
-    return HEALTH && HEALTH.auth_required && ((m !== "GET" && MUTATING.test(path)) || (m === "GET" && LISTING.test(path)));
+  function netErr(where) { return { ok: false, status: 0, data: { error: "Cannot reach the " + where + ". It may be offline.", code: "network" } }; }
+  var refreshing = null;
+  function doRefresh() {
+    var rt = refreshGet();
+    if (!rt) return Promise.resolve(false);
+    refreshing = refreshing || fetch(CP + "/api/auth/refresh", { method: "POST", credentials: "omit", headers: { "Content-Type": "application/json" },
+                                                                 body: JSON.stringify({ refresh_token: rt }) }).then(parse, function () { return netErr("control plane"); })
+      .then(function (r) {
+        refreshing = null;
+        if (r.ok) { setAuth(r.data); return true; }
+        if (r.status === 401) { refreshSet(""); AUTH = { access: null, exp: 0, user: null }; }
+        return r.status === 0 ? null : false;
+      });
+    return refreshing;
   }
-  var passPrompt = null;      // one dialog at a time, even with parallel listing calls
-  function api(path, opts, retried) {
+  function setAuth(d) {
+    AUTH = { access: d.access_token, exp: Date.now() + (d.expires_in - 30) * 1000, user: d.user };
+    if (d.refresh_token) refreshSet(d.refresh_token);
+  }
+  function cpFetch(path, opts, retried) {
     opts = Object.assign({ credentials: "omit" }, opts || {});
     var go = function () {
       var h = Object.assign({}, opts.headers || {});
-      if (needsPass(path, opts)) h["X-AgentMeter-Passcode"] = passGet();
-      return fetch(API + path, Object.assign({}, opts, { headers: h })).then(function (r) {
-        return r.text().then(function (t) {
-          var data = null;
-          try { data = t ? JSON.parse(t) : null; } catch (e) { data = { error: t || r.statusText }; }
-          return { ok: r.ok, status: r.status, data: data || {} };
-        });
-      }, function () { return { ok: false, status: 0, data: { error: "Cannot reach the GPU backend (" + (API || location.origin) + "). It may be offline.", code: "network" } }; });
+      if (AUTH.access) h.Authorization = "Bearer " + AUTH.access;
+      return fetch(CP + path, Object.assign({}, opts, { headers: h })).then(opts.raw ? function (r) { return r; } : parse, function () { return netErr("control plane"); });
     };
-    var start = Promise.resolve(true);
-    if (needsPass(path, opts) && !passGet()) {
-      passPrompt = passPrompt || askPasscode().then(function (v) { passPrompt = null; if (v) passSet(v); return v; });
-      start = passPrompt;
-    }
-    return start.then(function (ok) {
-      if (!ok) return { ok: false, status: 401, data: { error: "This server needs its access passcode.", code: "passcode_required" } };
+    var pre = AUTH.access && Date.now() < AUTH.exp ? Promise.resolve(true) : doRefresh();
+    return pre.then(function () {
       return go().then(function (r) {
-        if (r.status === 401 && /passcode/.test(r.data.code || "") && !retried) {
-          passSet("");
-          return askPasscode(r.data.error).then(function (v) {
-            if (!v) return r;
-            passSet(v);
-            return api(path, opts, true);
-          });
+        if (r.status === 401 && !retried && /token_expired|auth_required/.test(((r.data || {}).code) || "")) {
+          return doRefresh().then(function (ok) { if (ok) return cpFetch(path, opts, true); needLogin(); return r; });
         }
+        if (r.status === 401 && /session_revoked|session_expired/.test(((r.data || {}).code) || "")) needLogin();
         return r;
       });
     });
+  }
+  // which run token a backend request needs (mirrors agentmeter/server/access.py required())
+  function backendNeed(method, path) {
+    var p = path.split("?")[0], m;
+    if (method !== "GET") {
+      if (p === "/api/prepare") return { kind: "prepare" };
+      if (p === "/api/prepared/import") return { kind: "import" };
+      if (p === "/api/jobs") return { kind: "benchmark" };
+      if ((m = /^\/api\/jobs\/([^/]+)\/resume$/.exec(p))) return { kind: "resume", job_id: decodeURIComponent(m[1]) };
+      return null;
+    }
+    if (/^\/api\/(jobs|sessions|compare|leaderboard)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
+    if ((m = /^\/api\/jobs\/([^/]+)(\/(result|report\.pdf|constraints))?$/.exec(p))) return m[2] || !STRONG_JOB.test(decodeURIComponent(m[1])) ? { kind: "read" } : null;
+    if ((m = /^\/api\/prepared\/([^/]+)\/([^/]+)(\/[^/]+)?$/.exec(p)) && m[1] !== "import") return m[3] ? { kind: "files", set: decodeURIComponent(m[1]) + "/" + decodeURIComponent(m[2]) } : { kind: "read" };
+    return null;
+  }
+  function authorize(body) {
+    return cpFetch("/api/runs/authorize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
+      if (r.ok && r.data.backend && r.data.backend !== API) { API = r.data.backend; }
+      if (!r.ok && r.data.code === "backend_offline") gpuOffline();
+      return r;
+    });
+  }
+  function runToken(need, opts) {
+    if (need.kind === "read") {
+      if (READ_TOK && READ_TOK.until > Date.now()) return Promise.resolve({ ok: true, data: { token: READ_TOK.token } });
+      return authorize({ kind: "read" }).then(function (r) { if (r.ok) READ_TOK = { token: r.data.token, until: Date.now() + (r.data.expires_in - 60) * 1000 }; return r; });
+    }
+    if (need.kind === "files") {
+      var c = FILE_TOK[need.set];
+      if (c && c.until > Date.now()) return Promise.resolve({ ok: true, data: { token: c.token } });
+      return authorize(need).then(function (r) { if (r.ok) FILE_TOK[need.set] = { token: r.data.token, until: Date.now() + (r.data.expires_in - 60) * 1000 }; return r; });
+    }
+    var body = { kind: need.kind };
+    if (need.kind === "resume") body.job_id = need.job_id;
+    if (need.kind === "benchmark") {
+      var b = {};
+      try { b = JSON.parse(opts.body || "{}"); } catch (e) { b = {}; }
+      if (b.after_prepare) body.after_prepare = b.after_prepare;
+      if (b.run) body.run = b.run;
+      var g = GRANTS[b.after_prepare || b.run || ""];
+      if (g && !g.used) body.prepare_jti = g.jti;          // the wizard's own prepare/import: counted once
+    }
+    return authorize(body);
+  }
+  function backendFetch(path, opts) {
+    opts = Object.assign({ credentials: "omit" }, opts || {});
+    var method = (opts.method || "GET").toUpperCase(), need = CP ? backendNeed(method, path) : null;
+    var pre = need ? runToken(need, opts) : Promise.resolve(null);
+    return pre.then(function (t) {
+      if (t && !t.ok) return t;                              // rate_limited, queue_full, backend_offline, ...
+      if (CP && !API) return { ok: false, status: 503, data: { error: "GPU offline: the benchmark backend is not running.", code: "backend_offline" } };
+      var h = Object.assign({}, opts.headers || {});
+      if (t) h.Authorization = "Bearer " + t.data.token;
+      return fetch(API + path, Object.assign({}, opts, { headers: h })).then(opts.raw ? function (r) { return r; } : parse,
+        function () { return netErr("GPU backend (" + (API || location.origin) + ")"); }).then(function (r) {
+        if (r.ok && t && (need.kind === "prepare" || need.kind === "import") && t.data.jti && r.data) {
+          GRANTS[r.data.job_id || r.data.prepared_set || ""] = { jti: t.data.jti };
+        }
+        if (r.ok && t && need.kind === "benchmark") {
+          try { var b = JSON.parse(opts.body || "{}"); var g = GRANTS[b.after_prepare || b.run || ""]; if (g) g.used = true; } catch (e) { /* not JSON */ }
+        }
+        if (r.status === 401 && need && need.kind === "read") READ_TOK = null;
+        return r;
+      });
+    });
+  }
+  function api(path, opts) {
+    if (CP && WORKER_PATHS.test(path)) return cpFetch(path, opts);
+    return backendFetch(path, opts);
+  }
+  // downloads that need a token: fetch + blob (an <a href> cannot send Authorization)
+  function authDownload(path, name) {
+    var p = (CP && WORKER_PATHS.test(path)) ? cpFetch(path, { raw: true }) : backendFetch(path, { raw: true });
+    return p.then(function (r) {
+      if (!r || r.ok === false || (r.status && r.status >= 400)) {
+        return (r.text ? parse(r) : Promise.resolve(r)).then(function (e) { alert((e.data && e.data.error) || "Download failed."); });
+      }
+      return r.blob().then(function (b) {
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      });
+    });
+  }
+  document.addEventListener("click", function (ev) {
+    var a = ev.target.closest && ev.target.closest("a[data-auth-dl]");
+    if (!a || !CP) return;                                   // without CP the plain href works
+    ev.preventDefault();
+    authDownload(a.getAttribute("data-auth-dl"), a.getAttribute("data-name") || "download");
+  });
+  function dlLink(path, name, label, cls) {
+    return '<a class="' + (cls || "btn") + '" data-auth-dl="' + esc(path) + '" data-name="' + esc(name) + '" href="' + esc(CP ? "#" : apiUrl(path)) + '" download="' + esc(name) + '">' + esc(label || name) + '</a>';
   }
   function apiUrl(path) { return API + path; }
   function showError(el, data) {
@@ -659,8 +868,9 @@
     if (t === "dark" || t === "light") return t;
     return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
-  function applyTheme(t) {
+  function applyTheme(t, fromAccount) {
     try { localStorage.setItem("agentmeter.theme", t); } catch (e) { /* not persisted; still applied */ }
+    if (CP && AUTH.user && !fromAccount && SETTINGS && SETTINGS.theme !== t) saveSettings({ theme: t });
     if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
     else document.documentElement.removeAttribute("data-theme");
     var f = document.querySelector("iframe.embed");
@@ -695,7 +905,7 @@
   }
 
   // ---------- routing ----------
-  var VIEWS = ["home", "new", "sessions", "session", "compare", "leaderboard", "settings"];
+  var VIEWS = ["home", "new", "sessions", "session", "compare", "leaderboard", "settings", "admin", "login"];
   function parseHash() {
     var h = location.hash.replace(/^#\/?/, ""), q = {}, qi = h.indexOf("?");
     if (qi >= 0) { new URLSearchParams(h.slice(qi + 1)).forEach(function (v, k) { q[k] = v; }); h = h.slice(0, qi); }
@@ -704,6 +914,7 @@
   function show(view) {
     VIEWS.forEach(function (v) { $("view-" + v).hidden = v !== view; });
     $("view-offline").hidden = true;
+    document.querySelector(".mainnav").hidden = view === "login";
     var nav = view === "session" ? "sessions" : view;
     document.querySelectorAll("[data-nav]").forEach(function (a) {
       if (a.getAttribute("data-nav") === nav) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
@@ -718,7 +929,8 @@
     if (v === "jobs") { location.replace("#/sessions"); return; }
     if ((v === "prepared" || v === "run") && p.length === 3) { location.replace("#/new/models?set=" + enc(p[1] + "/" + p[2])); return; }
     if (v === "job" && p[1]) { legacyJob(p[1]); return; }
-    if (VIEWS.indexOf(v) < 0) v = "home";
+    if (CP && !AUTH.user) { show("login"); showLogin(); return; }
+    if (VIEWS.indexOf(v) < 0 || v === "login" || (v === "admin" && !isAdmin())) v = "home";
     show(v);
     if (v === "home") loadHome();
     else if (v === "new") routeWizard(p, r.q);
@@ -727,6 +939,7 @@
     else if (v === "compare") loadCompare(r.q);
     else if (v === "leaderboard") loadLeaderboard();
     else if (v === "settings") loadSettings();
+    else if (v === "admin") loadAdmin();
     if (!/^session$/.test(v) || !p[2]) window.scrollTo(0, 0);
   }
   function legacyJob(id) {
@@ -745,7 +958,7 @@
   function sessionsTable(rows, id) {
     return '<table id="' + id + '"><thead><tr><th>Session</th><th>Input</th><th class="num">Flows</th><th>GPU</th><th>More efficient</th><th>Status</th><th></th></tr></thead><tbody>' +
       rows.map(function (s) {
-        return '<tr><td><span class="mono">' + esc(s.session_id) + '</span><br><span class="muted small">' + esc((s.models || []).map(short).join(" vs ")) +
+        return '<tr><td><span class="mono" title="' + esc(s.session_id) + '">' + esc(shortId(s.session_id)) + '</span><br><span class="muted small">' + esc((s.models || []).map(short).join(" vs ")) +
           '</span></td><td>' + esc(s.input_type || "—") + '</td><td class="num">' + fmtNum(s.n_flows) + '</td><td>' + esc(s.gpu || "—") +
           '</td><td>' + esc(s.more_efficient ? (s.more_efficient.indexOf("/") > 0 ? short(s.more_efficient) : s.more_efficient) : "—") +
           '</td><td>' + statusChip(s.status) + '</td><td>' + sessionLink(s) + '</td></tr>';
@@ -801,6 +1014,9 @@
     });
   }
   function routeWizard(p, q) {
+    var off = !!CP && !ONLINE;
+    $("wiz-offline").hidden = !off;
+    ["svc-upload-btn", "svc-import-btn"].forEach(function (id) { if ($(id)) $(id).disabled = off; });
     if (p[1] === "models") { wizStep("models"); wizModels(q); }
     else if (p[1] === "run" && p[2]) { wizStep("run"); watchRun(p[2]); }
     else { wizStep("data"); wizData(q.src || "file"); }
@@ -988,7 +1204,7 @@
       rules + '</tbody></table></div></details>' +
       '<div class="actions" id="wiz-downloads"><span class="small muted" style="align-self:center">Prepared set <span class="mono" id="svc-set-id-value">' + esc(s.prepared_set) + '</span>:</span>' +
       (s.downloads || []).map(function (f) {
-        return '<a class="btn" data-dl="' + esc(f) + '" href="' + esc(apiUrl("/api/prepared/" + setPath(s.prepared_set) + "/" + enc(f))) + '" download>' + esc(f) + '</a>';
+        return dlLink("/api/prepared/" + setPath(s.prepared_set) + "/" + enc(f), String(s.prepared_set).split("/").pop() + "_" + f, f).replace('<a ', '<a data-dl="' + esc(f) + '" ');
       }).join("") + '</div></div>';
   }
   function renderModels() {
@@ -997,15 +1213,17 @@
       return '<label class="model"><input type="checkbox" name="model" value="' + esc(m) + '" id="svc-model-' + i + '"><span class="mono">' + esc(m) + '</span></label>';
     }).join("");
     box.querySelectorAll("input").forEach(function (inp) { inp.addEventListener("change", syncRun); });
+    var defs = (SETTINGS && SETTINGS.default_models) || [];
+    box.querySelectorAll("input").forEach(function (inp) { if (defs.indexOf(inp.value) >= 0) inp.checked = true; });
     syncRun();
   }
   function picked() { return Array.prototype.map.call($("svc-models").querySelectorAll("input:checked"), function (i) { return i.value; }); }
   function syncRun() {
     var box = $("svc-models"), max = (CONFIG && CONFIG.max_models) || 2, n = picked().length;
     box.querySelectorAll("input").forEach(function (inp) { inp.disabled = !inp.checked && n >= max; });
-    var failed = $("wiz-data-chip").textContent === "Failed";
-    $("svc-run").disabled = n < 1 || n > max || failed;
-    $("svc-run").textContent = WIZ.set || failed ? "Run benchmark" : "Run when data is ready";
+    var failed = $("wiz-data-chip").textContent === "Failed", off = !!CP && !ONLINE;
+    $("svc-run").disabled = n < 1 || n > max || failed || off;
+    $("svc-run").textContent = off ? "GPU offline" : WIZ.set || failed ? "Run benchmark" : "Run when data is ready";
     $("svc-model-hint").textContent = n >= max ? "Maximum of " + max + " models selected — deselect one to change."
       : n === 1 ? "1 model selected — add one more to compare head-to-head, or run it alone." : "Select 1 or 2 models.";
   }
@@ -1112,6 +1330,7 @@
   var sessionTabs = Array.prototype.slice.call(document.querySelectorAll("#session-tabs [role=tab]"));
   tablist($("session-tabs"), function (t) { location.hash = "#/session/" + enc(SESSION.id) + "/" + t.getAttribute("data-tab"); });
   function loadSession(id, tab) {
+    if (CP) return loadSessionCP(id, tab);
     var token = ++pollToken;
     if (SESSION.id === id && SESSION.res) { showSessionTab(tab); return; }
     SESSION = { id: id, res: null, job: null };
@@ -1158,6 +1377,80 @@
       });
     })();
   }
+  // With a control plane: the stored session (Worker: D1/R2) — readable with the GPU off. A
+  // running session's live progress comes from the backend when it is online.
+  function loadSessionCP(id, tab) {
+    var token = ++pollToken;
+    if (SESSION.id === id && SESSION.res) { showSessionTab(tab); return; }
+    SESSION = { id: id, res: null, job: null, stored: null };
+    $("h-session").textContent = id;
+    $("session-chips").innerHTML = "";
+    $("session-body").hidden = true; $("session-watch").hidden = true;
+    $("svc-dl-pdf").hidden = true;
+    $("session-compare").setAttribute("href", "#/compare?a=" + enc(id));
+    var w = $("session-watch");
+    function fromWorker(attempt) {
+      api("/api/sessions/" + enc(id)).then(function (r) {
+        if (token !== pollToken) return;
+        if (!r.ok) {
+          if (r.status === 404 && ONLINE && attempt === 0) return fromBackend();   // not stored yet: a brand-new job
+          w.hidden = false; w.innerHTML = '<div class="notice error">' + esc(r.data.error) + ' <a href="#/sessions">All sessions</a></div>'; return;
+        }
+        SESSION.stored = r.data;
+        if (r.data.has_results) {
+          api("/api/sessions/" + enc(id) + "/results").then(function (rr) {
+            if (token !== pollToken) return;
+            if (!rr.ok) { w.hidden = false; w.innerHTML = '<div class="notice error">' + esc(rr.data.error) + '</div>'; return; }
+            w.hidden = true; w.innerHTML = "";
+            var st = SESSION.stored, job = { job_id: id, run_name: st.run_name, models: st.models, created_at: st.created_at,
+                                            owner: st.owner, files: st.files || [], can_delete: st.can_delete, stored: true };
+            SESSION.res = rr.data; SESSION.job = job;
+            renderSession(rr.data, job);
+            showSessionTab(tab);
+          });
+          return;
+        }
+        if (r.data.status === "Running" && ONLINE) return fromBackend();
+        if (r.data.status === "Done" || r.data.status === "Demo") {           // finished; results still uploading
+          if (attempt < 20) { setTimeout(function () { fromWorker(attempt + 1); }, 1500); return; }
+        }
+        w.hidden = false;
+        w.innerHTML = '<div class="card" id="watch-card"><div class="row" style="margin-top:0;justify-content:space-between"><h2>' +
+          (r.data.status === "Running" ? "Running on the GPU" : "Session " + esc(r.data.status).toLowerCase()) + '</h2>' + statusChip(r.data.status) + '</div>' +
+          '<p class="muted small">' + esc((r.data.models || []).join("  vs  ")) + (r.data.owner ? " · started by " + esc(r.data.owner) : "") + '</p>' +
+          (ONLINE ? "" : '<div class="notice warn" id="watch-offline">GPU offline — live progress and Resume need the GPU backend. Stored sessions stay browsable.</div>') + '</div>';
+        if (ONLINE && (r.data.status === "Failed" || r.data.status === "Interrupted")) fromBackend();
+      });
+    }
+    function fromBackend() {
+      (function tick() {
+        if (token !== pollToken) return;
+        api("/api/jobs/" + enc(id)).then(function (r) {
+          if (token !== pollToken) return;
+          if (!r.ok) { w.hidden = false; w.innerHTML = '<div class="notice error">' + esc(r.data.error) + ' <a href="#/sessions">All sessions</a></div>'; return; }
+          var j = r.data;
+          SESSION.job = j;
+          if (j.kind === "prepare") { location.replace("#/new/models?prep=" + enc(id)); return; }
+          if (j.status === "done") { $("watch-card") && $("watch-card").remove(); return fromWorker(1); }
+          w.hidden = false;
+          if (!$("watch-progress")) {
+            w.innerHTML = '<div class="card" id="watch-card"><div id="watch-progress"></div><div class="row" style="margin-top:0;justify-content:space-between"><h2 id="watch-phase">…</h2><span id="watch-status" class="status Running">…</span></div>' +
+              '<p id="watch-models" class="muted small"></p><div class="bar" id="watch-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Session progress"><span id="watch-fill"></span></div>' +
+              '<p id="watch-text" aria-live="polite"></p><div id="watch-error" class="notice error" role="alert" hidden></div>' +
+              '<div class="actions"><button type="button" class="btn" id="watch-resume" hidden>Resume</button></div></div>';
+            $("watch-resume").onclick = function () {
+              api("/api/jobs/" + enc(id) + "/resume", { method: "POST" }).then(function (rr) { if (!rr.ok) showError($("watch-error"), rr.data); else { SESSION.id = null; loadSession(id, tab); } });
+            };
+          }
+          renderProgress(j, { status: $("watch-status"), bar: $("watch-bar"), fill: $("watch-fill"), models: $("watch-models"),
+                              text: $("watch-text"), phase: $("watch-phase"), error: $("watch-error"), resume: $("watch-resume") });
+          if (j.status === "failed" || j.status === "interrupted") return;
+          setTimeout(tick, 2000);
+        });
+      })();
+    }
+    fromWorker(0);
+  }
   function showSessionTab(tab) {
     var t = sessionTabs.filter(function (x) { return x.getAttribute("data-tab") === tab; })[0] || sessionTabs[0];
     sessionTabs.forEach(function (x) { x.setAttribute("href", "#/session/" + enc(SESSION.id) + "/" + x.getAttribute("data-tab")); });
@@ -1170,7 +1463,9 @@
     $("session-chips").innerHTML = '<span class="chip ' + (real ? "ok" : "warn") + '">' + (real ? "GPU: " + esc(env.gpu_name || "unknown") : "Demo (no GPU)") + '</span>' +
       '<span class="chip">' + fmtNum(s.n_flows) + ' flows</span><span class="chip">' + esc((s.source_type || "").toUpperCase()) + '</span>' +
       '<span class="chip">' + (s.accuracy_available ? "labelled" : "unlabelled · efficiency only") + '</span>' +
-      '<span class="chip mono" title="Session id">' + esc(job.job_id) + '</span>';
+      '<span class="chip mono" title="Session id ' + esc(job.job_id) + '">' + esc(shortId(job.job_id)) + '</span>' +
+      (job.owner ? '<span class="chip" title="Started by">' + esc(job.owner) + '</span>' : "");
+    setDl($("svc-dl-pdf"), pdfPath(job), "agentmeter_report_" + job.job_id + ".pdf");
     $("svc-dl-pdf").hidden = false;
     $("session-body").hidden = false;
     $("spanel-summary").innerHTML = summaryTab(res);
@@ -1178,7 +1473,55 @@
     $("spanel-agents").innerHTML = agentsTab(res);
     $("spanel-recommendation").innerHTML = recommendationTab(res);
     $("spanel-downloads").innerHTML = downloadsTab(res, job);
-    wireAgents(res); wireDecision(res); wireDownloads(res, job);
+    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res);
+  }
+
+  function setDl(a, path, name) {
+    a.setAttribute("data-auth-dl", path); a.setAttribute("data-name", name);
+    a.setAttribute("href", CP ? "#" : apiUrl(path)); a.setAttribute("download", name);
+  }
+  // the stored PDF (Worker/R2, works with the GPU off) or the backend's
+  function pdfPath(job) {
+    return CP && job.stored && (job.files || []).indexOf("report.pdf") >= 0 ? "/api/sessions/" + enc(job.job_id) + "/files/report.pdf"
+      : "/api/jobs/" + enc(job.job_id) + "/report.pdf";
+  }
+  // SAW weights: the ones the stored scores used, and (view only) a user's preset
+  function weightsText(w) {
+    return ["accuracy", "latency", "vram", "tokens"].filter(function (k) { return w && w[k] != null; })
+      .map(function (k) { return k + " " + Number(w[k]).toFixed(2); }).join(" · ");
+  }
+  function presetRank(res, preset) {
+    var p8 = res.phase8 || {}, lab = !!(res.session || {}).accuracy_available, w = Object.assign({}, preset.weights);
+    if (!lab) w.accuracy = 0;                                // unlabelled: accuracy has no score (as stored SAW does)
+    var tot = ["accuracy", "latency", "vram", "tokens"].reduce(function (a, k) { return a + (+w[k] || 0); }, 0) || 1;
+    Object.keys(w).forEach(function (k) { w[k] = (+w[k] || 0) / tot; });
+    var rows = (p8.normalised || []).map(function (n) {
+      var c = ["accuracy", "latency", "vram", "tokens"].reduce(function (a, k) { return a + w[k] * (+n[k] || 0); }, 0);
+      return { model: String(n.model).replace(/^mock:/, ""), score: Math.round(c * 10000) / 100 };
+    }).sort(function (a, b) { return b.score - a.score; });
+    return { weights: w, rows: rows };
+  }
+  function weightsCard(res) {
+    var p8 = res.phase8 || {}, presets = (SETTINGS && SETTINGS.weight_presets) || [];
+    return '<div class="card" id="svc-weights-card"><h2>SAW weights</h2><p class="small" id="svc-weights-used"><b>Stored scores use:</b> ' +
+      esc(weightsText(p8.weights) || "not recorded") + ' <span class="muted">(' + esc((res.notes || {}).saw_mode || "") + ')</span></p>' +
+      (presets.length ? '<div class="row"><div class="field"><label for="svc-preset">Re-rank with one of your presets (view only)</label><select id="svc-preset"><option value="">— stored weights —</option>' +
+        presets.map(function (p, i) { return '<option value="' + i + '">' + esc(p.name) + '</option>'; }).join("") + '</select></div></div><div id="svc-preset-view"></div>'
+        : '<p class="muted small">Add weight presets in Settings to re-rank here (view only).</p>') +
+      '<p class="muted small">A preset never changes a stored score, rank or verdict; this view states which weights it uses.</p></div>';
+  }
+  function wirePresets(res) {
+    var sel = $("svc-preset");
+    if (!sel) return;
+    sel.addEventListener("change", function () {
+      var v = $("svc-preset-view"), p = (SETTINGS.weight_presets || [])[+sel.value];
+      if (sel.value === "" || !p) { v.innerHTML = ""; return; }
+      var r = presetRank(res, p);
+      v.innerHTML = '<p class="small" id="svc-preset-weights"><b>This view uses preset “' + esc(p.name) + '”:</b> ' + esc(weightsText(r.weights)) + '</p>' +
+        '<div class="table-wrap"><table id="svc-preset-table"><thead><tr><th class="num">View rank</th><th>Model</th><th class="num">Score with this preset</th></tr></thead><tbody>' +
+        r.rows.map(function (x, i) { return '<tr><td class="num">' + (i + 1) + '</td><td class="mono">' + esc(x.model) + '</td><td class="num">' + x.score.toFixed(2) + '</td></tr>'; }).join("") +
+        '</tbody></table></div>';
+    });
   }
 
   // Summary tab
@@ -1251,6 +1594,7 @@
         }).join("") + '</tbody></table></div><p class="muted small">' + esc(mem.notes.working) + ' ' + esc(mem.notes.total) +
         (mem.per_model.some(function (r) { return r.reason; }) ? ' ' + esc(mem.per_model.filter(function (r) { return r.reason; })[0].reason) + '.' : "") + '</p></div>');
     }
+    h.push(weightsCard(res));
     var cav = (rel ? rel.caveats : s.caveats) || [];
     h.push('<div class="card" id="svc-caveats-card"><h2>Read this before quoting the numbers</h2><ul class="list" id="svc-caveats">' +
       cav.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join("") + '</ul></div>');
@@ -1259,7 +1603,10 @@
 
   // Detailed analysis tab: statistical depth (native) + the analysis page (embedded)
   var EF_LABEL = { latency_s: "latency per flow", peak_vram_mb: "working VRAM (excludes model weights)", tokens_per_flow: "tokens per flow" };
-  function analysisSrc(id) { return apiUrl("/analysis?session=" + enc(id) + "&embed=1&theme=" + resolvedTheme()); }
+  function analysisSrc(id) {
+    var q = "?session=" + enc(id) + "&embed=1&theme=" + resolvedTheme();
+    return CP ? "analysis.html" + q : apiUrl("/analysis" + q);     // CP: same origin; results passed by message
+  }
   function detailedTab(res) {
     var ld = res.latency_distribution, ef = res.effect_sizes, h = [];
     if (ld) {
@@ -1300,10 +1647,13 @@
     box.innerHTML = '<iframe class="embed" id="analysis-frame" title="Session overview and detailed analysis" data-session="' + esc(SESSION.id) + '" src="' + esc(analysisSrc(SESSION.id)) + '" loading="lazy"></iframe>';
   }
   window.addEventListener("message", function (ev) {
-    var origin = API ? new URL(API, location.href).origin : location.origin;
-    if (ev.origin !== origin || !ev.data || ev.data.type !== "agentmeter-embed-height") return;
+    var origin = CP || !API ? location.origin : new URL(API, location.href).origin;
     var f = $("analysis-frame");
-    if (f) f.style.height = Math.max(400, Math.min(30000, +ev.data.height || 0)) + "px";
+    if (ev.origin !== origin || !ev.data || !f || ev.source !== f.contentWindow) return;
+    if (ev.data.type === "agentmeter-embed-height") f.style.height = Math.max(400, Math.min(30000, +ev.data.height || 0)) + "px";
+    // the embedded analysis page (same origin with a control plane) asks for the stored results
+    if (ev.data.type === "agentmeter-embed-ready" && ev.data.session === SESSION.id && SESSION.res)
+      f.contentWindow.postMessage({ type: "agentmeter-embed-results", session: SESSION.id, results: SESSION.res }, origin);
   });
 
   // Agents tab
@@ -1409,14 +1759,14 @@
   function wireDecision(res) {
     var f = $("dh-form");
     if (!f) return;
-    var pdf = function () { var q = dhQuery(); $("dh-pdf").setAttribute("href", apiUrl("/api/jobs/" + enc(SESSION.id) + "/report.pdf" + (q ? "?" + q : ""))); };
+    var pdf = function () { var q = dhQuery(); setDl($("dh-pdf"), "/api/jobs/" + enc(SESSION.id) + "/report.pdf" + (q ? "?" + q : ""), "agentmeter_report_" + SESSION.id + ".pdf"); };
     pdf();
     f.addEventListener("input", pdf);
     f.addEventListener("submit", function (ev) {
       ev.preventDefault();
       $("dh-error").hidden = true;
       var q = dhQuery();
-      api("/api/jobs/" + enc(SESSION.id) + "/constraints" + (q ? "?" + q : "")).then(function (r) {
+      api((CP ? "/api/sessions/" : "/api/jobs/") + enc(SESSION.id) + "/constraints" + (q ? "?" + q : "")).then(function (r) {
         if (!r.ok) { showError($("dh-error"), r.data); return; }
         renderDecision(r.data);
       });
@@ -1426,12 +1776,15 @@
   // Downloads tab
   function downloadsTab(res, job) {
     return '<div class="card"><h2>Report and results</h2><div class="actions" id="svc-downloads-main">' +
-      '<a class="btn primary" href="' + esc(apiUrl("/api/jobs/" + enc(job.job_id) + "/report.pdf")) + '" download>PDF report</a>' +
+      dlLink(pdfPath(job), "agentmeter_report_" + job.job_id + ".pdf", "PDF report", "btn primary") +
       '<button type="button" class="btn" id="svc-dl-json">session_results.json</button>' +
       '<button type="button" class="btn" id="svc-dl-saw">SAW CSV</button><button type="button" class="btn" id="svc-dl-agent">Per-agent CSV</button></div></div>' +
       '<div class="card"><h2>Prepared set</h2><p class="muted small">The exact flows this session measured — download them to keep them, or reuse them in a new benchmark.</p>' +
       '<p class="mono small">' + esc(job.run_name || "") + '</p><div class="actions" id="svc-downloads"></div>' +
-      '<div class="actions"><a class="btn" href="#/new/models?set=' + enc(job.run_name || "") + '">Benchmark these flows again</a></div></div>';
+      '<div class="actions"><a class="btn" href="#/new/models?set=' + enc(job.run_name || "") + '">Benchmark these flows again</a></div></div>' +
+      (CP && job.can_delete ? '<div class="card"><h2>Delete this session</h2><p class="muted small">Removes the stored session (results, PDF, prepared-set copy) for everyone. ' +
+        'Only its owner or an admin can do this.</p><div class="actions"><button type="button" class="btn" id="svc-delete">Delete session</button></div>' +
+        '<div id="svc-delete-error" class="notice error" role="alert" hidden></div></div>' : "");
   }
   function download(name, text, type) {
     var a = document.createElement("a");
@@ -1442,10 +1795,24 @@
     $("svc-dl-json").addEventListener("click", function () { download("session_results.json", JSON.stringify(res, null, 2), "application/json"); });
     $("svc-dl-saw").addEventListener("click", function () { download("agentmeter_session_saw.csv", window.REPORT.sawCsv(res)); });
     $("svc-dl-agent").addEventListener("click", function () { download("agentmeter_session_per_agent.csv", window.REPORT.perAgentCsv(res)); });
+    if ($("svc-delete")) $("svc-delete").addEventListener("click", function () {
+      if (!confirm("Delete session " + job.job_id + " for everyone? This cannot be undone.")) return;
+      api("/api/sessions/" + enc(job.job_id), { method: "DELETE" }).then(function (r) {
+        if (!r.ok) { showError($("svc-delete-error"), r.data); return; }
+        SESSION = { id: null, res: null, job: null }; location.hash = "#/sessions";
+      });
+    });
+    if (CP && job.stored) {                                   // the copy stored with the session (R2)
+      var names = ["manifest.json", "features.csv", "labels.csv"].filter(function (f) { return (job.files || []).indexOf(f) >= 0; });
+      $("svc-downloads").innerHTML = names.length ? names.map(function (f) {
+        return dlLink("/api/sessions/" + enc(job.job_id) + "/files/" + f, job.job_id + "_" + f, f === "features.csv" ? "features.csv (no identification columns)" : f).replace('<a ', '<a data-dl="' + f + '" ');
+      }).join("") : '<span class="muted small">No prepared-set copy was stored with this session.</span>';
+      return;
+    }
     if (!job.run_name) return;
     api("/api/prepared/" + setPath(job.run_name)).then(function (r) {
       $("svc-downloads").innerHTML = !r.ok ? '<span class="muted small">' + esc(r.data.error) + '</span>' : (r.data.downloads || []).map(function (f) {
-        return '<a class="btn" data-dl="' + esc(f) + '" href="' + esc(apiUrl("/api/prepared/" + setPath(job.run_name) + "/" + enc(f))) + '" download>' + esc(f) + '</a>';
+        return dlLink("/api/prepared/" + setPath(job.run_name) + "/" + enc(f), job.run_name.split("/").pop() + "_" + f, f).replace('<a ', '<a data-dl="' + esc(f) + '" ');
       }).join("");
     });
   }
@@ -1485,7 +1852,7 @@
           return '<tr><td>' + esc(k.label) + '</td><td><span class="chip ' + (k.same ? "ok" : "warn") + '">' + (k.same ? "same" : "differs") + '</span>' +
             (k.differs && k.differs.length ? ' <span class="small muted">' + esc(k.differs.join(", ")) + '</span>' : "") + '</td><td class="mono small">' + esc(k.a || "—") + '</td><td class="mono small">' + esc(k.b || "—") + '</td></tr>';
         }).join("") + '</tbody></table></div></div>' +
-        '<div class="card"><h2>Efficiency metrics</h2><p class="muted small">A: <a href="#/session/' + enc(c.a.session_id) + '">' + esc(c.a.session_id) + '</a> · B: <a href="#/session/' + enc(c.b.session_id) + '">' + esc(c.b.session_id) + '</a>' +
+        '<div class="card"><h2>Efficiency metrics</h2><p class="muted small">A: <a href="#/session/' + enc(c.a.session_id) + '" title="' + esc(c.a.session_id) + '">' + esc(shortId(c.a.session_id)) + '</a> · B: <a href="#/session/' + enc(c.b.session_id) + '" title="' + esc(c.b.session_id) + '">' + esc(shortId(c.b.session_id)) + '</a>' +
         (v.like_for_like ? " · best value per row in teal." : " · no best-value marks: these sessions are not like-for-like.") + '</p>' +
         '<div class="table-wrap"><table id="cmp-table"><thead><tr><th>Metric</th>' + head + '</tr></thead><tbody>' +
         c.rows.map(function (row) {
@@ -1524,18 +1891,219 @@
   document.querySelectorAll('input[name="lb-sort"]').forEach(function (r) { r.addEventListener("change", loadLeaderboard); });
 
   // ---------- SETTINGS ----------
+  var TZS = (function () { try { return Intl.supportedValuesOf("timeZone"); } catch (e) { return ["UTC", "Asia/Kuala_Lumpur", "Europe/London", "America/New_York"]; } })();
   function loadSettings() {
-    var t = themePref();
+    var t = (SETTINGS && SETTINGS.theme) || themePref();
     ($("set-theme-" + t) || $("set-theme-system")).checked = true;
     var h = HEALTH || {};
-    $("set-backend").innerHTML = '<dt>Address</dt><dd class="mono">' + esc(API || location.origin) + '</dd><dt>Mode</dt><dd>' +
-      (h.provider === "real" ? "Real GPU: " + esc((h.gpu || {}).name || "unknown") : "Demo (mock) — no GPU") + '</dd><dt>Passcode</dt><dd>' + (h.auth_required ? "required for runs and session lists" : "not required") + '</dd>';
+    $("set-backend").innerHTML = '<dt>Address</dt><dd class="mono">' + esc(API || (CP ? "— (GPU offline)" : location.origin)) + '</dd><dt>Mode</dt><dd>' +
+      (!ONLINE ? "offline" : h.provider === "real" ? "Real GPU: " + esc((h.gpu || {}).name || "unknown") : "Demo (mock) — no GPU") + '</dd>' +
+      (CP ? '<dt>Control plane</dt><dd class="mono">' + esc(CP) + '</dd><dt>Access</dt><dd>logged in as ' + esc(AUTH.user.username) + ' (' + esc(AUTH.user.role) + ')</dd>'
+          : '<dt>Access</dt><dd>' + (h.auth_required ? "run tokens from a control plane" : "open (local development)") + '</dd>');
+    $("set-backend-note").hidden = !!CP;
+    $("set-account").hidden = $("set-password").hidden = !CP;
+    $("set-intro").textContent = CP ? "Saved to your account (theme is also kept in this browser)." : "Saved in this browser only.";
+    if (!CP) return;
+    var S = SETTINGS || {};
+    $("set-tg").value = S.telegram_chat_id || ""; $("set-notify").value = S.notify_on || "none";
+    $("set-flows").value = S.default_flows || 50; $("set-other").checked = !!S.default_other_attack; $("set-tz").value = S.timezone || "UTC";
+    $("set-tz-list").innerHTML = TZS.map(function (z) { return '<option value="' + esc(z) + '">'; }).join("");
+    var models = (CONFIG && CONFIG.canonical_models && CONFIG.canonical_models.length ? CONFIG.canonical_models : []).slice();
+    (S.default_models || []).forEach(function (m) { if (models.indexOf(m) < 0) models.push(m); });
+    $("set-models").innerHTML = models.length ? models.map(function (m, i) {
+      return '<label class="model"><input type="checkbox" value="' + esc(m) + '" id="set-model-' + i + '"' + ((S.default_models || []).indexOf(m) >= 0 ? " checked" : "") + '><span class="mono">' + esc(m) + '</span></label>';
+    }).join("") : '<p class="muted small">The model list comes from the GPU backend — it is offline now.</p>';
+    $("set-models").querySelectorAll("input").forEach(function (inp) { inp.addEventListener("change", function () {
+      var on = $("set-models").querySelectorAll("input:checked").length;
+      $("set-models").querySelectorAll("input").forEach(function (x) { x.disabled = !x.checked && on >= 2; });
+    }); });
+    renderPresets(S.weight_presets || []);
+    $("set-saved").textContent = ""; $("set-error").hidden = true; $("set-pw-msg").hidden = true; $("set-tg-status").textContent = "";
+  }
+  function renderPresets(list) {
+    $("set-presets").innerHTML = list.map(function (p, i) {
+      var w = p.weights || {};
+      return '<div class="preset" data-i="' + i + '"><div class="field name"><label for="pre-name-' + i + '">Name</label><input type="text" id="pre-name-' + i + '" data-k="name" value="' + esc(p.name || "") + '" maxlength="40"></div>' +
+        ["accuracy", "latency", "vram", "tokens"].map(function (k) {
+          return '<div class="field"><label for="pre-' + k + '-' + i + '">' + k + '</label><input id="pre-' + k + '-' + i + '" data-k="' + k + '" type="number" min="0" max="1" step="0.05" value="' + esc(w[k] != null ? w[k] : 0.25) + '"></div>';
+        }).join("") + '<button type="button" class="btn small-btn" data-rm="' + i + '">Remove</button></div>';
+    }).join("") || '<p class="muted small">No presets yet.</p>';
+    $("set-presets").querySelectorAll("[data-rm]").forEach(function (b) { b.addEventListener("click", function () {
+      var l = readPresets(); l.splice(+b.getAttribute("data-rm"), 1); renderPresets(l);
+    }); });
+  }
+  function readPresets() {
+    return Array.prototype.map.call($("set-presets").querySelectorAll(".preset"), function (row) {
+      var o = { name: "", weights: {} };
+      row.querySelectorAll("input").forEach(function (inp) { var k = inp.getAttribute("data-k"); if (k === "name") o.name = inp.value.trim(); else o.weights[k] = +inp.value || 0; });
+      return o;
+    });
+  }
+  $("set-preset-add").addEventListener("click", function () {
+    var l = readPresets();
+    if (l.length >= 5) return;
+    l.push({ name: "Preset " + (l.length + 1), weights: { accuracy: 0.25, latency: 0.25, vram: 0.25, tokens: 0.25 } });
+    renderPresets(l);
+  });
+  function saveSettings(patch) {
+    return api("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }).then(function (r) {
+      if (r.ok) SETTINGS = r.data.settings;
+      return r;
+    });
+  }
+  $("set-account").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("set-error").hidden = true;
+    saveSettings({ theme: themePref(), telegram_chat_id: $("set-tg").value.trim(), notify_on: $("set-notify").value, default_flows: +$("set-flows").value || 50,
+                   default_other_attack: $("set-other").checked, timezone: $("set-tz").value.trim() || "UTC", weight_presets: readPresets(),
+                   default_models: Array.prototype.map.call($("set-models").querySelectorAll("input:checked"), function (i) { return i.value; }) })
+      .then(function (r) { if (!r.ok) showError($("set-error"), r.data); else $("set-saved").textContent = "Saved."; });
+  });
+  $("set-tg-test").addEventListener("click", function () {
+    $("set-tg-status").textContent = "Saving and sending…";
+    saveSettings({ telegram_chat_id: $("set-tg").value.trim() }).then(function (r) {
+      if (!r.ok) { $("set-tg-status").textContent = r.data.error; return; }
+      api("/api/settings/telegram-test", { method: "POST" }).then(function (t) {
+        $("set-tg-status").textContent = t.ok ? (t.data.ok ? "Sent — check Telegram." : "Telegram refused the message (check the chat ID).") : t.data.error;
+      });
+    });
+  });
+  $("set-password").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var m = $("set-pw-msg");
+    api("/api/me/password", { method: "POST", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ current_password: $("set-pw-cur").value, new_password: $("set-pw-new").value }) }).then(function (r) {
+      m.hidden = false; m.className = "notice " + (r.ok ? "" : "error");
+      m.textContent = r.ok ? "Password changed. Your other devices were logged out." : r.data.error;
+      if (r.ok) { $("set-pw-cur").value = ""; $("set-pw-new").value = ""; }
+    });
+  });
+
+  // ---------- ADMIN ----------
+  function isAdmin() { return !!(AUTH.user && AUTH.user.role === "admin"); }
+  function loadAdmin() {
+    $("adm-error").hidden = true; $("lim-error").hidden = true; $("lim-saved").textContent = "";
+    api("/api/admin/users").then(function (r) {
+      if (!r.ok) { showError($("adm-error"), r.data); return; }
+      var us = r.data.users || [];
+      $("adm-count").textContent = us.length + " of " + r.data.max_users + " accounts";
+      $("adm-new-go").disabled = us.length >= r.data.max_users;
+      $("adm-users").innerHTML = '<table id="adm-users-table"><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody>' +
+        us.map(function (u) {
+          var me = u.id === AUTH.user.id;
+          return '<tr data-user="' + esc(u.username) + '"><td class="mono">' + esc(u.username) + (me ? ' <span class="muted small">(you)</span>' : "") + '</td><td>' + esc(u.role) + '</td><td>' +
+            (u.disabled ? '<span class="chip bad">disabled</span>' : '<span class="chip ok">active</span>') + (u.must_change_pw ? ' <span class="chip warn">must change password</span>' : "") +
+            '</td><td class="small">' + esc(fmtDate(u.created_at)) + '</td><td class="actions" style="margin:0">' +
+            (me ? "" : '<button type="button" class="btn small-btn" data-act="toggle" data-id="' + esc(u.id) + '" data-on="' + (u.disabled ? 0 : 1) + '">' + (u.disabled ? "Enable" : "Disable") + '</button>' +
+              '<button type="button" class="btn small-btn" data-act="role" data-id="' + esc(u.id) + '" data-role="' + (u.role === "admin" ? "user" : "admin") + '">Make ' + (u.role === "admin" ? "user" : "admin") + '</button>') +
+            '<button type="button" class="btn small-btn" data-act="reset" data-id="' + esc(u.id) + '">Reset password</button>' +
+            (u.disabled ? '<button type="button" class="btn small-btn" data-act="delete" data-id="' + esc(u.id) + '">Delete</button>' : "") + '</td></tr>';
+        }).join("") + '</tbody></table>';
+      $("adm-users").querySelectorAll("[data-act]").forEach(function (b) { b.addEventListener("click", function () { adminAct(b); }); });
+    });
+    api("/api/admin/credentials").then(function (r) {
+      if (!r.ok) return;
+      var c = r.data.credentials || {};
+      $("adm-creds").innerHTML = Object.keys(c).map(function (k) {
+        var st = c[k].status;
+        return '<dt>' + esc({ hf_token: "Hugging Face token", vast_api_key: "Vast API key", telegram_bot_token: "Telegram bot token" }[k] || k) + '</dt><dd id="cred-' + esc(k) + '"><span class="chip ' + (st === "set" ? "ok" : st === "not set" ? "warn" : "") + '">' + esc(st) + '</span> <span class="muted small">' + esc(c[k].where || "") + '</span></dd>';
+      }).join("");
+    });
+    api("/api/admin/limits").then(function (r) {
+      if (!r.ok) return;
+      var L = r.data.limits;
+      $("lim-sph").value = L.sessions_per_hour; $("lim-mq").value = L.max_queued_sessions; $("lim-mb").value = L.max_upload_mb;
+      $("lim-idle").value = L.idle_minutes; $("lim-ident").checked = !!L.keep_identification_columns_in_r2;
+    });
+  }
+  function adminAct(b) {
+    var id = b.getAttribute("data-id"), act = b.getAttribute("data-act"), req;
+    if (act === "toggle") req = api("/api/admin/users/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ disabled: b.getAttribute("data-on") === "1" }) });
+    else if (act === "role") req = api("/api/admin/users/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ role: b.getAttribute("data-role") }) });
+    else if (act === "reset") {
+      var pw = prompt("Temporary password for this user (10+ characters). They must change it at the next login.");
+      if (!pw) return;
+      req = api("/api/admin/users/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) });
+    } else if (act === "delete") {
+      if (!confirm("Delete this disabled account? Its sessions stay, under its name.")) return;
+      req = api("/api/admin/users/" + id, { method: "DELETE" });
+    }
+    req.then(function (r) { if (!r.ok) showError($("adm-error"), r.data); else loadAdmin(); });
+  }
+  $("adm-new").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("adm-error").hidden = true;
+    api("/api/admin/users", { method: "POST", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ username: $("adm-new-user").value.trim(), password: $("adm-new-pass").value, role: $("adm-new-role").value }) }).then(function (r) {
+      if (!r.ok) { showError($("adm-error"), r.data); return; }
+      $("adm-new-user").value = ""; $("adm-new-pass").value = ""; loadAdmin();
+    });
+  });
+  $("adm-limits").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("lim-error").hidden = true;
+    api("/api/admin/limits", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+      sessions_per_hour: +$("lim-sph").value, max_queued_sessions: +$("lim-mq").value, max_upload_mb: +$("lim-mb").value,
+      idle_minutes: +$("lim-idle").value, keep_identification_columns_in_r2: $("lim-ident").checked }) }).then(function (r) {
+      if (!r.ok) showError($("lim-error"), r.data); else $("lim-saved").textContent = "Saved — the GPU backend picks them up at its next heartbeat (within a minute).";
+    });
+  });
+
+  // ---------- LOGIN / LOGOUT ----------
+  function showLogin() {
+    $("login-form").hidden = false; $("pwchange-form").hidden = true; $("login-error").hidden = true;
+    $("cp-user").hidden = $("cp-logout").hidden = true; $("nav-admin").hidden = true;
+    setTimeout(function () { $("login-user").focus(); }, 0);
+  }
+  function needLogin() {
+    if (!CP) return;
+    AUTH = { access: null, exp: 0, user: null }; READ_TOK = null; FILE_TOK = {};
+    pollToken++;
+    show("login"); showLogin();
+  }
+  $("login-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("login-error").hidden = true; $("login-go").disabled = true;
+    fetch(CP + "/api/auth/login", { method: "POST", credentials: "omit", headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ username: $("login-user").value.trim(), password: $("login-pass").value }) })
+      .then(parse, function () { return netErr("control plane"); }).then(function (r) {
+        $("login-go").disabled = false;
+        if (!r.ok) { showError($("login-error"), r.data); return; }
+        $("login-pass").value = "";
+        setAuth(r.data);
+        if (r.data.user.must_change_pw) { $("login-form").hidden = true; $("pwchange-form").hidden = false; $("pwc-new").focus(); return; }
+        afterLogin();
+      });
+  });
+  $("pwchange-form").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("pwchange-error").hidden = true;
+    api("/api/me/password", { method: "POST", headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ current_password: LAST_PW, new_password: $("pwc-new").value }) }).then(function (r) {
+      if (!r.ok) { showError($("pwchange-error"), r.data); return; }
+      LAST_PW = ""; AUTH.user.must_change_pw = false; afterLogin();
+    });
+  });
+  var LAST_PW = "";
+  $("login-pass").addEventListener("input", function () { LAST_PW = $("login-pass").value; });
+  $("cp-logout").addEventListener("click", function () {
+    cpFetch("/api/auth/logout", { method: "POST" }).then(function () { refreshSet(""); needLogin(); });
+  });
+  function afterLogin() {
+    $("cp-user").hidden = $("cp-logout").hidden = false;
+    $("cp-user").textContent = AUTH.user.username;
+    $("nav-admin").hidden = !isAdmin();
+    return api("/api/settings").then(function (r) {
+      SETTINGS = r.ok ? r.data.settings : null;
+      if (SETTINGS && SETTINGS.theme && SETTINGS.theme !== themePref()) applyTheme(SETTINGS.theme, true);
+      return checkControlPlaneBackend();
+    }).then(function () { if (location.hash === "#/login") location.hash = "#/"; route(); });
   }
 
   // ---------- boot: config.json -> /health -> online | offline ----------
   function badge(h) {
     var b = $("svc-backend-badge");
-    if (!h) { b.className = "chip-gpu off"; b.textContent = "GPU backend offline"; return; }
+    if (!h) { b.className = "chip-gpu off"; b.textContent = CP ? "GPU offline" : "GPU backend offline"; return; }
     if (h.provider === "real") {
       var g = h.gpu || {};
       b.className = "chip-gpu real";
@@ -1560,22 +2128,31 @@
   }
   function goOffline() {
     ONLINE = false; HEALTH = null; badge(null);
+    if (CP) {                                       // with a control plane only Run needs the GPU
+      if (!$("view-new").hidden) routeWizard(parseHash().parts, parseHash().q);
+      clearTimeout(offlineTimer);
+      offlineTimer = setTimeout(checkControlPlaneBackend, 30000);
+      return;
+    }
     VIEWS.forEach(function (v) { $("view-" + v).hidden = true; });
     $("view-offline").hidden = false; $("svc-demo").hidden = true;
     $("svc-offline-detail").textContent = "Backend: " + (API || location.origin) + " — no answer from /health.";
     clearTimeout(offlineTimer);
     offlineTimer = setTimeout(checkBackend, 30000);   // comes back by itself when the GPU is rented
   }
+  function gpuOffline() { if (CP) { API = ""; goOffline(); } }
   function goOnline(h) {
     var first = !ONLINE;
     ONLINE = true; HEALTH = h; badge(h); runModeLine();
     $("view-offline").hidden = true;
-    if (!first) return;
-    api("/api/service/config").then(function (r) {
+    if (CP) { clearTimeout(offlineTimer); offlineTimer = setTimeout(checkControlPlaneBackend, 30000); }
+    if (!first) return Promise.resolve();
+    return api("/api/service/config").then(function (r) {
       CONFIG = r.ok ? r.data : { canonical_models: [], max_models: 2, provider: "mock", base_config: null, demo_mode: true, note: "Service config unavailable." };
       $("svc-demo").hidden = !CONFIG.demo_mode;
       $("svc-demo").textContent = CONFIG.note || "";
-      $("svc-max-flows").value = CONFIG.default_max_flows || 50;
+      $("svc-max-flows").value = (SETTINGS && SETTINGS.default_flows) || CONFIG.default_max_flows || 50;
+      if (SETTINGS) $("svc-other-attack").checked = !!SETTINGS.default_other_attack;
       var L = CONFIG.limits;
       if (L) {
         $("svc-limits").textContent = "Maximum upload: " + L.max_upload_label + " — for larger files use Import from a link (up to " +
@@ -1583,29 +2160,53 @@
         $("svc-url-limits").textContent = "The server downloads the file itself (up to " + L.max_url_download_label +
           "). Use a direct download link — Google Drive / Dropbox “share” pages are refused. Only public internet addresses are allowed.";
       }
-      route();
+      if (CP) { if (!$("view-new").hidden) routeWizard(parseHash().parts, parseHash().q); }
+      else route();
     });
   }
   function checkBackend() { return health().then(function (h) { if (h) goOnline(h); else goOffline(); }); }
+  // control plane: where is the GPU backend, and is it up? (it registers + heartbeats itself)
+  function checkControlPlaneBackend() {
+    if (!AUTH.user) return Promise.resolve();
+    return api("/api/backend").then(function (r) {
+      BACKEND = r.ok ? r.data : null;
+      if (!BACKEND || !BACKEND.online || !BACKEND.url) { API = ""; return goOffline(); }
+      if (API !== BACKEND.url) { API = BACKEND.url; ONLINE = false; }
+      return health().then(function (h) { if (h) return goOnline(h); API = ""; goOffline(); });
+    });
+  }
   $("svc-retry").addEventListener("click", function () { $("svc-offline-detail").textContent = "Checking…"; checkBackend(); });
-  window.addEventListener("hashchange", function () { if (ONLINE) route(); });
+  window.addEventListener("hashchange", function () { if (ONLINE || CP) route(); });
   if (window.matchMedia) {
     var mq = window.matchMedia("(prefers-color-scheme: dark)");
-    var onScheme = function () { if (themePref() === "system") applyTheme("system"); };
+    var onScheme = function () { if (themePref() === "system") applyTheme("system", true); };
     if (mq.addEventListener) mq.addEventListener("change", onScheme);
   }
-  function resolveApi() {
-    var q = new URLSearchParams(location.search).get("api");
+  // config.json: {"control_plane": "<Worker URL>"} (production) or {"api_base": "<backend>"} (development,
+  // also ?api=<url>, remembered; ?api=reset forgets it). ?cp=<url> / ?cp=reset does the same for the control plane.
+  function resolveConfig() {
+    var qs = new URLSearchParams(location.search), qa = qs.get("api"), qc = qs.get("cp"), saved = {};
     try {
-      if (q === "reset") localStorage.removeItem("agentmeter.api");
-      else if (q) localStorage.setItem("agentmeter.api", q.replace(/\/+$/, ""));
-      var saved = localStorage.getItem("agentmeter.api");
-      if (saved) return Promise.resolve(saved);
-    } catch (e) { /* storage blocked: fall back to config.json */ }
-    return fetch("config.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : {}; })
-      .then(function (c) { return String((c && c.api_base) || "").replace(/\/+$/, ""); }, function () { return ""; });
+      if (qa === "reset") localStorage.removeItem("agentmeter.api"); else if (qa) localStorage.setItem("agentmeter.api", qa.replace(/\/+$/, ""));
+      if (qc === "reset") localStorage.removeItem("agentmeter.cp"); else if (qc) localStorage.setItem("agentmeter.cp", qc.replace(/\/+$/, ""));
+      saved = { api: localStorage.getItem("agentmeter.api"), cp: localStorage.getItem("agentmeter.cp") };
+    } catch (e) { /* storage blocked: config.json only */ }
+    return fetch("config.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : {}; }, function () { return {}; })
+      .then(function (c) {
+        c = c || {};
+        return { cp: String(saved.cp || c.control_plane || "").replace(/\/+$/, ""), api: String(saved.api || c.api_base || "").replace(/\/+$/, "") };
+      });
   }
-  resolveApi().then(function (base) { API = base; checkBackend(); });
+  resolveConfig().then(function (c) {
+    CP = c.cp;
+    if (!CP) { API = c.api; checkBackend(); return; }
+    badge(null); $("svc-backend-badge").textContent = "GPU: checking…";
+    doRefresh().then(function (ok) {
+      if (!ok) { needLogin(); if (ok === null) showError($("login-error"), { error: "Cannot reach the control plane (" + CP + ")." }); return; }
+      if (AUTH.user && AUTH.user.must_change_pw) { refreshSet(""); needLogin(); return; }   // log in again to set a new password
+      afterLogin();
+    });
+  });
 })();
 </script>
 </body>

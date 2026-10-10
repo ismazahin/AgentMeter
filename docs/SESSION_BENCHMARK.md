@@ -171,10 +171,10 @@ way a benchmark is computed does not change.
 | `POST /api/jobs/<id>/resume` | Re-queue an `interrupted` or `failed` job |
 | `POST /api/jobs` with `{"after_prepare": "<prepare job id>", "models": [...]}` | Phase 46: queue the benchmark **behind** a data-preparation job (the wizard's "Run when data is ready"); the single worker runs the preparation first and the benchmark then takes its prepared set. A failed preparation fails the benchmark with `prepare_failed` |
 | `GET /api/jobs/<id>/constraints?max_mean_latency_s=…` | Decision helper: each measured model against your limits (`configs/constraint_rules.yaml`); the same query string on `/report.pdf` puts the limits in the PDF |
-| `GET /api/sessions` (`?status=Done\|Demo\|Running\|Failed&input=CSV\|PCAP`) | Phase 46: benchmark sessions for Home / Sessions (passcode-guarded listing) |
+| `GET /api/sessions` (`?status=Done\|Demo\|Running\|Failed&input=CSV\|PCAP`) | Phase 46: benchmark sessions for Home / Sessions (needs a read token with a control plane; the app reads the Worker copy) |
 | `GET /api/sessions/<id>` | One session's summary and identity (prepared-set hash, GPU, settings fingerprint) |
 | `GET /api/compare?a=<id>&b=<id>` | Side-by-side efficiency metrics plus the like-for-like check |
-| `GET /api/leaderboard?sort=latency\|vram\|tokens\|cost\|energy` | Models ranked within (prepared-set hash, GPU) groups (passcode-guarded listing) |
+| `GET /api/leaderboard?sort=latency\|vram\|tokens\|cost\|energy` | Models ranked within (prepared-set hash, GPU) groups (needs a read token with a control plane; the app reads the Worker copy) |
 
 - **Status:** `queued → running → done | failed | interrupted`.
 - **One job at a time (single-job lock):** a single worker thread runs jobs in order,

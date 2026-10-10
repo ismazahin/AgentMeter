@@ -1,4 +1,5 @@
 {
   "api_base": "",
-  "_help": "URL of the AgentMeter GPU backend, e.g. https://agentmeter-api.example.org or the https://<random>.trycloudflare.com URL that scripts/vast_up.sh prints. Empty = same origin (the page is served by the backend itself). Editing this file needs a redeploy but no build; for a one-off change open the page with ?api=<url> instead (kept in that browser; ?api=reset clears it)."
+  "control_plane": "",
+  "_help": "control_plane: the deployed Worker URL, e.g. https://agentmeter-control-plane.<you>.workers.dev \u2014 users log in there and the app finds the GPU backend through it (docs/DEPLOY.md). api_base: development only, without a control plane: the backend URL (\"\" = same origin; or open the page with ?api=<url>, ?api=reset forgets it)."
 }

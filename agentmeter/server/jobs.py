@@ -44,8 +44,9 @@ from typing import Any, Callable, Optional
 
 from ..config import PROJECT_ROOT, load_config
 
-DEFAULT_JOBS_DIR = PROJECT_ROOT / "results" / "jobs"
-DEFAULT_RESULTS_ROOT = PROJECT_ROOT / "results"
+# AGENTMETER_RESULTS_DIR moves jobs + prepared sets elsewhere (persistent disk; local walk-throughs)
+DEFAULT_RESULTS_ROOT = Path(os.environ.get("AGENTMETER_RESULTS_DIR") or PROJECT_ROOT / "results")
+DEFAULT_JOBS_DIR = DEFAULT_RESULTS_ROOT / "jobs"
 RUN_ROOTS = ("csv_runs", "pcap_runs")
 CONFIGS_DIR = PROJECT_ROOT / "configs"
 

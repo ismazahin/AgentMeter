@@ -396,3 +396,37 @@ def test_pbkdf2_iterations_are_documented():
     toml = (PROJECT_ROOT / "worker" / "wrangler.toml").read_text()
     assert 'PBKDF2_ITERATIONS = "40000"' in toml
     assert "40,000" in (PROJECT_ROOT / "docs" / "DEPLOY.md").read_text()
+
+
+# ---------------------------------------------------------------------------
+# the front-end on Cloudflare Pages
+# ---------------------------------------------------------------------------
+def test_pages_ships_the_analysis_page_and_its_scripts():
+    for a, b in (("web/analysis.html", "dashboard/index.html"), ("web/saw.js", "dashboard/saw.js"),
+                 ("web/report.js", "dashboard/report.js")):
+        assert (PROJECT_ROOT / a).read_bytes() == (PROJECT_ROOT / b).read_bytes(), f"cp {b} {a}"
+    cfg = json.loads((PROJECT_ROOT / "web" / "config.json").read_text())
+    assert cfg["control_plane"] == "" and cfg["api_base"] == ""
+
+
+def test_pages_csp_is_strict_and_current():
+    spec = importlib.util.spec_from_file_location("csp", PROJECT_ROOT / "scripts" / "csp_headers.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    hdr = (PROJECT_ROOT / "web" / "_headers").read_text()
+    assert hdr == m.headers(), "run: python scripts/csp_headers.py"
+    csp = next(l for l in hdr.splitlines() if "Content-Security-Policy" in l)
+    script_src = csp.split("script-src")[1].split(";")[0]
+    assert "'unsafe-inline'" not in script_src and "'unsafe-eval'" not in script_src and "*" not in script_src
+    assert "frame-ancestors 'self'" in csp and "object-src 'none'" in csp and "base-uri 'none'" in csp
+    for page in ("index.html", "analysis.html"):
+        html = (PROJECT_ROOT / "web" / page).read_text()
+        assert not re.search(r'\son[a-z]+="', html), f"{page}: inline event handler (blocked by the CSP)"
+        assert not re.search(r"javascript:", html), page
+
+
+def test_front_end_never_shows_identification_columns():
+    html = (PROJECT_ROOT / "web" / "index.html").read_text()
+    for col in control_plane.IDENTIFICATION_COLUMNS:            # as a field / key (prose naming them is fine)
+        assert not re.search(rf"""(["'.\[]){col}(["'\]])""", html) and not re.search(rf"\.{col}\b", html), col
+    assert "src_ip" not in html and "dst_ip" not in html

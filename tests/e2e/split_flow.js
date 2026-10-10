@@ -1,15 +1,16 @@
 // Phase E — the static front-end and the backend on DIFFERENT origins (Playwright).
 //   node tests/e2e/split_flow.js offline <front_url>
 //       backend NOT running: landing + "GPU backend offline", no broken forms
-//   node tests/e2e/split_flow.js online <front_url> <passcode> [blocked_front_url] [url_import_base]
-//       backend running with AGENTMETER_ALLOWED_ORIGINS=<front origin> and AGENTMETER_PASSCODE:
-//       GPU chip, passcode prompt, wizard (upload + URL) -> session -> PDF, CORS blocks other origins
-// front_url serves web/ with a config.json whose api_base is the backend URL.
+//   node tests/e2e/split_flow.js online <front_url> [blocked_front_url] [url_import_base]
+//       backend running (development mode, no control plane) with AGENTMETER_ALLOWED_ORIGINS=<front origin>:
+//       GPU chip, wizard (upload + URL) -> session -> PDF, CORS blocks other origins
+// front_url serves web/ with a config.json whose api_base is the backend URL. Accounts and run
+// tokens (Phase 47, which replaced the passcode) are walked through by tests/e2e/cp_flow.js.
 const path = require('path'), os = require('os'), fs = require('fs');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) {
   ({ chromium } = require(process.env.PLAYWRIGHT_PATH || '/opt/node22/lib/node_modules/playwright')); }
-const [, , PHASE, FRONT, PASS, BLOCKED, URL_BASE] = process.argv;
+const [, , PHASE, FRONT, BLOCKED, URL_BASE] = process.argv;
 const REPO = path.resolve(__dirname, '..', '..');
 const S = process.env.E2E_OUT || fs.mkdtempSync(path.join(os.tmpdir(), 'split-e2e-'));
 fs.mkdirSync(S, { recursive: true });
@@ -45,16 +46,10 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     const apiBase = await p.evaluate(() => fetch('config.json').then(r => r.json()).then(c => c.api_base));
     log(new URL(apiBase).origin !== new URL(FRONT).origin, 'front-end and backend are different origins: ' + new URL(FRONT).origin + ' -> ' + apiBase);
 
-    // 2. Prepare (upload) -> passcode prompt (wrong, then right) -> prepared set
+    // 2. Prepare (upload) -> prepared set
     await p.setInputFiles('#svc-file', REPO + '/data/sample_csv/cicids2017_sample.csv');
     await p.fill('#svc-max-flows', '12');
     await p.click('#svc-upload-btn');
-    await p.waitForSelector('#svc-pass-dialog[open]', { timeout: 10000 });
-    log(true, 'passcode asked before the first Prepare');
-    await p.fill('#svc-pass-input', 'wrong-passcode'); await p.click('#svc-pass-ok');
-    await p.waitForSelector('#svc-pass-dialog[open] #svc-pass-error:not([hidden])', { timeout: 10000 });
-    log(/wrong passcode/.test(await p.textContent('#svc-pass-error')), 'a wrong passcode is refused and asked again');
-    await p.fill('#svc-pass-input', PASS); await p.click('#svc-pass-ok');
     await p.waitForSelector('#svc-summary-card', { timeout: 60000 });
     log(/^#\/new\/models\?prep=/.test(await p.evaluate(() => location.hash)), 'cross-origin data preparation -> Models step with the data ready');
     const dl = await p.$$eval('#wiz-downloads a', as => as.map(a => a.href));
@@ -63,13 +58,12 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     await d.saveAs(S + '/features.csv');
     log(/Flow Duration/.test(fs.readFileSync(S + '/features.csv', 'utf8').split('\n')[0]), 'features.csv downloads cross-origin');
 
-    // 3. Benchmark -> results -> PDF (no second passcode prompt: kept for the session)
+    // 3. Benchmark -> results -> PDF
     log(/DEMO \(mock\)/.test(await p.textContent('#svc-run-mode')), 'run-mode line says DEMO (mock) next to Run');
     const boxes = await p.$$('#svc-models input'); await boxes[2].check(); await boxes[3].check();
     await p.click('#svc-run');
     await p.waitForSelector('#svc-verdict', { timeout: 180000 });
     log(/^#\/session\//.test(await p.evaluate(() => location.hash)), 'run -> session page');
-    log(!(await p.isVisible('#svc-pass-dialog[open]')), 'passcode reused within the browser session');
     log(/DEMO \(mock\)/.test(await p.textContent('#svc-env')), 'results carry the DEMO (mock) environment');
     const pdfHref = await p.getAttribute('#svc-dl-pdf', 'href');
     log(pdfHref.startsWith(apiBase), 'PDF link goes straight to the backend');
@@ -87,11 +81,11 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     log(/session_results\.json$/.test(js.suggestedFilename()), 'results JSON download');
     await p.screenshot({ path: S + '/online-results.png', fullPage: true });
 
-    // 4. a finished result opens WITHOUT the passcode (fresh browser = no session passcode)
+    // 4. a finished result opens by its URL in a fresh browser
     const jobHash = await p.evaluate(() => location.hash);
     const p2 = await (await b.newContext()).newPage();
     await p2.goto(FRONT + jobHash.replace(/\/downloads$/, '')); await p2.waitForSelector('#svc-verdict', { timeout: 30000 });
-    log(!(await p2.isVisible('#svc-pass-dialog[open]')), 'finished results open by their job URL without a passcode');
+    log(true, 'finished results open by their job URL in a fresh browser');
 
     // 5. Prepare by URL (cross-origin), optional
     if (URL_BASE) {

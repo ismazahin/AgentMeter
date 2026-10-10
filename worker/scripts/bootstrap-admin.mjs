@@ -38,7 +38,10 @@ const sql = `INSERT INTO users (id, username, role, pw_hash, pw_salt, pw_iter, d
 SELECT ${q(id)}, ${q(username.toLowerCase())}, 'admin', ${q(b64url(hash))}, ${q(b64url(salt))}, ${iterations}, 0, 0, ${q(now)}, ${q(now)}
 WHERE NOT EXISTS (SELECT 1 FROM users);`;
 const db = process.env.D1_DATABASE || "agentmeter";
-const out = execFileSync("npx", ["wrangler", "d1", "execute", db, where, "--json", "--command", sql], { encoding: "utf8" });
-const changes = JSON.parse(out)?.[0]?.meta?.changes ?? 0;
-if (!changes) { console.error("not created: the users table is not empty (bootstrap runs once). Ask an admin to create users."); process.exit(1); }
-console.log(`admin "${username}" created (${where.slice(2)}). Log in from the app; create the other users under Settings → Admin.`);
+const persist = where === "--local" && process.env.WRANGLER_PERSIST_TO ? ["--persist-to", process.env.WRANGLER_PERSIST_TO] : [];
+const d1 = (command) => JSON.parse(execFileSync("npx", ["wrangler", "d1", "execute", db, where, ...persist, "--json", "--command", command], { encoding: "utf8" }));
+d1(sql);
+// local D1 does not report meta.changes: check that OUR row is there
+const created = (d1(`SELECT COUNT(*) AS n FROM users WHERE id=${q(id)}`)?.[0]?.results?.[0]?.n ?? 0) > 0;
+if (!created) { console.error("not created: the users table is not empty (bootstrap runs once). Ask an admin to create users."); process.exit(1); }
+console.log(`admin "${username}" created (${where.slice(2)}). Log in from the app; create the other users under Admin.`);

@@ -6,6 +6,7 @@
 //   PASSWORD_PEPPER=<same value as the Worker secret> node scripts/bootstrap-admin.mjs <username> [--local|--remote]
 //   (the password is read from AGENTMETER_ADMIN_PASSWORD or prompted on stdin)
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
 import { webcrypto as crypto } from "node:crypto";
 
@@ -39,7 +40,11 @@ SELECT ${q(id)}, ${q(username.toLowerCase())}, 'admin', ${q(b64url(hash))}, ${q(
 WHERE NOT EXISTS (SELECT 1 FROM users);`;
 const db = process.env.D1_DATABASE || "agentmeter";
 const persist = where === "--local" && process.env.WRANGLER_PERSIST_TO ? ["--persist-to", process.env.WRANGLER_PERSIST_TO] : [];
-const d1 = (command) => JSON.parse(execFileSync("npx", ["wrangler", "d1", "execute", db, where, ...persist, "--json", "--command", command], { encoding: "utf8" }));
+// run the project's own wrangler with this Node (no npx / shell: works the same on Windows,
+// where npx is npx.cmd and cannot be spawned directly)
+const wrangler = fileURLToPath(new URL("../node_modules/wrangler/bin/wrangler.js", import.meta.url));
+const d1 = (command) => JSON.parse(execFileSync(process.execPath, [wrangler, "d1", "execute", db, where, ...persist, "--json", "--command", command],
+                                                { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }));
 d1(sql);
 // local D1 does not report meta.changes: check that OUR row is there
 const created = (d1(`SELECT COUNT(*) AS n FROM users WHERE id=${q(id)}`)?.[0]?.results?.[0]?.n ?? 0) > 0;

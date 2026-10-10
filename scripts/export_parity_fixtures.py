@@ -22,7 +22,7 @@ GOLDEN = REPO / "tests" / "fixtures" / "golden_session" / "golden_session_result
 
 
 def _ident(sha: str, gpu: str, fp: str, provider: str, quant: str = "4bit") -> dict:
-    return {"prepared_set_sha256": sha, "gpu_label": gpu, "settings_fingerprint": fp, "provider": provider,
+    return {"prepared_set_sha256": sha, "prepared_set_hash_version": 2, "gpu_label": gpu, "settings_fingerprint": fp, "provider": provider,
             "settings": {"provider": provider, "quantization": quant, "max_new_tokens": 128}}
 
 

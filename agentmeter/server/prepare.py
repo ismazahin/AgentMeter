@@ -22,7 +22,9 @@ server; the import checks the contract and the manifest's file hashes.
 """
 from __future__ import annotations
 
+import csv
 import hashlib
+import io
 import json
 import platform
 import re
@@ -39,6 +41,9 @@ MANIFEST = "manifest.json"
 DOWNLOADABLE = (FEATURES_CSV, LABELS_CSV, MANIFEST)
 MAX_IMPORT_BYTES = 20 * 1024 ** 2        # a prepared set is <= 500 flows: a few MB at most
 MAX_SELECTED = 500
+# Identification columns: kept in the backend's run folder, never shown to a model, stripped from
+# the copy stored with a session in the control plane (Phase 47). flow_id stays: it joins labels.
+IDENTIFICATION_COLUMNS = ("src_ip", "src_port", "dst_ip", "protocol", "protocol_name", "timestamp")
 FRAMING = ("Prepared set for BENCHMARKING LLM resource efficiency (and accuracy where labels "
            "exist). Data preparation only: not an analysis and not a threat-detection result.")
 _SAFE = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -191,6 +196,7 @@ def finish_prepared_set(run_dir: Path, *, source: dict[str, Any], limits: dict[s
     else:
         sampling = man.get("sampling") or {}
     classes = _class_counts(meta, man)
+    from ..session.analyses import PREPARED_SET_HASH_VERSION, prepared_set_sha256
     man["prepared_set"] = {
         "schema": PREPARED_SCHEMA,
         "id": f"{run_dir.parent.name}/{run_dir.name}",
@@ -215,6 +221,9 @@ def finish_prepared_set(run_dir: Path, *, source: dict[str, Any], limits: dict[s
         },
         "class_counts": classes,
         "files": files,
+        # Phase 47 follow-up: the hash Compare / Leaderboard group by (model-visible features +
+        # labels) — the same for this full copy and the control plane's stripped copy
+        "content_sha256": prepared_set_sha256(run_dir), "content_hash_version": PREPARED_SET_HASH_VERSION,
         "started_at": started_at, "finished_at": _now(),
         "tool_versions": tool_versions(),
         "backend": environment,                # provider / GPU of the server that prepared it
@@ -238,6 +247,21 @@ def prepared_file(run_dir: Path, name: str) -> Path:
 # ---------------------------------------------------------------------------
 # Re-upload of a prepared set (Benchmark page) — small files, strict checks
 # ---------------------------------------------------------------------------
+def _restore_identification_columns(data: bytes) -> bytes:
+    """A stripped features.csv -> the prepared-set column layout, identification columns empty.
+    Every other field is copied as the exact string (the content hash stays the same)."""
+    from ..ingest.unified import SELECTED_COLUMNS
+    rows = list(csv.reader(io.StringIO(data.decode("utf-8"))))
+    pos = {c: i for i, c in enumerate(rows[0])}
+    out = io.StringIO()
+    w = csv.writer(out, lineterminator="\n")
+    w.writerow(SELECTED_COLUMNS)
+    for r in rows[1:]:
+        if r:
+            w.writerow(["" if c in IDENTIFICATION_COLUMNS else r[pos[c]] for c in SELECTED_COLUMNS])
+    return out.getvalue().encode("utf-8")
+
+
 def import_prepared(files: dict[str, bytes], results_root: Path) -> str:
     """Store an uploaded prepared set (manifest.json + features.csv [+ labels.csv])
     as a new run dir after checking it is a well-formed, unmodified prepared set.
@@ -276,7 +300,15 @@ def import_prepared(files: dict[str, bytes], results_root: Path) -> str:
     if not labelled and files.get(LABELS_CSV):
         raise PrepareError("labels.csv given, but the manifest says the set is unlabelled",
                            "invalid_prepared_set", 400)
+    try:
+        header = next(csv.reader(io.StringIO(files[FEATURES_CSV].decode("utf-8"))))
+    except (UnicodeDecodeError, StopIteration, csv.Error) as e:
+        raise PrepareError(f"features.csv is not a readable CSV ({e})", "invalid_prepared_set", 400) from e
+    stripped_cols = [c for c in SELECTED_COLUMNS if c not in IDENTIFICATION_COLUMNS]
+    stripped = header == stripped_cols          # the control plane's copy (identification columns removed)
     for fname, info in (ps.get("files") or {}).items():
+        if stripped and fname == FEATURES_CSV:
+            continue                            # checked below by its content hash instead
         if fname in files and info.get("sha256") and \
                 hashlib.sha256(files[fname]).hexdigest() != info["sha256"]:
             raise PrepareError(f"{fname} does not match its manifest (sha256 differs): the files "
@@ -288,6 +320,25 @@ def import_prepared(files: dict[str, bytes], results_root: Path) -> str:
     if any(str(c).strip().lower() == "label" for c in head.columns):
         raise PrepareError("features.csv contains a label column: labels must stay in labels.csv",
                            "invalid_prepared_set", 400)
+    if stripped:                                # full copies are checked by their file hashes above
+        from ..session.analyses import prepared_set_content_hash
+        if not ps.get("content_sha256"):
+            raise PrepareError("this copy has no identification columns, and its manifest has no content hash "
+                               "to check it against (a session stored before the hash migration: run "
+                               "scripts/migrate_prepared_set_hash.py)", "invalid_prepared_set", 400)
+        try:
+            got = prepared_set_content_hash(files[FEATURES_CSV].decode("utf-8"),
+                                            files[LABELS_CSV].decode("utf-8") if files.get(LABELS_CSV) else None,
+                                            list(meta.get("feature_columns") or []))
+        except (ValueError, UnicodeDecodeError) as e:
+            raise PrepareError(f"features.csv does not match its manifest ({e})", "invalid_prepared_set", 400) from e
+        if got != ps["content_sha256"]:
+            raise PrepareError("features.csv / labels.csv do not match the manifest (content hash differs): the "
+                               "files were edited or come from different prepared sets", "invalid_prepared_set", 400)
+    if stripped:
+        files = dict(files)
+        files[FEATURES_CSV] = _restore_identification_columns(files[FEATURES_CSV])
+        head = pd.read_csv(io.BytesIO(files[FEATURES_CSV]), nrows=0)
     if list(head.columns) != SELECTED_COLUMNS:
         raise PrepareError("features.csv does not have the prepared-set columns (identification "
                            "columns + 78 CIC-IDS2017 features + selection columns)",
@@ -313,7 +364,11 @@ def import_prepared(files: dict[str, bytes], results_root: Path) -> str:
         if run.selected["flow_id"].duplicated().any():
             raise InputContractError("features.csv has duplicate flow_id values")
         man.setdefault("imported", {})
-        man["imported"] = {"at": _now(), "from_prepared_set": ps.get("id")}
+        man["imported"] = {"at": _now(), "from_prepared_set": ps.get("id"),
+                           "identification_columns": "removed (restored as empty)" if stripped else "kept"}
+        if stripped:                            # this run folder's features.csv is the restored file
+            ps.setdefault("files", {})[FEATURES_CSV] = {"rows": int(meta.get("rows_selected") or 0),
+                                                         "sha256": hashlib.sha256(files[FEATURES_CSV]).hexdigest()}
         ps["id"] = f"{kind}/{name}"
         _dump(out / MANIFEST, man)
         audit = {"rules": ps.get("selection", {}).get("rules", []),

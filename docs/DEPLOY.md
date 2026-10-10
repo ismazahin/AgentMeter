@@ -54,6 +54,17 @@ Worker. Nothing is pasted between them.
   results need a `read` token; prepared-set files a `files` token for that set (and the R2
   copies a login). A job's status by id stays open: job ids carry **128 random bits**
   (`secrets.token_hex(16)`); ids from before Phase 47 (24 bits) need a token even for status.
+
+  **Known limitation — replay window after a backend restart.** The backend remembers which
+  single-use tokens it has already accepted **in memory only**. If the backend process restarts,
+  that memory is lost, so a token used shortly before the restart could be accepted once more
+  until it expires — at most **5 minutes** after it was issued (the token lifetime; the backend
+  refuses anything claiming a longer one). Replaying it needs the token itself (it travels only
+  between the logged-in browser, the Worker and the backend, over HTTPS) and could at worst
+  start one extra job for the same user and the same request it was issued for. Each grant is
+  already counted against that user's hourly limit in D1, and a restart interrupts running jobs
+  anyway. Closing it fully would mean persisting used jtis (on disk or in D1); not done, as the
+  exposure is one duplicate job within 5 minutes of a restart.
 - **Backend ↔ Worker.** Every backend call is HMAC-signed (`AGENTMETER_BACKEND_SECRET` =
   Worker `BACKEND_SECRET`, timestamp within 120 s). The backend reports which credentials it
   has as booleans only; no secret value ever leaves where it is set (Worker secrets or the
@@ -66,8 +77,18 @@ Worker. Nothing is pasted between them.
   timestamp (`src_ip, src_port, dst_ip, protocol, protocol_name, timestamp`). The models never
   see them. They stay in the backend's run folder; the copy stored in R2 with the session has
   them **stripped by default** (admin setting *Keep identification columns*, off). The app
-  never displays them. A stripped copy can't be re-imported as a prepared set (the import
-  checks the exact column list) — re-import from the backend's own download while it runs.
+  never displays them.
+- **Prepared-set reuse across rentals.** The prepared-set hash that Compare and Leaderboard group
+  by (version 2) covers only what the models see and are scored against: the model-visible
+  feature columns (`input.json` `feature_columns`), row by row, plus each row's label
+  (`labels.csv` `label`). Identification columns, the hidden flow id and the selection-audit
+  columns are not part of it. So the backend's full copy and the stripped copy stored with the
+  session hash the **same**, and the stored manifest records that hash (`content_sha256`).
+  *New benchmark → Reuse a prepared set → Stored with your sessions* re-imports that copy on
+  any later rental: identification columns are restored **empty** (never invented), and the
+  import is refused unless the features and labels match the manifest's content hash. A session
+  run on it compares **like-for-like** with the original. Sessions stored before hash v2:
+  migrate them once (runbook A, step 6).
 - **HTTPS + origins.** The backend listens on 127.0.0.1 behind Cloudflare Tunnel;
   `AGENTMETER_ALLOWED_ORIGINS` (backend) and `ALLOWED_ORIGINS` (Worker) list only the Pages
   origin. Development mode (no control plane, mock only) needs no token.
@@ -109,7 +130,8 @@ front, set its body limit to at least the upload limit (nginx
 
 **Test-only switches (never in production):** `AGENTMETER_TEST_ALLOW_LOOPBACK_URLS=1`
 (plus `AGENTMETER_TEST_URL_CAFILE`) lets URL import fetch from a loopback https
-server for the end-to-end test. They are read only from the server's environment,
+server for the end-to-end test (`bash tests/e2e/url_fixture.sh <dir>` sets one up). They are
+read only from the server's environment,
 not from any request or UI field, never open private or link-local ranges, and
 log a warning when used.
 
@@ -164,10 +186,24 @@ AGENTMETER_WORKER_URL=https://agentmeter-control-plane.<sub>.workers.dev AGENTME
 Idempotent; sessions with no recorded user are attributed to `--owner`; identification columns
 are stripped unless `--keep-identification-columns`.
 
+**Step 6 — once, after upgrading to the prepared-set hash v2** (sessions stored by the first
+Phase 47 release still carry the old hash, so Compare / Leaderboard would not group them with
+new sessions on the same flows):
+```bash
+AGENTMETER_WORKER_URL=https://agentmeter-control-plane.<sub>.workers.dev AGENTMETER_BACKEND_SECRET=... \
+  python scripts/migrate_prepared_set_hash.py --dry-run          # then without --dry-run
+```
+It recomputes each session's hash from its stored copy (R2), replaces only that hash (no status
+change, no notification, no score touched) and adds the content hash to the stored manifest so
+the copy can be reused. A session with no stored copy keeps its old hash (`--jobs-dir` can
+recompute it from a backend that still has the run folder). Idempotent. Sessions still on a
+backend are recomputed automatically from their run folder.
+
 **Local rehearsal without a Cloudflare account** (Miniflare via `wrangler dev`, local D1/R2):
 `bash tests/e2e/cp_stack.sh` runs the full walk-through (bootstrap admin → create user → login →
 settings → mock session → backend stopped: still browsable, Compare/Leaderboard work, Run shows
-GPU offline → backend restarts and re-registers). Worker unit tests: `cd worker && npx vitest run`.
+GPU offline → backend restarts and re-registers → a NEW rental with an empty disk reuses the
+stored prepared set → Compare says like-for-like). Worker unit tests: `cd worker && npx vitest run`.
 
 ### Free-tier usage (5 users)
 | resource | free allowance | estimated use |

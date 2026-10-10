@@ -75,6 +75,7 @@
    "settings_fingerprint": "fp1",
    "identity": {
     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "prepared_set_hash_version": 2,
     "gpu_label": "NVIDIA L4",
     "settings_fingerprint": "fp1",
     "provider": "hf",
@@ -187,6 +188,7 @@
    "settings_fingerprint": "fp1",
    "identity": {
     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "prepared_set_hash_version": 2,
     "gpu_label": "NVIDIA L4",
     "settings_fingerprint": "fp1",
     "provider": "hf",
@@ -299,6 +301,7 @@
    "settings_fingerprint": "fp2",
    "identity": {
     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "prepared_set_hash_version": 2,
     "gpu_label": "NVIDIA L4",
     "settings_fingerprint": "fp2",
     "provider": "hf",
@@ -389,6 +392,7 @@
    "settings_fingerprint": "fp1",
    "identity": {
     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "prepared_set_hash_version": 2,
     "gpu_label": "NVIDIA A100",
     "settings_fingerprint": "fp1",
     "provider": "hf",
@@ -494,6 +498,7 @@
    "settings_fingerprint": "fpm",
    "identity": {
     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "prepared_set_hash_version": 2,
     "gpu_label": "Demo (no GPU)",
     "settings_fingerprint": "fpm",
     "provider": "mock",

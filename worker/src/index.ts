@@ -5,7 +5,7 @@ import { changePassword, errorResponse, login, logout, publicUser, refresh, requ
 import { getBackend, heartbeat, register } from "./backend";
 import { authorize } from "./runs";
 import {
-  compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus,
+  backendGetFile, backendListSessions, backendSetIdentity, compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus,
   leaderboardRoute, listSessions, putFile, putResults, putSummary,
 } from "./sessions";
 import { telegramTest } from "./notify";
@@ -52,6 +52,10 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["PUT", /^\/api\/backend\/sessions\/([^/]+)\/results$/, putResults],
   ["PUT", /^\/api\/backend\/sessions\/([^/]+)\/summary$/, putSummary],
   ["PUT", /^\/api\/backend\/sessions\/([^/]+)\/files\/([a-z_.]+)$/, putFile],
+  // prepared-set hash migration (scripts/migrate_prepared_set_hash.py)
+  ["GET", /^\/api\/backend\/sessions$/, backendListSessions],
+  ["GET", /^\/api\/backend\/sessions\/([^/]+)\/files\/([a-z_.]+)$/, backendGetFile],
+  ["POST", /^\/api\/backend\/sessions\/([^/]+)\/identity$/, backendSetIdentity],
 ];
 
 function requireSecrets(env: Env) {

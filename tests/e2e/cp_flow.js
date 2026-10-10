@@ -195,6 +195,33 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.waitForFunction(() => !document.getElementById('svc-run').disabled, null, { timeout: 30000 });
     log(true, 'GPU back: Run is enabled again without any configuration change');
 
+    // 8b. a NEW rental: the backend's disk is wiped; reuse session 1's stored prepared set
+    await stopBackend();
+    fs.rmSync(RESULTS, { recursive: true, force: true });
+    startBackend();
+    const healthy = await waitFor(async () => { try { return (await fetch(`http://127.0.0.1:${BP}/health`)).ok; } catch (e) { return false; } }, 60000);
+    await sleep(4000);                                    // its first heartbeat (every 3 s here) has registered it
+    log(healthy && (await workerJson('/api/backend', offTok)).online, 'new rental (empty disk) registered itself');
+    await p.goto(APP + '/#/new?src=reuse'); await p.reload();
+    await p.waitForSelector('#svc-stored-table', { timeout: 30000 });
+    await p.waitForFunction(() => !/Loading/.test(document.getElementById('svc-recent-sets').textContent), null, { timeout: 30000 });
+    log(/No prepared|Nothing prepared/.test(await p.textContent('#svc-recent-sets')), 'new rental: nothing prepared on this server');
+    log(await p.$$eval('#svc-stored-table tbody tr', r => r.length) === 1, 'Reuse lists the prepared set stored with the sessions (one set, two sessions)');
+    await p.click('#svc-stored-table [data-restore]');
+    await p.waitForFunction(() => /^#\/new\/models\?set=/.test(location.hash), null, { timeout: 30000 });
+    await p.waitForSelector('#svc-summary-card', { timeout: 30000 });
+    await p.waitForFunction(() => !document.getElementById('svc-run').disabled, null, { timeout: 30000 });
+    await p.click('#svc-run');
+    await p.waitForFunction(() => /^#\/session\//.test(location.hash), null, { timeout: 180000 });
+    const job3 = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[2]);
+    await p.waitForSelector('#session-body:not([hidden])', { timeout: 60000 });
+    const s1 = await workerJson('/api/sessions/' + job1, offTok), s3 = await workerJson('/api/sessions/' + job3, offTok);
+    log(s1.identity.prepared_set_sha256 === s3.identity.prepared_set_sha256, 'the restored set has the same prepared-set hash as on the first rental');
+    await p.goto(APP + `/#/compare?a=${job1}&b=${job3}`); await p.waitForSelector('#cmp-table');
+    log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Compare: rental-1 session vs rental-2 session on the restored set is like-for-like');
+    await p.goto(APP + '/#/leaderboard'); await p.waitForSelector('.lb-table');
+    log((await p.$$('.lb-group')).length === 1, 'Leaderboard keeps all three sessions in one group');
+
     // 9. logout revokes
     const rt = await p.evaluate(() => localStorage.getItem('agentmeter.refresh'));
     await p.click('#cp-logout'); await p.waitForSelector('#login-form:not([hidden])');

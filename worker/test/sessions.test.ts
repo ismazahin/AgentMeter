@@ -101,3 +101,27 @@ describe("session lifecycle (backend writes, users read)", () => {
     expect((await api("/api/runs/authorize", { body: { kind: "prepare" }, token: u.token })).data.code).toBe("backend_offline");
   });
 });
+
+describe("prepared-set hash migration (backend-signed)", () => {
+  it("lists stored sessions, serves their stored copy, and replaces only the hash", async () => {
+    const u = await user();
+    await register();
+    const s = { ...F.summaries[0], session_id: SID, job_id: SID, identity: { ...F.summaries[0].identity, prepared_set_sha256: "1".repeat(64) } };
+    delete s.identity.prepared_set_hash_version;
+    await backendCall("PUT", `/api/backend/sessions/${SID}/summary`, { summary: s });
+    await backendCall("PUT", `/api/backend/sessions/${SID}/files/features.csv`, null, { raw: "flow_id,a\nf1,1\n" });
+    expect((await api("/api/backend/sessions")).status).toBe(401);                          // signature required
+    const list = (await backendCall("GET", "/api/backend/sessions", null, { raw: "" })).data.sessions;
+    expect(list).toEqual([{ id: SID, prepared_set_sha256: "1".repeat(64), prepared_set_hash_version: 1, files: ["features.csv"] }]);
+    expect((await backendCall("GET", `/api/backend/sessions/${SID}/files/features.csv`, null, { raw: "" })).text).toBe("flow_id,a\nf1,1\n");
+    expect((await backendCall("POST", `/api/backend/sessions/${SID}/identity`, { prepared_set_sha256: "xyz", prepared_set_hash_version: 2 })).status).toBe(400);
+    const r = await backendCall("POST", `/api/backend/sessions/${SID}/identity`, { prepared_set_sha256: "2".repeat(64), prepared_set_hash_version: 2 });
+    expect(r.data).toMatchObject({ ok: true, before: "1".repeat(64), after: "2".repeat(64) });
+    const got = await api(`/api/sessions/${SID}`, { token: u.token });
+    expect(got.data.identity).toMatchObject({ prepared_set_sha256: "2".repeat(64), prepared_set_hash_version: 2 });
+    expect(got.data.prepared_set_sha256).toBe("2".repeat(64));
+    expect(got.data.status).toBe(s.status ?? "Done");                                       // nothing else changed
+    const row = await E.DB.prepare("SELECT prepared_set_sha256 FROM sessions WHERE id=?").bind(SID).first();
+    expect(row.prepared_set_sha256).toBe("2".repeat(64));
+  });
+});

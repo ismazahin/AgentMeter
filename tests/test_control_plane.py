@@ -253,7 +253,37 @@ class FakeWorker:
                     outer.store[self.path] = body
                 if self.path in ("/api/backend/register", "/api/backend/heartbeat"):
                     return self._send(200, {"ok": True, "limits": outer.limits})
+                if self.command == "GET":
+                    return self._get()
+                m = re.fullmatch(r"/api/backend/sessions/([^/]+)/identity", self.path)
+                if m:                              # like worker/src/sessions.ts backendSetIdentity
+                    key = f"/api/backend/sessions/{m.group(1)}/summary"
+                    doc = json.loads(outer.store[key])
+                    upd = json.loads(body)
+                    doc["summary"]["identity"].update(upd)
+                    doc["summary"]["prepared_set_sha256"] = upd["prepared_set_sha256"]
+                    outer.store[key] = json.dumps(doc).encode()
                 return self._send(200, {"ok": True})
+
+            def _get(self):
+                if self.path == "/api/backend/sessions":
+                    out = []
+                    for k, v in outer.store.items():
+                        m = re.fullmatch(r"/api/backend/sessions/([^/]+)/summary", k)
+                        if m:
+                            ident = json.loads(v)["summary"].get("identity") or {}
+                            pre = f"/api/backend/sessions/{m.group(1)}/files/"
+                            out.append({"id": m.group(1), "prepared_set_sha256": ident.get("prepared_set_sha256"),
+                                        "prepared_set_hash_version": ident.get("prepared_set_hash_version", 1),
+                                        "files": [x[len(pre):] for x in outer.store if x.startswith(pre)]})
+                    return self._send(200, {"sessions": out})
+                if self.path in outer.store:
+                    b = outer.store[self.path]
+                    self.send_response(200)
+                    self.send_header("Content-Length", str(len(b)))
+                    self.end_headers()
+                    return self.wfile.write(b)
+                return self._send(404, {"code": "not_found"})
 
             def _send(self, code, obj):
                 b = json.dumps(obj).encode()
@@ -263,7 +293,7 @@ class FakeWorker:
                 self.end_headers()
                 self.wfile.write(b)
 
-            do_POST = do_PUT = _do
+            do_POST = do_PUT = do_GET = _do
 
         self.srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
         self.url = f"http://127.0.0.1:{self.srv.server_address[1]}"

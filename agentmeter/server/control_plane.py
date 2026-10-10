@@ -46,7 +46,7 @@ log = logging.getLogger("agentmeter.control_plane")
 HEARTBEAT_S = max(1, int(os.environ.get("AGENTMETER_HEARTBEAT_S") or 60))   # the Worker marks it offline after 3 missed
 # The identification columns of a prepared set (ingest.feature_map.META_COLUMNS minus flow_id).
 # "Destination Port" is one of the 78 CIC features the models see, so it stays.
-IDENTIFICATION_COLUMNS = ("src_ip", "src_port", "dst_ip", "protocol", "protocol_name", "timestamp")
+from .prepare import IDENTIFICATION_COLUMNS  # noqa: E402 — one list for strip and import
 SESSION_FILES = ("manifest.json", "features.csv", "labels.csv")
 
 
@@ -85,6 +85,25 @@ def strip_identification(data: bytes) -> bytes:
     return out.getvalue().encode("utf-8")
 
 
+def with_content_hash(manifest: bytes, run_dir: Path) -> bytes:
+    """The stored manifest carries the prepared set's content hash (v2), so its stripped
+    features.csv can be re-imported and checked on a later rental. Sets prepared before the
+    hash existed get it computed here from the run folder."""
+    from ..session.analyses import PREPARED_SET_HASH_VERSION, prepared_set_sha256
+    try:
+        man = json.loads(manifest.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        return manifest
+    ps = man.get("prepared_set") if isinstance(man, dict) else None
+    if not isinstance(ps, dict) or ps.get("content_hash_version") == PREPARED_SET_HASH_VERSION:
+        return manifest
+    h = prepared_set_sha256(run_dir)
+    if not h:
+        return manifest
+    ps.update(content_sha256=h, content_hash_version=PREPARED_SET_HASH_VERSION)
+    return json.dumps(man, indent=2).encode("utf-8")
+
+
 def sign(secret: str, method: str, path: str, ts: str, body: bytes) -> str:
     msg = f"{method}\n{path}\n{ts}\n{hashlib.sha256(body).hexdigest()}"
     return hmac.new(secret.encode(), msg.encode(), hashlib.sha256).hexdigest()
@@ -98,17 +117,18 @@ class Client:
         self.secret = secret
         self.timeout = timeout
 
-    def call(self, method: str, path: str, body: Any = None, raw: Optional[bytes] = None,
-             content_type: str = "application/json") -> dict:
-        data = raw if raw is not None else json.dumps(body if body is not None else {}).encode()
+    def request(self, method: str, path: str, body: Any = None, raw: Optional[bytes] = None,
+                content_type: str = "application/json") -> bytes:
+        """Signed request; returns the raw response body. GET sends no body (signed over b"")."""
+        data = b"" if method == "GET" else raw if raw is not None else json.dumps(body if body is not None else {}).encode()
         ts = str(int(time.time()))
-        req = urllib.request.Request(self.base + path, data=data, method=method, headers={
+        req = urllib.request.Request(self.base + path, data=None if method == "GET" else data, method=method, headers={
             "Content-Type": content_type, "X-AM-Timestamp": ts,
             "X-AM-Signature": sign(self.secret, method, path, ts, data),
             "User-Agent": "agentmeter-backend"})
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:     # noqa: S310 — configured https URL
-                txt = r.read().decode("utf-8") or "{}"
+                return r.read()
         except urllib.error.HTTPError as e:
             try:
                 err = json.loads(e.read().decode("utf-8") or "{}")
@@ -118,6 +138,10 @@ class Client:
                                     e.code, err.get("code", "")) from e
         except (urllib.error.URLError, OSError) as e:
             raise ControlPlaneError(f"{method} {path}: {e}") from e
+
+    def call(self, method: str, path: str, body: Any = None, raw: Optional[bytes] = None,
+             content_type: str = "application/json") -> dict:
+        txt = self.request(method, path, body, raw, content_type).decode("utf-8") or "{}"
         try:
             return json.loads(txt)
         except ValueError:
@@ -156,6 +180,8 @@ def session_upload(mgr, job: dict, *, keep_identification: bool = False,
             data = p.read_bytes()
             if name == "features.csv" and not keep_identification:
                 data = strip_identification(data)
+            if name == "manifest.json":
+                data = with_content_hash(data, run_dir)
             files[name] = data
     try:
         from .jobs_api import report_pdf_bytes

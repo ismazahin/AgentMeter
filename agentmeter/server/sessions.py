@@ -47,10 +47,17 @@ LEADERBOARD_SORTS = {"latency": "mean_latency_s", "vram": "mean_peak_vram_mb", "
 def identity(job: dict[str, Any], res: Optional[dict[str, Any]]) -> dict[str, Any]:
     """session_identity from the results, or computed from the run dir for a session
     that predates Phase 46 (same functions, so the hashes agree)."""
-    from ..session.analyses import identity_block
-    if res and res.get("session_identity"):
-        return res["session_identity"]
+    from ..session.analyses import PREPARED_SET_HASH_VERSION, identity_block, prepared_set_sha256
     run_dir = Path(job.get("run_dir") or "")
+    if res and res.get("session_identity"):
+        ident = res["session_identity"]
+        if ident.get("prepared_set_hash_version") != PREPARED_SET_HASH_VERSION:
+            # a session from before hash v2: recompute from its flows when they are still on disk
+            # (the stored results file is never rewritten); otherwise keep the old hash, marked
+            v2 = prepared_set_sha256(run_dir) if run_dir.name else None
+            ident = {**ident, "prepared_set_sha256": v2 or ident.get("prepared_set_sha256"),
+                     "prepared_set_hash_version": PREPARED_SET_HASH_VERSION if v2 else 1}
+        return ident
     cfg = {}
     try:
         cfg = yaml.safe_load((run_dir / "session_config.yaml").read_text(encoding="utf-8")) or {}

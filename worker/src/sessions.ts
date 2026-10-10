@@ -243,3 +243,43 @@ export async function putSummary(req: Request, env: Env, id: string): Promise<Re
   await notifyFinal(env, id, status);
   return json({ ok: true });
 }
+
+// --- prepared-set hash migration (backend-signed; scripts/migrate_prepared_set_hash.py) -------
+/** GET /api/backend/sessions — every stored session's id, hash, hash version and stored files. */
+export async function backendListSessions(req: Request, env: Env): Promise<Response> {
+  await verifyBackend(req, env, 0);
+  const r = await env.DB.prepare("SELECT id, summary_json, files_json FROM sessions WHERE deleted_at IS NULL AND summary_json IS NOT NULL ORDER BY created_at")
+    .all<{ id: string; summary_json: string; files_json: string | null }>();
+  return json({ sessions: r.results.map((x) => {
+    const ident = JSON.parse(x.summary_json).identity || {};
+    return { id: x.id, prepared_set_sha256: ident.prepared_set_sha256 ?? null, prepared_set_hash_version: ident.prepared_set_hash_version ?? 1,
+             files: x.files_json ? Object.keys(JSON.parse(x.files_json)) : [] };
+  }) });
+}
+
+/** GET /api/backend/sessions/:id/files/:name — the stored copy, for recomputing its hash. */
+export async function backendGetFile(req: Request, env: Env, id: string, name: string): Promise<Response> {
+  await verifyBackend(req, env, 0);
+  if (!(FILES as readonly string[]).includes(name)) fail(404, "not_found", "no such file");
+  const r = await getRow(env, id);
+  const key = r.files_json ? JSON.parse(r.files_json)[name] : null;
+  const o = key ? await env.R2.get(key) : null;
+  if (!o) fail(404, "not_found", `${name} is not stored for this session`);
+  return new Response(o!.body, { headers: { "content-type": CONTENT_TYPE[name], "cache-control": "no-store" } });
+}
+
+/** POST /api/backend/sessions/:id/identity {prepared_set_sha256, prepared_set_hash_version} —
+ *  replaces ONLY the stored prepared-set hash (no status change, no notification). */
+export async function backendSetIdentity(req: Request, env: Env, id: string): Promise<Response> {
+  const b = parseBody(await verifyBackend(req, env, 4096));
+  const h = String(b.prepared_set_sha256 || "");
+  if (!/^[0-9a-f]{64}$/.test(h) || !Number.isInteger(b.prepared_set_hash_version)) fail(400, "bad_request", "prepared_set_sha256 (64 hex) and prepared_set_hash_version");
+  const r = await getRow(env, id);
+  if (!r.summary_json) fail(409, "not_ready", "the session has no summary yet");
+  const s = JSON.parse(r.summary_json!);
+  const before = (s.identity || {}).prepared_set_sha256 ?? null;
+  s.identity = { ...(s.identity || {}), prepared_set_sha256: h, prepared_set_hash_version: b.prepared_set_hash_version };
+  s.prepared_set_sha256 = h;
+  await env.DB.prepare("UPDATE sessions SET summary_json=?, prepared_set_sha256=?, updated_at=? WHERE id=?").bind(JSON.stringify(s), h, nowIso(), id).run();
+  return json({ ok: true, before, after: h });
+}

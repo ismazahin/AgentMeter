@@ -30,7 +30,7 @@ export async function backendCall(method: string, path: string, body: unknown = 
   const bytes = opts.raw !== undefined ? (typeof opts.raw === "string" ? new TextEncoder().encode(opts.raw) : opts.raw) : new TextEncoder().encode(JSON.stringify(body));
   const ts = String(opts.ts ?? Math.floor(Date.now() / 1000));
   const sig = await hmacHex(opts.secret ?? E.BACKEND_SECRET, `${method}\n${path}\n${ts}\n${await sha256Hex(bytes)}`);
-  return api(path, { method, raw: bytes, headers: { "X-AM-Timestamp": ts, "X-AM-Signature": sig, "content-type": "application/octet-stream" } });
+  return api(path, { method, raw: method === "GET" ? undefined : bytes, headers: { "X-AM-Timestamp": ts, "X-AM-Signature": sig, "content-type": "application/octet-stream" } });
 }
 
 export const register = (extra: Record<string, unknown> = {}) =>

@@ -411,6 +411,15 @@
         <div id="svc-upload-error" class="notice error" role="alert" hidden></div>
       </form>
       <div id="src-reuse" role="tabpanel" aria-labelledby="tab-src-reuse" hidden>
+        <div class="card" id="svc-stored-card" hidden>
+          <h2>Stored with your sessions</h2>
+          <p class="muted small">The exact flows of earlier sessions, kept by the control plane — usable on any GPU rental, even
+            after the one that prepared them is gone. They are restored without identification columns (IPs, ports,
+            protocol, timestamp), which no model ever sees; the prepared-set hash is the same, so new sessions compare
+            like-for-like with the old ones.</p>
+          <div id="svc-stored-sets" class="small muted">Loading…</div>
+          <div id="svc-stored-error" class="notice error" role="alert" hidden></div>
+        </div>
         <div class="card">
           <h2>Prepared on this server</h2>
           <div id="svc-recent-sets" class="small muted">Loading…</div>
@@ -1028,7 +1037,7 @@
     $("svc-upload-form").hidden = name === "reuse";
     $("src-reuse").hidden = name !== "reuse";
     $("svc-upload-error").hidden = true;
-    if (name === "reuse") loadRecentSets();
+    if (name === "reuse") { loadRecentSets(); loadStoredSets(); }
   }
   tablist(document.querySelector("#wiz-step-data .tabs"), function (t) { setSrc(t.id.replace("tab-src-", "")); });
   function wizData(src) { setSrc(src === "url" || src === "reuse" ? src : "file"); }
@@ -1080,6 +1089,62 @@
         }).join("") + '</tbody></table></div>';
     });
   }
+  // Phase 47 follow-up: prepared sets stored with sessions in the control plane (R2)
+  function loadStoredSets() {
+    $("svc-stored-card").hidden = !CP;
+    if (!CP) return;
+    $("svc-stored-error").hidden = true;
+    api("/api/sessions?limit=200").then(function (r) {
+      var seen = {}, sets = ((r.ok && r.data.sessions) || []).filter(function (s) {
+        var ok = (s.status === "Done" || s.status === "Demo") && (s.files || []).indexOf("manifest.json") >= 0 && (s.files || []).indexOf("features.csv") >= 0;
+        var key = s.prepared_set_sha256 || s.session_id;
+        if (!ok || seen[key]) return false;
+        seen[key] = 1; return true;
+      });
+      $("svc-stored-sets").innerHTML = !r.ok ? esc(r.data.error) : !sets.length ? "No stored prepared sets yet — they appear here after a session finishes." :
+        '<div class="table-wrap"><table id="svc-stored-table"><thead><tr><th>Prepared set</th><th>Input</th><th class="num">Flows</th><th>From session</th><th></th></tr></thead><tbody>' +
+        sets.slice(0, 20).map(function (s) {
+          return '<tr><td class="mono">' + esc(s.run_name || "—") + '<br><span class="muted small" title="Prepared-set hash">set ' + esc(String(s.prepared_set_sha256 || "").slice(0, 12)) + '</span></td><td>' +
+            esc(s.input_type || "—") + '</td><td class="num">' + fmtNum(s.n_flows) + '</td><td class="mono small" title="' + esc(s.session_id) + '">' + esc(shortId(s.session_id)) +
+            '</td><td><button type="button" class="btn small-btn" data-restore="' + esc(s.session_id) + '" data-set="' + esc(s.run_name || "") + '">Use</button></td></tr>';
+        }).join("") + '</tbody></table></div>';
+      $("svc-stored-sets").querySelectorAll("[data-restore]").forEach(function (b) {
+        b.addEventListener("click", function () {
+          b.disabled = true; $("svc-stored-error").hidden = true;
+          useStoredSet(b.getAttribute("data-restore"), b.getAttribute("data-set")).then(function (r) {
+            b.disabled = false;
+            if (!r.ok) { showError($("svc-stored-error"), r.data); return; }
+            location.hash = "#/new/models?set=" + enc(r.set);
+          });
+        });
+      });
+    });
+  }
+  // the backend still has the set -> use it; otherwise re-import the session's stored copy
+  function useStoredSet(sessionId, set) {
+    var have = set ? api("/api/prepared/" + setPath(set)) : Promise.resolve({ ok: false });
+    return have.then(function (h) {
+      if (h.ok) return { ok: true, set: set };
+      if (!ONLINE) return { ok: false, data: { error: "GPU offline: a stored set can be restored once the GPU backend runs.", code: "backend_offline" } };
+      return restoreStoredSet(sessionId);
+    });
+  }
+  function restoreStoredSet(sessionId) {
+    var names = ["manifest.json", "features.csv", "labels.csv"];
+    return Promise.all(names.map(function (n) {
+      return cpFetch("/api/sessions/" + enc(sessionId) + "/files/" + n, { raw: true }).then(function (r) {
+        return r && r.ok ? r.blob() : null;                // labels.csv is absent for unlabelled sets
+      });
+    })).then(function (blobs) {
+      if (!blobs[0] || !blobs[1]) return { ok: false, data: { error: "This session has no stored copy of its prepared set." } };
+      var fd = new FormData();
+      fd.append("manifest", blobs[0], "manifest.json"); fd.append("features", blobs[1], "features.csv");
+      if (blobs[2]) fd.append("labels", blobs[2], "labels.csv");
+      return api("/api/prepared/import", { method: "POST", body: fd }).then(function (r) {
+        return r.ok ? { ok: true, set: r.data.prepared_set, restored: true } : r;
+      });
+    });
+  }
   $("svc-bench-id-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
     var id = $("svc-bench-id").value.trim().replace(/^\/+|\/+$/g, ""), err = $("svc-bench-id-error");
@@ -1110,7 +1175,7 @@
     sampling: "Sampling rows across the file", indexing: "Indexing the capture", windowing: "Copying time windows",
     extracting: "Extracting flows", selecting: "Selecting flows", writing: "Writing the prepared set", done: "Done" };
   function wizModels(q) {
-    WIZ.prep = q.prep || null; WIZ.set = q.set || null; WIZ.summary = null;
+    WIZ.prep = q.prep || null; WIZ.set = q.set || null; WIZ.summary = null; WIZ.from = q.from || null;
     $("wiz-back").setAttribute("href", "#/new?src=" + enc(WIZ.src || "file"));
     $("svc-summary").innerHTML = ""; $("wiz-data-error").hidden = true; $("svc-run-error").hidden = true;
     renderModels();
@@ -1152,6 +1217,15 @@
   }
   function dataReady(set) {
     api("/api/prepared/" + setPath(set)).then(function (r) {
+      if (!r.ok && r.status === 404 && CP && WIZ.from && ONLINE) {    // not on this rental: restore the stored copy
+        var from = WIZ.from;
+        WIZ.from = null;
+        setDataState("preparing", "Restoring the prepared set stored with session " + shortId(from) + "…", null);
+        return restoreStoredSet(from).then(function (x) {
+          if (!x.ok) { setDataState("failed", ""); showError($("wiz-data-error"), x.data); return; }
+          location.replace("#/new/models?set=" + enc(x.set));
+        });
+      }
       if (!r.ok) { setDataState("failed", ""); showError($("wiz-data-error"), r.data); return; }
       WIZ.summary = r.data;
       setDataState("ready", fmtNum(r.data.rows_selected) + " flows ready · prepared set " + r.data.prepared_set);
@@ -1781,7 +1855,7 @@
       '<button type="button" class="btn" id="svc-dl-saw">SAW CSV</button><button type="button" class="btn" id="svc-dl-agent">Per-agent CSV</button></div></div>' +
       '<div class="card"><h2>Prepared set</h2><p class="muted small">The exact flows this session measured — download them to keep them, or reuse them in a new benchmark.</p>' +
       '<p class="mono small">' + esc(job.run_name || "") + '</p><div class="actions" id="svc-downloads"></div>' +
-      '<div class="actions"><a class="btn" href="#/new/models?set=' + enc(job.run_name || "") + '">Benchmark these flows again</a></div></div>' +
+      '<div class="actions"><a class="btn" id="svc-again" href="#/new/models?set=' + enc(job.run_name || "") + (CP && job.stored ? "&from=" + enc(job.job_id) : "") + '">Benchmark these flows again</a></div></div>' +
       (CP && job.can_delete ? '<div class="card"><h2>Delete this session</h2><p class="muted small">Removes the stored session (results, PDF, prepared-set copy) for everyone. ' +
         'Only its owner or an admin can do this.</p><div class="actions"><button type="button" class="btn" id="svc-delete">Delete session</button></div>' +
         '<div id="svc-delete-error" class="notice error" role="alert" hidden></div></div>' : "");

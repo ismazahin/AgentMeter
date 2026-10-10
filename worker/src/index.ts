@@ -56,7 +56,7 @@ const ROUTES: [string, RegExp, Handler][] = [
 
 function requireSecrets(env: Env) {
   for (const k of ["ACCESS_TOKEN_SECRET", "RUN_TOKEN_SECRET", "BACKEND_SECRET", "PASSWORD_PEPPER"] as const)
-    if (!env[k] || env[k].length < 16) fail(500, "misconfigured", `Worker secret ${k} is not set (wrangler secret put ${k})`);
+    if (!env[k] || env[k].length < 16) fail(500, "misconfigured", `Worker secret ${k} is not set or shorter than 16 characters — run: npx wrangler secret put ${k} (inside the worker folder)`);
 }
 
 export default {

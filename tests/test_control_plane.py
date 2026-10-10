@@ -436,7 +436,9 @@ def test_pages_ships_the_analysis_page_and_its_scripts():
                  ("web/report.js", "dashboard/report.js")):
         assert (PROJECT_ROOT / a).read_bytes() == (PROJECT_ROOT / b).read_bytes(), f"cp {b} {a}"
     cfg = json.loads((PROJECT_ROOT / "web" / "config.json").read_text())
-    assert cfg["control_plane"] == "" and cfg["api_base"] == ""
+    # empty (development) or your deployed Worker — always https, never a secret
+    assert cfg["control_plane"] == "" or re.fullmatch(r"https://[a-z0-9.-]+(/)?", cfg["control_plane"]), cfg["control_plane"]
+    assert cfg["api_base"] == ""
 
 
 def test_pages_csp_is_strict_and_current():

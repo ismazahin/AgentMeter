@@ -130,7 +130,7 @@ def _relabel(text: str, by_label: dict[str, str]) -> str:
 
 def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
                      input_meta: Optional[dict] = None, audit: Optional[dict] = None,
-                     prepared: Optional[dict] = None) -> bytes:
+                     prepared: Optional[dict] = None, decision: Optional[dict] = None) -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.enums import TA_LEFT
     from reportlab.lib.pagesizes import A4
@@ -322,6 +322,99 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
                          ", ".join(r.get("sources") or []), r.get("fetched_at") or "-"])
         story.append(P("Rules fired", "h"))
         story.append(table(rows, [28 * mm, 26 * mm, 46 * mm, 30 * mm, 24 * mm, W - 154 * mm]))
+
+    # --- Phase 46: additive analyses (read verbatim from session_results.json) ---------------------
+    short = lambda m: str(m).split("/")[-1]                          # noqa: E731
+    ag = res.get("agents")
+    if ag:
+        story.append(P("Agents — per-agent breakdown", "h"))
+        rows = [["Model", "Agent", "Latency", "Share", "Tokens in / out", "Token share", "Peak VRAM", "Failures"]]
+        for m in ag.get("per_model") or []:
+            for a in m.get("agents") or []:
+                f = a.get("failures") or {}
+                fl = [f"{f.get('empty_output', 0)} empty"]
+                if f.get("hit_token_cap") is not None:
+                    fl.append(f"{f['hit_token_cap']} at cap")
+                if f.get("unparseable_label") is not None:
+                    fl.append(f"{f['unparseable_label']} unparseable")
+                rows.append([short(m["model"]), a["agent"], fmt_time(a.get("mean_latency_s")),
+                             fmt_pct(a.get("latency_share")),
+                             f"{fmt_int(a.get('mean_input_tokens'))} / {fmt_int(a.get('mean_output_tokens'))}",
+                             fmt_pct(a.get("token_share")), fmt_mb(a.get("mean_peak_vram_mb")), ", ".join(fl)])
+        story.append(table(rows, [30 * mm, 16 * mm, 18 * mm, 14 * mm, 26 * mm, 18 * mm, 24 * mm, W - 146 * mm]))
+        for m in ag.get("per_model") or []:
+            o = m.get("overhead") or {}
+            story.append(P(f"{short(m['model'])}: agentic overhead {fmt_int(o.get('handoff_tokens_per_flow'))} "
+                           f"hand-off tokens per flow = {fmt_pct(o.get('handoff_share_of_total'))} of all tokens "
+                           f"({fmt_pct(o.get('handoff_share_of_input'))} of input).", "small"))
+        story.append(P((ag.get("notes") or {}).get("overhead", "") + " " +
+                       (ag.get("notes") or {}).get("failures", ""), "small"))
+
+    ce = res.get("cost_energy")
+    if ce:
+        story.append(P("Cost and energy", "h"))
+        rows = [["Model", "Cost / 1,000 flows", "Energy / flow", "Energy / 1,000 flows", "Mean GPU power"]]
+        for r in ce.get("per_model") or []:
+            cost = (f"${r['cost_per_1k_flows_usd']:.4f}" if r.get("cost_per_1k_flows_usd") is not None
+                    else f"{r.get('cost_status')}: {r.get('cost_reason') or ''}".strip())
+            wh = (f"{r['wh_per_flow']:.4f} Wh" if r.get("wh_per_flow") is not None
+                  else f"{r.get('energy_status')}: {r.get('energy_reason') or ''}".strip())
+            rows.append([short(r["model"]), cost, wh,
+                         f"{r['wh_per_1k_flows']:.2f} Wh" if r.get("wh_per_1k_flows") is not None else "-",
+                         f"{r['mean_power_w']:.0f} W" if r.get("mean_power_w") is not None else "-"])
+        story.append(table(rows, [34 * mm, 42 * mm, 42 * mm, 32 * mm, W - 150 * mm]))
+        pr, es = ce.get("price") or {}, ce.get("energy_sampling") or {}
+        story.append(P("GPU price: " + (f"${pr['usd_per_hour']:.3f}/h, source {pr.get('source')}, fetched "
+                                        f"{pr.get('fetched_at')}" if pr.get("usd_per_hour") is not None
+                                        else (pr.get("reason") or "not applicable (mock/CPU run)"))
+                       + ".  Power sampling: " + (f"{es.get('method')} every {es.get('interval_s')} s, "
+                                                 f"{es.get('n_samples')} samples" if es.get("method")
+                                                 else "not sampled (no GPU)") + ".", "small"))
+        story.append(P((ce.get("notes") or {}).get("cost", "") + " " + (ce.get("notes") or {}).get("energy", ""),
+                       "small"))
+
+    dh = decision or res.get("decision_helper")
+    if dh:
+        story.append(P("Decision helper — your limits (stage-2 fit scoring)", "h"))
+        if not dh.get("limits_set"):
+            story.append(P("No limits were set. Enter them on the session's Recommendation tab; a PDF downloaded "
+                           "from there includes them.", "p"))
+        else:
+            lims = "; ".join(f"{v.get('label')} {v['value']:g} {v.get('unit', '')}".strip()
+                             for v in (dh.get("inputs") or {}).values() if v.get("value") is not None)
+            story.append(P("Limits: " + lims + ".", "p"))
+            rows = [["Model", "Result", "Details"]]
+            for m in dh.get("per_model") or []:
+                det = "; ".join(f"{r['rule']}: {r['result']}" + (f" ({r['note']})" if r.get("note") else "")
+                                for r in m.get("rows") or [] if r["result"] != "not_set")
+                rows.append([short(m["model"]), m["result"], det])
+            story.append(table(rows, [34 * mm, 22 * mm, W - 56 * mm]))
+        story.append(P(f"{dh.get('framing', '')} Rule set: {dh.get('rulebase')}.", "small"))
+
+    ld, ef = res.get("latency_distribution"), res.get("effect_sizes")
+    if ld:
+        story.append(P("Statistical depth", "h"))
+        rows = [["Model", "Flows", "p50", "p95", "p99", "Warm-up check"]]
+        for r in ld.get("per_model") or []:
+            rows.append([short(r["model"]), fmt_int(r.get("n")), fmt_time(r.get("p50")), fmt_time(r.get("p95")),
+                         fmt_time(r.get("p99")), (r.get("warmup") or {}).get("note", "-")])
+        story.append(table(rows, [30 * mm, 12 * mm, 18 * mm, 18 * mm, 18 * mm, W - 96 * mm]))
+        if ef and not ef.get("skipped"):
+            rows = [["Metric", "Cliff's delta", "Mean diff (A - B) [95% CI]", "Kruskal-Wallis p"]]
+            for r in ef.get("metrics") or []:
+                if not r.get("available"):
+                    rows.append([r["metric"], "-", r.get("reason", "-"), "-"])
+                    continue
+                kp = r.get("kruskal_wallis_p")
+                rows.append([r["metric"], f"{r['cliffs_delta']:+.2f} ({r['magnitude']})",
+                             f"{r['diff_mean_a_minus_b']:.4g} [{r['ci95_low']:.4g}, {r['ci95_high']:.4g}]",
+                             "-" if kp is None else f"{kp:.3g}"])
+            story.append(P(f"A = {ef['model_a']}, B = {ef['model_b']}.", "small"))
+            story.append(table(rows, [30 * mm, 34 * mm, 70 * mm, W - 134 * mm]))
+            story.append(P(ef.get("method", ""), "small"))
+        note = (ld.get("small_sample_note") or (ef or {}).get("small_sample_note"))
+        if note:
+            story.append(P(note, "p"))
 
     # --- accuracy (labelled only) ------------------------------------------------------------------
     if labelled:

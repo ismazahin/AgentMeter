@@ -191,7 +191,9 @@ def test_efficiency_consistent_with_size(sessions):
     # the bigger model winning, or a tie, does not fire it
     big = evaluate(gpu_payload(sessions["csv"], winner=QWEN), c)
     assert not [n for n in big["notes"] if n["rule"] == "efficiency_consistent_with_size"]
-    tie = evaluate(sessions["csv"], c)                                # mock: verdict "tie"
+    tied = copy.deepcopy(sessions["csv"])                            # a tie, set explicitly: a mock
+    tied["relative_comparison"]["efficiency_verdict"].update(verdict="tie", model=None)   # verdict is timing noise
+    tie = evaluate(tied, c)
     assert not [n for n in tie["notes"] if n["rule"] == "efficiency_consistent_with_size"]
 
 

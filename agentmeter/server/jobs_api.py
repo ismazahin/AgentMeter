@@ -2,11 +2,12 @@
 Flask app (scripts/serve.py); access.py (passcode, CORS, rate limits)
 covers them like every other route.
 
-  POST /api/jobs                {run, models[<=2], provider?, base_config?} -> 202 {job}
+  POST /api/jobs                {run | after_prepare, models[<=2], provider?, base_config?} -> 202 {job}
   GET  /api/jobs                ?limit=N  -> recent jobs, newest first
   GET  /api/jobs/<id>           status + live progress + result_ready / result_url
   GET  /api/jobs/<id>/result    session_results.json once done (409 until then)
   GET  /api/jobs/<id>/report.pdf  PDF benchmark report once done (409 until then)
+  GET  /api/jobs/<id>/constraints ?max_mean_latency_s=..  decision helper (Phase 46)
   POST /api/jobs/<id>/resume    re-queue an interrupted/failed job -> 202 {job}
 
 Errors are {"error": <message>, "code": <stable reason>} with codes such as
@@ -52,6 +53,9 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
         if run and str(run).startswith("/"):
             return fail(JobError("give the run by name (csv_runs/<name> or pcap_runs/<name>), "
                                  "not a filesystem path", "bad_request", 400))
+        after = body.get("after_prepare")                 # Phase 46: queue behind a prepare job
+        if after is not None and not isinstance(after, str):
+            return fail(JobError("'after_prepare' must be a prepare job id", "bad_request", 400))
         models = body.get("models")
         if not isinstance(models, list):
             return fail(JobError("'models' must be a list of 1 or 2 model ids", "bad_models", 400))
@@ -66,7 +70,8 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
             job = mgr.create_job(run, models, provider=asked,
                                  base_config=base_config if provider is not None and base_config
                                  else body.get("base_config"),
-                                 environment=environment() if environment else None)
+                                 environment=environment() if environment else None,
+                                 after_prepare=after)
         except JobError as e:
             return fail(e)
         return jsonify(with_links(job)), 202
@@ -109,15 +114,39 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
         def read(name):
             p = run_dir / name
             return _json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+        decision = None
+        if any(request.args.get(k) for k in request.args):           # Phase 46: the user's limits
+            from ..session.constraints import ConstraintError, evaluate_constraints
+            try:
+                decision = evaluate_constraints(res, request.args)
+            except ConstraintError as e:
+                return fail(JobError(str(e), "bad_request", 400))
         try:
             pdf = build_report_pdf(res, job=job, input_meta=read("input.json"),
                                    audit=read("selection_audit.json"),
-                                   prepared=read("manifest.json").get("prepared_set"))
+                                   prepared=read("manifest.json").get("prepared_set"), decision=decision)
         except ImportError as e:
             return fail(JobError(f"PDF reports need reportlab on the server (pip install reportlab): {e}",
                                  "pdf_unavailable", 501))
         return Response(pdf, mimetype="application/pdf", headers={
             "Content-Disposition": f'attachment; filename="agentmeter_report_{job_id}.pdf"'})
+
+    @app.route("/api/jobs/<job_id>/constraints", methods=["GET"])
+    def job_constraints(job_id):
+        """Phase 46 decision helper: evaluate the finished session's measured models against
+        the limits in the query string (configs/constraint_rules.yaml). Read-only; changes
+        no score, rank or verdict."""
+        from ..session.constraints import ConstraintError, evaluate_constraints
+        try:
+            res = get_manager().result(job_id)
+        except JobError as e:
+            return fail(e)
+        if "per_model" not in res:
+            return fail(JobError("not a benchmark session", "bad_request", 400))
+        try:
+            return jsonify(evaluate_constraints(res, request.args))
+        except ConstraintError as e:
+            return fail(JobError(str(e), "bad_request", 400))
 
     @app.route("/api/jobs/<job_id>/resume", methods=["POST"])
     def job_resume(job_id):

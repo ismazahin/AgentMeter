@@ -169,6 +169,12 @@ way a benchmark is computed does not change.
 | `GET /api/jobs/<id>/result` | `session_results.json` once the job is `done`. Before that it returns **409** `not_ready` |
 | `GET /api/jobs` | Recent jobs, newest first, plus the job currently running |
 | `POST /api/jobs/<id>/resume` | Re-queue an `interrupted` or `failed` job |
+| `POST /api/jobs` with `{"after_prepare": "<prepare job id>", "models": [...]}` | Phase 46: queue the benchmark **behind** a data-preparation job (the wizard's "Run when data is ready"); the single worker runs the preparation first and the benchmark then takes its prepared set. A failed preparation fails the benchmark with `prepare_failed` |
+| `GET /api/jobs/<id>/constraints?max_mean_latency_s=…` | Decision helper: each measured model against your limits (`configs/constraint_rules.yaml`); the same query string on `/report.pdf` puts the limits in the PDF |
+| `GET /api/sessions` (`?status=Done\|Demo\|Running\|Failed&input=CSV\|PCAP`) | Phase 46: benchmark sessions for Home / Sessions (passcode-guarded listing) |
+| `GET /api/sessions/<id>` | One session's summary and identity (prepared-set hash, GPU, settings fingerprint) |
+| `GET /api/compare?a=<id>&b=<id>` | Side-by-side efficiency metrics plus the like-for-like check |
+| `GET /api/leaderboard?sort=latency\|vram\|tokens\|cost\|energy` | Models ranked within (prepared-set hash, GPU) groups (passcode-guarded listing) |
 
 - **Status:** `queued → running → done | failed | interrupted`.
 - **One job at a time (single-job lock):** a single worker thread runs jobs in order,
@@ -192,69 +198,106 @@ way a benchmark is computed does not change.
 - **Locked study:** jobs only ever write to the prepared run's own `session.db`
   (non_validated), never the locked study.
 
-## The service web flow (`/service`)
+## The app (`/`)
 
-`python scripts/serve.py`, then open `http://<host>:8000/service`. The
-analysis dashboard of the locked study stays at `/`, labelled "Validation
-baseline", and links to the service with **Run a benchmark**.
+`python scripts/serve.py`, then open `http://<host>:8000/`. Phase 46 makes the service and
+the old analysis dashboard **one app with one header**. The header holds Home, New
+benchmark, Sessions, Compare and Leaderboard, plus a GPU status chip ("Real GPU: <name>"
+or "Demo mode (no GPU)") and Settings. The same static files run on Vercel / Pages
+(`web/`, see DEPLOY.md). `/service` is an alias, and the old step URLs redirect to the
+wizard.
 
-1. **Upload.** Choose a `.csv`, `.pcap` or `.pcapng` file, set the number of flows
-   to benchmark and choose whether to keep "Other Attack".
-   - The file goes to `POST /api/ingest`, which saves it under `results/uploads/` and
-     runs the existing ingestion into `results/csv_runs|pcap_runs/<name>_<stamp>/`.
-     Uploading the same file twice creates two separate runs.
-   - A bad file is rejected with its reason.
-2. **Validation summary + models.** The page shows:
-   - rows read, usable, dropped and excluded (or packets and flows for a PCAP);
-   - whether the run is labelled, meaning accuracy plus efficiency, or unlabelled,
-     meaning efficiency only;
-   - the class distribution and how many of each class were selected;
-   - the feature-match status, and the flow-selection rules with which ones fired.
+- **Home:** the latest finished session as head-to-head bars (mean latency and peak
+  VRAM) with **Open session**, a **New benchmark** call to action, and a table of recent
+  sessions (input type, flows, GPU, more-efficient model, status Done / Demo / Running /
+  Failed, Open / Watch). With no sessions, it shows a one-line empty state. It never
+  shows the locked study's data.
+- **New benchmark:** one wizard in 3 steps.
+  1. **Data.** The tabs are *Upload a file*, *Import from a link* and *Reuse a prepared
+     set* (pick one prepared on this server, enter its id, or re-upload the downloaded
+     files), plus the flow count and the Other Attack opt-in.
+  2. **Models and settings.** The data is prepared in the background while you choose.
+     The data card shows its progress, then the summary (sampling, class table, rules)
+     and the prepared-set downloads.
+  3. **Run.** The progress bar starts with "Preparing your data" when the run was queued
+     before the data was ready (`after_prepare`), then shows benchmark progress. It
+     opens the session when done.
 
-   You pick at most 2 of the 5 study models: a 3rd checkbox is disabled, and the API
-   enforces the same limit. The summary is re-read from the run's files by
-   `GET /api/runs/<kind>/<name>`, so reloading the page keeps it.
-3. **Run + progress.**
-   - **Run** posts to `/api/jobs`, and the page then polls `GET /api/jobs/<id>`
-     every 2 seconds. It shows the status, a progress bar, flows done out of the
-     total, the current model, and the queue position while queued.
-   - The job id is in the URL (`#/job/<id>`, also kept in localStorage). Reloading,
-     or reopening the link later, re-attaches to the same job.
-   - A failed or interrupted job offers **Resume**.
-4. **Results.** The page renders the server's `session_results.json`; it computes
-   nothing itself:
-   - the head-to-head verdict, with the absolute SAW statement under it;
-   - a per-model table;
-   - a head-to-head table;
-   - accuracy by class and confusion matrices, for labelled runs only;
-   - per-agent time and tokens;
-   - the caveats;
-   - downloads: the results JSON, plus SAW and per-agent CSVs through the existing
-     `report.js`.
+  Prepare and benchmark jobs are never shown as separate concepts.
+- **Sessions:** every benchmark run, filterable by status and input type. A session
+  page has chips for the GPU, flows and input type, with **Download PDF** and **Compare
+  with another session**, and five tabs:
+  - **Summary:** the measured verdict, the per-model table (latency, p95, tokens, peak
+    VRAM, cost per 1,000 flows, energy per flow, accuracy as context), the head-to-head,
+    cost and energy, and caveats.
+  - **Detailed analysis:** statistical depth (p50/p95/p99 with a histogram, the warm-up
+    check, Cliff's delta and bootstrap 95% CIs beside the Kruskal-Wallis p, and a
+    small-sample note), plus the former dashboard's Overview and Detailed views. Those
+    are embedded from `/analysis?session=<id>&embed=1`, which follows the app's theme and
+    has no second header.
+  - **Agents:** per agent, the latency and token shares, peak working VRAM, agentic
+    overhead (hand-off tokens), failures (empty output, hit token cap, unparseable
+    label), and a Gantt-style timeline of one flow.
+  - **Recommendation:** the stage-2 verdict and the resource hint, the decision helper
+    (your limits → meets / fails / no_data), and the stage-3 model context.
+  - **Downloads:** the PDF, `session_results.json`, the SAW and per-agent CSVs, and the
+    prepared-set files.
+- **Compare:** pick 2 finished sessions to see every efficiency metric side by side. The
+  validity check sits at the top: same prepared-set hash? same GPU? same settings
+  (provider, quantisation, generation, agents, token caps, classes)? If anything
+  differs, the page lists what differs and labels the comparison **not like-for-like**,
+  with no best-value marks.
+- **Leaderboard:** models ranked across sessions, but only inside a (prepared-set hash,
+  GPU) group. Each row shows the sessions and flows behind it (flow-weighted means), and
+  can be sorted by latency, VRAM, tokens, cost per 1,000 flows or energy per flow. A
+  group whose sessions used different settings is flagged.
+- **Settings:** theme System / Dark / Light, kept in this browser. Accounts come later.
+- The **Validation baseline** (the locked study) is not in the navigation. It stays at
+  `/baseline` by direct URL, and reproducing it is CLI-only (REPRODUCE_BASELINE.md).
 
-   **Recent jobs** lists past jobs so you can reopen any result.
+**No GPU.** Without a GPU the backend runs in **demo mode** (mock provider). The chip
+and a notice say so, and mock runs show cost and energy as "not measured". An operator
+can force the mode with `AGENTMETER_SERVICE_PROVIDER=mock|hf`. Run the server as **one
+process**, because the single-job lock lives in that process.
 
-**No GPU.** On a server without a GPU, `GET /api/service/config` switches the
-service to **demo mode** with the mock provider, and the page says so on every view.
-On a GPU host it uses `hf` with `configs/run_full_l4.yaml` (4-bit NF4). An operator
-can force the mode with `AGENTMETER_SERVICE_PROVIDER=mock|hf`. Run the server as
-**one process**, because the single-job lock lives in that process.
+## Phase 46 analyses (additive)
+
+All of these are added to `session_results.json` after scoring, by
+`agentmeter/session/analyses.py`. They read the same DB rows and a copy of the scored
+payload. `tests/test_scored_keys_golden.py` re-scores a committed session and checks
+that every scored key is byte-identical to the pre-Phase-46 output.
+
+| key | what | where shown |
+|---|---|---|
+| `agents` | per agent: latency, tokens in/out and their share of the flow, peak working VRAM, failures (`empty_output`, `hit_token_cap`, Decide's `unparseable_label`; no timeouts or retries exist by design); agentic overhead = earlier agents' outputs re-sent in later prompts (`pipeline/agents.py` `HANDOFFS`), estimated from the recorded output-token counts; a per-flow timeline | Agents tab, PDF |
+| `latency_distribution` | p50/p95/p99, a 20-bin histogram on shared edges, and the warm-up check (median of the first 5 flows vs the rest, flagged above 1.2×) | Detailed analysis, PDF |
+| `effect_sizes` | Cliff's delta with Romano magnitude, and a percentile-bootstrap 95% CI (2,000 resamples, seed 46) of mean(A) − mean(B) for latency, VRAM and tokens, beside the existing Kruskal-Wallis p; a note under 20 flows per model | Detailed analysis, PDF |
+| `cost_energy` | cost per 1,000 flows = mean latency × 1,000 / 3,600 × GPU $/h, using the live Vast instance price (`VAST_API_KEY` + `VAST_INSTANCE_ID`, server-side only) or `config.yaml` `pricing.gpu_usd_per_hour`, with source and fetched_at; energy = GPU board power sampled from the parent process (NVML, or nvidia-smi; `energy.sample_interval_s`, default 0.5 s) and integrated over each model's window → Wh per flow and per 1,000 flows. Mock/CPU: "not measured" | Summary, Leaderboard, Compare, PDF |
+| `decision_helper` | stage-2 fit scoring with `configs/constraint_rules.yaml` (RULE_BASE.md) | Recommendation tab, PDF |
+| `session_identity` | prepared-set hash (selected_flows.csv + labels.csv), GPU, settings + fingerprint | Compare, Leaderboard |
+
+**What is not recorded, and why.** The pipeline makes one model call per agent with no
+retries and no timeouts, by design. Retries are therefore always 0, and timeouts are
+"not applicable". The inter-agent context size is not logged separately. It is
+estimated from the recorded output tokens of the agents whose outputs are re-sent;
+re-tokenisation can differ by a few tokens. GPU power is sampled outside the measured
+worker process, so it adds nothing to the measured latency. Per-flow energy comes from
+1-second `completed_at` stamps, so a model's window edges are accurate to about a second.
 
 **Checks.**
-- `tests/test_service_api.py` (pytest) covers the API contract.
-- `tests/e2e/service_flow.js` is a Playwright walk-through against a live server:
-  `node tests/e2e/service_flow.js http://127.0.0.1:8766`. It covers:
-  - upload → summary → the 2-model cap → run;
-  - re-attach after a reload;
-  - results, and reopening from Recent jobs;
-  - PCAP efficiency only, and a bad file rejected;
-  - no horizontal scroll at 375px.
+- `tests/test_service_api.py` and `tests/test_phase46.py` (pytest) cover the API
+  contract and every new computation.
+- The Playwright walk-throughs run against a live server: `tests/e2e/app_flow.js` (the
+  whole app), `service_flow.js` (the wizard's data paths), `session_analysis.js` (the
+  embedded analysis, CSV and PCAP), `split_flow.js` (front-end and backend on different
+  origins) and `baseline_page.js`. Usage: `node tests/e2e/<file> http://127.0.0.1:8766`.
+  Each starts from a fresh results directory: job creation is rate-limited per client.
 
 ## PDF benchmark report
 
-**Download PDF report** on the results page calls `GET /api/jobs/<id>/report.pdf`.
+**Download PDF** on the session page calls `GET /api/jobs/<id>/report.pdf`.
 For a job that hasn't finished it returns **409** `not_ready`. It builds a 1–2 page
-A4 report with reportlab (`agentmeter/session/pdf_report.py`).
+A4 report with reportlab. Since Phase 46 it also has the Agents, Cost and energy, Decision helper and Statistical depth sections (`agentmeter/session/pdf_report.py`).
 
 The report contains:
 - **Header:** run name, generation time, the session run id and the job id. A

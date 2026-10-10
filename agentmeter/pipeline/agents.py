@@ -159,6 +159,16 @@ def act_agent(state: dict, provider: ModelProvider, config: Config) -> dict:
     return {"act": res.text, "verdict": verdict, "_last_result": res}
 
 
+# Which earlier agents' OUTPUTS each agent's prompt re-sends (the inter-agent
+# hand-off), read off the prompts above. Documentation for the Agents analysis
+# (session/analyses.py: "agentic overhead"); it changes nothing at run time.
+HANDOFFS: dict[str, list[str]] = {
+    "perceive": [],
+    "reason": ["perceive"],
+    "decide": ["reason", "perceive"],
+    "act": ["reason"],
+}
+
 # Registry keeps the harness agent-count agnostic: config lists names, the
 # graph builder wires whichever of these are named, in order.
 AGENT_REGISTRY: dict[str, Callable[[dict, ModelProvider, Config], dict]] = {

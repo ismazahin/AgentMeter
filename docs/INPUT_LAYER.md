@@ -147,7 +147,7 @@ read cap, which is reported in the stats.
 
 ### Large inputs on the web service (Phases 43 / 43b)
 
-The `/service` flow has two steps. **Prepare** (data preparation for benchmarking, not
+The New-benchmark wizard has two stages under the hood. **Prepare** (data preparation for benchmarking, not
 analysis) turns a raw file into a small prepared set. **Benchmark** reads only that
 set. Prepare runs as a background job on the Phase 40 job layer (status, resume, the
 same single-job lock as benchmarks), so the upload request only saves the file. Limits

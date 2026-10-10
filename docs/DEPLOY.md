@@ -1,8 +1,9 @@
 # Deploying AgentMeter (internet access, safely)
 
 The backend is one Flask process (`scripts/serve.py`). It serves the benchmark service
-API, the service page at `/service` and the read-only Validation-baseline page at `/`.
-The service front-end can also be hosted as static files on Vercel or Cloudflare Pages
+API and the app at `/` (Home, New benchmark, Sessions, Compare, Leaderboard; `/service` is an
+alias). The read-only Validation-baseline page stays at `/baseline` by direct URL only. The
+front-end can also be hosted as static files on Vercel or Cloudflare Pages
 (`web/`). Prepare and Benchmark spend GPU money, so a public backend must be protected.
 The full GPU runbook is in "Runbook: static front-end + Vast.ai GPU backend" below.
 
@@ -10,7 +11,7 @@ The full GPU runbook is in "Runbook: static front-end + Vast.ai GPU backend" bel
 
 - **Access passcode.** Set `AGENTMETER_PASSCODE` to a long passphrase. Every
   state-changing request (Prepare, re-upload, Benchmark, resume, notify-test) and the
-  job list then need it; the page asks once per browser tab. A real-GPU server
+  job, session and leaderboard listings then need it; the page asks once per browser tab. A real-GPU server
   refuses to start without it.
 - **Allowed origins.** Set `AGENTMETER_ALLOWED_ORIGINS` to your front-end's exact
   origin(s). A real-GPU server never answers other origins and never sends a CORS
@@ -23,7 +24,7 @@ The full GPU runbook is in "Runbook: static front-end + Vast.ai GPU backend" bel
   prepared set opened by its id.
 
 For private use, a Tailscale network between your own devices also works: run
-`python scripts/serve.py`, then open `http://<tailscale-ip>:8000/service`.
+`python scripts/serve.py`, then open `http://<tailscale-ip>:8000/`.
 
 ## Uploads, URL import and where requests go
 

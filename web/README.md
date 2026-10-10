@@ -1,12 +1,14 @@
 # AgentMeter web front-end (static)
 
-This directory is the whole front-end: `index.html` (the Prepare and Benchmark pages and the
-results), `report.js` (a copy of `dashboard/report.js`, kept identical by
+This directory is the whole front-end: `index.html` (the whole app: Home, New benchmark, Sessions
+with their tabs, Compare, Leaderboard, Settings), `report.js` (a copy of `dashboard/report.js`, kept identical by
 `tests/test_frontend_split.py`) and `config.json`. There is no build step and there are no
 server functions.
 
 - `config.json` → `api_base`: the GPU backend's URL. When it's empty, the page talks to its own
-  origin (that's how `scripts/serve.py` serves it at `/service`).
+  origin (that's how `scripts/serve.py` serves it at `/`).
+- A session's Detailed-analysis tab embeds the backend's `/analysis?session=<id>&embed=1`
+  page in an iframe (it posts only its height back).
 - Every API call, upload and download goes from the browser **straight to `api_base`**. Nothing
   passes through the static host, so its request-body limits (Vercel functions: ~4.5 MB) don't
   apply.

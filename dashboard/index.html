@@ -24,6 +24,21 @@
   immediately; load a real analysis.json with the file picker (or drop an
   analysis.json next to this file and it is fetched on start).
 -->
+<script>
+  // Phase 46: ?embed=1 — this page is the Detailed-analysis tab inside the AgentMeter app
+  // (one header: the app's). ?theme=dark|light follows the app's theme setting.
+  (function () {
+    var q = new URLSearchParams(location.search), d = document.documentElement;
+    if (q.get("embed") !== "1") return;
+    d.classList.add("embed");
+    var t = q.get("theme");
+    if (t === "dark" || t === "light") d.setAttribute("data-theme", t);
+    var l = document.createElement("link");
+    l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap";
+    document.head.appendChild(l);
+  })();
+</script>
 <style>
   /* ==================================================================
      PHASE 35 — editorial benchmark design system (look & feel only)
@@ -597,6 +612,27 @@
   @media (max-width: 859px) { .site-foot .about, .site-foot .cols, .site-foot .mark { grid-column: auto; } .site-foot .cols { grid-template-columns: 1fr 1fr; } }
   .site-foot h4 { margin: 0 0 14px; font: 500 14px/1.3 var(--sans); }
   .site-foot ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  /* ---------------- Phase 46: embedded in the app (?embed=1) ----------------
+     The app's header and session panel replace this page's own; the Overview /
+     Detailed switch stays as an in-page control. Colours follow the app's tokens. */
+  html.embed .topbar { position: static; height: auto; margin: 0 0 8px; padding: 0; background: none; border: 0; }
+  html.embed .topbar .brand, html.embed .topbar .tools, html.embed .site-foot,
+  html.embed #getting-started, html.embed #banner, html.embed #session-panel { display: none !important; }
+  html.embed .band { padding: 0; min-height: 0; }
+  html.embed body { --sans: "Manrope", "Inter Tight", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                    --serif: "Manrope", "Inter Tight", -apple-system, "Segoe UI", Roboto, sans-serif; }
+  html.embed[data-theme="dark"] {
+    --page: #12161C; --band: #12161C; --panel: #161B22; --panel-2: #1A2029; --chip: #1A2029; --chip-2: #262D37;
+    --ink: #E6E9ED; --ink-2: #B4BCC6; --muted: #9AA3AE; --line: #262D37; --line-strong: #323A46;
+    --inv: #E8A33D; --inv-ink: #1C1406; --inv-hover: #F0B65C; --brand: #E8A33D; --brand-hover: #F0B65C; --plum: #E6E9ED;
+    --loaded: #7FD3C7; --loaded-bg: #12302C; --loaded-line: #2B5F57;
+  }
+  html.embed[data-theme="light"] {
+    --page: #F6F7F9; --band: #F6F7F9; --panel: #FFFFFF; --panel-2: #F0F2F5; --chip: #F0F2F5; --chip-2: #E2E6EB;
+    --ink: #12161C; --ink-2: #3A424D; --muted: #5B6470; --line: #D9DEE5; --line-strong: #C5CCD6;
+    --inv: #E8A33D; --inv-ink: #1C1406; --inv-hover: #D99327; --brand: #A35F00; --brand-hover: #8A5000; --plum: #12161C;
+    --loaded: #0F766E; --loaded-bg: #E3F4F1; --loaded-line: #86CFC3;
+  }
   .site-foot li, .site-foot li button { font: 400 13px/1.5 var(--sans); color: inherit; }
   .site-foot li button { padding: 0; background: none; border: 0; text-align: left; }
   .site-foot li button:hover { text-decoration: underline; text-underline-offset: 2px; }
@@ -622,7 +658,7 @@
   </nav>
 
     <div class="tools">
-      <a class="loadbtn" id="svc-link" href="/service" title="Upload a CSV/PCAP and benchmark up to two models (the benchmark service)">
+      <a class="loadbtn" id="svc-link" href="/#/new" title="Upload a CSV/PCAP and benchmark up to two models (the benchmark service)">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
         <span><span class="lbl-long">Run a </span>benchmark</span></a>
       <script>if (location.protocol === "file:") document.getElementById("svc-link").hidden = true;</script>
@@ -982,7 +1018,7 @@
       <div class="about"><p>Resource efficiency of open-source LLMs in agentic threat-detection pipelines.</p></div>
       <div class="cols">
         <div><h4>Results</h4><ul><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;overview&quot;]').click();window.scrollTo(0,0)">Overview</button></li><li><button type="button" onclick="document.querySelector('#nav [data-view=&quot;detailed&quot;]').click();window.scrollTo(0,0)">Detailed analysis</button></li></ul></div>
-        <div><h4>Benchmark service</h4><ul><li><a href="/service#/prepare">Prepare data</a></li><li><a href="/service#/benchmark">Benchmark</a></li></ul></div>
+        <div><h4>AgentMeter app</h4><ul><li><a href="/">Home</a></li><li><a href="/#/new">New benchmark</a></li><li><a href="/#/sessions">Sessions</a></li></ul></div>
         <div><h4>Method</h4><ul><li>Four-agent pipeline: Perceive &rarr; Reason &rarr; Decide &rarr; Act</li><li>Per-agent wall time, TTFT, VRAM, tokens</li><li>SAW composite + Kruskal-Wallis / Dunn</li></ul></div>
       </div>
     </div>
@@ -3417,7 +3453,7 @@
       b.innerHTML = "<b>⚠ Session analysis (non-validated)</b>" +
         '<span class="src">' + esc(sourceLabel) + "</span>" +
         "<span>One benchmark session on your data. It is <b>not</b> the Validation baseline (the locked " +
-        "5-model L4 study) and is never merged into it. <a href='/'>Open the Validation baseline</a></span>";
+        "5-model L4 study) and is never merged into it. <a href='/baseline'>Open the Validation baseline</a></span>";
       return;
     }
     if (kind !== "sample" && prov && prov.non_validated) {
@@ -3522,7 +3558,7 @@
         : "<p class='note' id='session-stage3'>No context rule fired (Hugging Face metadata " + esc(s3.metadata_status || "unavailable") + ").</p>") : "") +
       "<h3 style='margin:12px 0 4px;font-size:14px'>Caveats</h3><ul id='session-caveats'>" +
       ((d.relative_comparison ? d.relative_comparison.caveats : s.caveats) || []).map(function (c) { return "<li>" + esc(c) + "</li>"; }).join("") + "</ul>" +
-      "<p class='actions' style='margin-top:10px'><a href='/service#/job/" + encodeURIComponent(jobId) + "'>Back to this job</a>" +
+      "<p class='actions' style='margin-top:10px'><a href='/#/session/" + encodeURIComponent(jobId) + "'>Back to this session</a>" +
       "<a href='" + api + "/report.pdf'>PDF report</a><a href='" + api + "/result' download='session_results.json'>Results JSON</a></p>";
     el.hidden = false;
     document.getElementById("ov-title").textContent = "Session analysis (non-validated)";
@@ -3558,7 +3594,7 @@
     }).catch(function (e) {
       var b = document.getElementById("banner");
       b.className = "banner unvalidated";
-      b.innerHTML = "<b>Session analysis unavailable</b><span>" + esc(e.message) + "</span><span><a href='/service#/jobs'>Recent jobs</a> · <a href='/'>Validation baseline</a></span>";
+      b.innerHTML = "<b>Session analysis unavailable</b><span>" + esc(e.message) + "</span><span><a href='/#/sessions'>Sessions</a> · <a href='/baseline'>Validation baseline</a></span>";
     });
     return;
   }
@@ -3574,6 +3610,22 @@
     }).catch(function () { /* expected under file:// — keep the sample */ });
   } catch (e) { /* ignore */ }
 })();
+</script>
+<script>
+  // Phase 46: tell the app how tall this embedded page is (only a number crosses frames).
+  (function () {
+    if (!document.documentElement.classList.contains("embed") || window.parent === window) return;
+    var last = 0;
+    function post() {
+      var h = Math.ceil(document.documentElement.scrollHeight);
+      if (Math.abs(h - last) < 2) return;
+      last = h;
+      window.parent.postMessage({ type: "agentmeter-embed-height", height: h }, "*");
+    }
+    if (window.ResizeObserver) new ResizeObserver(post).observe(document.body);
+    window.addEventListener("load", post);
+    setInterval(post, 1000);
+  })();
 </script>
 </body>
 </html>

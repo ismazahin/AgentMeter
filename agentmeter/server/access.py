@@ -9,7 +9,7 @@ CORS (the static front-end is on another origin):
 
 Passcode (AGENTMETER_PASSCODE): when set, every state-changing request
 (POST/PUT/PATCH/DELETE: prepare, import, benchmark jobs, resume, notify-test ...)
-and the job list need header X-AgentMeter-Passcode. Read-only
+and the job / session / leaderboard listings need header X-AgentMeter-Passcode. Read-only
 pages stay open: /health, the static pages, a job's status/results/PDF by its id,
 a prepared set by its id. No accounts.
 
@@ -30,6 +30,9 @@ from typing import Callable, Optional
 
 PASSCODE_HEADER = "X-AgentMeter-Passcode"
 JOB_CREATING = {("POST", "/api/prepare"), ("POST", "/api/prepared/import"), ("POST", "/api/jobs")}
+# Listings that enumerate every job/session need the passcode too (Phase 46 adds
+# sessions + leaderboard); a single job, session or comparison by its ids stays open.
+LISTINGS = {("GET", "/api/jobs"), ("GET", "/api/sessions"), ("GET", "/api/leaderboard")}
 _WRITE = {"POST", "PUT", "PATCH", "DELETE"}
 
 
@@ -108,7 +111,7 @@ def install(app, *, mode: str, queue_depth: Callable[[], int]) -> dict:
         if request.method == "OPTIONS":                  # CORS preflight: answer here, no auth
             return cors_headers(app.make_response(("", 204)))
         key = (request.method, request.path.rstrip("/") or "/")
-        needs = passcode and (request.method in _WRITE or key == ("GET", "/api/jobs"))
+        needs = passcode and (request.method in _WRITE or key in LISTINGS)
         ip = client_ip(request)
         if needs:
             given = request.headers.get(PASSCODE_HEADER, "")

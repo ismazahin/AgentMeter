@@ -128,6 +128,9 @@ def session_progress(job: dict[str, Any]) -> dict[str, Any]:
     from ..session.benchmark import SESSION_DB
 
     models = list(job["models"])
+    if not job.get("run_dir"):                      # Phase 46: still waiting for its prepare step
+        return {"completed": 0, "total": 0, "per_model": {m: 0 for m in models}, "current_model": None,
+                "percent": 0.0, "phase": "waiting for data"}
     total_flows = int(job.get("n_flows") or 0)
     per_model = {m: 0 for m in models}
     db = Path(job["run_dir"]) / SESSION_DB
@@ -287,10 +290,17 @@ class JobManager:
                 "class_scheme": (meta.get("class_scheme") or {}).get("name")}
 
     # --- public API ------------------------------------------------------------------
-    def create_job(self, run: str | Path, models: list[str], provider: Optional[str] = None,
+    def create_job(self, run: Optional[str | Path], models: list[str], provider: Optional[str] = None,
                    base_config: Optional[str] = None,
-                   environment: Optional[dict[str, Any]] = None) -> dict[str, Any]:
-        """Validate, persist as 'queued', enqueue; returns immediately."""
+                   environment: Optional[dict[str, Any]] = None,
+                   after_prepare: Optional[str] = None) -> dict[str, Any]:
+        """Validate, persist as 'queued', enqueue; returns immediately.
+
+        Phase 46: `after_prepare=<prepare job id>` queues the benchmark BEHIND that prepare
+        job (one wizard = one session): the single FIFO worker runs the prepare first, and
+        this job picks up its prepared set when it starts."""
+        if after_prepare and not run:
+            return self._create_chained(after_prepare, models, provider, base_config, environment)
         run_dir = Path(run).resolve() if Path(str(run)).is_absolute() else self.resolve_run(run)
         if not (run_dir / "input.json").exists():
             raise JobError(f"prepared run not found: {run_dir}", "run_missing", 404)
@@ -311,6 +321,55 @@ class JobManager:
             self._save(job)
             self._enqueue(job["job_id"])
         return self.get(job["job_id"])
+
+    def _create_chained(self, prep_id: str, models: list[str], provider: Optional[str],
+                        base_config: Optional[str], environment: Optional[dict[str, Any]]) -> dict[str, Any]:
+        prep = self._load(prep_id)
+        if prep.get("kind") != "prepare":
+            raise JobError(f"{prep_id} is not a data-preparation job", "bad_request", 400)
+        if prep["status"] == "done" and prep.get("prepared"):
+            return self.create_job(prep["prepared"], models, provider, base_config, environment)
+        if prep["status"] in ("failed", "interrupted"):
+            raise JobError(f"the data preparation {prep['status']}: {prep.get('error') or prep.get('message')}",
+                           "prepare_failed", 409)
+        from ..session.benchmark import SessionError, validate_models
+        try:
+            models = validate_models(models or [])
+        except SessionError as e:
+            raise JobError(str(e), "too_many_models" if "at most" in str(e) else "bad_models", 400) from e
+        if provider not in (None, "mock", "hf"):
+            raise JobError(f"unknown provider {provider!r} (mock | hf)", "bad_request", 400)
+        cfg_path = self._base_config(base_config)
+        eff = provider or load_config(cfg_path).get("model.provider")
+        if eff == "hf" and not self.gpu_available():
+            raise JobError("no GPU available: real models need a CUDA GPU (require_gpu) — this job "
+                           "will not fall back to CPU.", "no_gpu", 503)
+        job = {
+            "job_id": _new_job_id(), "status": "queued", "after_prepare": prep_id,
+            "run_dir": None, "run_name": prep.get("run_name"),
+            "models": models, "provider": provider, "effective_provider": eff,
+            "base_config": cfg_path, "n_flows": None, "evaluation_mode": None, "class_scheme": None,
+            "created_at": _now(), "created_ns": time.time_ns(),
+            "started_at": None, "finished_at": None,
+            "attempts": 0, "message": "queued — waiting for the data to be prepared", "error": None,
+            "result_path": None, "non_validated": True, "environment": environment,
+        }
+        with self._lock:
+            self._save(job)
+            self._enqueue(job["job_id"])
+        return self.get(job["job_id"])
+
+    def _resolve_chained(self, job: dict[str, Any]) -> dict[str, Any]:
+        """At run time: take the prepared set of the prepare job this benchmark waited for."""
+        prep = self._load(job["after_prepare"])
+        if prep["status"] != "done" or not prep.get("prepared"):
+            raise JobError(f"the data preparation {prep['status']}: "
+                           f"{prep.get('error') or prep.get('message') or 'not finished'}", "prepare_failed", 409)
+        run_dir = self.resolve_run(prep["prepared"])
+        v = self.validate(run_dir, job["models"], job.get("provider"), job.get("base_config"))
+        return self._update(job["job_id"], run_dir=str(run_dir), run_name=f"{run_dir.parent.name}/{run_dir.name}",
+                            n_flows=v["n_flows"], evaluation_mode=v["evaluation_mode"],
+                            class_scheme=v["class_scheme"])
 
     def create_prepare_job(self, source: dict[str, Any], *, name: str, max_flows: int,
                            other_attack: bool, limits: dict[str, Any],
@@ -373,8 +432,18 @@ class JobManager:
             if job["status"] not in RESUMABLE:
                 raise JobError(f"job {job_id} is {job['status']}; only interrupted or failed jobs "
                                "can be resumed", "not_resumable", 409)
+            # Phase 46: a session queued behind its data preparation re-runs that step first
+            # (FIFO: the prepare is queued ahead of the benchmark) when it is what failed.
+            prep_id = job.get("after_prepare") if not job.get("run_dir") else None
+            if prep_id:
+                prep = self._load(prep_id)
+                if prep["status"] in RESUMABLE:
+                    self._update(prep_id, status="queued", error=None, finished_at=None,
+                                 message="queued to retry the prepare step")
+                    self._enqueue(prep_id)
             self._update(job_id, status="queued", error=None, finished_at=None,
                          message=("queued to retry the prepare step" if job.get("kind") == "prepare"
+                                  else "queued — waiting for the data to be prepared" if prep_id
                                   else "queued to resume (completed flows will be skipped)"))
             self._enqueue(job_id)
         return self.get(job_id)
@@ -391,11 +460,18 @@ class JobManager:
             ahead = [j for j in self._all() if j["status"] in ("queued", "running")
                      and _order(j) < _order(job)]
             job["queue_position"] = len(ahead)
+        if job.get("after_prepare") and not job.get("run_dir"):
+            try:
+                p = self._load(job["after_prepare"])
+                job["prepare"] = {"job_id": p["job_id"], "status": p["status"], "message": p.get("message"),
+                                  "progress": p.get("prep_progress") or {}, "error": p.get("error")}
+            except JobError:
+                job["prepare"] = None
         return job
 
     def list_jobs(self, limit: int = 20) -> list[dict[str, Any]]:
         keys = ("job_id", "kind", "status", "run_name", "models", "effective_provider", "prepared",
-                "created_at", "started_at", "finished_at", "message")
+                "created_at", "started_at", "finished_at", "message", "after_prepare")
         return [{**{k: j.get(k) for k in keys}, "kind": j.get("kind") or "benchmark"}
                 for j in reversed(self._all())][:max(1, int(limit))]
 
@@ -461,6 +537,8 @@ class JobManager:
             self._run_prepare(job)
             return
         try:
+            if not job.get("run_dir") and job.get("after_prepare"):
+                job = self._resolve_chained(job)
             result_path = self.runner(job)
         except BaseException as e:               # noqa: BLE001 — a job must never kill the worker
             self._update(job_id, status="failed", finished_at=_now(),

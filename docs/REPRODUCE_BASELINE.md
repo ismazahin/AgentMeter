@@ -12,7 +12,7 @@ one model at a time. Its artefacts are **locked**:
 | results DB | `results/agentmeter_full_l4.db` | read-only (not in git) |
 
 Reproduction uses **only the CLI** (`main.py`). No web page triggers it; the benchmark
-service (`/service`) is for your own data. AgentMeter measures LLM efficiency; it is
+app (`/`, New benchmark) is for your own data, and the baseline is not in its navigation. AgentMeter measures LLM efficiency; it is
 not a threat-detection product.
 
 ## 0. Machine
@@ -67,7 +67,8 @@ python main.py --config configs/run_full_l4.yaml analyze --out results/analysis 
 ```
 
 ## 5. View it
-Open the Validation-baseline page: `python scripts/serve.py`, then `http://localhost:8000/`.
+Open the Validation-baseline page: `python scripts/serve.py`, then `http://localhost:8000/baseline`
+(direct URL only; it is not in the app's navigation).
 Or use it without a server: `python -m http.server -d dashboard 8080`, then
 <http://localhost:8080/>, then **Load results.json**. Copying an `analysis.json` to
 `dashboard/analysis.json` makes it auto-load.

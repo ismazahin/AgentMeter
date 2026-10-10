@@ -146,6 +146,19 @@ scoring:
     accuracy_heavy: {accuracy: 0.55, latency: 0.20, vram: 0.15, tokens: 0.10}
     efficiency_heavy: {accuracy: 0.25, latency: 0.30, vram: 0.30, tokens: 0.15}
 
+# Phase 46 — cost and energy of benchmark sessions (service + CLI; not the locked study).
+# Cost per 1,000 flows = measured time x GPU hourly price. On a Vast backend with
+# VAST_API_KEY + VAST_INSTANCE_ID set, the live instance price wins (server-side only);
+# otherwise this value is used (env AGENTMETER_GPU_USD_PER_HOUR overrides). null = no
+# cost reported.
+pricing:
+  gpu_usd_per_hour: null
+# GPU board power is sampled from the parent process while the workers run (NVML, or
+# nvidia-smi as a fallback) — energy per flow. Real GPU runs only. Env:
+# AGENTMETER_POWER_SAMPLE_S.
+energy:
+  sample_interval_s: 0.5
+
 storage:
   sqlite_path: results/agentmeter.db
 

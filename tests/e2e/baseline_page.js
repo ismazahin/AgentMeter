@@ -1,4 +1,5 @@
-// Phase 44 — the read-only Validation-baseline page (Overview + Detailed analysis only).
+// Phase 44/46 — the read-only Validation-baseline page (Overview + Detailed analysis only),
+// reachable only by its direct URL /baseline (not in the app's navigation).
 //   node tests/e2e/baseline_page.js [base_url]       (server: python scripts/serve.py)
 const path = require('path'), os = require('os'), fs = require('fs');
 let chromium;
@@ -14,10 +15,11 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => { if (m.type() === 'error' && !/fonts|ERR_|Failed to load resource/.test(m.text())) errs.push(m.text()); });
 
-  // reached from the service's "Validation baseline" link
-  await p.goto(BASE + '/service'); await p.waitForSelector('#svc-upload-form:not([hidden])', { timeout: 15000 });
-  await p.click('#svc-baseline-link'); await p.waitForSelector('#saw-body tr', { timeout: 15000 });
-  log(new URL(p.url()).pathname === '/', 'service "Validation baseline" link opens the baseline page');
+  // Phase 46: the baseline is NOT in the app's navigation — direct URL only
+  await p.goto(BASE + '/'); await p.waitForSelector('#view-home:not([hidden]), #view-offline:not([hidden])', { timeout: 15000 });
+  log(!(await p.$('a[href$="/baseline"]')) && !/Validation baseline/.test(await p.textContent('header')), 'the app links no Validation baseline');
+  await p.goto(BASE + '/baseline'); await p.waitForSelector('#saw-body tr', { timeout: 15000 });
+  log(new URL(p.url()).pathname === '/baseline', 'the baseline page opens by its direct URL /baseline');
   const tabs = await p.$$eval('#nav button', bs => bs.map(x => x.textContent.trim()));
   log(tabs.join('|') === 'Overview|Detailed Analysis', 'only Overview + Detailed Analysis tabs: ' + tabs.join(', '));
   log((await p.$$('#saw-body tr')).length === 5, 'Overview ranks the 5 study models');

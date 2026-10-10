@@ -3,13 +3,16 @@
 AgentMeter MEASURES LLM resource efficiency (and accuracy where labels exist); it
 is not a threat-detection product. One Flask process serves:
 
-    /service, /config.json            the Prepare -> Benchmark front-end (web/; the same
-                                      static files can be hosted on Vercel / Pages)
+    /, /config.json                   the app (web/: Home, New benchmark, Sessions, Compare,
+                                      Leaderboard; the same static files can be hosted on
+                                      Vercel / Pages). /service is an alias.
+    /api/sessions, /api/compare, /api/leaderboard   read-only session views (Phase 46)
+    /analysis?session=<id>&embed=1    a session's Detailed analysis (embedded by the app)
     /api/prepare, /api/prepared/...   Prepare: upload or URL import -> prepared set
     /api/jobs, /api/jobs/<id>/...     Benchmark jobs, results JSON, PDF report
     /api/service/config, /health      provider, limits, GPU, queue
-    /                                 "Validation baseline": the locked 5-model study,
-                                      read-only (Overview + Detailed analysis)
+    /baseline                         "Validation baseline": the locked 5-model study,
+                                      read-only; direct URL only (not in the navigation)
     /api/model-metadata               Hugging Face Hub metadata for the 5 study models
                                       (external context shown on the baseline page)
     /api/notify-status|-test|-check   Telegram notifications (server-side .env)
@@ -152,10 +155,20 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
                            base_config=(str(runtime.REAL_BASE_CONFIG) if mode == "real" else None),
                            environment=lambda: runtime.environment(mode))
     service_api.register_service(app, get_job_manager)
+    from agentmeter.server.sessions import register_sessions
+    register_sessions(app, get_job_manager)                     # Phase 46: sessions, compare, leaderboard
 
-    # --- the service front-end (same files as web/ on a static host) -------------------
+    # --- the app (Phase 46: ONE app — the same files as web/ on a static host) ----------
+    @app.route("/", methods=["GET"])
+    def index():
+        from flask import redirect
+        sid = request.args.get("session", "")
+        if sid and _jobs._JOB_ID.match(sid):                  # old "View full analysis" links
+            return redirect(f"/#/session/{sid}/detailed", code=302)
+        return send_from_directory(WEB_DIR, "index.html")
+
     @app.route("/service", methods=["GET"])
-    def service_page():
+    def service_page():                                        # old entry point: same app
         return send_from_directory(WEB_DIR, "index.html")
 
     @app.route("/config.json", methods=["GET"])
@@ -166,11 +179,15 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
     @app.route("/service/benchmark", methods=["GET"])
     def service_step_page():
         from flask import redirect
-        return redirect("/service#/" + request.path.rsplit("/", 1)[-1], code=302)
+        return redirect("/#/new", code=302)
 
-    # --- the read-only baseline page ----------------------------------------------
-    @app.route("/", methods=["GET"])
-    def index():
+    # --- analysis pages (the former dashboard) --------------------------------------
+    # /analysis?session=<id>&embed=1  the Detailed-analysis tab's content (in the app)
+    # /baseline                        the locked 5-model study, read-only — direct URL
+    #                                  only (not in the app's navigation)
+    @app.route("/analysis", methods=["GET"])
+    @app.route("/baseline", methods=["GET"])
+    def analysis_page():
         return send_from_directory(dashboard_dir, "index.html")
 
     @app.route("/<path:asset>", methods=["GET"])

@@ -157,19 +157,61 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
     from .scoring import score_session, write_results
 
     plan = prepare_session(run_dir, models, base_config=base_config, provider=provider)
-    result = run_full(config_path=plan["config_path"], fresh=fresh, auto_analyze=False)
+    real = plan["provider"] == "hf"
+    ops = ops_settings()
+    # Phase 46: GPU board power, sampled from THIS (parent) process while the worker
+    # subprocesses run — the measured process is untouched. Real (GPU) runs only.
+    sampler = None
+    if real:
+        from .power import PowerSampler
+        sampler = PowerSampler(interval_s=ops["sample_interval_s"])
+        sampler.start()
+    try:
+        result = run_full(config_path=plan["config_path"], fresh=fresh, auto_analyze=False)
+    finally:
+        energy = sampler.stop() if sampler is not None else None
     payload = score_session(plan, run_id=result.run_id)
     if environment is None:                     # CLI: describe this machine the same way
         from ..server.runtime import environment as _env
-        environment = _env("real" if plan["provider"] == "hf" else "mock")
+        environment = _env("real" if real else "mock")
     # Phase E: provider, GPU, driver/CUDA and library versions — traceability only.
     payload["environment"] = environment
+    # Phase 46: additive analyses (agents, latency distribution, effect sizes, cost and
+    # energy, decision helper, identity) — read the DB + scored payload, change nothing.
+    from .analyses import add_analyses
+    from .price import resolve_price
+    price = resolve_price(ops["gpu_usd_per_hour"]) if real else None
+    add_analyses(payload, db_path=plan["db_path"], run_id=result.run_id, run_dir=plan["run_dir"],
+                 config_data=load_config(plan["config_path"]).data, price=price, energy=energy)
     # Phase 45: rule-base stage 3 — external HF metadata as CONTEXT (model_context +
     # recommendation_stage3). Runs after scoring on a copy; never fails the session.
     from .stage3 import add_stage3
     add_stage3(payload)
     write_results(Path(plan["run_dir"]) / RESULTS_JSON, payload)
     return payload
+
+
+def ops_settings() -> dict[str, Any]:
+    """Phase-46 operational settings from config.yaml (never the locked run config):
+    pricing.gpu_usd_per_hour (env AGENTMETER_GPU_USD_PER_HOUR) and
+    energy.sample_interval_s (env AGENTMETER_POWER_SAMPLE_S)."""
+    import os
+    try:
+        cfg = load_config(None)
+        price, interval = cfg.get("pricing.gpu_usd_per_hour"), cfg.get("energy.sample_interval_s")
+    except Exception:  # noqa: BLE001
+        price, interval = None, None
+    price = os.environ.get("AGENTMETER_GPU_USD_PER_HOUR") or price
+    interval = os.environ.get("AGENTMETER_POWER_SAMPLE_S") or interval or 0.5
+    try:
+        price = float(price) if price not in (None, "") else None
+    except (TypeError, ValueError):
+        price = None
+    try:
+        interval = max(0.05, float(interval))
+    except (TypeError, ValueError):
+        interval = 0.5
+    return {"gpu_usd_per_hour": price, "sample_interval_s": interval}
 
 
 def read_scenarios(run_dir: str | Path) -> pd.DataFrame:

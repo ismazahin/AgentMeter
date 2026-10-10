@@ -10,6 +10,7 @@ no later stage can change an earlier stage's result.
 |---|---|---|---|---|
 | 1 | Which flows go to the models? | `configs/flow_rules.yaml` | `agentmeter/ingest/rules.py` | Prepare (before any model runs) |
 | 2 | Which model is more efficient? | `config.yaml` → `scoring:`, plus the fixed dominance rule | `agentmeter/session/scoring.py`, `agentmeter/session/relative.py`, `agentmeter/session/brief.py` | after the benchmark |
+| 2b | Does a measured model fit *my* limits? (fit scoring) | `configs/constraint_rules.yaml` | `agentmeter/session/constraints.py` | after the benchmark; re-evaluated on demand with the user's limits |
 | 3 | What should a user know about these models beyond what was measured? | `configs/recommendation_rules.yaml` | `agentmeter/session/stage3.py` | after stage 2, same job |
 
 ## Stage 1: flow selection (input layer)
@@ -43,6 +44,39 @@ no later stage can change an earlier stage's result.
 - **Outputs:** `session_results.json` keys `per_model`, `phase8` (SAW table, ranks,
   tiers), `sensitivity`, `statistics`, `comparison`, `relative_comparison` (with the
   verdict), and `phase7`/`per_class` for labelled runs.
+
+### Stage 2b: decision helper (fit scoring against the user's limits)
+
+- **Inputs:** the measured numbers of each model (mean and p95 latency per flow, the
+  highest per-agent peak working VRAM, cost per 1,000 flows) and the limits the user
+  enters on the session's Recommendation tab (or passes in the query string of
+  `GET /api/jobs/<id>/constraints` and `/report.pdf`).
+- **Rules:** `configs/constraint_rules.yaml`, written in the same style as the other two
+  rule files. `inputs` declares the limits the user can set (label, unit, default
+  `null` = not set). Each rule has an `id`, a `description`, a measured `field`, an `op`
+  (`le`, `lt`, `ge`, `gt`), the `limit` input it compares with, and a `note` template.
+
+  | id | checks | field |
+  |---|---|---|
+  | `mean_latency` | mean latency per flow ≤ max mean latency | `measured.mean_latency_s` |
+  | `p95_latency` | p95 latency per flow ≤ max p95 latency | `measured.p95_latency_s` |
+  | `peak_vram` | highest peak working VRAM ≤ max peak VRAM | `measured.peak_vram_mb` |
+  | `cost_per_1k_flows` | cost per 1,000 flows ≤ budget | `measured.cost_per_1k_flows_usd` |
+
+- **Results per model:**
+  - **meets**: every limit that is set holds;
+  - **fails**: one or more limits do not hold, and the failing rule ids are listed;
+  - **no_data**: nothing failed, but a set limit had no measurement (VRAM on a CPU/mock
+    run, or cost without a GPU price);
+  - **no_constraints**: no limit was set.
+
+  Unset limits are skipped and shown as `not_set`.
+- **Outputs:** `session_results.json` → `decision_helper` is the evaluation with the rule
+  file's defaults (none set). The Recommendation tab re-evaluates it with the user's
+  limits, and the PDF's "Decision helper" section shows the limits that were in its
+  download link.
+- **Never changes a score, rank, SAW value or the verdict.** It reads a copy of the
+  scored payload (`tests/test_phase46.py`, `tests/test_scored_keys_golden.py`).
 
 ## Stage 3: recommendation context (external model metadata)
 
@@ -107,12 +141,21 @@ no later stage can change an earlier stage's result.
   (`per_model`, `comparison`, `relative_comparison`, `phase8`, `sensitivity`,
   `statistics`, `phase7`, `per_agent`, …) is identical in all four cases.
 
-## Viewing a session's full analysis
+## Viewing a session
 
-After a benchmark job finishes, the Benchmark page lists it with **View full
-analysis**. The link opens `/?session=<job id>`, which is the same Overview + Detailed
-analysis page as the Validation baseline, rendered from that job's
-`session_results.json`. It is labelled **Session analysis (non-validated)** and shows
-the sample size, models, input, hardware, stage-3 notes and caveats. On unlabelled input
-(PCAP), the accuracy panels are hidden and say "accuracy not measured for unlabelled
-input". The Validation baseline (`/` with no `session`) is unchanged.
+Every finished session has its own page in the app (`#/session/<id>`), with these tabs:
+
+- **Summary:** the measured verdict, the per-model table, cost and energy, and caveats.
+- **Detailed analysis:** statistical depth (p50/p95/p99, warm-up check, Cliff's delta
+  and bootstrap CIs), plus the former dashboard's Overview and Detailed views. These are
+  embedded from `/analysis?session=<id>&embed=1`, rendered from the session's results.
+- **Agents:** the per-agent breakdown, agentic overhead, failures, and the per-flow
+  timeline.
+- **Recommendation:** the stage-2 verdict, the stage-2b decision helper and the stage-3
+  model context.
+- **Downloads:** the PDF, the results JSON, the CSVs and the prepared-set files.
+
+On unlabelled input (PCAP), the accuracy panels are hidden and say "accuracy not measured
+for unlabelled input". The locked Validation baseline is not in the app's navigation; it
+stays reachable by direct URL at `/baseline`, and reproducing it is CLI-only
+([REPRODUCE_BASELINE.md](REPRODUCE_BASELINE.md)).

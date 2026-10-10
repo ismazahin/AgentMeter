@@ -1,0 +1,60 @@
+# AgentMeter — decision-helper rule-base (STAGE 2 fit scoring: measured metrics vs YOUR limits).
+#
+# AgentMeter MEASURES LLM resource efficiency; it is not a threat-detection product.
+# These rules answer "does this measured model fit my deployment limits?". They read the
+# session's measured numbers and the limits you enter (Recommendation tab, or the PDF /
+# API query string). They NEVER change a score, a rank, a SAW value or the verdict.
+#
+# Evaluation (agentmeter/session/constraints.py), once per measured model:
+#   * each rule compares one measured `field` with one user `input` (the limit) using `op`;
+#   * a limit that is not set -> the rule is "not_set" (skipped);
+#   * a field with no measurement (VRAM on CPU/mock, cost without a GPU price) -> "no_data";
+#   * the model "meets" when every set limit holds, "fails" (listing which) when any does
+#     not, and "no_data" when nothing failed but a set limit could not be checked;
+#   * `note` is a template: {value} / {limit} with an optional :format spec.
+#
+# Fields (facts):
+#   measured.mean_latency_s       mean end-to-end latency per flow (s)
+#   measured.p95_latency_s        95th-percentile end-to-end latency per flow (s)
+#   measured.peak_vram_mb         highest per-agent peak WORKING VRAM over all flows (MB):
+#                                 the allocator peak above the loaded weights; null on CPU/mock
+#   measured.cost_per_1k_flows_usd   cost per 1,000 flows (measured time x GPU $/h); null on
+#                                 mock/CPU or without a GPU price
+# Operators: le, lt, ge, gt.
+
+version: 1
+
+inputs:
+  max_mean_latency_s:        {label: "Max mean latency",          unit: "s",   default: null}
+  max_p95_latency_s:         {label: "Max p95 latency",           unit: "s",   default: null}
+  max_peak_vram_mb:          {label: "Max peak VRAM",             unit: "MB",  default: null}
+  max_cost_per_1k_flows_usd: {label: "Max cost per 1,000 flows",  unit: "USD", default: null}
+
+rules:
+  - id: mean_latency
+    description: Mean end-to-end latency per flow within the limit.
+    field: measured.mean_latency_s
+    op: le
+    limit: max_mean_latency_s
+    note: "mean latency {value:.4g} s vs limit {limit:g} s"
+
+  - id: p95_latency
+    description: 95th-percentile latency per flow within the limit.
+    field: measured.p95_latency_s
+    op: le
+    limit: max_p95_latency_s
+    note: "p95 latency {value:.4g} s vs limit {limit:g} s"
+
+  - id: peak_vram
+    description: Peak working VRAM within the limit.
+    field: measured.peak_vram_mb
+    op: le
+    limit: max_peak_vram_mb
+    note: "peak working VRAM {value:,.0f} MB vs limit {limit:,.0f} MB"
+
+  - id: cost_per_1k_flows
+    description: Cost per 1,000 flows within the budget.
+    field: measured.cost_per_1k_flows_usd
+    op: le
+    limit: max_cost_per_1k_flows_usd
+    note: "cost ${value:.4f} per 1,000 flows vs budget ${limit:g}"

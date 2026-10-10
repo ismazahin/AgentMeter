@@ -59,13 +59,14 @@ def test_service_page_and_config(env):
     assert page.status_code == 200
     html = page.get_data(as_text=True)
     for hook in ("svc-upload-form", "svc-file", "svc-models", "svc-run", "svc-progress",
-                 "svc-results", "svc-jobs-table", 'src="report.js"'):
+                 "view-session", "sessions-table", 'src="report.js"'):
         assert hook in html
     cfg = c.get("/api/service/config").get_json()
     assert cfg["max_models"] == 2 and len(cfg["canonical_models"]) == 5
     assert cfg["gpu_available"] is False and cfg["demo_mode"] is True and cfg["provider"] == "mock"
     assert "MOCK" in cfg["note"]
-    assert c.get("/").status_code == 200                     # the analysis dashboard still serves
+    assert c.get("/").status_code == 200                     # the app (Phase 46)
+    assert c.get("/baseline").status_code == 200             # the locked study page: direct URL only
 
 
 def test_csv_upload_gives_the_validation_summary(env):

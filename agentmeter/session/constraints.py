@@ -79,18 +79,17 @@ def parse_limits(raw: Mapping[str, Any], rules: dict[str, Any]) -> dict[str, Opt
 
 
 def facts_for(payload: dict[str, Any]) -> list[dict[str, Any]]:
-    agents = {m["model"]: m for m in ((payload.get("agents") or {}).get("per_model") or [])}
+    mem = {m["model"]: m for m in ((payload.get("memory") or {}).get("per_model") or [])}
     cost = {m["model"]: m for m in ((payload.get("cost_energy") or {}).get("per_model") or [])}
     out = []
     for pm in payload.get("per_model") or []:
         m = pm["model"]
         e2e = (pm.get("efficiency") or {}).get("end_to_end") or {}
-        peaks = [a.get("max_peak_vram_mb") for a in (agents.get(m) or {}).get("agents", [])
-                 if a.get("max_peak_vram_mb") is not None]
         out.append({"model": m,
                     "measured.mean_latency_s": e2e.get("mean_latency_s"),
                     "measured.p95_latency_s": e2e.get("p95_latency_s"),
-                    "measured.peak_vram_mb": max(peaks) if peaks else None,
+                    # TOTAL peak (weights + working). A session without it -> no_data, never "meets".
+                    "measured.peak_vram_mb": (mem.get(m) or {}).get("total_peak_mb"),
                     "measured.cost_per_1k_flows_usd": (cost.get(m) or {}).get("cost_per_1k_flows_usd")})
     return out
 

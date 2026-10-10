@@ -311,16 +311,19 @@ def test_constraints_meets_fails_no_data_and_not_set(golden):
         constraints.evaluate_constraints(p, {"max_mean_latency_s": "fast"})
 
 
-def test_constraints_on_a_real_run(golden):
+def test_constraints_on_a_real_run_without_total_peak_is_no_data(golden):
+    """Working VRAM alone (a session recorded before total peak existed) never satisfies
+    the VRAM limit: the limit is on TOTAL peak, so it is no_data — never "meets"."""
     p = real_payload(golden, price={"usd_per_hour": 1.0, "source": "config"})
-    for ag in p["agents"]["per_model"]:                               # pretend VRAM readings
+    for ag in p["agents"]["per_model"]:                               # working VRAM readings only
         for i, a in enumerate(ag["agents"]):
             a["max_peak_vram_mb"] = 1000.0 + 100 * i
-    d = constraints.evaluate_constraints(p, {"max_peak_vram_mb": 1250, "max_cost_per_1k_flows_usd": 10})
+    d = constraints.evaluate_constraints(p, {"max_peak_vram_mb": 99999, "max_cost_per_1k_flows_usd": 10})
     for m in d["per_model"]:
         vr = next(r for r in m["rows"] if r["rule"] == "peak_vram")
-        assert vr["value"] == 1300.0 and vr["result"] == "fails" and "1,300 MB" in vr["note"]
+        assert vr["value"] is None and vr["result"] == "no_data" and m["result"] == "no_data"
         assert next(r for r in m["rows"] if r["rule"] == "cost_per_1k_flows")["result"] == "meets"
+    assert all(m["status"] == "no_data" and "not recorded" in m["reason"] for m in p["memory"]["per_model"])
 
 
 def test_new_blocks_never_touch_scored_keys(golden):
@@ -548,7 +551,7 @@ def test_ops_settings(monkeypatch):
     from agentmeter.session.benchmark import ops_settings
     monkeypatch.delenv("AGENTMETER_GPU_USD_PER_HOUR", raising=False)
     monkeypatch.delenv("AGENTMETER_POWER_SAMPLE_S", raising=False)
-    assert ops_settings() == {"gpu_usd_per_hour": None, "sample_interval_s": 0.5}
+    assert ops_settings() == {"gpu_usd_per_hour": None, "sample_interval_s": 0.5, "idle_sample_s": 5.0}
     monkeypatch.setenv("AGENTMETER_GPU_USD_PER_HOUR", "0.79")
     monkeypatch.setenv("AGENTMETER_POWER_SAMPLE_S", "0.01")
-    assert ops_settings() == {"gpu_usd_per_hour": 0.79, "sample_interval_s": 0.05}
+    assert ops_settings()["gpu_usd_per_hour"] == 0.79 and ops_settings()["sample_interval_s"] == 0.05

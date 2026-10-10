@@ -11,6 +11,7 @@ back into any score, SAW value, rank or verdict (tests/test_scored_keys_golden.p
   latency_distribution  D. p50/p95/p99, histogram, warm-up check (first N flows)
   effect_sizes          D. Cliff's delta + bootstrap 95% CI of the A-B difference
                            (latency, VRAM, tokens), beside the existing Kruskal-Wallis p
+  memory                working VRAM (excludes weights) vs total peak (weights + working)
   cost_energy           B. cost per 1,000 flows (measured time x GPU $/h) and energy
                            (sampled GPU board power) — "not measured" on mock/CPU
   decision_helper       C. constraint rules (configs/constraint_rules.yaml), evaluated
@@ -388,6 +389,19 @@ def cost_energy_block(payload: dict[str, Any], sr: list[dict], label_of: dict[st
                            mean_power_w=float(np.mean(inwin)) if inwin else None,
                            window_s=win[1] - win[0], n_samples=len(inwin), energy_status="measured",
                            energy_reason=None)
+                # net of idle: the idle board power sampled right before this model's worker
+                iw = (energy.get("idle") or {}).get(label_of.get(m, m)) or (energy.get("idle") or {}).get(m)
+                idle = [w for t, w in samples if iw and iw["t0"] <= t <= iw["t1"]]
+                if idle:
+                    idle_w = float(np.mean(idle))
+                    net = max(0.0, wh - idle_w * (win[1] - win[0]) / 3600.0)
+                    row.update(idle_power_w=idle_w, idle_window_s=iw["t1"] - iw["t0"], idle_samples=len(idle),
+                               wh_net_idle_total=net, wh_per_flow_net_idle=net / n,
+                               wh_per_1k_flows_net_idle=net / n * 1000.0)
+                else:
+                    row.update(idle_power_w=None, wh_per_flow_net_idle=None, wh_per_1k_flows_net_idle=None,
+                               idle_reason="no idle samples before this model's run" if iw else
+                               "idle power was not sampled (energy.idle_sample_s = 0 or a session from before it)")
             else:
                 row.update(wh_per_flow=None, wh_per_1k_flows=None, energy_status="no_data",
                            energy_reason=energy.get("error") or
@@ -396,8 +410,9 @@ def cost_energy_block(payload: dict[str, Any], sr: list[dict], label_of: dict[st
     return {
         "price": {k: price.get(k) for k in ("usd_per_hour", "source", "fetched_at", "instance_id", "reason", "error")
                   if price.get(k) is not None},
-        "energy_sampling": {k: energy.get(k) for k in ("method", "interval_s", "n_samples", "gpu_index", "error")
-                            if energy.get(k) is not None},
+        "energy_sampling": {**{k: energy.get(k) for k in ("method", "interval_s", "n_samples", "gpu_index", "error")
+                               if energy.get(k) is not None},
+                            **({"idle_windows": len(energy["idle"])} if energy.get("idle") else {})},
         "per_model": per,
         "notes": {
             "cost": "Cost per 1,000 flows = mean end-to-end latency per flow x 1,000 / 3,600 x the GPU's "
@@ -407,6 +422,73 @@ def cost_energy_block(payload: dict[str, Any], sr: list[dict], label_of: dict[st
                       "1 s timestamp resolution) and divided by its flows. Whole-board power, including "
                       "idle power between agent calls; model loading excluded. Sampling runs in a separate "
                       "process from the measured worker, so it does not add to the measured latency.",
+            "energy_net": "Net of idle = the same energy minus the idle board power (mean of the samples "
+                          "taken for a few seconds right before the model's worker started, GPU idle) x the "
+                          "window length. The GPU can still be leaving a high-power state when the idle "
+                          "sample starts, so the net figure is a lower bound on the model's own energy share.",
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# GPU memory: working (per agent call, excludes weights) vs total peak (weights + working)
+# ---------------------------------------------------------------------------
+def read_model_memory(db: str | Path, run_id: str) -> dict[str, dict]:
+    """model_memory rows (Phase 46 follow-up) by DB model label; {} for older sessions."""
+    con = sqlite3.connect(f"file:{Path(db)}?mode=ro", uri=True)
+    con.row_factory = sqlite3.Row
+    try:
+        rows = con.execute("SELECT * FROM model_memory WHERE run_id=?", (run_id,)).fetchall()
+    except sqlite3.OperationalError:            # table absent: the session predates it
+        rows = []
+    finally:
+        con.close()
+    return {r["model"]: dict(r) for r in rows}
+
+
+def memory_block(payload: dict[str, Any], mem_rows: dict[str, dict], label_of: dict[str, str], *,
+                 real: bool, agents: Optional[dict] = None, sr: Optional[list[dict]] = None,
+                 energy: Optional[dict] = None) -> dict[str, Any]:
+    agent_rows = {m["model"]: m for m in ((agents or {}).get("per_model") or [])}
+    windows = model_windows(sr or [], label_of)
+    msamp = (energy or {}).get("mem_samples") or []
+    per = []
+    for pm in payload.get("per_model") or []:
+        m = pm["model"]
+        e2e = (pm.get("efficiency") or {}).get("end_to_end") or {}
+        peaks = [a.get("max_peak_vram_mb") for a in (agent_rows.get(m) or {}).get("agents", [])
+                 if a.get("max_peak_vram_mb") is not None]
+        row: dict[str, Any] = {"model": m, "working_mean_mb": e2e.get("mean_peak_vram_mb"),
+                               "working_peak_mb": max(peaks) if peaks else None}
+        r = mem_rows.get(label_of.get(m, m)) or mem_rows.get(m)
+        win = windows.get(m)
+        nv = [mb for t, mb in msamp if win and win[0] <= t <= win[1]]
+        if r:
+            cands = [x for x in (r.get("peak_reserved_mb"), max(nv) if nv else None) if x is not None]
+            row.update(weights_mb=r.get("weights_allocated_mb"), weights_reserved_mb=r.get("weights_reserved_mb"),
+                       device_after_load_mb=r.get("weights_nvml_mb"), device_before_load_mb=r.get("device_before_load_mb"),
+                       total_peak_allocated_mb=r.get("peak_allocated_mb"), total_peak_reserved_mb=r.get("peak_reserved_mb"),
+                       device_peak_nvml_mb=max(nv) if nv else None,
+                       total_peak_mb=max(cands) if cands else None,
+                       total_basis=("max(torch peak reserved, NVML device-used peak sampled during the run)"
+                                    if nv else "torch peak reserved over all agent calls"),
+                       status="measured" if cands else "no_data")
+        else:
+            row.update(weights_mb=None, total_peak_mb=None, total_peak_allocated_mb=None,
+                       total_peak_reserved_mb=None, device_peak_nvml_mb=None,
+                       status="not measured" if not real else "no_data",
+                       reason=("mock/CPU run: no GPU memory to measure" if not real else
+                               "total peak memory was not recorded (a session from before it was added)"))
+        per.append(row)
+    return {
+        "per_model": per,
+        "notes": {
+            "working": "Working VRAM (excludes model weights) = the torch allocator peak ABOVE the memory "
+                       "held before each agent call; the mean and the highest over all calls.",
+            "total": "Total peak = loaded weights + working memory: the larger of torch's peak reserved "
+                     "memory over all agent calls and the NVML device-used peak sampled during the model's "
+                     "run (which also counts the CUDA context). Weights = torch allocated right after load. "
+                     "The decision helper's VRAM limit uses the total peak.",
         },
     }
 
@@ -475,6 +557,8 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     payload["latency_distribution"] = latency_block(sr, label_of)
     payload["effect_sizes"] = effect_block(sr, am, label_of, payload.get("statistics"))
     payload["cost_energy"] = cost_energy_block(payload, sr, label_of, real=real, price=price, energy=energy)
+    payload["memory"] = memory_block(payload, read_model_memory(db_path, run_id), label_of, real=real,
+                                     agents=payload["agents"], sr=sr, energy=energy)
     payload["session_identity"] = identity_block(run_dir, config_data, env)
     payload["decision_helper"] = evaluate_constraints(payload)
     return payload

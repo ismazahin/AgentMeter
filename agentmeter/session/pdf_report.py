@@ -267,19 +267,22 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
                 win = "tie" + (f" ({m['note']})" if m.get("note") else "")
             else:
                 win = f"{m['winner']} - " + (f"{m['diff_pp']} pp higher" if is_acc else f"{m['pct_better']}% better")
-            rows.append([m["label"], f(m["values"][names[0]]), f(m["values"][names[1]]), win])
+            label = m["label"] + (" (working VRAM, excludes model weights)" if m["metric"] == "mean_peak_vram_mb" else "")
+            rows.append([label, f(m["values"][names[0]]), f(m["values"][names[1]]), win])
         story.append(table(rows, [44 * mm, 32 * mm, 32 * mm, W - 108 * mm]))
-    hdr = ["Model", "Latency/flow", "p95", "Tokens/flow", "Peak VRAM"] + (["Accuracy"] if labelled else []) + \
-          ["SAW" + ("" if labelled else " (eff.)"), "SAW eff.-only"]
+    memrows = {r["model"]: r for r in ((res.get("memory") or {}).get("per_model") or [])}
+    hdr = ["Model", "Latency/flow", "p95", "Tokens/flow", "Working VRAM (excl. weights)", "Total peak VRAM"] + \
+          (["Accuracy"] if labelled else []) + ["SAW" + ("" if labelled else " (eff.)"), "SAW eff.-only"]
     rows = [hdr]
     for m in pm:
         e = m["efficiency"]["end_to_end"]
         rows.append([m["model"], fmt_time(e["mean_latency_s"]), fmt_time(e["p95_latency_s"]),
-                     fmt_int(e["mean_tokens_per_flow"]), fmt_mb(e["mean_peak_vram_mb"])]
+                     fmt_int(e["mean_tokens_per_flow"]), fmt_mb(e["mean_peak_vram_mb"]),
+                     fmt_mb((memrows.get(m["model"]) or {}).get("total_peak_mb"))]
                     + ([fmt_pct(m["accuracy"]["accuracy"])] if labelled else [])
                     + [f"{m['saw']['composite_100']} {m['saw']['tier']}",
                        str(m["saw_efficiency_only"]["composite_100"])])
-    widths = [W - (6 + labelled) * 19 * mm] + [19 * mm] * (6 + labelled)
+    widths = [W - (7 + labelled) * 19 * mm] + [19 * mm] * (7 + labelled)
     story.append(Spacer(1, 5))
     story.append(table(rows, widths))
 
@@ -328,7 +331,7 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
     ag = res.get("agents")
     if ag:
         story.append(P("Agents — per-agent breakdown", "h"))
-        rows = [["Model", "Agent", "Latency", "Share", "Tokens in / out", "Token share", "Peak VRAM", "Failures"]]
+        rows = [["Model", "Agent", "Latency", "Share", "Tokens in / out", "Token share", "Working VRAM (excl. weights)", "Failures"]]
         for m in ag.get("per_model") or []:
             for a in m.get("agents") or []:
                 f = a.get("failures") or {}
@@ -344,25 +347,31 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
         story.append(table(rows, [30 * mm, 16 * mm, 18 * mm, 14 * mm, 26 * mm, 18 * mm, 24 * mm, W - 146 * mm]))
         for m in ag.get("per_model") or []:
             o = m.get("overhead") or {}
-            story.append(P(f"{short(m['model'])}: agentic overhead {fmt_int(o.get('handoff_tokens_per_flow'))} "
+            story.append(P(f"{short(m['model'])}: agentic overhead (estimate) {fmt_int(o.get('handoff_tokens_per_flow'))} "
                            f"hand-off tokens per flow = {fmt_pct(o.get('handoff_share_of_total'))} of all tokens "
                            f"({fmt_pct(o.get('handoff_share_of_input'))} of input).", "small"))
+        story.append(P("Agentic overhead is an estimate: the output tokens of earlier agents that each later prompt "
+                       "re-sends, counted from the recorded output-token numbers, not by re-tokenising the prompts.", "small"))
         story.append(P((ag.get("notes") or {}).get("overhead", "") + " " +
                        (ag.get("notes") or {}).get("failures", ""), "small"))
 
     ce = res.get("cost_energy")
     if ce:
         story.append(P("Cost and energy", "h"))
-        rows = [["Model", "Cost / 1,000 flows", "Energy / flow", "Energy / 1,000 flows", "Mean GPU power"]]
+        rows = [["Model", "Cost / 1,000 flows", "Energy / flow (whole board)", "Energy / flow (net of idle)",
+                 "Energy / 1,000 flows", "Mean / idle power"]]
         for r in ce.get("per_model") or []:
             cost = (f"${r['cost_per_1k_flows_usd']:.4f}" if r.get("cost_per_1k_flows_usd") is not None
                     else f"{r.get('cost_status')}: {r.get('cost_reason') or ''}".strip())
             wh = (f"{r['wh_per_flow']:.4f} Wh" if r.get("wh_per_flow") is not None
                   else f"{r.get('energy_status')}: {r.get('energy_reason') or ''}".strip())
-            rows.append([short(r["model"]), cost, wh,
-                         f"{r['wh_per_1k_flows']:.2f} Wh" if r.get("wh_per_1k_flows") is not None else "-",
-                         f"{r['mean_power_w']:.0f} W" if r.get("mean_power_w") is not None else "-"])
-        story.append(table(rows, [34 * mm, 42 * mm, 42 * mm, 32 * mm, W - 150 * mm]))
+            net = (f"{r['wh_per_flow_net_idle']:.4f} Wh" if r.get("wh_per_flow_net_idle") is not None
+                   else ("no idle sample" if r.get("wh_per_flow") is not None else "-"))
+            pw = (f"{r['mean_power_w']:.0f} W" if r.get("mean_power_w") is not None else "-") + " / " + \
+                 (f"{r['idle_power_w']:.0f} W" if r.get("idle_power_w") is not None else "-")
+            rows.append([short(r["model"]), cost, wh, net,
+                         f"{r['wh_per_1k_flows']:.2f} Wh" if r.get("wh_per_1k_flows") is not None else "-", pw])
+        story.append(table(rows, [30 * mm, 34 * mm, 34 * mm, 30 * mm, 26 * mm, W - 154 * mm]))
         pr, es = ce.get("price") or {}, ce.get("energy_sampling") or {}
         story.append(P("GPU price: " + (f"${pr['usd_per_hour']:.3f}/h, source {pr.get('source')}, fetched "
                                         f"{pr.get('fetched_at')}" if pr.get("usd_per_hour") is not None
@@ -370,8 +379,22 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
                        + ".  Power sampling: " + (f"{es.get('method')} every {es.get('interval_s')} s, "
                                                  f"{es.get('n_samples')} samples" if es.get("method")
                                                  else "not sampled (no GPU)") + ".", "small"))
-        story.append(P((ce.get("notes") or {}).get("cost", "") + " " + (ce.get("notes") or {}).get("energy", ""),
-                       "small"))
+        story.append(P("Method. " + (ce.get("notes") or {}).get("cost", "") + " " + (ce.get("notes") or {}).get("energy", "")
+                       + " " + (ce.get("notes") or {}).get("energy_net", ""), "small"))
+
+    mem = res.get("memory")
+    if mem:
+        story.append(P("GPU memory", "h"))
+        rows = [["Model", "Weights (after load)", "Working VRAM mean / highest (excl. weights)", "Total peak (weights + working)",
+                 "NVML device peak"]]
+        for r in mem.get("per_model") or []:
+            na = r.get("status") if r.get("status") != "measured" else "-"
+            rows.append([short(r["model"]), fmt_mb(r.get("weights_mb")) if r.get("weights_mb") is not None else na,
+                         f"{fmt_mb(r.get('working_mean_mb'))} / {fmt_mb(r.get('working_peak_mb'))}",
+                         fmt_mb(r.get("total_peak_mb")) if r.get("total_peak_mb") is not None else na,
+                         fmt_mb(r.get("device_peak_nvml_mb")) if r.get("device_peak_nvml_mb") is not None else na])
+        story.append(table(rows, [30 * mm, 30 * mm, 50 * mm, 40 * mm, W - 150 * mm]))
+        story.append(P((mem.get("notes") or {}).get("working", "") + " " + (mem.get("notes") or {}).get("total", ""), "small"))
 
     dh = decision or res.get("decision_helper")
     if dh:
@@ -401,7 +424,10 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
         story.append(table(rows, [30 * mm, 12 * mm, 18 * mm, 18 * mm, 18 * mm, W - 96 * mm]))
         if ef and not ef.get("skipped"):
             rows = [["Metric", "Cliff's delta", "Mean diff (A - B) [95% CI]", "Kruskal-Wallis p"]]
+            eflab = {"latency_s": "latency per flow", "peak_vram_mb": "working VRAM (excl. weights)",
+                     "tokens_per_flow": "tokens per flow"}
             for r in ef.get("metrics") or []:
+                r = dict(r, metric=eflab.get(r["metric"], r["metric"]))
                 if not r.get("available"):
                     rows.append([r["metric"], "-", r.get("reason", "-"), "-"])
                     continue

@@ -235,6 +235,40 @@ class Storage:
                 ),
             )
 
+    # --- Phase 46 follow-up: per-model device memory (session DBs) ------
+    # Its own table, created on first use (not part of SCHEMA), so no other database's
+    # schema changes. One row per (run, model); a resumed model keeps the larger peaks.
+    _MEMORY_DDL = """
+    CREATE TABLE IF NOT EXISTS model_memory (
+        run_id               TEXT NOT NULL,
+        model                TEXT NOT NULL,
+        weights_allocated_mb REAL,      -- torch allocator, right after load
+        weights_reserved_mb  REAL,      -- torch caching allocator, right after load
+        weights_nvml_mb      REAL,      -- NVML device used, right after load
+        device_before_load_mb REAL,     -- NVML device used before load (fresh context)
+        peak_allocated_mb    REAL,      -- max absolute allocator peak over all agent calls
+        peak_reserved_mb     REAL,      -- max reserved over all agent calls
+        recorded_at          TEXT,
+        PRIMARY KEY (run_id, model)
+    );"""
+
+    def persist_model_memory(self, run_id: str, model: str, *, weights: dict[str, Any],
+                             peak_allocated_mb: Optional[float], peak_reserved_mb: Optional[float]) -> None:
+        with self.conn:
+            self.conn.executescript(self._MEMORY_DDL)
+            self.conn.execute(
+                "INSERT INTO model_memory (run_id, model, weights_allocated_mb, weights_reserved_mb, "
+                "weights_nvml_mb, device_before_load_mb, peak_allocated_mb, peak_reserved_mb, recorded_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(run_id, model) DO UPDATE SET "
+                "weights_allocated_mb=excluded.weights_allocated_mb, weights_reserved_mb=excluded.weights_reserved_mb, "
+                "weights_nvml_mb=excluded.weights_nvml_mb, device_before_load_mb=excluded.device_before_load_mb, "
+                "peak_allocated_mb=MAX(COALESCE(peak_allocated_mb, 0), COALESCE(excluded.peak_allocated_mb, 0)), "
+                "peak_reserved_mb=MAX(COALESCE(peak_reserved_mb, 0), COALESCE(excluded.peak_reserved_mb, 0)), "
+                "recorded_at=excluded.recorded_at",
+                (run_id, model, weights.get("allocated_mb"), weights.get("reserved_mb"), weights.get("nvml_used_mb"),
+                 weights.get("nvml_before_load_mb"), peak_allocated_mb, peak_reserved_mb, _now()))
+
     # --- read-back helpers (for the verify step / CLI summaries) --------
     def table_counts(self) -> dict[str, int]:
         out: dict[str, int] = {}

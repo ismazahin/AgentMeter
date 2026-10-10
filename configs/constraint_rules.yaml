@@ -16,8 +16,10 @@
 # Fields (facts):
 #   measured.mean_latency_s       mean end-to-end latency per flow (s)
 #   measured.p95_latency_s        95th-percentile end-to-end latency per flow (s)
-#   measured.peak_vram_mb         highest per-agent peak WORKING VRAM over all flows (MB):
-#                                 the allocator peak above the loaded weights; null on CPU/mock
+#   measured.peak_vram_mb         TOTAL peak device memory over the model's run (MB): loaded
+#                                 weights + working memory (memory.total_peak_mb); null on
+#                                 CPU/mock and on sessions recorded before it existed — those
+#                                 give no_data, never "meets"
 #   measured.cost_per_1k_flows_usd   cost per 1,000 flows (measured time x GPU $/h); null on
 #                                 mock/CPU or without a GPU price
 # Operators: le, lt, ge, gt.
@@ -27,7 +29,7 @@ version: 1
 inputs:
   max_mean_latency_s:        {label: "Max mean latency",          unit: "s",   default: null}
   max_p95_latency_s:         {label: "Max p95 latency",           unit: "s",   default: null}
-  max_peak_vram_mb:          {label: "Max peak VRAM",             unit: "MB",  default: null}
+  max_peak_vram_mb:          {label: "Max total peak VRAM",       unit: "MB",  default: null}
   max_cost_per_1k_flows_usd: {label: "Max cost per 1,000 flows",  unit: "USD", default: null}
 
 rules:
@@ -46,11 +48,11 @@ rules:
     note: "p95 latency {value:.4g} s vs limit {limit:g} s"
 
   - id: peak_vram
-    description: Peak working VRAM within the limit.
+    description: Total peak VRAM (weights + working memory) within the limit.
     field: measured.peak_vram_mb
     op: le
     limit: max_peak_vram_mb
-    note: "peak working VRAM {value:,.0f} MB vs limit {limit:,.0f} MB"
+    note: "total peak VRAM {value:,.0f} MB (weights + working) vs limit {limit:,.0f} MB"
 
   - id: cost_per_1k_flows
     description: Cost per 1,000 flows within the budget.

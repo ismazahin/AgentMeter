@@ -5,10 +5,14 @@ worker subprocesses do the measured work, so it never touches the measured proce
 no CUDA calls, no extra Python work inside the timed agent calls. One NVML power
 read is a few microseconds on a separate CPU thread.
 
-  method "nvml"        pynvml.nvmlDeviceGetPowerUsage (mW) every `interval_s`
+  method "nvml"        pynvml.nvmlDeviceGetPowerUsage (mW) + device memory used, every `interval_s`
   method "nvidia-smi"  one long-running `nvidia-smi --query-gpu=power.draw -lms N`
                        process (no process spawn per sample)
   no GPU / mock        nothing is sampled; the session reports energy "not measured"
+
+Idle baseline: before each model's worker starts (GPU idle, the previous worker has
+exited), run_full's before_model hook calls idle_window(), which marks a few seconds of
+samples as that model's idle board power (energy.idle_sample_s).
 """
 from __future__ import annotations
 
@@ -26,6 +30,8 @@ class PowerSampler:
         self.interval_s = float(interval_s)
         self.gpu_index = int(gpu_index)
         self.samples: list[tuple[float, float]] = []
+        self.mem_samples: list[tuple[float, float]] = []      # (unix_s, device used MB) — NVML view
+        self.idle: dict[str, dict[str, float]] = {}            # model -> {"t0", "t1"} idle windows
         self.method: Optional[str] = None
         self.error: Optional[str] = None
         self._stop = threading.Event()
@@ -38,27 +44,45 @@ class PowerSampler:
         pynvml.nvmlInit()
         h = pynvml.nvmlDeviceGetHandleByIndex(self.gpu_index)
         pynvml.nvmlDeviceGetPowerUsage(h)                 # probe once: raises if unsupported
-        return lambda: pynvml.nvmlDeviceGetPowerUsage(h) / 1000.0
+
+        def read():
+            w = pynvml.nvmlDeviceGetPowerUsage(h) / 1000.0
+            try:
+                mem = pynvml.nvmlDeviceGetMemoryInfo(h).used / (1024 * 1024)
+            except Exception:  # noqa: BLE001 — memory is a bonus; power is what matters
+                mem = None
+            return w, mem
+        return read
 
     def _loop_nvml(self, read) -> None:
         while not self._stop.is_set():
             try:
-                self.samples.append((time.time(), float(read())))
+                t = time.time()
+                w, mem = read()
+                self.samples.append((t, float(w)))
+                if mem is not None:
+                    self.mem_samples.append((t, float(mem)))
             except Exception as e:  # noqa: BLE001 — a failed read is recorded, never raised
                 self.error = f"NVML read failed: {e}"
             self._stop.wait(self.interval_s)
 
     def _loop_smi(self) -> None:
-        cmd = ["nvidia-smi", f"--id={self.gpu_index}", "--query-gpu=power.draw",
+        cmd = ["nvidia-smi", f"--id={self.gpu_index}", "--query-gpu=power.draw,memory.used",
                "--format=csv,noheader,nounits", f"-lms={max(50, int(self.interval_s * 1000))}"]
         self._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         for line in self._proc.stdout:                    # type: ignore[union-attr]
             if self._stop.is_set():
                 break
+            parts = [x.strip() for x in line.split(",")]
+            t = time.time()
             try:
-                self.samples.append((time.time(), float(line.strip())))
-            except ValueError:
+                self.samples.append((t, float(parts[0])))
+            except (ValueError, IndexError):
                 continue                                  # "[N/A]" etc.
+            try:
+                self.mem_samples.append((t, float(parts[1])))
+            except (ValueError, IndexError):
+                pass
 
     # --- public ---------------------------------------------------------------------
     def start(self) -> bool:
@@ -78,6 +102,15 @@ class PowerSampler:
         self._thread.start()
         return True
 
+    def idle_window(self, model: str, seconds: float) -> None:
+        """Called (via run_full's before_model hook) while the GPU is idle, right before a
+        model's worker starts: mark `seconds` of samples as that model's idle baseline."""
+        if self._thread is None or seconds <= 0:
+            return
+        t0 = time.time()
+        time.sleep(seconds)
+        self.idle[model] = {"t0": t0, "t1": time.time()}
+
     def stop(self) -> dict[str, Any]:
         self._stop.set()
         if self._proc is not None:
@@ -92,4 +125,5 @@ class PowerSampler:
 
     def result(self) -> dict[str, Any]:
         return {"method": self.method, "interval_s": self.interval_s, "gpu_index": self.gpu_index,
-                "n_samples": len(self.samples), "samples": list(self.samples), "error": self.error}
+                "n_samples": len(self.samples), "samples": list(self.samples),
+                "mem_samples": list(self.mem_samples), "idle": dict(self.idle), "error": self.error}

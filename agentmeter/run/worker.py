@@ -226,6 +226,10 @@ def _run_model_sqlite(
         provider.load()
 
         gpu = GpuProbe()
+        # Phase 46 follow-up: the weights footprint right after load (before any scenario).
+        weights = ({"allocated_mb": gpu.total_used_mb(), "reserved_mb": gpu.reserved_mb(),
+                    "nvml_used_mb": gpu.pynvml_used_mb(), "nvml_before_load_mb": dev_before}
+                   if gpu.available else None)
         collector = MetricsCollector()
         hook = make_instrumented_hook(collector, label, gpu)
         pipeline = Pipeline(cfg, provider, node_hook=hook)
@@ -266,6 +270,12 @@ def _run_model_sqlite(
 
                 if crash_after is not None and persisted >= int(crash_after):
                     raise SystemExit(3)  # simulated mid-model crash (test-only)
+            # Phase 46 follow-up: total peak device memory over this model's flows
+            # (absolute allocator peaks = weights + working memory) + the weights footprint.
+            if weights is not None:
+                store.persist_model_memory(run_id, label, weights=weights,
+                                           peak_allocated_mb=gpu.max_allocated_abs_mb,
+                                           peak_reserved_mb=gpu.max_reserved_abs_mb)
         finally:
             release_provider(provider)
 

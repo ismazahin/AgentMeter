@@ -148,7 +148,16 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
         return _jobs_holder["mgr"]
 
     def _queue_depth():
-        return sum(1 for j in get_job_manager().list_jobs(limit=200) if j["status"] in ("queued", "running"))
+        # in SESSIONS: a benchmark still waiting for its own data preparation is the same session
+        return sum(1 for j in get_job_manager().list_jobs(limit=200) if j["status"] in ("queued", "running")
+                   and not (j.get("after_prepare") and j["status"] == "queued" and not j.get("prepared")
+                            and _waiting(j)))
+
+    def _waiting(j):
+        try:
+            return not get_job_manager()._load(j["job_id"]).get("run_dir")
+        except Exception:  # noqa: BLE001
+            return False
 
     access.install(app, mode=mode, queue_depth=_queue_depth)    # CORS + passcode + rate limits
     jobs_api.register_jobs(app, get_job_manager, provider=runtime.job_provider(mode),

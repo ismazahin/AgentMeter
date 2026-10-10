@@ -55,7 +55,7 @@ two models directly against each other, using the same measured metrics:
 | Metric | Better | Reported as | Tie when |
 |---|---|---|---|
 | Mean end-to-end latency per flow | lower | % lower than the other model, and a ratio | within 2%, **or** not significant (per-flow Kruskal-Wallis p ≥ 0.05) |
-| Mean peak working VRAM | lower | % less, and a ratio | within 2%, or not significant; "not available" on CPU/mock |
+| Mean peak working VRAM (excludes model weights) | lower | % less, and a ratio | within 2%, or not significant; "not available" on CPU/mock |
 | Mean tokens per flow | lower | % fewer, and a ratio | within 2% |
 | Accuracy (labelled runs only) | higher | percentage-point difference | within 2 percentage points |
 
@@ -235,8 +235,8 @@ wizard.
     small-sample note), plus the former dashboard's Overview and Detailed views. Those
     are embedded from `/analysis?session=<id>&embed=1`, which follows the app's theme and
     has no second header.
-  - **Agents:** per agent, the latency and token shares, peak working VRAM, agentic
-    overhead (hand-off tokens), failures (empty output, hit token cap, unparseable
+  - **Agents:** per agent, the latency and token shares, working VRAM (excludes model weights),
+    agentic overhead (an estimate: hand-off tokens), failures (empty output, hit token cap, unparseable
     label), and a Gantt-style timeline of one flow.
   - **Recommendation:** the stage-2 verdict and the resource hint, the decision helper
     (your limits → meets / fails / no_data), and the stage-3 model context.
@@ -269,10 +269,11 @@ that every scored key is byte-identical to the pre-Phase-46 output.
 
 | key | what | where shown |
 |---|---|---|
-| `agents` | per agent: latency, tokens in/out and their share of the flow, peak working VRAM, failures (`empty_output`, `hit_token_cap`, Decide's `unparseable_label`; no timeouts or retries exist by design); agentic overhead = earlier agents' outputs re-sent in later prompts (`pipeline/agents.py` `HANDOFFS`), estimated from the recorded output-token counts; a per-flow timeline | Agents tab, PDF |
+| `agents` | per agent: latency, tokens in/out and their share of the flow, working VRAM (excludes model weights), failures (`empty_output`, `hit_token_cap`, Decide's `unparseable_label`; no timeouts or retries exist by design); agentic overhead **(an estimate)** = earlier agents' outputs re-sent in later prompts (`pipeline/agents.py` `HANDOFFS`), counted from the recorded output-token numbers, not by re-tokenising the prompts; a per-flow timeline | Agents tab, PDF |
 | `latency_distribution` | p50/p95/p99, a 20-bin histogram on shared edges, and the warm-up check (median of the first 5 flows vs the rest, flagged above 1.2×) | Detailed analysis, PDF |
 | `effect_sizes` | Cliff's delta with Romano magnitude, and a percentile-bootstrap 95% CI (2,000 resamples, seed 46) of mean(A) − mean(B) for latency, VRAM and tokens, beside the existing Kruskal-Wallis p; a note under 20 flows per model | Detailed analysis, PDF |
-| `cost_energy` | cost per 1,000 flows = mean latency × 1,000 / 3,600 × GPU $/h, using the live Vast instance price (`VAST_API_KEY` + `VAST_INSTANCE_ID`, server-side only) or `config.yaml` `pricing.gpu_usd_per_hour`, with source and fetched_at; energy = GPU board power sampled from the parent process (NVML, or nvidia-smi; `energy.sample_interval_s`, default 0.5 s) and integrated over each model's window → Wh per flow and per 1,000 flows. Mock/CPU: "not measured" | Summary, Leaderboard, Compare, PDF |
+| `cost_energy` | cost per 1,000 flows = mean latency × 1,000 / 3,600 × GPU $/h, using the live Vast instance price (`VAST_API_KEY` + `VAST_INSTANCE_ID`, server-side only) or `config.yaml` `pricing.gpu_usd_per_hour`, with source and fetched_at; energy = GPU board power sampled from the parent process (NVML, or nvidia-smi; `energy.sample_interval_s`, default 0.5 s) and integrated over each model's window → Wh per flow and per 1,000 flows, reported **whole board** and **net of idle**. Idle board power is sampled for `energy.idle_sample_s` (default 5 s) right before each model's worker starts, while the GPU is idle (`run_full`'s `before_model` hook). Net = whole-board energy − idle W × window, a lower bound on the model's own share (the GPU may still be leaving a high-power state). Mock/CPU: "not measured" | Summary, Leaderboard, Compare, PDF |
+| `memory` | per model: **working VRAM** (excludes model weights: the allocator peak above the memory held before each agent call, mean and highest), **model weights** (torch allocated right after load), **total peak** = weights + working = the larger of torch's peak reserved memory over all agent calls and the NVML device-used peak sampled during the run (CUDA context included). The worker records the absolute allocator peaks at the point where it already reads the per-call peak, after the call's timer has stopped, so nothing is added to a timing. They go in a `model_memory` table in the session DB. Sessions from before this change have no total peak: shown as "no_data", and the decision helper's VRAM limit gives `no_data` | Summary (GPU memory), Home bars, Compare, Leaderboard, PDF |
 | `decision_helper` | stage-2 fit scoring with `configs/constraint_rules.yaml` (RULE_BASE.md) | Recommendation tab, PDF |
 | `session_identity` | prepared-set hash (selected_flows.csv + labels.csv), GPU, settings + fingerprint | Compare, Leaderboard |
 

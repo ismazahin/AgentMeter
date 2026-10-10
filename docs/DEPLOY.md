@@ -18,8 +18,19 @@ The full GPU runbook is in "Runbook: static front-end + Vast.ai GPU backend" bel
   wildcard.
 - **HTTPS.** Expose the server only through Cloudflare Tunnel (`scripts/vast_up.sh`
   sets it up). The server then listens on 127.0.0.1, so the tunnel is the only way in.
-- **Rate limits.** Job creation is limited per client (`AGENTMETER_JOBS_PER_HOUR`) and
-  the queue is capped (`AGENTMETER_MAX_QUEUED_JOBS`). Wrong passcodes are throttled.
+- **Rate limits.** Counted in benchmark **sessions**, per client. A wizard session (its
+  data preparation plus the one benchmark queued behind it) counts as one. Reusing or
+  re-uploading a prepared set, and Resume, each count as a session. A second benchmark
+  queued on the same preparation counts too.
+
+  | setting | `config.yaml` | env override | default |
+  |---|---|---|---|
+  | sessions started per client per hour | `service.sessions_per_hour` | `AGENTMETER_JOBS_PER_HOUR` | **12** |
+  | sessions waiting in the queue | `service.max_queued_sessions` | `AGENTMETER_MAX_QUEUED_JOBS` | **4** |
+
+  Over the limit, the server answers 429 (`rate_limited` / `queue_full`) with
+  `Retry-After`. The counters live in memory, so they reset when the server restarts.
+  Wrong passcodes are throttled (10 per 10 minutes).
 - Read-only pages stay open: `/health`, the pages themselves, and a finished result or
   prepared set opened by its id.
 

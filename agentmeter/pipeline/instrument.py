@@ -43,6 +43,11 @@ class GpuProbe:
         self._torch = None
         self._baseline = 0
         self.device = None
+        # Phase 46 follow-up: running ABSOLUTE peaks over every node this probe measured
+        # (loaded weights + working memory). Updated in read_peak_delta_mb, which the hook
+        # calls only after the node's wall time is taken — it never adds to a timing.
+        self.max_allocated_abs_mb: Optional[float] = None
+        self.max_reserved_abs_mb: Optional[float] = None
         try:
             import torch  # noqa: WPS433
 
@@ -67,7 +72,18 @@ class GpuProbe:
             return None
         self._torch.cuda.synchronize(self.device)
         peak = self._torch.cuda.max_memory_allocated(self.device)
-        return max(0.0, float(peak - self._baseline)) / (1024 * 1024)
+        mib = 1024 * 1024
+        reserved = float(self._torch.cuda.max_memory_reserved(self.device)) / mib
+        self.max_allocated_abs_mb = max(self.max_allocated_abs_mb or 0.0, float(peak) / mib)
+        self.max_reserved_abs_mb = max(self.max_reserved_abs_mb or 0.0, reserved)
+        return max(0.0, float(peak - self._baseline)) / mib
+
+    def reserved_mb(self) -> Optional[float]:
+        """Memory currently held by the torch caching allocator, in MB."""
+        if not self.available:
+            return None
+        self._torch.cuda.synchronize(self.device)
+        return float(self._torch.cuda.memory_reserved(self.device)) / (1024 * 1024)
 
     def total_used_mb(self) -> Optional[float]:
         """Whole-device allocated VRAM in MB via the torch allocator."""

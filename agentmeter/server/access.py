@@ -15,14 +15,20 @@ a prepared set by its id. No accounts.
 
 Rate limits (in memory, per client IP — Cloudflare's CF-Connecting-IP when the
 request came through the tunnel):
-  * job creation: AGENTMETER_JOBS_PER_HOUR (default 12) per client and a queue cap
-    AGENTMETER_MAX_QUEUED_JOBS (default 4) — the single-job lock is unchanged;
+  * sessions started per client per hour: config.yaml service.sessions_per_hour, env
+    AGENTMETER_JOBS_PER_HOUR (default 12). A wizard session — its data preparation plus
+    the one benchmark queued behind it (after_prepare) — counts ONCE; reusing a prepared
+    set or re-uploading one counts as a session; resume counts;
+  * queue cap: service.max_queued_sessions / AGENTMETER_MAX_QUEUED_JOBS (default 4),
+    counted in sessions (a benchmark waiting for its own preparation is not a second
+    one) — the single-job lock is unchanged;
   * wrong passcodes: 10 per 10 minutes per client, then 429.
 """
 from __future__ import annotations
 
 import hmac
 import os
+import re
 import threading
 import time
 from collections import deque
@@ -68,6 +74,34 @@ def client_ip(request) -> str:
     return (request.headers.get("CF-Connecting-IP") or request.remote_addr or "?").strip()
 
 
+_JOB_ID = re.compile(r"^job_[0-9]{8}_[0-9]{6}_[0-9a-f]{6}$")
+DEFAULT_SESSIONS_PER_HOUR = 12
+DEFAULT_MAX_QUEUED_SESSIONS = 4
+
+
+def limits() -> dict:
+    """Session rate limits: config.yaml service.sessions_per_hour / service.max_queued_sessions,
+    overridden by env AGENTMETER_JOBS_PER_HOUR / AGENTMETER_MAX_QUEUED_JOBS. Defaults 12 / 4."""
+    cfg = {}
+    try:
+        from ..config import load_config
+        cfg = load_config(None).get("service") or {}
+    except Exception:  # noqa: BLE001 — a missing/odd config falls back to the defaults
+        cfg = {}
+
+    def pick(env: str, key: str, default: int) -> tuple[int, str]:
+        for src, v in ((f"env {env}", os.environ.get(env)), (f"config service.{key}", cfg.get(key))):
+            if v not in (None, ""):
+                try:
+                    return max(1, int(v)), src
+                except (TypeError, ValueError):
+                    continue
+        return default, "default"
+    sph, s1 = pick("AGENTMETER_JOBS_PER_HOUR", "sessions_per_hour", DEFAULT_SESSIONS_PER_HOUR)
+    mq, s2 = pick("AGENTMETER_MAX_QUEUED_JOBS", "max_queued_sessions", DEFAULT_MAX_QUEUED_SESSIONS)
+    return {"sessions_per_hour": sph, "max_queued_sessions": mq, "source": {"sessions_per_hour": s1, "max_queued_sessions": s2}}
+
+
 def install(app, *, mode: str, queue_depth: Callable[[], int]) -> dict:
     """Register CORS, passcode and rate-limit hooks on the Flask app."""
     from flask import jsonify, request
@@ -75,11 +109,13 @@ def install(app, *, mode: str, queue_depth: Callable[[], int]) -> dict:
     origins = allowed_origins()
     permissive = not origins and mode != "real"
     passcode = os.environ.get("AGENTMETER_PASSCODE") or ""
-    jobs_limit = SlidingWindow(int(os.environ.get("AGENTMETER_JOBS_PER_HOUR", "12")), 3600)
+    lim = limits()
+    jobs_limit = SlidingWindow(lim["sessions_per_hour"], 3600)
     bad_pass = SlidingWindow(10, 600)
-    max_queued = int(os.environ.get("AGENTMETER_MAX_QUEUED_JOBS", "4"))
+    max_queued = lim["max_queued_sessions"]
+    chained: set[str] = set()       # prepare jobs whose ONE follow-up benchmark was already free
     state = {"origins": origins, "permissive": permissive, "auth_required": bool(passcode),
-             "jobs_per_hour": jobs_limit.limit, "max_queued": max_queued}
+             "jobs_per_hour": jobs_limit.limit, "max_queued": max_queued, "limits_source": lim["source"]}
     app.config["ACCESS"] = state
 
     def cors_headers(resp):
@@ -123,6 +159,15 @@ def install(app, *, mode: str, queue_depth: Callable[[], int]) -> dict:
                             "this server needs its access passcode to prepare or benchmark"
                             if not given else "wrong passcode", 401)
         creates = key in JOB_CREATING or (request.method == "POST" and request.path.endswith("/resume"))
+        if creates and key == ("POST", "/api/jobs"):
+            # One wizard session = its data preparation + ONE benchmark queued behind it
+            # (after_prepare): the preparation was already counted, so that benchmark is
+            # free — once per prepare job (a second benchmark on it counts as a new session).
+            body = request.get_json(silent=True) or {}
+            prep = body.get("after_prepare") if isinstance(body, dict) else None
+            if isinstance(prep, str) and _JOB_ID.match(prep) and prep not in chained:
+                chained.add(prep)
+                creates = False
         if creates:
             if queue_depth() >= max_queued:
                 return deny("queue_full", f"the job queue is full ({max_queued} waiting) — try again "

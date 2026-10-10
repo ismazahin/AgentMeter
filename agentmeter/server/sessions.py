@@ -26,8 +26,10 @@ METRICS = [
     ("median_latency_s", "Median latency per flow", "s", True),
     ("p95_latency_s", "p95 latency per flow", "s", True),
     ("p99_latency_s", "p99 latency per flow", "s", True),
-    ("mean_peak_vram_mb", "Mean peak working VRAM", "MB", True),
-    ("max_peak_vram_mb", "Highest peak working VRAM", "MB", True),
+    ("mean_peak_vram_mb", "Working VRAM, mean (excludes model weights)", "MB", True),
+    ("max_peak_vram_mb", "Working VRAM, highest (excludes model weights)", "MB", True),
+    ("total_peak_mb", "Total peak VRAM (weights + working)", "MB", True),
+    ("weights_mb", "Model weights after load", "MB", True),
     ("mean_tokens_per_flow", "Tokens per flow", "tokens", True),
     ("mean_input_tokens_per_flow", "Input tokens per flow", "tokens", True),
     ("mean_output_tokens_per_flow", "Output tokens per flow", "tokens", True),
@@ -36,9 +38,10 @@ METRICS = [
     ("cost_per_1k_flows_usd", "Cost per 1,000 flows", "USD", True),
     ("wh_per_flow", "Energy per flow", "Wh", True),
     ("wh_per_1k_flows", "Energy per 1,000 flows", "Wh", True),
+    ("wh_per_flow_net_idle", "Energy per flow, net of idle", "Wh", True),
 ]
-LEADERBOARD_SORTS = {"latency": "mean_latency_s", "vram": "mean_peak_vram_mb", "tokens": "mean_tokens_per_flow",
-                     "cost": "cost_per_1k_flows_usd", "energy": "wh_per_flow"}
+LEADERBOARD_SORTS = {"latency": "mean_latency_s", "vram": "mean_peak_vram_mb", "total_vram": "total_peak_mb",
+                     "tokens": "mean_tokens_per_flow", "cost": "cost_per_1k_flows_usd", "energy": "wh_per_flow"}
 
 
 def identity(job: dict[str, Any], res: Optional[dict[str, Any]]) -> dict[str, Any]:
@@ -63,6 +66,7 @@ def model_metrics(res: dict[str, Any]) -> dict[str, dict[str, Any]]:
     agents = {m["model"]: m for m in ((res.get("agents") or {}).get("per_model") or [])}
     lat = {m["model"]: m for m in ((res.get("latency_distribution") or {}).get("per_model") or [])}
     cost = {m["model"]: m for m in ((res.get("cost_energy") or {}).get("per_model") or [])}
+    mem = {m["model"]: m for m in ((res.get("memory") or {}).get("per_model") or [])}
     for pm in res.get("per_model") or []:
         m = pm["model"]
         eff = pm.get("efficiency") or {}
@@ -80,6 +84,9 @@ def model_metrics(res: dict[str, Any]) -> dict[str, dict[str, Any]]:
                "cost_per_1k_flows_usd": (cost.get(m) or {}).get("cost_per_1k_flows_usd"),
                "wh_per_flow": (cost.get(m) or {}).get("wh_per_flow"),
                "wh_per_1k_flows": (cost.get(m) or {}).get("wh_per_1k_flows"),
+               "wh_per_flow_net_idle": (cost.get(m) or {}).get("wh_per_flow_net_idle"),
+               "total_peak_mb": (mem.get(m) or {}).get("total_peak_mb"),
+               "weights_mb": (mem.get(m) or {}).get("weights_mb"),
                "accuracy": (pm.get("accuracy") or {}).get("accuracy") if pm.get("accuracy") else None}
         out[m] = row
     return out

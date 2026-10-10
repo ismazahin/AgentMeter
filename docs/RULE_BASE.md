@@ -48,7 +48,7 @@ no later stage can change an earlier stage's result.
 ### Stage 2b: decision helper (fit scoring against the user's limits)
 
 - **Inputs:** the measured numbers of each model (mean and p95 latency per flow, the
-  highest per-agent peak working VRAM, cost per 1,000 flows) and the limits the user
+  total peak VRAM = loaded weights + working memory, cost per 1,000 flows) and the limits the user
   enters on the session's Recommendation tab (or passes in the query string of
   `GET /api/jobs/<id>/constraints` and `/report.pdf`).
 - **Rules:** `configs/constraint_rules.yaml`, written in the same style as the other two
@@ -60,7 +60,7 @@ no later stage can change an earlier stage's result.
   |---|---|---|
   | `mean_latency` | mean latency per flow ≤ max mean latency | `measured.mean_latency_s` |
   | `p95_latency` | p95 latency per flow ≤ max p95 latency | `measured.p95_latency_s` |
-  | `peak_vram` | highest peak working VRAM ≤ max peak VRAM | `measured.peak_vram_mb` |
+  | `peak_vram` | **total** peak VRAM (weights + working memory) ≤ max total peak VRAM; a session without a total-peak record gives `no_data`, never `meets` | `measured.peak_vram_mb` (= `memory.total_peak_mb`) |
   | `cost_per_1k_flows` | cost per 1,000 flows ≤ budget | `measured.cost_per_1k_flows_usd` |
 
 - **Results per model:**

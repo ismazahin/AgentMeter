@@ -212,7 +212,11 @@ def run_full(
     proj_models: Optional[int] = None,
     auto_analyze: Optional[bool] = None,
     model_vram_path: Optional[str] = None,
+    before_model=None,
 ) -> RunFullResult:
+    """`before_model(model_label)`: optional hook called right before each model's worker
+    is spawned, while the GPU is idle (Phase 46 follow-up: idle board-power sampling for
+    the energy analysis). It runs outside every measured process and timing."""
     cfg = load_config(config_path)
     _gpu_guard(cfg)
 
@@ -277,6 +281,8 @@ def run_full(
                 print(f"[{mi+1}/{len(models)}] {label}: all {n_scn} scenarios already complete — skipping model")
                 continue
 
+            if before_model is not None:
+                before_model(label)
             print(f"[{mi+1}/{len(models)}] {label}: spawning worker (running {len(remaining)}/{n_scn} scenario(s))")
             rc = _spawn_model_worker(
                 worker_config, model_name, run_id, n,

@@ -166,8 +166,13 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
         from .power import PowerSampler
         sampler = PowerSampler(interval_s=ops["sample_interval_s"])
         sampler.start()
+    hook = None
+    if sampler is not None and sampler.method and ops["idle_sample_s"] > 0:
+        def hook(model_label: str) -> None:      # GPU idle between workers: idle power baseline
+            sampler.idle_window(model_label, ops["idle_sample_s"])
     try:
-        result = run_full(config_path=plan["config_path"], fresh=fresh, auto_analyze=False)
+        result = run_full(config_path=plan["config_path"], fresh=fresh, auto_analyze=False,
+                          before_model=hook)
     finally:
         energy = sampler.stop() if sampler is not None else None
     payload = score_session(plan, run_id=result.run_id)
@@ -193,14 +198,20 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
 
 def ops_settings() -> dict[str, Any]:
     """Phase-46 operational settings from config.yaml (never the locked run config):
-    pricing.gpu_usd_per_hour (env AGENTMETER_GPU_USD_PER_HOUR) and
-    energy.sample_interval_s (env AGENTMETER_POWER_SAMPLE_S)."""
+    pricing.gpu_usd_per_hour (env AGENTMETER_GPU_USD_PER_HOUR), energy.sample_interval_s
+    (env AGENTMETER_POWER_SAMPLE_S) and energy.idle_sample_s (env AGENTMETER_IDLE_SAMPLE_S)."""
     import os
     try:
         cfg = load_config(None)
         price, interval = cfg.get("pricing.gpu_usd_per_hour"), cfg.get("energy.sample_interval_s")
+        idle = cfg.get("energy.idle_sample_s")
     except Exception:  # noqa: BLE001
-        price, interval = None, None
+        price, interval, idle = None, None, None
+    idle = os.environ.get("AGENTMETER_IDLE_SAMPLE_S") or idle
+    try:
+        idle = max(0.0, min(60.0, float(idle if idle not in (None, "") else 5.0)))
+    except (TypeError, ValueError):
+        idle = 5.0
     price = os.environ.get("AGENTMETER_GPU_USD_PER_HOUR") or price
     interval = os.environ.get("AGENTMETER_POWER_SAMPLE_S") or interval or 0.5
     try:
@@ -211,7 +222,7 @@ def ops_settings() -> dict[str, Any]:
         interval = max(0.05, float(interval))
     except (TypeError, ValueError):
         interval = 0.5
-    return {"gpu_usd_per_hour": price, "sample_interval_s": interval}
+    return {"gpu_usd_per_hour": price, "sample_interval_s": interval, "idle_sample_s": idle}
 
 
 def read_scenarios(run_dir: str | Path) -> pd.DataFrame:

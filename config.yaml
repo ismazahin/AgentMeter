@@ -158,6 +158,10 @@ pricing:
 # AGENTMETER_POWER_SAMPLE_S.
 energy:
   sample_interval_s: 0.5
+  # Idle board power is sampled for this many seconds right before each model's worker
+  # starts (GPU idle); energy is then reported whole-board AND net of that idle power.
+  # 0 disables. Env: AGENTMETER_IDLE_SAMPLE_S.
+  idle_sample_s: 5
 
 storage:
   sqlite_path: results/agentmeter.db
@@ -185,3 +189,8 @@ service:
   pcap_windows: 10
   max_pcap_flows: 20000       # PCAP candidate pool: seeded random subsample above this
   max_csv_rows: 500000        # CSV candidate pool: stratified sample across the whole file
+  # Benchmark sessions a client may start per hour, and how many may wait in the queue.
+  # A wizard session (data preparation + its benchmark) counts as ONE. Env overrides:
+  # AGENTMETER_JOBS_PER_HOUR, AGENTMETER_MAX_QUEUED_JOBS.
+  sessions_per_hour: 12
+  max_queued_sessions: 4

@@ -1,0 +1,1853 @@
+{
+  "schema": "agentmeter.session.v1",
+  "session": {
+    "run_id": "run_20261010_035640_45bccf",
+    "run_dir": "/tmp/claude-0/-home-user-AgentMeter/f95f081c-99a8-5b6a-bbf5-1ebe40ebd0de/scratchpad/golden/g",
+    "db_path": "/tmp/claude-0/-home-user-AgentMeter/f95f081c-99a8-5b6a-bbf5-1ebe40ebd0de/scratchpad/golden/g/session.db",
+    "models": [
+      {
+        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "canonical": true
+      },
+      {
+        "model": "microsoft/Phi-3-mini-4k-instruct",
+        "canonical": true
+      }
+    ],
+    "provider": "mock",
+    "hardware": "cpu",
+    "quant": "none",
+    "execution": "sequential, one subprocess per model (existing runner)",
+    "n_flows": 10,
+    "source_type": "csv",
+    "input_role": "labelled_csv",
+    "evaluation_mode": "accuracy_available",
+    "labelled": true,
+    "accuracy_available": true,
+    "class_set": [
+      "Brute Force",
+      "Volumetric DDoS",
+      "Port Scanning",
+      "DoS Hulk",
+      "Benign"
+    ],
+    "class_scheme": "5-class",
+    "selection_mode": "label_aware_balanced",
+    "feature_match": {
+      "status": "exact",
+      "reference": "CIC-IDS2017 MachineLearningCVE (78 features, Java CICFlowMeter)",
+      "comparable": 78,
+      "missing": [],
+      "note": "features supplied in CIC-IDS2017 format \u2014 same definitions as the reference dataset"
+    },
+    "non_validated": true,
+    "caveats": [
+      "NON-VALIDATED user run: exploratory; not the locked 5-model CIC-IDS2017 study and never merged into its ranking or statistics.",
+      "Balanced sample: rows were selected with equal shares per class, so accuracy is a per-class (macro-like) view, not real-world prevalence.",
+      "No VRAM readings (CPU/mock run): the VRAM criterion contributes 0 for every model, so it does not change the ranking.",
+      "MOCK provider: deterministic heuristic, not a language model \u2014 demonstrates the flow only; numbers are not model measurements.",
+      "Small sample (10 flows per model): differences may not be meaningful."
+    ]
+  },
+  "per_model": [
+    {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "db_label": "mock:Qwen/Qwen2.5-7B-Instruct",
+      "canonical": true,
+      "efficiency": {
+        "n_flows": 10,
+        "end_to_end": {
+          "mean_latency_s": 0.0003138062000061836,
+          "median_latency_s": 0.0002742985000168119,
+          "p95_latency_s": 0.00048532610000791,
+          "mean_peak_vram_mb": null,
+          "mean_tokens_per_flow": 1431.0,
+          "mean_input_tokens_per_flow": 1381.0,
+          "mean_output_tokens_per_flow": 50.0,
+          "throughput_flows_per_s": 3186.680186625678
+        },
+        "per_agent": {
+          "perceive": {
+            "mean_wall_s": 0.00010427570001070308,
+            "mean_ttft_s": null,
+            "mean_vram_delta_mb": null,
+            "mean_input_tokens": 418.0,
+            "mean_output_tokens": 16.0
+          },
+          "reason": {
+            "mean_wall_s": 9.401119999381535e-05,
+            "mean_ttft_s": null,
+            "mean_vram_delta_mb": null,
+            "mean_input_tokens": 436.0,
+            "mean_output_tokens": 14.0
+          },
+          "decide": {
+            "mean_wall_s": 9.632640000347691e-05,
+            "mean_ttft_s": null,
+            "mean_vram_delta_mb": null,
+            "mean_input_tokens": 480.0,
+            "mean_output_tokens": 2.0
+          },
+          "act": {
+            "mean_wall_s": 1.9192899998188295e-05,
+            "mean_ttft_s": null,
+            "mean_vram_delta_mb": null,
+            "mean_input_tokens": 47.0,
+            "mean_output_tokens": 18.0
+          }
+        }
+      },
+      "saw_efficiency_only": {
+        "composite_100": 62.63,
+        "tier": "Degraded",
+        "rank": 1
+      },
+      "saw": {
+        "composite_100": 47.58,
+        "tier": "Critical",
+        "rank": 1
+      },
+      "accuracy": {
+        "accuracy": 0.2,
+        "n": 10,
+        "n_correct": 2,
+        "n_unparseable": 0,
+        "per_class": [
+          {
+            "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+            "class": "Brute Force",
+            "support": 2,
+            "accuracy": 0.0
+          },
+          {
+            "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+            "class": "Volumetric DDoS",
+            "support": 2,
+            "accuracy": 0.0
+          },
+          {
+            "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+            "class": "Port Scanning",
+            "support": 2,
+            "accuracy": 0.0
+          },
+          {
+            "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+            "class": "DoS Hulk",
+            "support": 2,
+            "accuracy": 0.0
+          },
+          {
+            "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+            "class": "Benign",
+            "support": 2,
+            "accuracy": 1.0
+          }
+        ],
+        "confusion": {
+          "Brute Force": {
+            "Brute Force": 0,
+            "Volumetric DDoS": 0,
+            "Port Scanning": 0,
+            "DoS Hulk": 0,
+            "Benign": 2,
+            "Unparseable": 0
+          },
+          "Volumetric DDoS": {
+            "Brute Force": 0,
+            "Volumetric DDoS": 0,
+            "Port Scanning": 0,
+            "DoS Hulk": 0,
+            "Benign": 2,
+            "Unparseable": 0
+          },
+          "Port Scanning": {
+            "Brute Force": 0,
+            "Volumetric DDoS": 0,
+            "Port Scanning": 0,
+            "DoS Hulk": 0,
+            "Benign": 2,
+            "Unparseable": 0
+          },
+          "DoS Hulk": {
+            "Brute Force": 0,
+            "Volumetric DDoS": 0,
+            "Port Scanning": 0,
+            "DoS Hulk": 0,
+            "Benign": 2,
+            "Unparseable": 0
+          },
+          "Benign": {
+            "Brute Force": 0,
+            "Volumetric DDoS": 0,
+            "Port Scanning": 0,
+            "DoS Hulk": 0,
+            "Benign": 2,
+            "Unparseable": 0
+          }
+        }
+      }
+    },
+    {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "db_label": "mock:microsoft/Phi-3-mini-4k-instruct",
+      "canonical": true,
+      "efficiency": {
+        "n_flows": 10,
+        "end_to_end": {
+          "mean_latency_s": 0.0003862474999920096,
+          "median_latency_s": 0.00038425500000016655,
+          "p95_latency_s": 0.000517021900006398,
+          "mean_peak_vram_mb": null,
+          "mean_tokens_per_flow": 1431.0,
+          "mean_input_tokens_per_flow": 1381.0,
+          "mean_output_tokens_per_flow": 50.0,
+          "throughput_flows_per_s": 2589.0135211766737
+        },
+        "per_agent": {
+          "perceive": {
+            "mean_wall_s": 0.0001302922999968814,
+            "mean_ttft_s": null,
+            "mean_vram_delta_mb": null,
+            "mean_input_tokens": 418.0,
+            "mean_output_tokens": 16.0
+          },
+          "reason": {
+            "mean_wall_s": 0.00010537989999477304,
+            "mean_ttft_s": null,
+            "mean_vram_delta_mb": null,
+            "mean_input_tokens": 436.0,
+            "mean_output_tokens": 14.0
+          },
+          "decide": {
+            "mean_wall_s": 0.0001281502999972872,
+            "mean_ttft_s": null,
+            "mean_vram_delta_mb": null,
+            "mean_input_tokens": 480.0,
+            "mean_output_tokens": 2.0
+          },
+          "act": {
+            "mean_wall_s": 2.242500000306791e-05,
+            "mean_ttft_s": null,
+            "mean_vram_delta_mb": null,
+            "mean_input_tokens": 47.0,
+            "mean_output_tokens": 18.0
+          }
+        }
+      },
+      "saw_efficiency_only": {
+        "composite_100": 62.63,
+        "tier": "Degraded",
+        "rank": 2
+      },
+      "saw": {
+        "composite_100": 47.58,
+        "tier": "Critical",
+        "rank": 2
+      },
+      "accuracy": {
+        "accuracy": 0.2,
+        "n": 10,
+        "n_correct": 2,
+        "n_unparseable": 0,
+        "per_class": [
+          {
+            "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+            "class": "Brute Force",
+            "support": 2,
+            "accuracy": 0.0
+          },
+          {
+            "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+            "class": "Volumetric DDoS",
+            "support": 2,
+            "accuracy": 0.0
+          },
+          {
+            "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+            "class": "Port Scanning",
+            "support": 2,
+            "accuracy": 0.0
+          },
+          {
+            "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+            "class": "DoS Hulk",
+            "support": 2,
+            "accuracy": 0.0
+          },
+          {
+            "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+            "class": "Benign",
+            "support": 2,
+            "accuracy": 1.0
+          }
+        ],
+        "confusion": {
+          "Brute Force": {
+            "Brute Force": 0,
+            "Volumetric DDoS": 0,
+            "Port Scanning": 0,
+            "DoS Hulk": 0,
+            "Benign": 2,
+            "Unparseable": 0
+          },
+          "Volumetric DDoS": {
+            "Brute Force": 0,
+            "Volumetric DDoS": 0,
+            "Port Scanning": 0,
+            "DoS Hulk": 0,
+            "Benign": 2,
+            "Unparseable": 0
+          },
+          "Port Scanning": {
+            "Brute Force": 0,
+            "Volumetric DDoS": 0,
+            "Port Scanning": 0,
+            "DoS Hulk": 0,
+            "Benign": 2,
+            "Unparseable": 0
+          },
+          "DoS Hulk": {
+            "Brute Force": 0,
+            "Volumetric DDoS": 0,
+            "Port Scanning": 0,
+            "DoS Hulk": 0,
+            "Benign": 2,
+            "Unparseable": 0
+          },
+          "Benign": {
+            "Brute Force": 0,
+            "Volumetric DDoS": 0,
+            "Port Scanning": 0,
+            "DoS Hulk": 0,
+            "Benign": 2,
+            "Unparseable": 0
+          }
+        }
+      }
+    }
+  ],
+  "comparison": {
+    "models": [
+      "Qwen/Qwen2.5-7B-Instruct",
+      "microsoft/Phi-3-mini-4k-instruct"
+    ],
+    "metrics": [
+      {
+        "metric": "mean_latency_s",
+        "label": "mean end-to-end latency (s/flow)",
+        "lower_is_better": true,
+        "values": {
+          "Qwen/Qwen2.5-7B-Instruct": 0.0003138062000061836,
+          "microsoft/Phi-3-mini-4k-instruct": 0.0003862474999920096
+        },
+        "winner": "Qwen/Qwen2.5-7B-Instruct",
+        "available": true
+      },
+      {
+        "metric": "mean_tokens_per_flow",
+        "label": "mean tokens per flow",
+        "lower_is_better": true,
+        "values": {
+          "Qwen/Qwen2.5-7B-Instruct": 1431.0,
+          "microsoft/Phi-3-mini-4k-instruct": 1431.0
+        },
+        "winner": "tie",
+        "available": true
+      },
+      {
+        "metric": "mean_peak_vram_mb",
+        "label": "mean peak working VRAM (MB)",
+        "lower_is_better": true,
+        "values": {
+          "Qwen/Qwen2.5-7B-Instruct": null,
+          "microsoft/Phi-3-mini-4k-instruct": null
+        },
+        "winner": null,
+        "available": false
+      }
+    ],
+    "more_resource_efficient": {
+      "model": "tie",
+      "basis": "efficiency-only SAW composite (latency, VRAM, tokens; accuracy excluded)",
+      "composite_100": {
+        "Qwen/Qwen2.5-7B-Instruct": 62.63,
+        "microsoft/Phi-3-mini-4k-instruct": 62.63
+      }
+    },
+    "saw_basis": "full SAW (accuracy + efficiency, config weights)",
+    "saw_ranking": [
+      {
+        "rank": 1,
+        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "composite_100": 47.58,
+        "tier": "Critical"
+      },
+      {
+        "rank": 2,
+        "model": "microsoft/Phi-3-mini-4k-instruct",
+        "composite_100": 47.58,
+        "tier": "Critical"
+      }
+    ],
+    "accuracy": {
+      "values": {
+        "Qwen/Qwen2.5-7B-Instruct": 0.2,
+        "microsoft/Phi-3-mini-4k-instruct": 0.2
+      },
+      "winner": "tie"
+    },
+    "saw_top": "tie",
+    "statement": "More resource-efficient: tie (within 0.5 points); more accurate on this sample: tie; SAW top: tie (full SAW (accuracy + efficiency, config weights))."
+  },
+  "relative_comparison": {
+    "models": [
+      "Qwen/Qwen2.5-7B-Instruct",
+      "microsoft/Phi-3-mini-4k-instruct"
+    ],
+    "basis": "direct A-vs-B on this session's measured metrics (no fixed targets)",
+    "thresholds": {
+      "efficiency_tie_rel": 0.02,
+      "accuracy_tie_pp": 2.0,
+      "significance_alpha": 0.05
+    },
+    "metrics": [
+      {
+        "metric": "mean_latency_s",
+        "label": "mean end-to-end latency per flow",
+        "lower_is_better": true,
+        "unit": "s",
+        "values": {
+          "Qwen/Qwen2.5-7B-Instruct": 0.0003138062000061836,
+          "microsoft/Phi-3-mini-4k-instruct": 0.0003862474999920096
+        },
+        "available": true,
+        "winner": "Qwen/Qwen2.5-7B-Instruct",
+        "p_value": 0.04936619475193269,
+        "pct_better": 18.8,
+        "ratio": 1.23,
+        "phrase": "lower latency"
+      },
+      {
+        "metric": "mean_peak_vram_mb",
+        "label": "mean peak working VRAM",
+        "lower_is_better": true,
+        "unit": "MB",
+        "values": {
+          "Qwen/Qwen2.5-7B-Instruct": null,
+          "microsoft/Phi-3-mini-4k-instruct": null
+        },
+        "available": false,
+        "winner": null,
+        "note": "not measured for both models (e.g. no VRAM on CPU/mock)"
+      },
+      {
+        "metric": "mean_tokens_per_flow",
+        "label": "mean tokens per flow",
+        "lower_is_better": true,
+        "unit": "tokens",
+        "values": {
+          "Qwen/Qwen2.5-7B-Instruct": 1431.0,
+          "microsoft/Phi-3-mini-4k-instruct": 1431.0
+        },
+        "available": true,
+        "winner": "tie",
+        "pct_better": null,
+        "ratio": null,
+        "note": "within 2%"
+      },
+      {
+        "metric": "accuracy",
+        "label": "accuracy on this sample",
+        "lower_is_better": false,
+        "unit": "%",
+        "values": {
+          "Qwen/Qwen2.5-7B-Instruct": 0.2,
+          "microsoft/Phi-3-mini-4k-instruct": 0.2
+        },
+        "available": true,
+        "diff_pp": 0.0,
+        "winner": "tie",
+        "note": "within 2 percentage points"
+      }
+    ],
+    "efficiency_verdict": {
+      "verdict": "more_efficient",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "wins": {
+        "Qwen/Qwen2.5-7B-Instruct": [
+          "mean_latency_s"
+        ],
+        "microsoft/Phi-3-mini-4k-instruct": []
+      },
+      "rule": "dominance: wins at least one efficiency metric and loses none"
+    },
+    "accuracy_verdict": {
+      "model": "tie",
+      "diff_pp": 0.0
+    },
+    "accuracy_included": true,
+    "verdict": "Qwen/Qwen2.5-7B-Instruct is more resource-efficient than microsoft/Phi-3-mini-4k-instruct: 18.8% lower latency (tie on mean tokens per flow) (mean peak working VRAM: not available). Accuracy: tie (Qwen/Qwen2.5-7B-Instruct 20.0% vs microsoft/Phi-3-mini-4k-instruct 20.0%).",
+    "caveats": [
+      "Relative view: both models were measured in this session on the same hardware and the same flows, so the A-vs-B differences are like-for-like; it does not use the fixed L4 targets (the absolute SAW does).",
+      "Measured on cpu: absolute numbers are not comparable with the locked study (NVIDIA L4); only the A-vs-B relation is.",
+      "NON-VALIDATED user run: exploratory; not the locked 5-model CIC-IDS2017 study and never merged into its ranking or statistics.",
+      "Balanced sample: rows were selected with equal shares per class, so accuracy is a per-class (macro-like) view, not real-world prevalence.",
+      "No VRAM readings (CPU/mock run): the VRAM criterion contributes 0 for every model, so it does not change the ranking.",
+      "MOCK provider: deterministic heuristic, not a language model \u2014 demonstrates the flow only; numbers are not model measurements.",
+      "Small sample (10 flows per model): differences may not be meaningful."
+    ]
+  },
+  "notes": {
+    "tokens_definition": "tokens = mean over scenarios of the per-scenario TOTAL tokens = mean_scenario( sum over the 4 agents of (input_tokens + output_tokens) ). Config scoring.targets.tokens_total is 'input+output per scenario' \u2014 matches; used as-is.",
+    "normalisation_formula": "benefit (accuracy): norm = clamp(value / target, 0, 1); cost (latency, vram, tokens): norm = clamp(target / value, 0, 1)",
+    "vram_per_agent_note": "vram_delta (per-agent) is MARGINAL working memory above the fresh-context baseline and EXCLUDES model weights (per-process isolation baseline).",
+    "vram_saw_criterion": "SAW VRAM criterion = MARGINAL working memory (mean scenario_peak_vram_mb); no --model-vram supplied. Config target 16000 MB / weight 0.20.",
+    "saw_mode": "full SAW (config weights)"
+  },
+  "phase8": {
+    "weights": {
+      "accuracy": 0.4,
+      "latency": 0.25,
+      "vram": 0.2,
+      "tokens": 0.15
+    },
+    "targets": {
+      "accuracy_pct": 80.0,
+      "latency_s": 5.0,
+      "vram_mb": 16000.0,
+      "tokens_total": 1200.0
+    },
+    "tiers": {
+      "healthy_min": 80.0,
+      "degraded_min": 60.0
+    },
+    "raw_criteria": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "accuracy_pct": 20.0,
+        "latency_s": 0.0003138062000061836,
+        "vram_working_mb": null,
+        "tokens_total": 1431.0,
+        "weight_footprint_mb": null,
+        "total_device_vram_mb": null,
+        "vram_mb": null,
+        "vram_source": "marginal_working_memory"
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "accuracy_pct": 20.0,
+        "latency_s": 0.0003862474999920096,
+        "vram_working_mb": null,
+        "tokens_total": 1431.0,
+        "weight_footprint_mb": null,
+        "total_device_vram_mb": null,
+        "vram_mb": null,
+        "vram_source": "marginal_working_memory"
+      }
+    ],
+    "normalised": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "accuracy": 0.25,
+        "latency": 1.0,
+        "vram": 0.0,
+        "tokens": 0.8385744234800838
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "accuracy": 0.25,
+        "latency": 1.0,
+        "vram": 0.0,
+        "tokens": 0.8385744234800838
+      }
+    ],
+    "saw_table": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "accuracy_pct": 20.0,
+        "latency_s": 0.0003138062000061836,
+        "vram_working_mb": null,
+        "tokens_total": 1431.0,
+        "weight_footprint_mb": null,
+        "total_device_vram_mb": null,
+        "vram_mb": null,
+        "vram_source": "marginal_working_memory",
+        "accuracy": 0.25,
+        "latency": 1.0,
+        "vram": 0.0,
+        "tokens": 0.8385744234800838,
+        "composite": 0.47578616352201253,
+        "rank": 1,
+        "tier": "Critical"
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "accuracy_pct": 20.0,
+        "latency_s": 0.0003862474999920096,
+        "vram_working_mb": null,
+        "tokens_total": 1431.0,
+        "weight_footprint_mb": null,
+        "total_device_vram_mb": null,
+        "vram_mb": null,
+        "vram_source": "marginal_working_memory",
+        "accuracy": 0.25,
+        "latency": 1.0,
+        "vram": 0.0,
+        "tokens": 0.8385744234800838,
+        "composite": 0.47578616352201253,
+        "rank": 2,
+        "tier": "Critical"
+      }
+    ]
+  },
+  "phase8_efficiency_only": {
+    "weights": {
+      "accuracy": 0.0,
+      "latency": 0.4166666666666667,
+      "vram": 0.33333333333333337,
+      "tokens": 0.25
+    },
+    "saw_table": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "accuracy_pct": 20.0,
+        "latency_s": 0.0003138062000061836,
+        "vram_working_mb": null,
+        "tokens_total": 1431.0,
+        "weight_footprint_mb": null,
+        "total_device_vram_mb": null,
+        "vram_mb": null,
+        "vram_source": "marginal_working_memory",
+        "accuracy": 0.25,
+        "latency": 1.0,
+        "vram": 0.0,
+        "tokens": 0.8385744234800838,
+        "composite": 0.6263102725366876,
+        "rank": 1,
+        "tier": "Degraded"
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "accuracy_pct": 20.0,
+        "latency_s": 0.0003862474999920096,
+        "vram_working_mb": null,
+        "tokens_total": 1431.0,
+        "weight_footprint_mb": null,
+        "total_device_vram_mb": null,
+        "vram_mb": null,
+        "vram_source": "marginal_working_memory",
+        "accuracy": 0.25,
+        "latency": 1.0,
+        "vram": 0.0,
+        "tokens": 0.8385744234800838,
+        "composite": 0.6263102725366876,
+        "rank": 2,
+        "tier": "Degraded"
+      }
+    ]
+  },
+  "sensitivity": {
+    "weight_sets": {
+      "default": {
+        "accuracy": 0.4,
+        "latency": 0.25,
+        "vram": 0.2,
+        "tokens": 0.15
+      },
+      "equal": {
+        "accuracy": 0.25,
+        "latency": 0.25,
+        "vram": 0.25,
+        "tokens": 0.25
+      },
+      "accuracy_heavy": {
+        "accuracy": 0.55,
+        "latency": 0.2,
+        "vram": 0.15,
+        "tokens": 0.1
+      },
+      "efficiency_heavy": {
+        "accuracy": 0.25,
+        "latency": 0.3,
+        "vram": 0.3,
+        "tokens": 0.15
+      }
+    },
+    "ranks": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "default": 1,
+        "equal": 1,
+        "accuracy_heavy": 1,
+        "efficiency_heavy": 1
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "default": 2,
+        "equal": 2,
+        "accuracy_heavy": 2,
+        "efficiency_heavy": 2
+      }
+    ],
+    "scores": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "default": 0.47578616352201253,
+        "equal": 0.522143605870021,
+        "accuracy_heavy": 0.4213574423480084,
+        "efficiency_heavy": 0.4882861635220126
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "default": 0.47578616352201253,
+        "equal": 0.522143605870021,
+        "accuracy_heavy": 0.4213574423480084,
+        "efficiency_heavy": 0.4882861635220126
+      }
+    ],
+    "top_by_set": {
+      "default": "mock:Qwen/Qwen2.5-7B-Instruct",
+      "equal": "mock:Qwen/Qwen2.5-7B-Instruct",
+      "accuracy_heavy": "mock:Qwen/Qwen2.5-7B-Instruct",
+      "efficiency_heavy": "mock:Qwen/Qwen2.5-7B-Instruct"
+    },
+    "top_stable": true,
+    "stable_top_model": "mock:Qwen/Qwen2.5-7B-Instruct"
+  },
+  "per_agent": {
+    "table": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "agent_name": "act",
+        "mean_wall_s": 1.9192899998188295e-05,
+        "mean_ttft_s": null,
+        "mean_vram_delta_mb": null,
+        "mean_input_tokens": 47.0,
+        "mean_output_tokens": 18.0
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "agent_name": "decide",
+        "mean_wall_s": 9.632640000347691e-05,
+        "mean_ttft_s": null,
+        "mean_vram_delta_mb": null,
+        "mean_input_tokens": 480.0,
+        "mean_output_tokens": 2.0
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "agent_name": "perceive",
+        "mean_wall_s": 0.00010427570001070308,
+        "mean_ttft_s": null,
+        "mean_vram_delta_mb": null,
+        "mean_input_tokens": 418.0,
+        "mean_output_tokens": 16.0
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "agent_name": "reason",
+        "mean_wall_s": 9.401119999381535e-05,
+        "mean_ttft_s": null,
+        "mean_vram_delta_mb": null,
+        "mean_input_tokens": 436.0,
+        "mean_output_tokens": 14.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "agent_name": "act",
+        "mean_wall_s": 2.242500000306791e-05,
+        "mean_ttft_s": null,
+        "mean_vram_delta_mb": null,
+        "mean_input_tokens": 47.0,
+        "mean_output_tokens": 18.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "agent_name": "decide",
+        "mean_wall_s": 0.0001281502999972872,
+        "mean_ttft_s": null,
+        "mean_vram_delta_mb": null,
+        "mean_input_tokens": 480.0,
+        "mean_output_tokens": 2.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "agent_name": "perceive",
+        "mean_wall_s": 0.0001302922999968814,
+        "mean_ttft_s": null,
+        "mean_vram_delta_mb": null,
+        "mean_input_tokens": 418.0,
+        "mean_output_tokens": 16.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "agent_name": "reason",
+        "mean_wall_s": 0.00010537989999477304,
+        "mean_ttft_s": null,
+        "mean_vram_delta_mb": null,
+        "mean_input_tokens": 436.0,
+        "mean_output_tokens": 14.0
+      }
+    ],
+    "dominant": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "latency_dominant_agent": "perceive",
+        "latency_dominant_mean_wall_s": 0.00010427570001070308,
+        "vram_dominant_agent": null,
+        "vram_dominant_mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "latency_dominant_agent": "perceive",
+        "latency_dominant_mean_wall_s": 0.0001302922999968814,
+        "vram_dominant_agent": null,
+        "vram_dominant_mean_vram_delta_mb": null
+      }
+    ]
+  },
+  "statistics": {
+    "scenario_total_time_s": {
+      "metric": "scenario_total_time_s",
+      "test": "Kruskal-Wallis",
+      "H": 3.8628571428571377,
+      "p_value": 0.04936619475193269,
+      "significant": true,
+      "alpha": 0.05,
+      "n_per_model": {
+        "mock:Qwen/Qwen2.5-7B-Instruct": 10,
+        "mock:microsoft/Phi-3-mini-4k-instruct": 10
+      },
+      "posthoc": "Dunn (Holm-corrected)",
+      "dunn_matrix": {
+        "mock:Qwen/Qwen2.5-7B-Instruct": {
+          "mock:Qwen/Qwen2.5-7B-Instruct": 1.0,
+          "mock:microsoft/Phi-3-mini-4k-instruct": 0.049366194751932824
+        },
+        "mock:microsoft/Phi-3-mini-4k-instruct": {
+          "mock:Qwen/Qwen2.5-7B-Instruct": 0.049366194751932824,
+          "mock:microsoft/Phi-3-mini-4k-instruct": 1.0
+        }
+      }
+    },
+    "scenario_peak_vram_mb": {
+      "skipped": "no VRAM readings (CPU/mock run)"
+    }
+  },
+  "provenance": {
+    "validated_study": false,
+    "non_validated": true,
+    "run_kind": "user_run",
+    "db_path": "/tmp/claude-0/-home-user-AgentMeter/f95f081c-99a8-5b6a-bbf5-1ebe40ebd0de/scratchpad/golden/g/session.db",
+    "config_path": "/tmp/claude-0/-home-user-AgentMeter/f95f081c-99a8-5b6a-bbf5-1ebe40ebd0de/scratchpad/golden/g/session_config.yaml",
+    "note": "USER/CUSTOM RUN \u2014 NOT the validated baseline. These numbers are exploratory (resource efficiency only); they do not change the locked SAW ranking or statistics and must not be merged into them."
+  },
+  "per_class": {
+    "note": "RESOURCE cost per attack class (not detection quality). latency = scenario_total_time_s; vram = mean scenario_peak_vram_mb (MARGINAL working memory, excludes weights); tokens = per-scenario input+output summed over the 4 agents. accuracy is a plain secondary field (mean of the stored `correct` flag), never a ranking. Grouped by the scenario's true class (scenario_results.held_out_label). No classes are invented; empty (model, class) cells report n=0 with null stats.",
+    "classes": [
+      "Brute Force",
+      "Volumetric DDoS",
+      "Port Scanning",
+      "DoS Hulk",
+      "Benign"
+    ],
+    "table": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Brute Force",
+        "n": 2,
+        "mean_latency_s": 0.00027595299998495193,
+        "median_latency_s": 0.00027595299998495193,
+        "mean_vram_mb": null,
+        "median_vram_mb": null,
+        "mean_tokens": 1431.0,
+        "median_tokens": 1431.0,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Volumetric DDoS",
+        "n": 2,
+        "mean_latency_s": 0.0003558564999934788,
+        "median_latency_s": 0.0003558564999934788,
+        "mean_vram_mb": null,
+        "median_vram_mb": null,
+        "mean_tokens": 1431.0,
+        "median_tokens": 1431.0,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Port Scanning",
+        "n": 2,
+        "mean_latency_s": 0.00041080850002117586,
+        "median_latency_s": 0.00041080850002117586,
+        "mean_vram_mb": null,
+        "median_vram_mb": null,
+        "mean_tokens": 1431.0,
+        "median_tokens": 1431.0,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "DoS Hulk",
+        "n": 2,
+        "mean_latency_s": 0.0002714960000105293,
+        "median_latency_s": 0.0002714960000105293,
+        "mean_vram_mb": null,
+        "median_vram_mb": null,
+        "mean_tokens": 1431.0,
+        "median_tokens": 1431.0,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Benign",
+        "n": 2,
+        "mean_latency_s": 0.0002549170000207823,
+        "median_latency_s": 0.0002549170000207823,
+        "mean_vram_mb": null,
+        "median_vram_mb": null,
+        "mean_tokens": 1431.0,
+        "median_tokens": 1431.0,
+        "accuracy": 1.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Brute Force",
+        "n": 2,
+        "mean_latency_s": 0.0003095649999949046,
+        "median_latency_s": 0.0003095649999949046,
+        "mean_vram_mb": null,
+        "median_vram_mb": null,
+        "mean_tokens": 1431.0,
+        "median_tokens": 1431.0,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Volumetric DDoS",
+        "n": 2,
+        "mean_latency_s": 0.000455406999961383,
+        "median_latency_s": 0.000455406999961383,
+        "mean_vram_mb": null,
+        "median_vram_mb": null,
+        "mean_tokens": 1431.0,
+        "median_tokens": 1431.0,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Port Scanning",
+        "n": 2,
+        "mean_latency_s": 0.00038700700000049437,
+        "median_latency_s": 0.00038700700000049437,
+        "mean_vram_mb": null,
+        "median_vram_mb": null,
+        "mean_tokens": 1431.0,
+        "median_tokens": 1431.0,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "DoS Hulk",
+        "n": 2,
+        "mean_latency_s": 0.00044658599999536364,
+        "median_latency_s": 0.00044658599999536364,
+        "mean_vram_mb": null,
+        "median_vram_mb": null,
+        "mean_tokens": 1431.0,
+        "median_tokens": 1431.0,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Benign",
+        "n": 2,
+        "mean_latency_s": 0.00033267250000790227,
+        "median_latency_s": 0.00033267250000790227,
+        "mean_vram_mb": null,
+        "median_vram_mb": null,
+        "mean_tokens": 1431.0,
+        "median_tokens": 1431.0,
+        "accuracy": 1.0
+      }
+    ],
+    "per_agent": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Benign",
+        "agent_name": "act",
+        "n": 2,
+        "mean_wall_s": 1.7321500010325508e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Benign",
+        "agent_name": "decide",
+        "n": 2,
+        "mean_wall_s": 8.112599999776648e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Benign",
+        "agent_name": "perceive",
+        "n": 2,
+        "mean_wall_s": 7.941650001441758e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Benign",
+        "agent_name": "reason",
+        "n": 2,
+        "mean_wall_s": 7.705299999827275e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Brute Force",
+        "agent_name": "act",
+        "n": 2,
+        "mean_wall_s": 1.8947499981436522e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Brute Force",
+        "agent_name": "decide",
+        "n": 2,
+        "mean_wall_s": 8.652300000733248e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Brute Force",
+        "agent_name": "perceive",
+        "n": 2,
+        "mean_wall_s": 9.101900000985097e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Brute Force",
+        "agent_name": "reason",
+        "n": 2,
+        "mean_wall_s": 7.946349998633195e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "DoS Hulk",
+        "agent_name": "act",
+        "n": 2,
+        "mean_wall_s": 1.8456999995919432e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "DoS Hulk",
+        "agent_name": "decide",
+        "n": 2,
+        "mean_wall_s": 8.947100000966657e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "DoS Hulk",
+        "agent_name": "perceive",
+        "n": 2,
+        "mean_wall_s": 8.626450001258945e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "DoS Hulk",
+        "agent_name": "reason",
+        "n": 2,
+        "mean_wall_s": 7.730349999235386e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Port Scanning",
+        "agent_name": "act",
+        "n": 2,
+        "mean_wall_s": 2.0549500007405186e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Port Scanning",
+        "agent_name": "decide",
+        "n": 2,
+        "mean_wall_s": 0.00011852500000486543,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Port Scanning",
+        "agent_name": "perceive",
+        "n": 2,
+        "mean_wall_s": 0.00015007100000730134,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Port Scanning",
+        "agent_name": "reason",
+        "n": 2,
+        "mean_wall_s": 0.0001216630000016039,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Volumetric DDoS",
+        "agent_name": "act",
+        "n": 2,
+        "mean_wall_s": 2.068899999585483e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Volumetric DDoS",
+        "agent_name": "decide",
+        "n": 2,
+        "mean_wall_s": 0.00010598699999775363,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Volumetric DDoS",
+        "agent_name": "perceive",
+        "n": 2,
+        "mean_wall_s": 0.00011460750000935604,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Volumetric DDoS",
+        "agent_name": "reason",
+        "n": 2,
+        "mean_wall_s": 0.00011457299999051429,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Benign",
+        "agent_name": "act",
+        "n": 2,
+        "mean_wall_s": 2.263150001624581e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Benign",
+        "agent_name": "decide",
+        "n": 2,
+        "mean_wall_s": 0.00010726700000418532,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Benign",
+        "agent_name": "perceive",
+        "n": 2,
+        "mean_wall_s": 0.00010471849999760252,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Benign",
+        "agent_name": "reason",
+        "n": 2,
+        "mean_wall_s": 9.805549998986862e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Brute Force",
+        "agent_name": "act",
+        "n": 2,
+        "mean_wall_s": 1.9417499999008214e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Brute Force",
+        "agent_name": "decide",
+        "n": 2,
+        "mean_wall_s": 8.438999999782482e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Brute Force",
+        "agent_name": "perceive",
+        "n": 2,
+        "mean_wall_s": 0.00010626600000307462,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Brute Force",
+        "agent_name": "reason",
+        "n": 2,
+        "mean_wall_s": 9.949149999499696e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "DoS Hulk",
+        "agent_name": "act",
+        "n": 2,
+        "mean_wall_s": 2.4861500008910298e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "DoS Hulk",
+        "agent_name": "decide",
+        "n": 2,
+        "mean_wall_s": 0.00013970300000210045,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "DoS Hulk",
+        "agent_name": "perceive",
+        "n": 2,
+        "mean_wall_s": 0.00016643399999338726,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "DoS Hulk",
+        "agent_name": "reason",
+        "n": 2,
+        "mean_wall_s": 0.00011558749999096563,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Port Scanning",
+        "agent_name": "act",
+        "n": 2,
+        "mean_wall_s": 2.1021999998538377e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Port Scanning",
+        "agent_name": "decide",
+        "n": 2,
+        "mean_wall_s": 0.00014458549999574188,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Port Scanning",
+        "agent_name": "perceive",
+        "n": 2,
+        "mean_wall_s": 0.00014668100000392315,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Port Scanning",
+        "agent_name": "reason",
+        "n": 2,
+        "mean_wall_s": 7.471850000229097e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Volumetric DDoS",
+        "agent_name": "act",
+        "n": 2,
+        "mean_wall_s": 2.419249999263684e-05,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Volumetric DDoS",
+        "agent_name": "decide",
+        "n": 2,
+        "mean_wall_s": 0.00016480599998658363,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Volumetric DDoS",
+        "agent_name": "perceive",
+        "n": 2,
+        "mean_wall_s": 0.0001273619999864195,
+        "mean_vram_delta_mb": null
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Volumetric DDoS",
+        "agent_name": "reason",
+        "n": 2,
+        "mean_wall_s": 0.00013904649999574303,
+        "mean_vram_delta_mb": null
+      }
+    ]
+  },
+  "advanced": {
+    "note": "Read-only analytical expansion computed from the existing locked run data (no re-runs). Resource/measurement framing only. TTFT is the per-agent time-to-first-token (prefill proxy); decode = wall_time_s - ttft_s. VRAM elsewhere is marginal working memory. misclass_cost compares RESOURCE COST when right vs wrong \u2014 it does not analyse or rank why models misclassify.",
+    "pareto": {
+      "note": "Accuracy (higher better) vs mean latency / mean tokens (lower better). pareto_latency / pareto_tokens flag the non-dominated models on each front.",
+      "points": [
+        {
+          "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+          "n": 10,
+          "accuracy": 0.2,
+          "accuracy_pct": 20.0,
+          "mean_latency_s": 0.0003138062000061836,
+          "mean_tokens": 1431.0,
+          "pareto_latency": true,
+          "pareto_tokens": true
+        },
+        {
+          "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+          "n": 10,
+          "accuracy": 0.2,
+          "accuracy_pct": 20.0,
+          "mean_latency_s": 0.0003862474999920096,
+          "mean_tokens": 1431.0,
+          "pareto_latency": false,
+          "pareto_tokens": true
+        }
+      ]
+    },
+    "latency_cov": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "n": 10,
+        "mean_latency_s": 0.0003138062000061836,
+        "std_latency_s": 9.121019325293108e-05,
+        "cov": 0.29065771565741455
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "n": 10,
+        "mean_latency_s": 0.0003862474999920096,
+        "std_latency_s": 9.843397123183199e-05,
+        "cov": 0.2548468824623287
+      }
+    ],
+    "prefill_decode": {
+      "per_model": [
+        {
+          "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+          "n": 10,
+          "mean_prefill_s": 0.0,
+          "mean_decode_s": 0.0003138062000061836
+        },
+        {
+          "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+          "n": 10,
+          "mean_prefill_s": 0.0,
+          "mean_decode_s": 0.0003862474999920096
+        }
+      ],
+      "per_agent": [
+        {
+          "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+          "agent_name": "act",
+          "n": 10,
+          "mean_prefill_s": 0.0,
+          "mean_decode_s": 1.9192899998188295e-05
+        },
+        {
+          "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+          "agent_name": "decide",
+          "n": 10,
+          "mean_prefill_s": 0.0,
+          "mean_decode_s": 9.632640000347691e-05
+        },
+        {
+          "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+          "agent_name": "perceive",
+          "n": 10,
+          "mean_prefill_s": 0.0,
+          "mean_decode_s": 0.00010427570001070308
+        },
+        {
+          "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+          "agent_name": "reason",
+          "n": 10,
+          "mean_prefill_s": 0.0,
+          "mean_decode_s": 9.401119999381535e-05
+        },
+        {
+          "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+          "agent_name": "act",
+          "n": 10,
+          "mean_prefill_s": 0.0,
+          "mean_decode_s": 2.242500000306791e-05
+        },
+        {
+          "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+          "agent_name": "decide",
+          "n": 10,
+          "mean_prefill_s": 0.0,
+          "mean_decode_s": 0.0001281502999972872
+        },
+        {
+          "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+          "agent_name": "perceive",
+          "n": 10,
+          "mean_prefill_s": 0.0,
+          "mean_decode_s": 0.0001302922999968814
+        },
+        {
+          "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+          "agent_name": "reason",
+          "n": 10,
+          "mean_prefill_s": 0.0,
+          "mean_decode_s": 0.00010537989999477304
+        }
+      ]
+    },
+    "throughput": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "n": 10,
+        "total_output_tokens": 500.0,
+        "total_decode_s": 0.0031380620000618364,
+        "tokens_per_s": 159334.0093312839,
+        "mean_output_tokens": 50.0,
+        "mean_decode_s": 0.0003138062000061836
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "n": 10,
+        "total_output_tokens": 500.0,
+        "total_decode_s": 0.003862474999920096,
+        "tokens_per_s": 129450.67605883369,
+        "mean_output_tokens": 50.0,
+        "mean_decode_s": 0.0003862474999920096
+      }
+    ],
+    "misclass_cost": {
+      "note": "RESOURCE cost when a model is right (correct = TP/TN) vs wrong (incorrect = FP/FN). Cost comparison only \u2014 not an analysis of why models misclassify or which detects better.",
+      "rows": [
+        {
+          "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+          "group": "correct",
+          "n": 2,
+          "mean_latency_s": 0.0002549170000207823,
+          "mean_tokens": 1431.0
+        },
+        {
+          "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+          "group": "incorrect",
+          "n": 8,
+          "mean_latency_s": 0.000328528500002534,
+          "mean_tokens": 1431.0
+        },
+        {
+          "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+          "group": "correct",
+          "n": 2,
+          "mean_latency_s": 0.00033267250000790227,
+          "mean_tokens": 1431.0
+        },
+        {
+          "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+          "group": "incorrect",
+          "n": 8,
+          "mean_latency_s": 0.0003996412499880364,
+          "mean_tokens": 1431.0
+        }
+      ]
+    }
+  },
+  "phase7": {
+    "per_model": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "n": 10,
+        "n_correct": 2,
+        "accuracy": 0.2,
+        "n_unparseable": 0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "n": 10,
+        "n_correct": 2,
+        "accuracy": 0.2,
+        "n_unparseable": 0
+      }
+    ],
+    "per_class": [
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Brute Force",
+        "support": 2,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Volumetric DDoS",
+        "support": 2,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Port Scanning",
+        "support": 2,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "DoS Hulk",
+        "support": 2,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:Qwen/Qwen2.5-7B-Instruct",
+        "class": "Benign",
+        "support": 2,
+        "accuracy": 1.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Brute Force",
+        "support": 2,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Volumetric DDoS",
+        "support": 2,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Port Scanning",
+        "support": 2,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "DoS Hulk",
+        "support": 2,
+        "accuracy": 0.0
+      },
+      {
+        "model": "mock:microsoft/Phi-3-mini-4k-instruct",
+        "class": "Benign",
+        "support": 2,
+        "accuracy": 1.0
+      }
+    ],
+    "confusion": {
+      "mock:Qwen/Qwen2.5-7B-Instruct": {
+        "Brute Force": {
+          "Brute Force": 0,
+          "Volumetric DDoS": 0,
+          "Port Scanning": 0,
+          "DoS Hulk": 0,
+          "Benign": 2,
+          "Unparseable": 0
+        },
+        "Volumetric DDoS": {
+          "Brute Force": 0,
+          "Volumetric DDoS": 0,
+          "Port Scanning": 0,
+          "DoS Hulk": 0,
+          "Benign": 2,
+          "Unparseable": 0
+        },
+        "Port Scanning": {
+          "Brute Force": 0,
+          "Volumetric DDoS": 0,
+          "Port Scanning": 0,
+          "DoS Hulk": 0,
+          "Benign": 2,
+          "Unparseable": 0
+        },
+        "DoS Hulk": {
+          "Brute Force": 0,
+          "Volumetric DDoS": 0,
+          "Port Scanning": 0,
+          "DoS Hulk": 0,
+          "Benign": 2,
+          "Unparseable": 0
+        },
+        "Benign": {
+          "Brute Force": 0,
+          "Volumetric DDoS": 0,
+          "Port Scanning": 0,
+          "DoS Hulk": 0,
+          "Benign": 2,
+          "Unparseable": 0
+        }
+      },
+      "mock:microsoft/Phi-3-mini-4k-instruct": {
+        "Brute Force": {
+          "Brute Force": 0,
+          "Volumetric DDoS": 0,
+          "Port Scanning": 0,
+          "DoS Hulk": 0,
+          "Benign": 2,
+          "Unparseable": 0
+        },
+        "Volumetric DDoS": {
+          "Brute Force": 0,
+          "Volumetric DDoS": 0,
+          "Port Scanning": 0,
+          "DoS Hulk": 0,
+          "Benign": 2,
+          "Unparseable": 0
+        },
+        "Port Scanning": {
+          "Brute Force": 0,
+          "Volumetric DDoS": 0,
+          "Port Scanning": 0,
+          "DoS Hulk": 0,
+          "Benign": 2,
+          "Unparseable": 0
+        },
+        "DoS Hulk": {
+          "Brute Force": 0,
+          "Volumetric DDoS": 0,
+          "Port Scanning": 0,
+          "DoS Hulk": 0,
+          "Benign": 2,
+          "Unparseable": 0
+        },
+        "Benign": {
+          "Brute Force": 0,
+          "Volumetric DDoS": 0,
+          "Port Scanning": 0,
+          "DoS Hulk": 0,
+          "Benign": 2,
+          "Unparseable": 0
+        }
+      }
+    }
+  },
+  "environment": {
+    "provider": "mock",
+    "provider_note": "MOCK provider: deterministic heuristic, not a language model \u2014 not a measurement",
+    "gpu_name": null,
+    "gpu_count": null,
+    "gpu_vram_total_mb": null,
+    "driver_version": null,
+    "cuda_driver_version": null,
+    "cuda_runtime_version": null,
+    "torch": null,
+    "transformers": null,
+    "bitsandbytes": null,
+    "python": "3.13.16",
+    "host": "vm"
+  },
+  "model_context": {
+    "source": "Hugging Face Hub API",
+    "api": "https://huggingface.co/api/models/<model id>",
+    "purpose": "context only \u2014 never used for any score, rank, SAW value or verdict",
+    "status": "unavailable",
+    "reason": "disabled (AGENTMETER_HF_METADATA=off)",
+    "models": {
+      "Qwen/Qwen2.5-7B-Instruct": {
+        "status": "unavailable",
+        "reason": "disabled (AGENTMETER_HF_METADATA=off)",
+        "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+        "fetched_at": null
+      },
+      "microsoft/Phi-3-mini-4k-instruct": {
+        "status": "unavailable",
+        "reason": "disabled (AGENTMETER_HF_METADATA=off)",
+        "source_url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct",
+        "fetched_at": null
+      }
+    }
+  },
+  "recommendation_stage3": {
+    "stage": 3,
+    "rulebase": "configs/recommendation_rules.yaml",
+    "version": 1,
+    "framing": "Context for the measured result, from external Hugging Face metadata. It never changes a score, rank, SAW value or the efficiency verdict.",
+    "verdict": {
+      "kind": "head_to_head",
+      "verdict": "more_efficient",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "text": "Qwen/Qwen2.5-7B-Instruct is more resource-efficient than microsoft/Phi-3-mini-4k-instruct: 18.8% lower latency (tie on mean tokens per flow) (mean peak working VRAM: not available). Accuracy: tie (Qwen/Qwen2.5-7B-Instruct 20.0% vs microsoft/Phi-3-mini-4k-instruct 20.0%).",
+      "source": "measured"
+    },
+    "notes": [],
+    "rules": [
+      {
+        "rule": "gated_access",
+        "description": "The model is gated on Hugging Face.",
+        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "condition": "hf.gated truthy",
+        "result": "no_data",
+        "detail": "no data for hf.gated",
+        "sources": [
+          "huggingface"
+        ],
+        "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+        "fetched_at": null
+      },
+      {
+        "rule": "gated_access",
+        "description": "The model is gated on Hugging Face.",
+        "model": "microsoft/Phi-3-mini-4k-instruct",
+        "condition": "hf.gated truthy",
+        "result": "no_data",
+        "detail": "no data for hf.gated",
+        "sources": [
+          "huggingface"
+        ],
+        "source_url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct",
+        "fetched_at": null
+      },
+      {
+        "rule": "custom_licence",
+        "description": "The model uses a custom or non-OSI licence; its terms should be checked.",
+        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "condition": "hf.license matches $custom_licence",
+        "result": "no_data",
+        "detail": "no data for hf.license",
+        "sources": [
+          "huggingface"
+        ],
+        "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+        "fetched_at": null
+      },
+      {
+        "rule": "custom_licence",
+        "description": "The model uses a custom or non-OSI licence; its terms should be checked.",
+        "model": "microsoft/Phi-3-mini-4k-instruct",
+        "condition": "hf.license matches $custom_licence",
+        "result": "no_data",
+        "detail": "no data for hf.license",
+        "sources": [
+          "huggingface"
+        ],
+        "source_url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct",
+        "fetched_at": null
+      },
+      {
+        "rule": "vram_headroom",
+        "description": "How much VRAM headroom the session's GPU had for this model.",
+        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "condition": "measured.peak_vram_mb present AND env.gpu_vram_total_mb present",
+        "result": "no_data",
+        "detail": "no data for measured.peak_vram_mb; no data for env.gpu_vram_total_mb",
+        "sources": [
+          "measured",
+          "session_gpu",
+          "huggingface"
+        ],
+        "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+        "fetched_at": null
+      },
+      {
+        "rule": "vram_headroom",
+        "description": "How much VRAM headroom the session's GPU had for this model.",
+        "model": "microsoft/Phi-3-mini-4k-instruct",
+        "condition": "measured.peak_vram_mb present AND env.gpu_vram_total_mb present",
+        "result": "no_data",
+        "detail": "no data for measured.peak_vram_mb; no data for env.gpu_vram_total_mb",
+        "sources": [
+          "measured",
+          "session_gpu",
+          "huggingface"
+        ],
+        "source_url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct",
+        "fetched_at": null
+      },
+      {
+        "rule": "model_age",
+        "description": "The model has not been updated on Hugging Face for a long time.",
+        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "condition": "derived.age_months gt $stale_after_months",
+        "result": "no_data",
+        "detail": "no data for derived.age_months",
+        "sources": [
+          "huggingface"
+        ],
+        "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+        "fetched_at": null
+      },
+      {
+        "rule": "model_age",
+        "description": "The model has not been updated on Hugging Face for a long time.",
+        "model": "microsoft/Phi-3-mini-4k-instruct",
+        "condition": "derived.age_months gt $stale_after_months",
+        "result": "no_data",
+        "detail": "no data for derived.age_months",
+        "sources": [
+          "huggingface"
+        ],
+        "source_url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct",
+        "fetched_at": null
+      },
+      {
+        "rule": "efficiency_consistent_with_size",
+        "description": "The more efficient model is also the smaller one (co-occurrence, not a cause).",
+        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "condition": "measured.is_efficiency_winner eq True AND derived.smaller_than_other eq True",
+        "result": "no_data",
+        "detail": "no data for derived.smaller_than_other",
+        "sources": [
+          "measured",
+          "huggingface"
+        ],
+        "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+        "fetched_at": null
+      },
+      {
+        "rule": "efficiency_consistent_with_size",
+        "description": "The more efficient model is also the smaller one (co-occurrence, not a cause).",
+        "model": "microsoft/Phi-3-mini-4k-instruct",
+        "condition": "measured.is_efficiency_winner eq True AND derived.smaller_than_other eq True",
+        "result": "no_data",
+        "detail": "no data for derived.smaller_than_other",
+        "sources": [
+          "measured",
+          "huggingface"
+        ],
+        "source_url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct",
+        "fetched_at": null
+      },
+      {
+        "rule": "low_adoption",
+        "description": "Few downloads on Hugging Face.",
+        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "condition": "hf.downloads lt $low_downloads",
+        "result": "no_data",
+        "detail": "no data for hf.downloads",
+        "sources": [
+          "huggingface"
+        ],
+        "source_url": "https://huggingface.co/Qwen/Qwen2.5-7B-Instruct",
+        "fetched_at": null
+      },
+      {
+        "rule": "low_adoption",
+        "description": "Few downloads on Hugging Face.",
+        "model": "microsoft/Phi-3-mini-4k-instruct",
+        "condition": "hf.downloads lt $low_downloads",
+        "result": "no_data",
+        "detail": "no data for hf.downloads",
+        "sources": [
+          "huggingface"
+        ],
+        "source_url": "https://huggingface.co/microsoft/Phi-3-mini-4k-instruct",
+        "fetched_at": null
+      }
+    ],
+    "metadata_status": "unavailable",
+    "fired": []
+  }
+}

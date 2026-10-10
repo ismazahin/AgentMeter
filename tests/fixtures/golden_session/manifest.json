@@ -1,0 +1,129 @@
+{
+  "run_name": "g",
+  "source_file": "cicids2017_sample.csv",
+  "input": {
+    "source_type": "csv",
+    "input_role": "labelled_csv",
+    "evaluation_mode": "accuracy_available"
+  },
+  "validation": {
+    "file": "cicids2017_sample.csv",
+    "file_size_bytes": 15093,
+    "rows_read": 43,
+    "rows_in_pool": 43,
+    "rows_usable": 40,
+    "rows_dropped_nan_inf": 1,
+    "rows_excluded_out_of_taxonomy": 2,
+    "rows_excluded_missing_label": 0,
+    "sampling": {
+      "method": "full_file",
+      "description": "all 43 rows of the file (within the 500,000-row pool cap)",
+      "rows_in_file": 43,
+      "pool_rows": 43,
+      "max_pool_rows": 500000,
+      "stratified_by": "Label",
+      "seed": null,
+      "strata_in_file": {
+        "BENIGN": 9,
+        "DDoS": 8,
+        "DoS Hulk": 8,
+        "DoS slowloris": 2,
+        "FTP-Patator": 4,
+        "PortScan": 8,
+        "SSH-Patator": 4
+      },
+      "strata_in_pool": {
+        "BENIGN": 9,
+        "DDoS": 8,
+        "DoS Hulk": 8,
+        "DoS slowloris": 2,
+        "FTP-Patator": 4,
+        "PortScan": 8,
+        "SSH-Patator": 4
+      },
+      "class_counts_in_file": {
+        "Benign": 9,
+        "Brute Force": 8,
+        "DoS Hulk": 8,
+        "Port Scanning": 8,
+        "Volumetric DDoS": 8
+      }
+    },
+    "columns": {
+      "expected": 78,
+      "present": 78,
+      "missing": [],
+      "extra_ignored": [],
+      "meta_found": []
+    },
+    "non_numeric_values": {},
+    "notes": [
+      "no Protocol column (MachineLearningCVE format): protocol_name is 'unknown', so protocol-coverage rules see a single group",
+      "rows with attack labels outside the 5 study classes were excluded; enable other_attack (--other-attack) to keep them as 'Other Attack'"
+    ],
+    "label": {
+      "column": "Label",
+      "found": true,
+      "raw_distribution": {
+        "BENIGN": 9,
+        "DoS Hulk": 8,
+        "DDoS": 8,
+        "PortScan": 8,
+        "FTP-Patator": 4,
+        "SSH-Patator": 4,
+        "DoS slowloris": 2
+      },
+      "excluded_out_of_taxonomy": {
+        "DoS slowloris": 2
+      },
+      "distribution": {
+        "Benign": 8,
+        "Brute Force": 8,
+        "DoS Hulk": 8,
+        "Volumetric DDoS": 8,
+        "Port Scanning": 8
+      },
+      "mapping": "config.yaml data_prep.label_map (raw CIC label -> canonical class)",
+      "classes": [
+        "Brute Force",
+        "Volumetric DDoS",
+        "Port Scanning",
+        "DoS Hulk",
+        "Benign"
+      ],
+      "other_attack": {
+        "enabled": false,
+        "rows": 0,
+        "sources": {}
+      }
+    },
+    "class_scheme": {
+      "name": "5-class",
+      "classes": [
+        "Brute Force",
+        "Volumetric DDoS",
+        "Port Scanning",
+        "DoS Hulk",
+        "Benign"
+      ],
+      "other_attack_enabled": false,
+      "note": "the 5 study classes"
+    }
+  },
+  "selection": {
+    "rulebase": "/home/user/AgentMeter/configs/flow_rules.yaml",
+    "max_flows": 10,
+    "selected": 10,
+    "rules_fired": [
+      "class_balance",
+      "protocol_coverage",
+      "port_coverage",
+      "high_packet_count",
+      "long_duration",
+      "high_volume",
+      "very_long_lived",
+      "typical_baseline"
+    ]
+  },
+  "output_dir": "/tmp/claude-0/-home-user-AgentMeter/f95f081c-99a8-5b6a-bbf5-1ebe40ebd0de/scratchpad/golden/g"
+}

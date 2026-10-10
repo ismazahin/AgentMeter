@@ -1,0 +1,443 @@
+{
+  "framing": "Statistical sampling \u2014 rules use flow statistics to keep analysis bounded; no rule makes a threat judgement. Class balance read held-out labels for SELECTION only; the model never sees them.",
+  "label_aware": true,
+  "total_flows": 40,
+  "max_flows": 10,
+  "selected": 10,
+  "seed": 42,
+  "rules_fired": [
+    "class_balance",
+    "protocol_coverage",
+    "port_coverage",
+    "high_packet_count",
+    "long_duration",
+    "high_volume",
+    "very_long_lived",
+    "typical_baseline"
+  ],
+  "rules": [
+    {
+      "id": "class_balance",
+      "type": "class_balance",
+      "kind": "constraint",
+      "description": "Equal share of the budget per label class present (labelled CSV only).",
+      "enabled": true,
+      "params": {
+        "mode": "equal"
+      },
+      "quota": null,
+      "reserve": 0,
+      "computed": {
+        "applied": true,
+        "class_counts": {
+          "Benign": 8,
+          "Brute Force": 8,
+          "DoS Hulk": 8,
+          "Volumetric DDoS": 8,
+          "Port Scanning": 8
+        },
+        "caps": {
+          "Benign": 2,
+          "Brute Force": 2,
+          "DoS Hulk": 2,
+          "Volumetric DDoS": 2,
+          "Port Scanning": 2
+        },
+        "selected_per_class": {
+          "Benign": 2,
+          "Brute Force": 2,
+          "DoS Hulk": 2,
+          "Volumetric DDoS": 2,
+          "Port Scanning": 2
+        }
+      },
+      "matched": 40,
+      "admitted": 0,
+      "already_selected": 0,
+      "not_taken_quota_or_budget": 0,
+      "blocked_by_class_cap": 8,
+      "fired": true
+    },
+    {
+      "id": "protocol_coverage",
+      "type": "per_group",
+      "kind": "admission",
+      "description": "Every transport protocol in the capture is represented.",
+      "enabled": true,
+      "params": {
+        "group_by": "protocol_name",
+        "per_group": 25,
+        "order_by": "random"
+      },
+      "quota": 1,
+      "reserve": 1,
+      "computed": {
+        "groups_total": 1,
+        "groups_used": 1
+      },
+      "matched": 25,
+      "admitted": 1,
+      "already_selected": 0,
+      "not_taken_quota_or_budget": 24,
+      "blocked_by_class_cap": 0,
+      "fired": true
+    },
+    {
+      "id": "port_coverage",
+      "type": "per_group",
+      "kind": "admission",
+      "description": "The busiest destination ports each contribute a few flows.",
+      "enabled": true,
+      "params": {
+        "group_by": "Destination Port",
+        "max_groups": 20,
+        "per_group": 3,
+        "order_by": "random"
+      },
+      "quota": 2,
+      "reserve": 0,
+      "computed": {
+        "groups_total": 17,
+        "groups_used": 17
+      },
+      "matched": 21,
+      "admitted": 2,
+      "already_selected": 1,
+      "not_taken_quota_or_budget": 18,
+      "blocked_by_class_cap": 0,
+      "fired": true
+    },
+    {
+      "id": "high_packet_count",
+      "type": "top_percentile",
+      "kind": "admission",
+      "description": "Flows with an unusually high packet count for this capture.",
+      "enabled": true,
+      "params": {
+        "field": "total_packets",
+        "percentile": 95
+      },
+      "quota": 2,
+      "reserve": 0,
+      "computed": {
+        "threshold": 24.0,
+        "median": 4.5
+      },
+      "matched": 4,
+      "admitted": 1,
+      "already_selected": 1,
+      "not_taken_quota_or_budget": 2,
+      "blocked_by_class_cap": 2,
+      "fired": true
+    },
+    {
+      "id": "long_duration",
+      "type": "top_percentile",
+      "kind": "admission",
+      "description": "Flows that lasted unusually long for this capture.",
+      "enabled": true,
+      "params": {
+        "field": "Flow Duration",
+        "percentile": 95
+      },
+      "quota": 2,
+      "reserve": 0,
+      "computed": {
+        "threshold": 86377889.69999996,
+        "median": 91326.5
+      },
+      "matched": 2,
+      "admitted": 2,
+      "already_selected": 0,
+      "not_taken_quota_or_budget": 0,
+      "blocked_by_class_cap": 0,
+      "fired": true
+    },
+    {
+      "id": "high_volume",
+      "type": "top_percentile",
+      "kind": "admission",
+      "description": "Flows that moved an unusually large number of bytes.",
+      "enabled": true,
+      "params": {
+        "field": "total_bytes",
+        "percentile": 95
+      },
+      "quota": 2,
+      "reserve": 0,
+      "computed": {
+        "threshold": 12042.199999999995,
+        "median": 33.0
+      },
+      "matched": 2,
+      "admitted": 1,
+      "already_selected": 1,
+      "not_taken_quota_or_budget": 0,
+      "blocked_by_class_cap": 0,
+      "fired": true
+    },
+    {
+      "id": "very_long_lived",
+      "type": "threshold",
+      "kind": "admission",
+      "description": "Any flow lasting over 60 s (absolute limit, microseconds).",
+      "enabled": true,
+      "params": {
+        "field": "Flow Duration",
+        "op": ">=",
+        "value": 60000000
+      },
+      "quota": 1,
+      "reserve": 0,
+      "computed": {},
+      "matched": 8,
+      "admitted": 1,
+      "already_selected": 2,
+      "not_taken_quota_or_budget": 5,
+      "blocked_by_class_cap": 0,
+      "fired": true
+    },
+    {
+      "id": "typical_baseline",
+      "type": "typical_band",
+      "kind": "admission",
+      "description": "Typical flows (inter-quartile on size and length) kept for balance.",
+      "enabled": true,
+      "params": {
+        "fields": [
+          "total_packets",
+          "Flow Duration",
+          "total_bytes"
+        ],
+        "band": [
+          25,
+          75
+        ]
+      },
+      "quota": 3,
+      "reserve": 2,
+      "computed": {
+        "bounds": {
+          "total_packets": [
+            2.0,
+            12.25
+          ],
+          "Flow Duration": [
+            75.0,
+            9833930.0
+          ],
+          "total_bytes": [
+            8.0,
+            11663.0
+          ]
+        }
+      },
+      "matched": 13,
+      "admitted": 2,
+      "already_selected": 1,
+      "not_taken_quota_or_budget": 10,
+      "blocked_by_class_cap": 6,
+      "fired": true
+    },
+    {
+      "id": "fill_remaining",
+      "type": "random_fill",
+      "kind": "admission",
+      "description": "Spend any budget left with a seeded random sample.",
+      "enabled": true,
+      "params": {},
+      "quota": null,
+      "reserve": 0,
+      "computed": {},
+      "matched": 40,
+      "admitted": 0,
+      "already_selected": 10,
+      "not_taken_quota_or_budget": 30,
+      "blocked_by_class_cap": 0,
+      "fired": false
+    }
+  ],
+  "flows": [
+    {
+      "flow_id": "row0000035",
+      "admitted_by": "protocol_coverage",
+      "reason": "protocol_name=unknown: pick #1 of up to 25 from a group of 40 flows, ordered by random (seeded)",
+      "also_matched": [
+        {
+          "rule": "port_coverage",
+          "reason": "Destination Port=34573: pick #1 of up to 3 from a group of 1 flows, ordered by random (seeded)"
+        },
+        {
+          "rule": "fill_remaining",
+          "reason": "budget left after the rules above; seeded random fill"
+        }
+      ]
+    },
+    {
+      "flow_id": "row0000027",
+      "admitted_by": "port_coverage",
+      "reason": "Destination Port=80: pick #1 of up to 3 from a group of 18 flows, ordered by random (seeded)",
+      "also_matched": [
+        {
+          "rule": "protocol_coverage",
+          "reason": "protocol_name=unknown: pick #14 of up to 25 from a group of 40 flows, ordered by random (seeded)"
+        },
+        {
+          "rule": "typical_baseline",
+          "reason": "total_packets, Flow Duration, total_bytes all within p25\u2013p75 of this capture (typical flow)"
+        },
+        {
+          "rule": "fill_remaining",
+          "reason": "budget left after the rules above; seeded random fill"
+        }
+      ]
+    },
+    {
+      "flow_id": "row0000011",
+      "admitted_by": "port_coverage",
+      "reason": "Destination Port=21: pick #1 of up to 3 from a group of 7 flows, ordered by random (seeded)",
+      "also_matched": [
+        {
+          "rule": "protocol_coverage",
+          "reason": "protocol_name=unknown: pick #24 of up to 25 from a group of 40 flows, ordered by random (seeded)"
+        },
+        {
+          "rule": "high_packet_count",
+          "reason": "total_packets = 24 \u2265 p95 of this capture (24); median 4.5"
+        },
+        {
+          "rule": "fill_remaining",
+          "reason": "budget left after the rules above; seeded random fill"
+        }
+      ]
+    },
+    {
+      "flow_id": "row0000012",
+      "admitted_by": "high_packet_count",
+      "reason": "total_packets = 55 \u2265 p95 of this capture (24); median 4.5",
+      "also_matched": [
+        {
+          "rule": "protocol_coverage",
+          "reason": "protocol_name=unknown: pick #15 of up to 25 from a group of 40 flows, ordered by random (seeded)"
+        },
+        {
+          "rule": "port_coverage",
+          "reason": "Destination Port=22: pick #1 of up to 3 from a group of 1 flows, ordered by random (seeded)"
+        },
+        {
+          "rule": "fill_remaining",
+          "reason": "budget left after the rules above; seeded random fill"
+        }
+      ]
+    },
+    {
+      "flow_id": "row0000023",
+      "admitted_by": "long_duration",
+      "reason": "Flow Duration = 103,271,602 \u2265 p95 of this capture (86,377,890); median 91,326",
+      "also_matched": [
+        {
+          "rule": "protocol_coverage",
+          "reason": "protocol_name=unknown: pick #12 of up to 25 from a group of 40 flows, ordered by random (seeded)"
+        },
+        {
+          "rule": "high_volume",
+          "reason": "total_bytes = 13,737 \u2265 p95 of this capture (12,042); median 33"
+        },
+        {
+          "rule": "very_long_lived",
+          "reason": "Flow Duration = 103,271,602 >= 60,000,000"
+        },
+        {
+          "rule": "fill_remaining",
+          "reason": "budget left after the rules above; seeded random fill"
+        }
+      ]
+    },
+    {
+      "flow_id": "row0000033",
+      "admitted_by": "long_duration",
+      "reason": "Flow Duration = 98,200,159 \u2265 p95 of this capture (86,377,890); median 91,326",
+      "also_matched": [
+        {
+          "rule": "protocol_coverage",
+          "reason": "protocol_name=unknown: pick #18 of up to 25 from a group of 40 flows, ordered by random (seeded)"
+        },
+        {
+          "rule": "very_long_lived",
+          "reason": "Flow Duration = 98,200,159 >= 60,000,000"
+        },
+        {
+          "rule": "fill_remaining",
+          "reason": "budget left after the rules above; seeded random fill"
+        }
+      ]
+    },
+    {
+      "flow_id": "row0000007",
+      "admitted_by": "high_volume",
+      "reason": "total_bytes = 18,491 \u2265 p95 of this capture (12,042); median 33",
+      "also_matched": [
+        {
+          "rule": "protocol_coverage",
+          "reason": "protocol_name=unknown: pick #20 of up to 25 from a group of 40 flows, ordered by random (seeded)"
+        },
+        {
+          "rule": "port_coverage",
+          "reason": "Destination Port=22966: pick #1 of up to 3 from a group of 1 flows, ordered by random (seeded)"
+        },
+        {
+          "rule": "fill_remaining",
+          "reason": "budget left after the rules above; seeded random fill"
+        }
+      ]
+    },
+    {
+      "flow_id": "row0000026",
+      "admitted_by": "very_long_lived",
+      "reason": "Flow Duration = 85,755,665 >= 60,000,000",
+      "also_matched": [
+        {
+          "rule": "protocol_coverage",
+          "reason": "protocol_name=unknown: pick #23 of up to 25 from a group of 40 flows, ordered by random (seeded)"
+        },
+        {
+          "rule": "fill_remaining",
+          "reason": "budget left after the rules above; seeded random fill"
+        }
+      ]
+    },
+    {
+      "flow_id": "row0000004",
+      "admitted_by": "typical_baseline",
+      "reason": "total_packets, Flow Duration, total_bytes all within p25\u2013p75 of this capture (typical flow)",
+      "also_matched": [
+        {
+          "rule": "fill_remaining",
+          "reason": "budget left after the rules above; seeded random fill"
+        }
+      ]
+    },
+    {
+      "flow_id": "row0000037",
+      "admitted_by": "typical_baseline",
+      "reason": "total_packets, Flow Duration, total_bytes all within p25\u2013p75 of this capture (typical flow)",
+      "also_matched": [
+        {
+          "rule": "port_coverage",
+          "reason": "Destination Port=12174: pick #1 of up to 3 from a group of 1 flows, ordered by random (seeded)"
+        },
+        {
+          "rule": "fill_remaining",
+          "reason": "budget left after the rules above; seeded random fill"
+        }
+      ]
+    }
+  ],
+  "label_distribution_selected": {
+    "Port Scanning": 2,
+    "Volumetric DDoS": 2,
+    "Brute Force": 2,
+    "DoS Hulk": 2,
+    "Benign": 2
+  }
+}

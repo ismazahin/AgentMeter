@@ -1,0 +1,11 @@
+flow_id,label_raw,label
+row0000035,PortScan,Port Scanning
+row0000027,DDoS,Volumetric DDoS
+row0000011,SSH-Patator,Brute Force
+row0000012,FTP-Patator,Brute Force
+row0000023,DoS Hulk,DoS Hulk
+row0000033,DDoS,Volumetric DDoS
+row0000007,BENIGN,Benign
+row0000026,DoS Hulk,DoS Hulk
+row0000004,BENIGN,Benign
+row0000037,PortScan,Port Scanning

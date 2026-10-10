@@ -128,6 +128,17 @@ def _relabel(text: str, by_label: dict[str, str]) -> str:
     return text
 
 
+def weights_used_text(res: dict[str, Any]) -> str:
+    """Phase 47: the SAW weights the stored scores were computed with (shown in every view)."""
+    w = (res.get("phase8") or {}).get("weights") or {}
+    if not w:
+        return ""
+    parts = " · ".join(f"{k} {float(v):.2f}" for k, v in w.items())
+    basis = (res.get("notes") or {}).get("saw_mode") or ""
+    return (f"SAW weights used for these scores: {parts}" + (f" ({basis})" if basis else "") +
+            ". Weight presets in the app re-rank in the view only; they never change a stored score.")
+
+
 def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
                      input_meta: Optional[dict] = None, audit: Optional[dict] = None,
                      prepared: Optional[dict] = None, decision: Optional[dict] = None) -> bytes:
@@ -285,6 +296,9 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
     widths = [W - (7 + labelled) * 19 * mm] + [19 * mm] * (7 + labelled)
     story.append(Spacer(1, 5))
     story.append(table(rows, widths))
+    wu = weights_used_text(res)
+    if wu:
+        story.append(P(wu, "small"))
 
     # --- verdict -----------------------------------------------------------------------------------
     verdict = [P("Verdict", "h"),

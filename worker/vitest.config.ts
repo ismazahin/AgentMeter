@@ -18,6 +18,8 @@ export default defineConfig(async () => {
             ALLOW_HTTP_BACKEND: "1",
             RESULTS_R2_THRESHOLD: "2000",
             ALLOWED_ORIGINS: "http://127.0.0.1:8080",
+            TELEGRAM_BOT_TOKEN: "test-bot-token-SECRET",
+            TELEGRAM_API: "https://telegram.test",
           },
         },
       }),

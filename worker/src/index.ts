@@ -8,6 +8,7 @@ import {
   compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus,
   leaderboardRoute, listSessions, putFile, putResults, putSummary,
 } from "./sessions";
+import { telegramTest } from "./notify";
 import { getLimits, getSettings, putLimits, putSettings } from "./settings";
 import { Env, corsHeaders, fail, json } from "./util";
 
@@ -22,6 +23,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["POST", /^\/api\/me\/password$/, changePassword],
   ["GET", /^\/api\/settings$/, getSettings],
   ["PUT", /^\/api\/settings$/, putSettings],
+  ["POST", /^\/api\/settings\/telegram-test$/, telegramTest],
   // admin
   ["GET", /^\/api\/admin\/users$/, listUsers],
   ["POST", /^\/api\/admin\/users$/, postUser],

@@ -449,11 +449,14 @@ def test_chained_job_fails_cleanly_when_the_data_does_not_prepare(app):
 
 
 def test_resuming_a_chained_session_retries_its_data_preparation(tmp_path):
+    import threading
     calls = {"prep": 0}
+    queued = threading.Event()           # fail only once the benchmark is queued behind it
 
     def flaky_prepare(job, report):
         calls["prep"] += 1
         if calls["prep"] == 1:
+            queued.wait(10)
             raise RuntimeError("disk full")
         return "csv_runs/x"
     mgr = JobManager(jobs_dir=tmp_path / "jobs", results_root=tmp_path / "results", gpu_available=lambda: False,
@@ -463,6 +466,7 @@ def test_resuming_a_chained_session_retries_its_data_preparation(tmp_path):
     prep = mgr.create_prepare_job({"kind": "upload", "path": str(up), "filename": "f.csv"}, name="f",
                                   max_flows=5, other_attack=False, limits={})["job_id"]
     bench = mgr.create_job(None, MODELS[:1], after_prepare=prep)["job_id"]
+    queued.set()
     job = mgr.wait(bench, timeout=30)
     assert job["status"] == "failed" and "data preparation failed" in job["error"]
     mgr.validate = lambda run_dir, models, provider, base: {"n_flows": 5, "evaluation_mode": "efficiency_only",
@@ -525,15 +529,24 @@ def test_constraints_api_and_pdf(app):
     assert c.get(f"/api/jobs/{jid}/report.pdf?max_mean_latency_s=-3").status_code == 400
 
 
-def test_listings_need_the_passcode_but_a_session_by_id_does_not(app, monkeypatch):
-    monkeypatch.setenv("AGENTMETER_PASSCODE", "a-long-test-passcode")
+def test_listings_and_stored_results_need_a_read_token(app, monkeypatch):
+    """Phase 47 (replaces the passcode): with a control plane, listings, a session by id,
+    compare, results and the decision helper need a run token of kind read."""
+    import secrets as _s
+    import time as _t
+
+    from agentmeter.server import runtoken
+    secret = "test-run-token-secret-0123456789"
+    monkeypatch.setenv("AGENTMETER_RUN_TOKEN_SECRET", secret)
+    now = int(_t.time())
+    tok = runtoken.sign({"typ": "run", "aud": "agentmeter-backend", "jti": _s.token_hex(16), "sub": "u1",
+                         "uname": "alice", "kind": "read", "iat": now, "exp": now + 300}, secret)
     c = app["srv"].create_app(local_results_dir=str(app["tmp"] / "results"), job_manager=app["mgr"]).test_client()
-    for path in ("/api/sessions", "/api/leaderboard", "/api/jobs"):
-        assert c.get(path).status_code == 401, path
-        assert c.get(path, headers={"X-AgentMeter-Passcode": "a-long-test-passcode"}).status_code == 200, path
-    for path in (f"/api/sessions/{app['j1']}", f"/api/compare?a={app['j1']}&b={app['j3']}",
+    for path in ("/api/sessions", "/api/leaderboard", "/api/jobs", f"/api/sessions/{app['j1']}",
+                 f"/api/compare?a={app['j1']}&b={app['j3']}",
                  f"/api/jobs/{app['j1']}/constraints?max_mean_latency_s=1", f"/api/jobs/{app['j1']}/result"):
-        assert c.get(path).status_code == 200, path
+        assert c.get(path).status_code == 401, path
+        assert c.get(path, headers={"Authorization": f"Bearer {tok}"}).status_code == 200, path
 
 
 def test_app_routes(app):

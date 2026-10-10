@@ -31,6 +31,7 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
+from . import runtoken
 from .jobs import RUN_ROOTS, JobError, JobManager
 from .prepare import (MAX_IMPORT_BYTES, PrepareError, prepared_file,
                       summarize, unique_name)
@@ -184,6 +185,16 @@ def register_service(app, get_manager: Callable[[], JobManager]) -> None:
     # without a Content-Length (chunked) is cut off too. Never loosen a lower cap.
     if not app.config.get("MAX_CONTENT_LENGTH") or app.config["MAX_CONTENT_LENGTH"] > body_cap:
         app.config["MAX_CONTENT_LENGTH"] = body_cap
+    app.config["SERVICE_LIMITS"] = limits
+
+    def set_upload_mb(mb: int) -> None:
+        """Phase 47: the admin's upload limit, pushed by the control plane on each heartbeat."""
+        mb = int(mb)
+        if mb < 1 or mb == limits["max_upload_mb"]:
+            return
+        limits["max_upload_mb"], limits["max_upload_bytes"] = mb, mb * 1024 ** 2
+        app.config["MAX_CONTENT_LENGTH"] = limits["max_upload_bytes"] + _MULTIPART_SLACK
+    app.config["SET_UPLOAD_MB"] = set_upload_mb
 
     def fail(e):
         return jsonify({"error": str(e), "code": e.code}), e.status
@@ -209,7 +220,7 @@ def register_service(app, get_manager: Callable[[], JobManager]) -> None:
     @app.route("/api/prepare", methods=["POST"])
     def svc_prepare():
         mgr = get_manager()
-        if request.content_length and request.content_length > body_cap:
+        if request.content_length and request.content_length > limits["max_upload_bytes"] + _MULTIPART_SLACK:
             return fail(too_large(limits["max_upload_bytes"]))   # body never read
         body = request.get_json(silent=True) if request.is_json else None
         form = body if isinstance(body, dict) else request.form
@@ -236,7 +247,8 @@ def register_service(app, get_manager: Callable[[], JobManager]) -> None:
             from .runtime import environment as _env
             job = mgr.create_prepare_job(source, name=name, max_flows=max_flows, other_attack=other,
                                          limits=limits,
-                                         environment=_env(app.config.get("SERVICE_MODE") or "mock"))
+                                         environment=_env(app.config.get("SERVICE_MODE") or "mock"),
+                                         meta=runtoken.job_meta())
         except (ServiceError, JobError) as e:
             return fail(e)
         job.pop("error_trace", None)
@@ -276,6 +288,8 @@ def register_service(app, get_manager: Callable[[], JobManager]) -> None:
         try:
             from .prepare import import_prepared
             prepared = import_prepared(files, mgr.results_root)
+            if runtoken.current():                       # Phase 47: who imported it, with which grant
+                mgr.record_set_grant(prepared, runtoken.job_meta())
             kind, name = prepared.split("/")
             return jsonify(summarize(mgr.results_root / kind / name)), 201
         except PrepareError as e:

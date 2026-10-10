@@ -288,8 +288,9 @@ def _result(mgr, job: dict) -> Optional[dict]:
 
 
 def register_sessions(app, get_manager) -> None:
-    """GET /api/sessions (passcode-guarded listing), /api/sessions/<id>, /api/compare?a=&b=,
-    /api/leaderboard?sort= (passcode-guarded listing). Read-only."""
+    """GET /api/sessions, /api/sessions/<id>, /api/compare?a=&b=, /api/leaderboard?sort=.
+    Read-only; with a control plane they need a read token (access.py) — and the app reads
+    persisted sessions from the control plane instead (they survive the GPU being off)."""
     from flask import jsonify, request
 
     from .jobs import JobError

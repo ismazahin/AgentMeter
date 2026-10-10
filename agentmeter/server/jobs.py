@@ -33,11 +33,11 @@ import json
 import os
 import queue
 import re
+import secrets
 import sqlite3
 import threading
 import time
 import traceback
-import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
@@ -51,7 +51,10 @@ CONFIGS_DIR = PROJECT_ROOT / "configs"
 
 TERMINAL = ("done", "failed", "interrupted")
 RESUMABLE = ("interrupted", "failed")
-_JOB_ID = re.compile(r"^job_[0-9]{8}_[0-9]{6}_[0-9a-f]{6}$")
+# Phase 47: new job ids carry 128 random bits (secrets.token_hex(16)), so a job's status page can
+# stay open by id; ids from before Phase 47 (24 random bits) are still read, but only with a token.
+_JOB_ID = re.compile(r"^job_[0-9]{8}_[0-9]{6}_([0-9a-f]{6}|[0-9a-f]{32})$")
+_STRONG_JOB_ID = re.compile(r"^job_[0-9]{8}_[0-9]{6}_[0-9a-f]{32}$")
 _RUN_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
 
 
@@ -74,7 +77,12 @@ def _order(job: dict[str, Any]) -> tuple:
 
 
 def _new_job_id() -> str:
-    return f"job_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:6]}"
+    return f"job_{datetime.now(timezone.utc):%Y%m%d_%H%M%S}_{secrets.token_hex(16)}"
+
+
+def strong_job_id(job_id: str) -> bool:
+    """True for ids with 128 random bits (Phase 47+): safe to serve status by id alone."""
+    return bool(_STRONG_JOB_ID.match(job_id or ""))
 
 
 def default_gpu_available() -> bool:
@@ -180,6 +188,7 @@ class JobManager:
         self._queue: "queue.Queue[str]" = queue.Queue()
         self._worker: Optional[threading.Thread] = None
         self._autostart = autostart
+        self.on_event: Optional[Callable[[dict, bool], None]] = None
         self._recover()
 
     # --- store -------------------------------------------------------------------
@@ -205,9 +214,24 @@ class JobManager:
     def _update(self, job_id: str, **fields) -> dict[str, Any]:
         with self._lock:
             job = self._load(job_id)
+            before = job.get("status")
             job.update(fields)
             self._save(job)
-            return job
+        if "status" in fields and fields["status"] != before:
+            self._emit(job)
+        return job
+
+    def _emit(self, job: dict[str, Any], created: bool = False) -> None:
+        """Phase 47: tell the control plane (on_event, set by scripts/serve.py) about a new job or
+        a status change. Best effort and non-blocking: a slow or offline control plane never
+        affects a job."""
+        cb = self.on_event
+        if cb is None:
+            return
+        try:
+            cb(dict(job), created)
+        except Exception:  # noqa: BLE001
+            pass
 
     def _all(self) -> list[dict[str, Any]]:
         if not self.jobs_dir.exists():
@@ -289,18 +313,38 @@ class JobManager:
                 "evaluation_mode": meta.get("evaluation_mode"),
                 "class_scheme": (meta.get("class_scheme") or {}).get("name")}
 
+    # --- Phase 47: who created a prepared set (free follow-up benchmark check) ------------
+    def record_set_grant(self, set_id: str, meta: dict[str, Any]) -> None:
+        d = self.jobs_dir / "set_grants"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / (set_id.replace("/", "__") + ".json")).write_text(json.dumps(meta), encoding="utf-8")
+
+    def set_grant(self, set_id: str) -> Optional[dict[str, Any]]:
+        """{user, grant_jti} of the import or prepare job that created this prepared set."""
+        p = self.jobs_dir / "set_grants" / (str(set_id).replace("/", "__") + ".json")
+        if _RUN_NAME.match(p.stem.replace("__", "")) and p.is_file():
+            try:
+                return json.loads(p.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return None
+        for j in self._all():
+            if j.get("kind") == "prepare" and j.get("prepared") == set_id and j.get("grant_jti"):
+                return {"user": j.get("user"), "grant_jti": j["grant_jti"]}
+        return None
+
     # --- public API ------------------------------------------------------------------
     def create_job(self, run: Optional[str | Path], models: list[str], provider: Optional[str] = None,
                    base_config: Optional[str] = None,
                    environment: Optional[dict[str, Any]] = None,
-                   after_prepare: Optional[str] = None) -> dict[str, Any]:
+                   after_prepare: Optional[str] = None,
+                   meta: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """Validate, persist as 'queued', enqueue; returns immediately.
 
         Phase 46: `after_prepare=<prepare job id>` queues the benchmark BEHIND that prepare
         job (one wizard = one session): the single FIFO worker runs the prepare first, and
         this job picks up its prepared set when it starts."""
         if after_prepare and not run:
-            return self._create_chained(after_prepare, models, provider, base_config, environment)
+            return self._create_chained(after_prepare, models, provider, base_config, environment, meta)
         run_dir = Path(run).resolve() if Path(str(run)).is_absolute() else self.resolve_run(run)
         if not (run_dir / "input.json").exists():
             raise JobError(f"prepared run not found: {run_dir}", "run_missing", 404)
@@ -315,20 +359,25 @@ class JobManager:
             "created_at": _now(), "created_ns": time.time_ns(),   # FIFO order key
             "started_at": None, "finished_at": None,
             "attempts": 0, "message": "queued", "error": None, "result_path": None,
-            "non_validated": True, "environment": environment,
+            "non_validated": True, "environment": environment, **(meta or {}),
         }
+        return self._created(job)
+
+    def _created(self, job: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
             self._save(job)
             self._enqueue(job["job_id"])
+        self._emit(job, created=True)
         return self.get(job["job_id"])
 
     def _create_chained(self, prep_id: str, models: list[str], provider: Optional[str],
-                        base_config: Optional[str], environment: Optional[dict[str, Any]]) -> dict[str, Any]:
+                        base_config: Optional[str], environment: Optional[dict[str, Any]],
+                        meta: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         prep = self._load(prep_id)
         if prep.get("kind") != "prepare":
             raise JobError(f"{prep_id} is not a data-preparation job", "bad_request", 400)
         if prep["status"] == "done" and prep.get("prepared"):
-            return self.create_job(prep["prepared"], models, provider, base_config, environment)
+            return self.create_job(prep["prepared"], models, provider, base_config, environment, meta=meta)
         if prep["status"] in ("failed", "interrupted"):
             raise JobError(f"the data preparation {prep['status']}: {prep.get('error') or prep.get('message')}",
                            "prepare_failed", 409)
@@ -352,12 +401,9 @@ class JobManager:
             "created_at": _now(), "created_ns": time.time_ns(),
             "started_at": None, "finished_at": None,
             "attempts": 0, "message": "queued — waiting for the data to be prepared", "error": None,
-            "result_path": None, "non_validated": True, "environment": environment,
+            "result_path": None, "non_validated": True, "environment": environment, **(meta or {}),
         }
-        with self._lock:
-            self._save(job)
-            self._enqueue(job["job_id"])
-        return self.get(job["job_id"])
+        return self._created(job)
 
     def _resolve_chained(self, job: dict[str, Any]) -> dict[str, Any]:
         """At run time: take the prepared set of the prepare job this benchmark waited for."""
@@ -373,7 +419,8 @@ class JobManager:
 
     def create_prepare_job(self, source: dict[str, Any], *, name: str, max_flows: int,
                            other_attack: bool, limits: dict[str, Any],
-                           environment: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+                           environment: Optional[dict[str, Any]] = None,
+                           meta: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         """Queue a Prepare job. `source` is {"kind": "upload", "path", "filename",
         "size_bytes", "sha256"} (already saved) or {"kind": "url", "url"}."""
         if source.get("kind") not in ("upload", "url"):
@@ -397,12 +444,9 @@ class JobManager:
             "run_name": source.get("filename") or source.get("url"), "models": [],
             "created_at": _now(), "created_ns": time.time_ns(),
             "started_at": None, "finished_at": None,
-            "attempts": 0, "message": "queued", "error": None, "result_path": None,
+            "attempts": 0, "message": "queued", "error": None, "result_path": None, **(meta or {}),
         }
-        with self._lock:
-            self._save(job)
-            self._enqueue(job["job_id"])
-        return self.get(job["job_id"])
+        return self._created(job)
 
     def _reporter(self, job_id: str) -> Callable[..., None]:
         """Progress callback for a prepare job: merged into prep_progress (source=

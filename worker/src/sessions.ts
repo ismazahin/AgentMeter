@@ -5,6 +5,7 @@
 import { requireUser } from "./auth";
 import { mapJobStatus as STATUS_FROM_JOB, parseBody, verifyBackend } from "./backend";
 import { ConstraintError, Summary, compare, evaluateFacts, leaderboard, LEADERBOARD_SORTS } from "./analytics";
+import { notifyFinal } from "./notify";
 import { Env, fail, intVar, json, nowIso } from "./util";
 
 const SESSION_ID = /^job_\d{8}_\d{6}_([0-9a-f]{6}|[0-9a-f]{32})$/;
@@ -180,6 +181,7 @@ export async function jobStatus(req: Request, env: Env, id: string): Promise<Res
   const st = STATUS_FROM_JOB(String(b.status || ""));
   await env.DB.prepare("UPDATE sessions SET status=CASE WHEN status IN ('Done','Demo') THEN status ELSE ? END, updated_at=? WHERE id=?")
     .bind(st, nowIso(), id).run();
+  if (st === "Failed" || st === "Interrupted") await notifyFinal(env, id, st);   // Done: after the summary arrives
   return json({ ok: true });
 }
 
@@ -238,5 +240,6 @@ export async function putSummary(req: Request, env: Env, id: string): Promise<Re
          s.provider ?? null, JSON.stringify(s.models || []), typeof s.more_efficient === "string" ? s.more_efficient : null,
          s.run_name ?? null, s.prepared_set_sha256 ?? null, s.settings_fingerprint ?? null, JSON.stringify(s.weights_used ?? null),
          JSON.stringify(s), nowIso(), s.created_at ?? null, owner?.id ?? null, owner?.name ?? null, id).run();
+  await notifyFinal(env, id, status);
   return json({ ok: true });
 }

@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
-# Phase E — bring the AgentMeter GPU backend up on a fresh Vast.ai instance, in ONE command.
+# Phase E/47 — bring the AgentMeter GPU backend up on a fresh Vast.ai instance, in ONE command.
 #
 #   export HF_TOKEN=hf_...                       # needs access to Llama-3-8B + gemma-2-9b (gated)
-#   export AGENTMETER_PASSCODE='a long passphrase'
-#   export AGENTMETER_ALLOWED_ORIGINS=https://agentmeter.vercel.app   # your front-end origin(s)
+#   export AGENTMETER_WORKER_URL=https://agentmeter-control-plane.<you>.workers.dev
+#   export AGENTMETER_RUN_TOKEN_SECRET=...       # = the Worker secret RUN_TOKEN_SECRET
+#   export AGENTMETER_BACKEND_SECRET=...         # = the Worker secret BACKEND_SECRET
+#   export AGENTMETER_ALLOWED_ORIGINS=https://agentmeter.pages.dev   # your front-end origin(s)
 #   bash scripts/vast_up.sh                      # quick tunnel (random trycloudflare.com URL)
-#   CF_TUNNEL_TOKEN=eyJ... bash scripts/vast_up.sh   # named tunnel (stable hostname you own)
+#   CF_TUNNEL_TOKEN=eyJ... CF_TUNNEL_HOSTNAME=gpu.example.org bash scripts/vast_up.sh   # named tunnel
+#
+# The backend REGISTERS its public URL with the control plane by itself (and heartbeats every
+# 60 s): the front-end gets the URL from the Worker — nothing to paste. Users log in at the
+# front-end; the backend only accepts requests carrying a run token the Worker issued.
 #
 # Optional:  VAST_API_KEY=...  IDLE_MIN=45  -> destroy the instance after 45 idle minutes
 #            AGENTMETER_DATA_DIR=/workspace  (persistent disk: models, jobs, prepared sets)
@@ -14,8 +20,8 @@
 #
 # Steps: check env -> install deps -> check CUDA/GPU -> download + verify the 5 models
 # (refuses on gated-access errors) -> start ONE server process in REAL mode (it refuses
-# to start without GPU/models/passcode — no mock fallback) -> start Cloudflare Tunnel
-# -> print the URL to paste into the front-end's config.json.
+# to start without GPU/models/control-plane secrets — no mock fallback) -> start Cloudflare
+# Tunnel -> write its URL to $LOGS/public_url -> the backend registers it with the Worker.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -33,14 +39,22 @@ die()  { printf '\n\033[31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 # --- 1. environment ------------------------------------------------------------------
 say "1/6 checking settings"
 [ -n "${HF_TOKEN:-}" ] || die "HF_TOKEN is not set (needed for the gated Llama-3 / gemma-2 weights)."
-[ -n "${AGENTMETER_PASSCODE:-}" ] || die "AGENTMETER_PASSCODE is not set — a public GPU endpoint must be protected."
-[ "${#AGENTMETER_PASSCODE}" -ge 12 ] || die "AGENTMETER_PASSCODE is shorter than 12 characters; use a long passphrase."
+for v in AGENTMETER_WORKER_URL AGENTMETER_RUN_TOKEN_SECRET AGENTMETER_BACKEND_SECRET; do
+  [ -n "${!v:-}" ] || die "$v is not set — the backend only runs jobs the control plane authorised (docs/DEPLOY.md)."
+done
+case "$AGENTMETER_WORKER_URL" in https://*) ;; *) die "AGENTMETER_WORKER_URL must start with https://";; esac
+[ "${#AGENTMETER_RUN_TOKEN_SECRET}" -ge 16 ] || die "AGENTMETER_RUN_TOKEN_SECRET is shorter than 16 characters."
+[ "${#AGENTMETER_BACKEND_SECRET}" -ge 16 ] || die "AGENTMETER_BACKEND_SECRET is shorter than 16 characters."
 if [ -z "${AGENTMETER_ALLOWED_ORIGINS:-}" ]; then
   echo "WARNING: AGENTMETER_ALLOWED_ORIGINS is not set: only the backend's own /service page will work"
   echo "         (a Vercel / Cloudflare Pages front-end will be blocked by CORS). Set it to e.g."
   echo "         https://agentmeter.vercel.app and re-run."
 fi
 echo "data dir: $DATA   HF_HOME: $HF_HOME   logs: $LOGS"
+# the tunnel URL is written here once known; the backend re-reads it on every heartbeat
+export AGENTMETER_PUBLIC_URL_FILE="$LOGS/public_url"
+rm -f "$AGENTMETER_PUBLIC_URL_FILE"
+[ -n "${CF_TUNNEL_HOSTNAME:-}" ] && echo "https://$CF_TUNNEL_HOSTNAME" > "$AGENTMETER_PUBLIC_URL_FILE"
 
 # --- 2. dependencies ------------------------------------------------------------------
 if [ "${SKIP_INSTALL:-0}" != "1" ]; then
@@ -110,8 +124,8 @@ if [ -n "${CF_TUNNEL_TOKEN:-}" ]; then
   nohup cloudflared tunnel --no-autoupdate run --token "$CF_TUNNEL_TOKEN" > "$LOGS/tunnel.log" 2>&1 &
   echo $! > "$LOGS/tunnel.pid"
   sleep 5
-  URL="${CF_TUNNEL_HOSTNAME:+https://$CF_TUNNEL_HOSTNAME}"
-  URL="${URL:-<the public hostname you configured for this tunnel>}"
+  [ -n "${CF_TUNNEL_HOSTNAME:-}" ] || die "set CF_TUNNEL_HOSTNAME (the public hostname of the named tunnel) so the backend can register it."
+  URL="https://$CF_TUNNEL_HOSTNAME"
 else
   # (b) QUICK tunnel: no account needed; a NEW random https://*.trycloudflare.com URL each time.
   nohup cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$PORT" > "$LOGS/tunnel.log" 2>&1 &
@@ -124,6 +138,15 @@ else
   done
   [ -n "$URL" ] || { tail -n 20 "$LOGS/tunnel.log" >&2; die "no trycloudflare URL appeared."; }
 fi
+echo "$URL" > "$AGENTMETER_PUBLIC_URL_FILE"
+
+# --- registration: the backend picks the URL up within ~5 s and registers with the Worker ---
+REG=""
+for _ in $(seq 1 30); do
+  if curl -fsS "$AGENTMETER_WORKER_URL/api/health" >/dev/null 2>&1; then REG=ok; break; fi
+  sleep 1
+done
+[ -n "$REG" ] || echo "WARNING: the Worker at $AGENTMETER_WORKER_URL did not answer /api/health — check the URL; the backend keeps retrying."
 
 cat <<EOF
 
@@ -133,10 +156,9 @@ cat <<EOF
    health      : $URL/health
    logs        : $LOGS/server.log   $LOGS/tunnel.log
 
- Point the front-end at it — EITHER edit web/config.json and redeploy:
-     { "api_base": "$URL" }
- OR open the front-end once with   ?api=$URL
-   (e.g. https://agentmeter.vercel.app/?api=$URL )
+ Registered with the control plane: $AGENTMETER_WORKER_URL
+   The front-end finds this backend through the Worker — nothing to paste. Log in and
+   the Run button turns on (GPU online). Check: grep "control plane" $LOGS/server.log
 
  Stop billing when done:  destroy the instance in the Vast console (or: vastai destroy instance <id>).
  Stopping (pausing) still bills for disk.  Stop only the backend: bash scripts/vast_down.sh

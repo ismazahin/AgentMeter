@@ -7,6 +7,7 @@ export interface Env {
   BACKEND_SECRET: string;
   PASSWORD_PEPPER: string;
   TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_API?: string;
   ALLOWED_ORIGINS?: string;
   PBKDF2_ITERATIONS?: string;
   BACKEND_OFFLINE_AFTER_S?: string;

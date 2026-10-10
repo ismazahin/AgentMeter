@@ -67,8 +67,8 @@ describe("credential status never leaks values", () => {
     const r = await api("/api/admin/credentials", { token: admin.token });
     expect(r.data.credentials.hf_token.status).toBe("set");
     expect(r.data.credentials.vast_api_key.status).toBe("not set");
-    expect(r.data.credentials.telegram_bot_token.status).toBe("not set");
-    expect(r.text).not.toMatch(/hf_SHOULD_NOT_APPEAR|test-backend-secret|test-run-secret|test-pepper|test-access-secret/);
+    expect(r.data.credentials.telegram_bot_token.status).toBe("set");
+    expect(r.text).not.toMatch(/hf_SHOULD_NOT_APPEAR|test-backend-secret|test-run-secret|test-pepper|test-access-secret|test-bot-token/);
     const row = await E.DB.prepare("SELECT creds_json FROM backends").first();
     expect(JSON.parse(row.creds_json)).toEqual({ hf_token: true, vast_api_key: false });     // only booleans stored
   });

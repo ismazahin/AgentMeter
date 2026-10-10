@@ -2,10 +2,11 @@
 
 * web/ is a static front-end (no functions); it finds the backend via config.json.
 * CORS is limited to AGENTMETER_ALLOWED_ORIGINS; a real-GPU server never sends "*".
-* AGENTMETER_PASSCODE guards every write and the job list; reads by id stay open.
+* Phase 47: run tokens from the control plane guard every write, listing and prepared-set file;
+  a job's status by its 128-bit id stays open (tests/test_control_plane.py has the details).
 * Job creation is rate-limited and the queue is capped (single-job lock unchanged).
 * The provider is decided once: real mode refuses to start without GPU/models/
-  passcode, a real server never runs mock jobs, and every result names the GPU.
+  control-plane secrets, a real server never runs mock jobs, and every result names the GPU.
 """
 from __future__ import annotations
 
@@ -24,7 +25,8 @@ from agentmeter.server.jobs import JobManager
 
 SAMPLE_CSV = PROJECT_ROOT / "data" / "sample_csv" / "cicids2017_sample.csv"
 WEB = PROJECT_ROOT / "web"
-ENVS = ("AGENTMETER_ALLOWED_ORIGINS", "AGENTMETER_PASSCODE", "AGENTMETER_JOBS_PER_HOUR",
+ENVS = ("AGENTMETER_ALLOWED_ORIGINS", "AGENTMETER_RUN_TOKEN_SECRET", "AGENTMETER_WORKER_URL",
+        "AGENTMETER_BACKEND_SECRET", "AGENTMETER_CONTROL_PLANE_URL", "AGENTMETER_JOBS_PER_HOUR",
         "AGENTMETER_MAX_QUEUED_JOBS", "AGENTMETER_SERVICE_PROVIDER", "AGENTMETER_AUTH_PASS")
 
 
@@ -50,6 +52,26 @@ def make(tmp_path, monkeypatch):
         app = srv.create_app(local_results_dir=str(tmp_path / "results"), job_manager=mgr, mode=mode)
         return app.test_client(), mgr, srv
     return build
+
+
+SECRET = "test-run-token-secret-0123456789"
+
+
+def bearer(kind, **extra):
+    import secrets
+    import time
+
+    from agentmeter.server import runtoken
+    now = int(time.time())
+    tok = runtoken.sign({"typ": "run", "aud": "agentmeter-backend", "jti": secrets.token_hex(16), "sub": "u1",
+                         "uname": "alice", "kind": kind, "iat": now, "exp": now + 300, **extra}, SECRET)
+    return {"Authorization": f"Bearer {tok}"}
+
+
+def _preflight_msg():
+    with pytest.raises(runtime.RealModeError) as e:
+        runtime.preflight()
+    return str(e.value)
 
 
 def upload(c, headers=None, **form):
@@ -85,7 +107,7 @@ def test_front_end_only_talks_to_the_configured_backend():
 
 def test_backend_serves_the_same_page_same_origin(make):
     c, _, _ = make()
-    assert c.get("/config.json").get_json() == {"api_base": ""}
+    assert c.get("/config.json").get_json() == {"api_base": "", "control_plane": None}
     page = c.get("/service").get_data(as_text=True)
     assert page == (WEB / "index.html").read_text()
     assert c.get("/report.js").status_code == 200
@@ -95,7 +117,7 @@ def test_backend_serves_the_same_page_same_origin(make):
 # /health
 # ---------------------------------------------------------------------------
 def test_health_reports_provider_queue_and_auth(make):
-    c, _, _ = make(AGENTMETER_PASSCODE="a-long-test-passcode")
+    c, _, _ = make(AGENTMETER_RUN_TOKEN_SECRET=SECRET)
     h = c.get("/health").get_json()
     assert h["ok"] is True and h["provider"] == "mock" and h["gpu"] is None
     assert h["queue"] == {"running": False, "queued": 0} and h["auth_required"] is True
@@ -109,7 +131,7 @@ def test_health_in_real_mode_names_the_gpu(make, monkeypatch):
     monkeypatch.setattr(runtime, "models_local", lambda models=None: {m: True for m in runtime.study_models()})
     mgr = JobManager(jobs_dir=PROJECT_ROOT / "nonexistent-jobs-dir-for-test", gpu_available=lambda: True,
                      autostart=False)
-    c, _, _ = make(mode="real", mgr=mgr, AGENTMETER_PASSCODE="a-long-test-passcode")
+    c, _, _ = make(mode="real", mgr=mgr, AGENTMETER_RUN_TOKEN_SECRET=SECRET)
     h = c.get("/health").get_json()
     assert h["provider"] == "real" and h["gpu"]["name"] == "NVIDIA L4" and h["gpu"]["vram_total_mb"] == 23034
     assert sum(h["models_local"].values()) == 5
@@ -122,13 +144,13 @@ def test_cors_is_limited_to_the_configured_origins(make):
     c, _, _ = make(AGENTMETER_ALLOWED_ORIGINS="https://agentmeter.vercel.app, https://am.pages.dev")
     ok = c.get("/health", headers={"Origin": "https://agentmeter.vercel.app"})
     assert ok.headers["Access-Control-Allow-Origin"] == "https://agentmeter.vercel.app"
-    assert "X-AgentMeter-Passcode" in ok.headers["Access-Control-Allow-Headers"]
+    assert "Authorization" in ok.headers["Access-Control-Allow-Headers"]
     assert ok.headers["Vary"] == "Origin"
     bad = c.get("/health", headers={"Origin": "https://evil.example"})
     assert "Access-Control-Allow-Origin" not in bad.headers
     pre = c.open("/api/prepare", method="OPTIONS", headers={
         "Origin": "https://am.pages.dev", "Access-Control-Request-Method": "POST",
-        "Access-Control-Request-Headers": "x-agentmeter-passcode"})
+        "Access-Control-Request-Headers": "authorization"})
     assert pre.status_code == 204 and pre.headers["Access-Control-Allow-Origin"] == "https://am.pages.dev"
     assert "Content-Disposition" in pre.headers["Access-Control-Expose-Headers"]
 
@@ -149,37 +171,32 @@ def test_mock_dev_server_without_origins_stays_permissive(make):
 
 
 # ---------------------------------------------------------------------------
-# passcode
+# run tokens (Phase 47: the passcode is gone)
 # ---------------------------------------------------------------------------
-PASS = "correct horse battery staple"
-
-
-def test_writes_need_the_passcode_reads_by_id_do_not(make):
-    c, mgr, _ = make(AGENTMETER_PASSCODE=PASS)
+def test_writes_need_a_run_token_status_by_strong_id_does_not(make):
+    c, mgr, _ = make(AGENTMETER_RUN_TOKEN_SECRET=SECRET)
     r = upload(c)
-    assert r.status_code == 401 and r.get_json()["code"] == "passcode_required"
-    r = upload(c, headers={"X-AgentMeter-Passcode": "nope"})
-    assert r.status_code == 401 and r.get_json()["code"] == "passcode_invalid"
-    r = upload(c, headers={"X-AgentMeter-Passcode": PASS})
+    assert r.status_code == 401 and r.get_json()["code"] == "run_token_required"
+    r = upload(c, headers={"X-AgentMeter-Passcode": "correct horse battery staple"})   # the old header: ignored
+    assert r.status_code == 401
+    r = upload(c, headers=bearer("prepare"))
     assert r.status_code == 202
     jid = r.get_json()["job_id"]
     job = mgr.wait(jid, timeout=60)
     assert c.get("/api/jobs").status_code == 401                              # the job list is guarded
-    assert c.get("/api/jobs", headers={"X-AgentMeter-Passcode": PASS}).status_code == 200
-    assert c.get(f"/api/jobs/{jid}").status_code == 200                       # status by id: open
-    assert c.get(f"/api/prepared/{job['prepared']}").status_code == 200       # prepared set by id: open
-    assert c.get(f"/api/prepared/{job['prepared']}/features.csv").status_code == 200
+    assert c.get("/api/jobs", headers=bearer("read")).status_code == 200
+    assert c.get(f"/api/jobs/{jid}").status_code == 200                       # status by 128-bit id: open
+    assert c.get(f"/api/prepared/{job['prepared']}").status_code == 401
+    assert c.get(f"/api/prepared/{job['prepared']}", headers=bearer("read")).status_code == 200
+    assert c.get(f"/api/prepared/{job['prepared']}/features.csv", headers=bearer("read")).status_code == 403
+    assert c.get(f"/api/prepared/{job['prepared']}/features.csv",
+                 headers=bearer("files", set=job["prepared"])).status_code == 200
     assert c.get("/health").status_code == 200 and c.get("/service").status_code == 200
     for path, body in (("/api/jobs", {"run": job["prepared"], "models": ["x"]}),
-                       ("/pull-eval", {"model_id": "org/m"}), ("/api/build-config", {})):
-        assert c.post(path, json=body).status_code == 401, path
+                       ("/pull-eval", {"model_id": "org/m"}), ("/api/build-config", {}),
+                       ("/api/notify-test", {})):
+        assert c.post(path, json=body).status_code in (401, 403), path
     assert c.post(f"/api/jobs/{jid}/resume").status_code == 401
-
-
-def test_wrong_passcodes_are_rate_limited(make):
-    c, _, _ = make(AGENTMETER_PASSCODE=PASS)
-    codes = [upload(c, headers={"X-AgentMeter-Passcode": f"guess{i}"}).status_code for i in range(12)]
-    assert codes[:10] == [401] * 10 and codes[10:] == [429, 429]
 
 
 # ---------------------------------------------------------------------------
@@ -214,8 +231,7 @@ def test_real_server_forces_real_jobs(make, tmp_path, monkeypatch):
                                                       "cuda_runtime_version": "12.1"})
     mgr = JobManager(jobs_dir=tmp_path / "jobs", results_root=tmp_path / "results",
                      gpu_available=lambda: True, autostart=False)
-    c, _, _ = make(mode="real", mgr=mgr, AGENTMETER_PASSCODE=PASS)
-    hdr = {"X-AgentMeter-Passcode": PASS}
+    c, _, _ = make(mode="real", mgr=mgr, AGENTMETER_RUN_TOKEN_SECRET=SECRET)
     from agentmeter.server.prepare import prepare_file
     from agentmeter.server.service_api import save_upload, service_limits
     up = save_upload(io.BytesIO(SAMPLE_CSV.read_bytes()), SAMPLE_CSV.name, mgr.results_root / "uploads",
@@ -226,6 +242,7 @@ def test_real_server_forces_real_jobs(make, tmp_path, monkeypatch):
                        other_attack=False, limits=service_limits())
     s = {"prepared_set": sid}
     run = s["prepared_set"]
+    hdr = bearer("benchmark", run=run)
     r = c.post("/api/jobs", json={"run": run, "models": ["Qwen/Qwen2.5-7B-Instruct"], "provider": "mock"},
                headers=hdr)
     assert r.status_code == 400 and r.get_json()["code"] == "provider_mismatch"
@@ -273,7 +290,8 @@ def test_pdf_names_the_real_gpu(make):
 
 def test_real_mode_refuses_to_start_without_a_gpu(tmp_path):
     env = {"PATH": "/usr/bin:/bin", "HOME": str(tmp_path), "PYTHONPATH": str(PROJECT_ROOT),
-           "HF_HOME": str(tmp_path / "hf"), "AGENTMETER_PASSCODE": PASS}
+           "HF_HOME": str(tmp_path / "hf"), "AGENTMETER_RUN_TOKEN_SECRET": SECRET,
+           "AGENTMETER_WORKER_URL": "https://cp.example.workers.dev", "AGENTMETER_BACKEND_SECRET": SECRET}
     p = subprocess.run([sys.executable, str(PROJECT_ROOT / "scripts" / "serve.py"),
                         "--provider", "real", "--port", "8791", "--results-dir", str(tmp_path)],
                        env=env, capture_output=True, text=True, timeout=120)
@@ -284,13 +302,16 @@ def test_real_mode_refuses_to_start_without_a_gpu(tmp_path):
 
 def test_preflight_lists_every_problem_and_passes_when_ready(tmp_path, monkeypatch):
     monkeypatch.setattr(runtime, "gpu_info", lambda: {"cuda_available": False})
-    monkeypatch.delenv("AGENTMETER_PASSCODE", raising=False)
-    monkeypatch.delenv("AGENTMETER_INSECURE_NO_PASSCODE", raising=False)
+    for k in runtime.CONTROL_PLANE_ENV:
+        monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "hub"))
     with pytest.raises(runtime.RealModeError) as e:
         runtime.preflight()
     msg = str(e.value)
-    assert "no CUDA GPU" in msg and "AGENTMETER_PASSCODE is not set" in msg and "Phi-3" in msg
+    assert "no CUDA GPU" in msg and "AGENTMETER_RUN_TOKEN_SECRET is not set" in msg and "Phi-3" in msg
+    assert "AGENTMETER_WORKER_URL is not set" in msg and "AGENTMETER_BACKEND_SECRET is not set" in msg
+    monkeypatch.setenv("AGENTMETER_WORKER_URL", "http://insecure.example")
+    assert "must be an https:// URL" in _preflight_msg()
     # now make everything present
     for m in runtime.study_models():
         snap = tmp_path / "hub" / ("models--" + m.replace("/", "--")) / "snapshots" / "abc"
@@ -300,7 +321,9 @@ def test_preflight_lists_every_problem_and_passes_when_ready(tmp_path, monkeypat
     monkeypatch.setattr(runtime, "gpu_info", lambda: {"cuda_available": True, "name": "NVIDIA L4",
                                                       "vram_total_mb": 23034})
     monkeypatch.setattr(runtime, "_version", lambda d: "1.0")
-    monkeypatch.setenv("AGENTMETER_PASSCODE", PASS)
+    monkeypatch.setenv("AGENTMETER_WORKER_URL", "https://cp.example.workers.dev")
+    monkeypatch.setenv("AGENTMETER_RUN_TOKEN_SECRET", SECRET)
+    monkeypatch.setenv("AGENTMETER_BACKEND_SECRET", SECRET)
     env = runtime.preflight()
     assert env["provider"] == "real" and env["gpu_name"] == "NVIDIA L4"
     assert runtime.resolve_mode("mock") == "mock" and runtime.resolve_mode("hf") == "real"

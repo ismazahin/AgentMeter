@@ -159,7 +159,7 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
         except Exception:  # noqa: BLE001
             return False
 
-    access.install(app, mode=mode, queue_depth=_queue_depth)    # CORS + passcode + rate limits
+    access.install(app, mode=mode, queue_depth=_queue_depth)    # CORS + run tokens + rate limits
     jobs_api.register_jobs(app, get_job_manager, provider=runtime.job_provider(mode),
                            base_config=(str(runtime.REAL_BASE_CONFIG) if mode == "real" else None),
                            environment=lambda: runtime.environment(mode))
@@ -182,7 +182,9 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
 
     @app.route("/config.json", methods=["GET"])
     def web_config():
-        return jsonify({"api_base": ""})       # served by the backend: talk to this origin
+        # served by the backend: talk to this origin; Phase 47: log in at the control plane
+        return jsonify({"api_base": "", "control_plane": os.environ.get("AGENTMETER_CONTROL_PLANE_URL")
+                        or os.environ.get("AGENTMETER_WORKER_URL") or None})
 
     @app.route("/service/prepare", methods=["GET"])
     @app.route("/service/benchmark", methods=["GET"])
@@ -256,6 +258,7 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
             "queue": {"running": jm.running_job() is not None,
                       "queued": sum(1 for j in jobs if j["status"] == "queued")},
             "auth_required": bool(acc.get("auth_required")),
+            "control_plane": bool(acc.get("control_plane")),
         })
 
     if start_watcher:
@@ -269,6 +272,26 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
         threading.Thread(target=_watch_loop, daemon=True).start()
 
     return app
+
+
+def apply_control_plane_limits(app, guard, lim: dict) -> None:
+    """Limits the admin set in the control plane, pushed on every register/heartbeat."""
+    acc = app.config.get("ACCESS") or {}
+    if acc.get("apply_limits"):
+        acc["apply_limits"](lim)
+    if app.config.get("SET_UPLOAD_MB") and lim.get("max_upload_mb"):
+        app.config["SET_UPLOAD_MB"](lim["max_upload_mb"])
+    if guard is not None and lim.get("idle_minutes"):
+        guard.idle_timeout = float(lim["idle_minutes"]) * 60.0     # used only when --auto-destroy is on
+
+
+def _version() -> str:
+    try:
+        import subprocess
+        return subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT, capture_output=True,
+                              text=True, timeout=5).stdout.strip()
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def _local_ip() -> str:
@@ -293,7 +316,7 @@ def main(argv=None) -> int:
                          "box should reach it (scripts/vast_up.sh does this)")
     ap.add_argument("--provider", choices=("real", "mock", "auto"), default=None,
                     help="real = HF models on this GPU (refuses to start without a GPU, the "
-                         "models on disk and AGENTMETER_PASSCODE); mock = demo; auto (default, or "
+                         "models on disk and the control-plane secrets); mock = demo; auto (default, or "
                          "AGENTMETER_SERVICE_PROVIDER) = real iff CUDA is visible")
     ap.add_argument("--auto-destroy", action="store_true",
                     help="DESTROY this Vast.ai instance after --idle-timeout minutes with no request "
@@ -351,6 +374,17 @@ def main(argv=None) -> int:
 
     if args.auto_destroy and args.idle_timeout > 0:
         threading.Thread(target=guard.watchdog, args=(threading.Event(),), daemon=True).start()
+
+    # Phase 47: register with the control plane, heartbeat, report jobs, upload sessions.
+    from agentmeter.server import control_plane
+    cp = control_plane.from_env(get_manager=lambda: job_manager, mode=mode,
+                                environment=lambda: runtime.environment(mode), version=_version(),
+                                apply_limits=lambda lim: apply_control_plane_limits(app, guard, lim))
+    if cp is not None:
+        job_manager.on_event = cp.on_job_event
+        cp.start()
+        print(f"  Control plane      : {os.environ['AGENTMETER_WORKER_URL']} (public URL: "
+              f"{control_plane.public_url() or 'waiting for the tunnel URL'})", flush=True)
 
     # ONE process (threaded, no extra workers): the job layer's single-job lock is per process.
     app.run(host=args.host, port=args.port, threaded=True)

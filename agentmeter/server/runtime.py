@@ -10,7 +10,8 @@ starts, in this order:
 
 There is no silent fallback: in REAL mode `preflight()` must pass before the
 server starts (CUDA GPU, bitsandbytes, every study model already on local disk,
-an access passcode) — otherwise the server refuses to start with the reason. A
+the control-plane secrets: AGENTMETER_RUN_TOKEN_SECRET, AGENTMETER_WORKER_URL,
+AGENTMETER_BACKEND_SECRET — Phase 47) — otherwise the server refuses to start with the reason. A
 real server never runs a job on the mock provider and a mock server never claims
 real numbers; every job, session result, PDF and prepared-set manifest carries
 `environment()` (provider, GPU name, VRAM, driver, CUDA, library versions).
@@ -160,7 +161,24 @@ def environment(mode: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # real-mode preflight: refuse to start instead of falling back
 # ---------------------------------------------------------------------------
-def preflight(base_config: Optional[Path] = None, *, require_passcode: bool = True) -> dict[str, Any]:
+CONTROL_PLANE_ENV = ("AGENTMETER_RUN_TOKEN_SECRET", "AGENTMETER_WORKER_URL", "AGENTMETER_BACKEND_SECRET")
+
+
+def control_plane_problems() -> list[str]:
+    """Phase 47: a public GPU backend only works for users logged in to the control plane."""
+    out = []
+    for k in CONTROL_PLANE_ENV:
+        v = os.environ.get(k) or ""
+        if not v:
+            out.append(f"{k} is not set: a public GPU endpoint must only run jobs the control plane authorised")
+        elif k != "AGENTMETER_WORKER_URL" and len(v) < 16:
+            out.append(f"{k} is shorter than 16 characters")
+        elif k == "AGENTMETER_WORKER_URL" and not v.startswith("https://"):
+            out.append(f"{k} must be an https:// URL (the deployed Worker)")
+    return out
+
+
+def preflight(base_config: Optional[Path] = None, *, require_control_plane: bool = True) -> dict[str, Any]:
     """Raise RealModeError (with every problem listed) unless real mode can run."""
     problems: list[str] = []
     g = gpu_info()
@@ -179,9 +197,8 @@ def preflight(base_config: Optional[Path] = None, *, require_passcode: bool = Tr
     if missing:
         problems.append("study models not on local disk (run scripts/vast_models.py with HF_TOKEN): "
                         + ", ".join(missing))
-    if require_passcode and not os.environ.get("AGENTMETER_PASSCODE") \
-            and os.environ.get("AGENTMETER_INSECURE_NO_PASSCODE") != "1":
-        problems.append("AGENTMETER_PASSCODE is not set: a public GPU endpoint must not run jobs for anyone")
+    if require_control_plane:
+        problems.extend(control_plane_problems())
     if problems:
         raise RealModeError("refusing to start in REAL mode (no fallback to mock):\n  - "
                             + "\n  - ".join(problems))

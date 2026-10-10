@@ -1,5 +1,5 @@
 """HTTP API for benchmark jobs (Phase 40). Same-origin routes on the existing
-Flask app (scripts/serve.py); access.py (passcode, CORS, rate limits)
+Flask app (scripts/serve.py); access.py (run tokens, CORS, rate limits)
 covers them like every other route.
 
   POST /api/jobs                {run | after_prepare, models[<=2], provider?, base_config?} -> 202 {job}
@@ -18,7 +18,57 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
+from . import runtoken
 from .jobs import JobError, JobManager
+
+
+def report_pdf_bytes(mgr: JobManager, job_id: str, decision: Optional[dict] = None) -> bytes:
+    """Phase 42: a PDF report built verbatim from the finished job's results (also uploaded to
+    the control plane, Phase 47). Raises JobError (not_ready / not_found / pdf_unavailable)."""
+    import json as _json
+    from pathlib import Path as _Path
+
+    res = mgr.result(job_id)                          # 409 not_ready / 404 not_found
+    job = mgr.get(job_id)
+    try:
+        from ..session.pdf_report import build_report_pdf
+    except ImportError as e:                          # pragma: no cover - dependency missing
+        raise JobError(f"PDF reports need reportlab on the server (pip install reportlab): {e}",
+                       "pdf_unavailable", 501) from e
+    run_dir = _Path(job["run_dir"])
+
+    def read(name):
+        p = run_dir / name
+        return _json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    try:
+        return build_report_pdf(res, job=job, input_meta=read("input.json"), audit=read("selection_audit.json"),
+                                prepared=read("manifest.json").get("prepared_set"), decision=decision)
+    except ImportError as e:
+        raise JobError(f"PDF reports need reportlab on the server (pip install reportlab): {e}",
+                       "pdf_unavailable", 501) from e
+
+
+def check_benchmark_token(mgr: JobManager, tok: Optional[dict], run: Optional[str], after: Optional[str]) -> None:
+    """Control-plane mode: the request must be the one the token was issued for, and a free
+    follow-up benchmark (prepare_jti) must follow the same user's own prepare / import."""
+    if not tok:
+        return
+    if (tok.get("run") or None) != (run or None) or (tok.get("after_prepare") or None) != (after or None):
+        raise JobError("the run token was issued for another prepared set / prepare job", "run_token_mismatch", 403)
+    pj = tok.get("prepare_jti")
+    if not pj:
+        return
+    if after:
+        try:
+            src = mgr._load(after)
+        except JobError:
+            src = {}
+        owner = {"user": src.get("user"), "grant_jti": src.get("grant_jti")}
+    else:
+        owner = mgr.set_grant(str(run)) or {}
+    if owner.get("grant_jti") != pj or (owner.get("user") or {}).get("sub") != tok.get("sub"):
+        raise JobError("this follow-up benchmark does not belong to your own data preparation",
+                       "run_token_mismatch", 403)
 
 
 def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional[str] = None,
@@ -67,11 +117,12 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
                         f"this server runs provider {provider!r} only ({'real models on its GPU' if provider == 'hf' else 'mock demo'}); "
                         f"{asked!r} was requested", "provider_mismatch", 400))
                 asked = provider
+            check_benchmark_token(mgr, runtoken.current(), run, after)
             job = mgr.create_job(run, models, provider=asked,
                                  base_config=base_config if provider is not None and base_config
                                  else body.get("base_config"),
                                  environment=environment() if environment else None,
-                                 after_prepare=after)
+                                 after_prepare=after, meta=runtoken.job_meta())
         except JobError as e:
             return fail(e)
         return jsonify(with_links(job)), 202
@@ -93,41 +144,20 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
     @app.route("/api/jobs/<job_id>/report.pdf", methods=["GET"])
     def job_report_pdf(job_id):
         """Phase 42: a PDF report built verbatim from the finished job's results."""
-        import json as _json
-        from pathlib import Path as _Path
-
         from flask import Response
 
         mgr = get_manager()
+        decision = None
         try:
-            res = mgr.result(job_id)                      # 409 not_ready / 404 not_found
-            job = mgr.get(job_id)
+            if any(request.args.get(k) for k in request.args):       # Phase 46: the user's limits
+                from ..session.constraints import ConstraintError, evaluate_constraints
+                try:
+                    decision = evaluate_constraints(mgr.result(job_id), request.args)
+                except ConstraintError as e:
+                    raise JobError(str(e), "bad_request", 400) from e
+            pdf = report_pdf_bytes(mgr, job_id, decision)
         except JobError as e:
             return fail(e)
-        try:
-            from ..session.pdf_report import build_report_pdf
-        except ImportError as e:                          # pragma: no cover - dependency missing
-            return fail(JobError(f"PDF reports need reportlab on the server (pip install reportlab): {e}",
-                                 "pdf_unavailable", 501))
-        run_dir = _Path(job["run_dir"])
-
-        def read(name):
-            p = run_dir / name
-            return _json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
-        decision = None
-        if any(request.args.get(k) for k in request.args):           # Phase 46: the user's limits
-            from ..session.constraints import ConstraintError, evaluate_constraints
-            try:
-                decision = evaluate_constraints(res, request.args)
-            except ConstraintError as e:
-                return fail(JobError(str(e), "bad_request", 400))
-        try:
-            pdf = build_report_pdf(res, job=job, input_meta=read("input.json"),
-                                   audit=read("selection_audit.json"),
-                                   prepared=read("manifest.json").get("prepared_set"), decision=decision)
-        except ImportError as e:
-            return fail(JobError(f"PDF reports need reportlab on the server (pip install reportlab): {e}",
-                                 "pdf_unavailable", 501))
         return Response(pdf, mimetype="application/pdf", headers={
             "Content-Disposition": f'attachment; filename="agentmeter_report_{job_id}.pdf"'})
 

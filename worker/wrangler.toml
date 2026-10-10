@@ -10,7 +10,7 @@ compatibility_date = "2025-09-01"
 
 [vars]
 # Exact front-end origins allowed to call this Worker (comma-separated, no trailing slash).
-ALLOWED_ORIGINS = "http://127.0.0.1:8080,http://localhost:8080"
+ALLOWED_ORIGINS = "https://agentmeter.pages.dev"
 PBKDF2_ITERATIONS = "40000"
 # The backend is offline when no heartbeat arrived for this many seconds (3 x 60 s beats).
 BACKEND_OFFLINE_AFTER_S = "180"
@@ -22,7 +22,7 @@ ALLOW_HTTP_BACKEND = "0"
 [[d1_databases]]
 binding = "DB"
 database_name = "agentmeter"
-database_id = "00000000-0000-0000-0000-000000000000"   # replace with `wrangler d1 create agentmeter` output
+database_id = "e873f9c7-aaf0-40ab-9cac-4c9ac0ab98ac"   # replace with `wrangler d1 create agentmeter` output
 migrations_dir = "migrations"
 
 [[r2_buckets]]

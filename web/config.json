@@ -1,5 +1,5 @@
 {
   "api_base": "",
-  "control_plane": "",
-  "_help": "control_plane: the deployed Worker URL, e.g. https://agentmeter-control-plane.<you>.workers.dev \u2014 users log in there and the app finds the GPU backend through it (docs/DEPLOY.md). api_base: development only, without a control plane: the backend URL (\"\" = same origin; or open the page with ?api=<url>, ?api=reset forgets it)."
+  "control_plane": "https://agentmeter-control-plane.ismazahin.workers.dev",
+  "_help": "control_plane: the deployed Worker URL, e.g. https://agentmeter-control-plane.ismazahin.workers.dev \u2014 users log in there and the app finds the GPU backend through it (docs/DEPLOY.md). api_base: development only, without a control plane: the backend URL (\"\" = same origin; or open the page with ?api=<url>, ?api=reset forgets it)."
 }

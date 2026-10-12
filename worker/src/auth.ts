@@ -1,9 +1,11 @@
 // Accounts and sessions: login (throttled), refresh rotation (reuse => revoke), logout, password.
 import { hashPassword, randomHex, randomToken, sha256Hex, signToken, verifyPassword, verifyToken } from "./crypto";
+import { loadLimits } from "./settings";
 import { Env, HttpError, clientIp, fail, intVar, json, nowIso, nowS, readJson } from "./util";
 
 export const ACCESS_TTL_S = 15 * 60;
-export const REFRESH_TTL_S = 30 * 24 * 3600;
+export const REFRESH_TTL_S = 30 * 24 * 3600;          // "Remember me" on
+export const SHORT_REFRESH_TTL_S = 12 * 3600;         // "Remember me" off: at most 12 h, and idle logout
 export const LOGIN_MAX_FAILURES = 5;
 export const LOGIN_WINDOW_S = 15 * 60;
 export const MAX_USERS = 5;
@@ -57,21 +59,23 @@ async function addFailure(env: Env, bucket: string, key: string) {
 }
 
 // --- tokens ---------------------------------------------------------------------------------
-async function issue(env: Env, user: User, sid?: string) {
+async function issue(env: Env, user: User, sid?: string, fresh?: { remember: boolean; userAgent: string }) {
   const refresh = randomToken(32);
   const now = nowS();
   if (!sid) {
     sid = randomHex(16);
+    const ttl = fresh?.remember ? REFRESH_TTL_S : SHORT_REFRESH_TTL_S;
     await env.DB.prepare(
-      "INSERT INTO auth_sessions (id,user_id,refresh_hash,created_at,last_used_at,expires_at) VALUES (?,?,?,?,?,?)",
-    ).bind(sid, user.id, await sha256Hex(refresh), nowIso(), nowIso(), nowIso((now + REFRESH_TTL_S) * 1000)).run();
+      "INSERT INTO auth_sessions (id,user_id,refresh_hash,created_at,last_used_at,expires_at,remember,user_agent) VALUES (?,?,?,?,?,?,?,?)",
+    ).bind(sid, user.id, await sha256Hex(refresh), nowIso(), nowIso(), nowIso((now + ttl) * 1000),
+           fresh?.remember ? 1 : 0, (fresh?.userAgent || "").slice(0, 200) || null).run();
   }
   const access = await signToken(env.ACCESS_TOKEN_SECRET, { typ: "access", sub: user.id, role: user.role, sid, iat: now, exp: now + ACCESS_TTL_S });
   return { access_token: access, refresh_token: refresh, expires_in: ACCESS_TTL_S, user: publicUser(user), sid };
 }
 
 export async function login(req: Request, env: Env): Promise<Response> {
-  const body = await readJson<{ username?: string; password?: string }>(req);
+  const body = await readJson<{ username?: string; password?: string; remember?: boolean }>(req);
   const username = String(body.username || "").slice(0, 64).toLowerCase();
   const ip = clientIp(req);
   if ((await failures(env, "login_user", username)) >= LOGIN_MAX_FAILURES ||
@@ -87,8 +91,15 @@ export async function login(req: Request, env: Env): Promise<Response> {
     await addFailure(env, "login_ip", ip);
     fail(401, "bad_credentials", "wrong username or password");
   }
-  const t = await issue(env, user!);
-  return json({ access_token: t.access_token, refresh_token: t.refresh_token, expires_in: t.expires_in, user: t.user });
+  const remember = body.remember === true;
+  const t = await issue(env, user!, undefined, { remember, userAgent: req.headers.get("User-Agent") || "" });
+  return json({ access_token: t.access_token, refresh_token: t.refresh_token, expires_in: t.expires_in, user: t.user,
+                session: await sessionInfo(env, remember) });
+}
+
+/** What the page needs to run the inactivity logout ("Remember me" off only). */
+async function sessionInfo(env: Env, remember: boolean) {
+  return { remember, idle_minutes: remember ? 0 : (await loadLimits(env)).session_idle_minutes };
 }
 
 export async function refresh(req: Request, env: Env): Promise<Response> {
@@ -97,8 +108,16 @@ export async function refresh(req: Request, env: Env): Promise<Response> {
   const h = await sha256Hex(String(refresh_token));
   const s = await env.DB.prepare(
     "SELECT a.*, u.disabled AS u_disabled FROM auth_sessions a JOIN users u ON u.id=a.user_id WHERE a.refresh_hash=? OR a.prev_hash=?",
-  ).bind(h, h).first<{ id: string; user_id: string; refresh_hash: string; expires_at: string; revoked_at: string | null; u_disabled: number }>();
+  ).bind(h, h).first<{ id: string; user_id: string; refresh_hash: string; expires_at: string; revoked_at: string | null; u_disabled: number;
+                      remember: number; last_used_at: string }>();
   if (!s || s.revoked_at || s.u_disabled || s.expires_at < nowIso()) fail(401, "session_expired", "please log in again");
+  const info = await sessionInfo(env, !!s!.remember);
+  // "Remember me" off: no refresh for idle_minutes (+ one access-token lifetime of slack) ends the session.
+  // The page logs out on its own inactivity timer; this is the server-side backstop.
+  if (info.idle_minutes > 0 && Date.parse(s!.last_used_at) < Date.now() - (info.idle_minutes * 60 + ACCESS_TTL_S) * 1000) {
+    await env.DB.prepare("UPDATE auth_sessions SET revoked_at=? WHERE id=?").bind(nowIso(), s!.id).run();
+    fail(401, "session_idle", `logged out after ${info.idle_minutes} minutes without activity — please log in again`);
+  }
   if (s!.refresh_hash !== h) {                    // an already-rotated token came back: likely stolen
     await env.DB.prepare("UPDATE auth_sessions SET revoked_at=? WHERE id=?").bind(nowIso(), s!.id).run();
     fail(401, "session_revoked", "refresh token reuse detected — the session was revoked; please log in again");
@@ -107,7 +126,7 @@ export async function refresh(req: Request, env: Env): Promise<Response> {
   const t = await issue(env, user!, s!.id);
   await env.DB.prepare("UPDATE auth_sessions SET prev_hash=refresh_hash, refresh_hash=?, last_used_at=? WHERE id=?")
     .bind(await sha256Hex(t.refresh_token), nowIso(), s!.id).run();
-  return json({ access_token: t.access_token, refresh_token: t.refresh_token, expires_in: t.expires_in, user: t.user });
+  return json({ access_token: t.access_token, refresh_token: t.refresh_token, expires_in: t.expires_in, user: t.user, session: info });
 }
 
 /** Bearer access token -> user (one D1 read: revoked session / disabled user end access at once). */
@@ -128,6 +147,38 @@ export async function logout(req: Request, env: Env): Promise<Response> {
   const a = await requireUser(req, env);
   await env.DB.prepare("UPDATE auth_sessions SET revoked_at=? WHERE id=?").bind(nowIso(), a.sid).run();
   return json({ ok: true });
+}
+
+// --- profile: me + devices -------------------------------------------------------------------
+interface Device { id: string; created_at: string; last_used_at: string; expires_at: string; remember: number; user_agent: string | null }
+
+export async function me(req: Request, env: Env): Promise<Response> {
+  const a = await requireUser(req, env);
+  const cur = await env.DB.prepare("SELECT remember, created_at FROM auth_sessions WHERE id=?").bind(a.sid)
+    .first<{ remember: number; created_at: string }>();
+  const prev = await env.DB.prepare("SELECT MAX(created_at) AS t FROM auth_sessions WHERE user_id=? AND id<>?")
+    .bind(a.user.id, a.sid).first<{ t: string | null }>();
+  return json({ user: publicUser(a.user),
+                session: { ...(await sessionInfo(env, !!cur?.remember)), logged_in_at: cur?.created_at || null },
+                previous_login_at: prev?.t || null });
+}
+
+export async function listDevices(req: Request, env: Env): Promise<Response> {
+  const a = await requireUser(req, env);
+  const rows = await env.DB.prepare(
+    "SELECT id, created_at, last_used_at, expires_at, remember, user_agent FROM auth_sessions " +
+    "WHERE user_id=? AND revoked_at IS NULL AND expires_at>=? ORDER BY last_used_at DESC",
+  ).bind(a.user.id, nowIso()).all<Device>();
+  return json({ devices: rows.results.map((d) => ({ id: d.id, created_at: d.created_at, last_used_at: d.last_used_at,
+    expires_at: d.expires_at, remember: !!d.remember, user_agent: d.user_agent, current: d.id === a.sid })) });
+}
+
+export async function revokeDevice(req: Request, env: Env, id: string): Promise<Response> {
+  const a = await requireUser(req, env);
+  const r = await env.DB.prepare("UPDATE auth_sessions SET revoked_at=? WHERE id=? AND user_id=? AND revoked_at IS NULL")
+    .bind(nowIso(), id, a.user.id).run();
+  if (!r.meta.changes) fail(404, "not_found", "no such device");       // someone else's session looks the same as none
+  return json({ ok: true, current: id === a.sid });
 }
 
 export async function changePassword(req: Request, env: Env): Promise<Response> {

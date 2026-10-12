@@ -1,7 +1,7 @@
 // AgentMeter control plane (Cloudflare Worker). AgentMeter MEASURES LLM resource efficiency; it
 // is not a threat-detection product. Routes and auth rules: docs/DEPLOY.md ("Control plane").
 import { credentials, deleteUser, listUsers, patchUser, postUser } from "./admin";
-import { changePassword, errorResponse, login, logout, publicUser, refresh, requireUser } from "./auth";
+import { changePassword, errorResponse, listDevices, login, logout, me, refresh, revokeDevice } from "./auth";
 import { getBackend, heartbeat, register } from "./backend";
 import { authorize } from "./runs";
 import {
@@ -19,7 +19,9 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["POST", /^\/api\/auth\/login$/, login],
   ["POST", /^\/api\/auth\/refresh$/, refresh],
   ["POST", /^\/api\/auth\/logout$/, logout],
-  ["GET", /^\/api\/me$/, async (req, env) => json({ user: publicUser((await requireUser(req, env)).user) })],
+  ["GET", /^\/api\/me$/, me],
+  ["GET", /^\/api\/me\/devices$/, listDevices],
+  ["DELETE", /^\/api\/me\/devices\/([0-9a-f]{32})$/, revokeDevice],
   ["POST", /^\/api\/me\/password$/, changePassword],
   ["GET", /^\/api\/settings$/, getSettings],
   ["PUT", /^\/api\/settings$/, putSettings],

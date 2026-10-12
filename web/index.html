@@ -258,8 +258,23 @@
   .preset { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .preset .field { flex: 1 1 90px; }
   .preset .field.name { flex: 2 1 160px; }
-  #cp-user { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  @media (max-width: 720px) { #cp-user { display: none; } }
+  .profile { position: relative; }
+  .profile-btn { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px 0 4px; border: 1px solid var(--border-2);
+    border-radius: 999px; background: var(--surface); color: var(--text); cursor: pointer; font: inherit; font-size: 14px; }
+  .profile-btn:hover { border-color: var(--accent); }
+  .avatar { width: 30px; height: 30px; border-radius: 50%; display: inline-grid; place-items: center; font-weight: 700; font-size: 13px;
+    background: var(--accent-soft); color: var(--accent); text-transform: uppercase; }
+  .profile-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .role-chip { font-size: 11px; font-weight: 700; letter-spacing: .02em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-2); color: var(--muted-2); }
+  .role-chip.admin { border-color: #E8A33D; color: #E8A33D; }
+  .profile-menu { position: absolute; right: 0; top: calc(100% + 6px); min-width: 220px; background: var(--surface); border: 1px solid var(--border-2);
+    border-radius: var(--radius-lg); box-shadow: 0 10px 30px rgba(0,0,0,.25); padding: 6px; z-index: 50; }
+  .profile-menu .who { padding: 8px 10px 10px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .profile-menu a, .profile-menu button { display: flex; width: 100%; align-items: center; min-height: 40px; padding: 0 10px; border: 0; border-radius: var(--radius);
+    background: none; color: var(--text); font: inherit; font-size: 14px; text-decoration: none; cursor: pointer; text-align: left; }
+  .profile-menu a:hover, .profile-menu button:hover, .profile-menu a:focus-visible, .profile-menu button:focus-visible { background: var(--accent-soft); outline: none; }
+  .profile-menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
+  @media (max-width: 720px) { .profile-name, .profile-btn .role-chip { display: none; } .profile-btn { padding: 0 4px; } }
   footer { border-top: 1px solid var(--border); padding: 20px 0 36px; color: var(--muted); font-size: 13px; }
 </style>
 </head>
@@ -277,13 +292,23 @@
       <a href="#/sessions" data-nav="sessions">Sessions</a>
       <a href="#/compare" data-nav="compare">Compare</a>
       <a href="#/leaderboard" data-nav="leaderboard">Leaderboard</a>
-      <a href="#/admin" data-nav="admin" id="nav-admin" hidden>Admin</a>
     </nav>
     <div class="top-right">
       <span id="svc-backend-badge" class="chip-gpu" role="status" aria-live="polite">Checking backend…</span>
-      <span id="cp-user" class="small muted" hidden></span>
-      <button type="button" class="btn small-btn" id="cp-logout" hidden>Log out</button>
-      <a class="iconbtn" href="#/settings" data-nav="settings" aria-label="Settings" title="Settings">
+      <div class="profile" id="cp-profile" hidden>
+        <button type="button" class="profile-btn" id="cp-profile-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="cp-menu">
+          <span class="avatar" id="cp-avatar" aria-hidden="true"></span><span class="profile-name" id="cp-user"></span><span class="role-chip" id="cp-role"></span>
+        </button>
+        <div class="profile-menu" id="cp-menu" role="menu" hidden>
+          <div class="who"><b id="cp-menu-name"></b><div class="small muted" id="cp-menu-role"></div></div>
+          <a href="#/profile" role="menuitem" data-nav="profile">Profile</a>
+          <a href="#/settings" role="menuitem" data-nav="settings">Settings</a>
+          <a href="#/admin" role="menuitem" data-nav="admin" id="nav-admin" hidden>Admin</a>
+          <hr>
+          <button type="button" role="menuitem" id="cp-logout">Log out</button>
+        </div>
+      </div>
+      <a class="iconbtn" href="#/settings" data-nav="settings" id="nav-settings-icon" aria-label="Settings" title="Settings">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
       </a>
     </div>
@@ -305,6 +330,9 @@
         <input type="text" id="login-user" name="username" autocomplete="username" required autocapitalize="none" spellcheck="false"></div>
       <div class="field" style="margin-top:12px"><label for="login-pass">Password</label>
         <input id="login-pass" name="password" type="password" autocomplete="current-password" required></div>
+      <label class="check" style="margin-top:12px"><input type="checkbox" id="login-remember"> Remember me on this device</label>
+      <p class="small muted" style="margin:2px 0 0">Off: you are logged out when the browser closes, or after a while without activity.</p>
+      <div id="login-info" class="notice" role="status" hidden></div>
       <div id="login-error" class="notice error" role="alert" hidden></div>
       <div class="actions"><button type="submit" class="btn primary" id="login-go">Log in</button></div>
       <p class="muted small">No public sign-up: your admin creates accounts (at most five).</p>
@@ -616,7 +644,27 @@
       <div class="actions"><button type="submit" class="btn primary" id="set-save">Save settings</button>
         <span class="small muted" id="set-saved" role="status" aria-live="polite"></span></div>
     </form>
-    <form class="card" id="set-password" hidden novalidate>
+    <div class="card">
+      <h2>Backend</h2>
+      <dl class="kv small" id="set-backend"></dl>
+      <p class="muted small" id="set-backend-note">A new backend address can be given once with <span class="mono">?api=&lt;url&gt;</span> (remembered in this
+        browser; <span class="mono">?api=reset</span> forgets it).</p>
+    </div>
+  </section>
+
+  <!-- PROFILE (control plane): who am I, my role, where am I logged in -->
+  <section id="view-profile" class="view" hidden aria-labelledby="h-profile">
+    <div class="page-head"><div><h1 id="h-profile">Profile</h1></div></div>
+    <div class="card">
+      <h2>Account</h2>
+      <dl class="kv" id="prof-account"></dl>
+    </div>
+    <div class="card">
+      <h2>Logged-in devices</h2>
+      <div class="table-wrap" style="margin-top:10px" id="prof-devices"></div>
+      <div id="prof-error" class="notice error" role="alert" hidden></div>
+    </div>
+    <form class="card" id="set-password" novalidate>
       <h2>Change password</h2>
       <div class="row" style="margin-top:8px">
         <div class="field"><label for="set-pw-cur">Current password</label><input id="set-pw-cur" type="password" autocomplete="current-password"></div>
@@ -626,12 +674,6 @@
       <p class="small muted">Changing it logs out your other devices.</p>
       <div id="set-pw-msg" class="notice" role="status" hidden></div>
     </form>
-    <div class="card">
-      <h2>Backend</h2>
-      <dl class="kv small" id="set-backend"></dl>
-      <p class="muted small" id="set-backend-note">A new backend address can be given once with <span class="mono">?api=&lt;url&gt;</span> (remembered in this
-        browser; <span class="mono">?api=reset</span> forgets it).</p>
-    </div>
   </section>
 
   <!-- ADMIN (control plane, admins only) -->
@@ -661,6 +703,7 @@
         <div class="field"><label for="lim-mq">Max queued sessions</label><input id="lim-mq" type="number" min="1" max="50"></div>
         <div class="field"><label for="lim-mb">Max upload (MB)</label><input id="lim-mb" type="number" min="1" max="90"></div>
         <div class="field"><label for="lim-idle">Idle minutes before the GPU stops</label><input id="lim-idle" type="number" min="5" max="1440"></div>
+        <div class="field"><label for="lim-sess-idle">Log out after minutes without activity <span class="hint">(Remember me off; 0 = never)</span></label><input id="lim-sess-idle" type="number" min="0" max="1440"></div>
       </div>
       <label class="check"><input type="checkbox" id="lim-ident"> Keep identification columns (IPs, ports, protocol, timestamp) in the stored copy of
         features.csv. Off by default: the models never use them; they stay only in the backend's run folder.</label>
@@ -724,8 +767,22 @@
   var WORKER_PATHS = /^\/api\/(sessions(\/|\?|$)|compare(\?|$)|leaderboard(\?|$)|settings(\/|$)|me(\/|$)|admin\/|backend$|runs\/|auth\/)/;
   var STRONG_JOB = /^job_\d{8}_\d{6}_[0-9a-f]{32}$/;
   var READ_TOK = null, FILE_TOK = {}, GRANTS = {};          // cached read/files tokens; jti of my prepare/import
-  function refreshGet() { try { return localStorage.getItem("agentmeter.refresh") || ""; } catch (e) { return ""; } }
-  function refreshSet(v) { try { if (v) localStorage.setItem("agentmeter.refresh", v); else localStorage.removeItem("agentmeter.refresh"); } catch (e) { /* storage blocked */ } }
+  // "Remember me" on: the refresh token is kept in localStorage (stays after the browser closes);
+  // off: in sessionStorage, so closing the browser logs out and the next visit starts at the login page.
+  var REMEMBER = false, IDLE_MIN = 0, LAST_ACTIVE = Date.now();
+  function stores() { var o = []; try { o.push(localStorage); } catch (e) { /* blocked */ } try { o.push(sessionStorage); } catch (e) { /* blocked */ } return o; }
+  function refreshGet() {
+    try { var l = localStorage.getItem("agentmeter.refresh"); if (l) { REMEMBER = true; return l; } } catch (e) { /* blocked */ }
+    try { var t = sessionStorage.getItem("agentmeter.refresh"); if (t) { REMEMBER = false; return t; } } catch (e) { /* blocked */ }
+    return "";
+  }
+  function refreshSet(v) {
+    stores().forEach(function (st) {
+      try {
+        if (v && st === (REMEMBER ? localStorage : sessionStorage)) st.setItem("agentmeter.refresh", v); else st.removeItem("agentmeter.refresh");
+      } catch (e) { /* storage blocked */ }
+    });
+  }
   function parse(r) {
     return r.text().then(function (t) {
       var data = null;
@@ -743,15 +800,26 @@
       .then(function (r) {
         refreshing = null;
         if (r.ok) { setAuth(r.data); return true; }
-        if (r.status === 401) { refreshSet(""); AUTH = { access: null, exp: 0, user: null }; }
+        if (r.status === 401) { refreshSet(""); AUTH = { access: null, exp: 0, user: null };
+          if (r.data && r.data.code === "session_idle") LOGOUT_REASON = idleReason(); }
         return r.status === 0 ? null : false;
       });
     return refreshing;
   }
   function setAuth(d) {
     AUTH = { access: d.access_token, exp: Date.now() + (d.expires_in - 30) * 1000, user: d.user };
+    if (d.session) { REMEMBER = !!d.session.remember; IDLE_MIN = d.session.idle_minutes || 0; }
     if (d.refresh_token) refreshSet(d.refresh_token);
   }
+  // Inactivity logout ("Remember me" off): no click, key, scroll or touch for IDLE_MIN minutes.
+  var LOGOUT_REASON = "";
+  function idleReason() { return "You were logged out after " + (IDLE_MIN || 30) + " minutes without activity."; }
+  function markActive() { LAST_ACTIVE = Date.now(); }
+  ["click", "keydown", "scroll", "touchstart", "pointermove"].forEach(function (ev) { window.addEventListener(ev, markActive, { passive: true }); });
+  setInterval(function () {
+    if (!CP || !AUTH.user || REMEMBER || !IDLE_MIN) return;
+    if (Date.now() - LAST_ACTIVE >= IDLE_MIN * 60000) { LOGOUT_REASON = idleReason(); logout(); }
+  }, 15000);
   function cpFetch(path, opts, retried) {
     opts = Object.assign({ credentials: "omit" }, opts || {});
     var go = function () {
@@ -914,13 +982,14 @@
   }
 
   // ---------- routing ----------
-  var VIEWS = ["home", "new", "sessions", "session", "compare", "leaderboard", "settings", "admin", "login"];
+  var VIEWS = ["home", "new", "sessions", "session", "compare", "leaderboard", "settings", "profile", "admin", "login"];
   function parseHash() {
     var h = location.hash.replace(/^#\/?/, ""), q = {}, qi = h.indexOf("?");
     if (qi >= 0) { new URLSearchParams(h.slice(qi + 1)).forEach(function (v, k) { q[k] = v; }); h = h.slice(0, qi); }
     return { parts: h.split("/").filter(Boolean).map(decodeURIComponent), q: q };
   }
   function show(view) {
+    closeMenu();
     VIEWS.forEach(function (v) { $("view-" + v).hidden = v !== view; });
     $("view-offline").hidden = true;
     document.querySelector(".mainnav").hidden = view === "login";
@@ -939,7 +1008,7 @@
     if ((v === "prepared" || v === "run") && p.length === 3) { location.replace("#/new/models?set=" + enc(p[1] + "/" + p[2])); return; }
     if (v === "job" && p[1]) { legacyJob(p[1]); return; }
     if (CP && !AUTH.user) { show("login"); showLogin(); return; }
-    if (VIEWS.indexOf(v) < 0 || v === "login" || (v === "admin" && !isAdmin())) v = "home";
+    if (VIEWS.indexOf(v) < 0 || v === "login" || (v === "admin" && !isAdmin()) || (v === "profile" && !CP)) v = "home";
     show(v);
     if (v === "home") loadHome();
     else if (v === "new") routeWizard(p, r.q);
@@ -948,6 +1017,7 @@
     else if (v === "compare") loadCompare(r.q);
     else if (v === "leaderboard") loadLeaderboard();
     else if (v === "settings") loadSettings();
+    else if (v === "profile") loadProfile();
     else if (v === "admin") loadAdmin();
     if (!/^session$/.test(v) || !p[2]) window.scrollTo(0, 0);
   }
@@ -1975,7 +2045,7 @@
       (CP ? '<dt>Control plane</dt><dd class="mono">' + esc(CP) + '</dd><dt>Access</dt><dd>logged in as ' + esc(AUTH.user.username) + ' (' + esc(AUTH.user.role) + ')</dd>'
           : '<dt>Access</dt><dd>' + (h.auth_required ? "run tokens from a control plane" : "open (local development)") + '</dd>');
     $("set-backend-note").hidden = !!CP;
-    $("set-account").hidden = $("set-password").hidden = !CP;
+    $("set-account").hidden = !CP;
     $("set-intro").textContent = CP ? "Saved to your account (theme is also kept in this browser)." : "Saved in this browser only.";
     if (!CP) return;
     var S = SETTINGS || {};
@@ -1992,7 +2062,7 @@
       $("set-models").querySelectorAll("input").forEach(function (x) { x.disabled = !x.checked && on >= 2; });
     }); });
     renderPresets(S.weight_presets || []);
-    $("set-saved").textContent = ""; $("set-error").hidden = true; $("set-pw-msg").hidden = true; $("set-tg-status").textContent = "";
+    $("set-saved").textContent = ""; $("set-error").hidden = true; $("set-tg-status").textContent = "";
   }
   function renderPresets(list) {
     $("set-presets").innerHTML = list.map(function (p, i) {
@@ -2087,7 +2157,7 @@
       if (!r.ok) return;
       var L = r.data.limits;
       $("lim-sph").value = L.sessions_per_hour; $("lim-mq").value = L.max_queued_sessions; $("lim-mb").value = L.max_upload_mb;
-      $("lim-idle").value = L.idle_minutes; $("lim-ident").checked = !!L.keep_identification_columns_in_r2;
+      $("lim-idle").value = L.idle_minutes; $("lim-sess-idle").value = L.session_idle_minutes; $("lim-ident").checked = !!L.keep_identification_columns_in_r2;
     });
   }
   function adminAct(b) {
@@ -2118,7 +2188,7 @@
     $("lim-error").hidden = true;
     api("/api/admin/limits", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
       sessions_per_hour: +$("lim-sph").value, max_queued_sessions: +$("lim-mq").value, max_upload_mb: +$("lim-mb").value,
-      idle_minutes: +$("lim-idle").value, keep_identification_columns_in_r2: $("lim-ident").checked }) }).then(function (r) {
+      idle_minutes: +$("lim-idle").value, session_idle_minutes: +$("lim-sess-idle").value, keep_identification_columns_in_r2: $("lim-ident").checked }) }).then(function (r) {
       if (!r.ok) showError($("lim-error"), r.data); else $("lim-saved").textContent = "Saved — the GPU backend picks them up at its next heartbeat (within a minute).";
     });
   });
@@ -2126,7 +2196,8 @@
   // ---------- LOGIN / LOGOUT ----------
   function showLogin() {
     $("login-form").hidden = false; $("pwchange-form").hidden = true; $("login-error").hidden = true;
-    $("cp-user").hidden = $("cp-logout").hidden = true; $("nav-admin").hidden = true;
+    $("cp-profile").hidden = true; $("nav-admin").hidden = true;
+    if (LOGOUT_REASON) { $("login-info").hidden = false; $("login-info").textContent = LOGOUT_REASON; LOGOUT_REASON = ""; }
     setTimeout(function () { $("login-user").focus(); }, 0);
   }
   function needLogin() {
@@ -2139,11 +2210,13 @@
     ev.preventDefault();
     $("login-error").hidden = true; $("login-go").disabled = true;
     fetch(CP + "/api/auth/login", { method: "POST", credentials: "omit", headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ username: $("login-user").value.trim(), password: $("login-pass").value }) })
+                                    body: JSON.stringify({ username: $("login-user").value.trim(), password: $("login-pass").value,
+                                                           remember: $("login-remember").checked }) })
       .then(parse, function () { return netErr("control plane"); }).then(function (r) {
         $("login-go").disabled = false;
         if (!r.ok) { showError($("login-error"), r.data); return; }
-        $("login-pass").value = "";
+        $("login-pass").value = ""; $("login-info").hidden = true;
+        markActive();
         setAuth(r.data);
         if (r.data.user.must_change_pw) { $("login-form").hidden = true; $("pwchange-form").hidden = false; $("pwc-new").focus(); return; }
         afterLogin();
@@ -2160,13 +2233,77 @@
   });
   var LAST_PW = "";
   $("login-pass").addEventListener("input", function () { LAST_PW = $("login-pass").value; });
-  $("cp-logout").addEventListener("click", function () {
-    cpFetch("/api/auth/logout", { method: "POST" }).then(function () { refreshSet(""); needLogin(); });
+  function logout() {
+    closeMenu();
+    return cpFetch("/api/auth/logout", { method: "POST" }).then(function () { refreshSet(""); needLogin(); });
+  }
+  $("cp-logout").addEventListener("click", logout);
+  // ---------- profile menu ----------
+  function closeMenu() { $("cp-menu").hidden = true; $("cp-profile-btn").setAttribute("aria-expanded", "false"); }
+  function openMenu() {
+    $("cp-menu").hidden = false; $("cp-profile-btn").setAttribute("aria-expanded", "true");
+    var first = $("cp-menu").querySelector("[role=menuitem]:not([hidden])"); if (first) first.focus();
+  }
+  $("cp-profile-btn").addEventListener("click", function (ev) { ev.stopPropagation(); if ($("cp-menu").hidden) openMenu(); else closeMenu(); });
+  document.addEventListener("click", function (ev) { if (!$("cp-profile").contains(ev.target)) closeMenu(); });
+  $("cp-menu").addEventListener("keydown", function (ev) {
+    var items = Array.prototype.filter.call($("cp-menu").querySelectorAll("[role=menuitem]"), function (x) { return !x.hidden; });
+    var i = items.indexOf(document.activeElement);
+    if (ev.key === "Escape") { closeMenu(); $("cp-profile-btn").focus(); }
+    else if (ev.key === "ArrowDown") { ev.preventDefault(); items[(i + 1) % items.length].focus(); }
+    else if (ev.key === "ArrowUp") { ev.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
   });
+  $("cp-menu").addEventListener("click", function (ev) { if (ev.target.closest("a")) closeMenu(); });
+  var ROLE_TEXT = { admin: "Admin: manages accounts, credentials and system limits, and can delete any session.",
+                    user: "User: runs benchmarks and manages your own sessions." };
+  function fillProfileMenu() {
+    var u = AUTH.user, admin = isAdmin();
+    $("cp-profile").hidden = false; $("nav-settings-icon").hidden = true;
+    $("cp-user").textContent = u.username; $("cp-avatar").textContent = u.username.charAt(0);
+    $("cp-role").textContent = admin ? "Admin" : "User"; $("cp-role").className = "role-chip" + (admin ? " admin" : "");
+    $("cp-menu-name").textContent = u.username; $("cp-menu-role").textContent = admin ? "Admin" : "User";
+    $("cp-profile-btn").setAttribute("aria-label", "Account menu: " + u.username + " (" + (admin ? "admin" : "user") + ")");
+    $("nav-admin").hidden = !admin;
+  }
+  // ---------- PROFILE ----------
+  function deviceName(ua) {
+    ua = ua || "";
+    var b = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "";
+    var o = /Windows/.test(ua) ? "Windows" : /Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iPhone / iPad" : /Mac OS X/.test(ua) ? "macOS" : /Linux/.test(ua) ? "Linux" : "";
+    return (b && o) ? b + " on " + o : (b || o || "Unknown device");
+  }
+  function loadProfile() {
+    $("prof-error").hidden = true; $("set-pw-msg").hidden = true; $("prof-devices").innerHTML = ""; $("prof-account").innerHTML = "";
+    api("/api/me").then(function (r) {
+      if (!r.ok) { showError($("prof-error"), r.data); return; }
+      var u = r.data.user, s = r.data.session || {}, admin = u.role === "admin";
+      $("prof-account").innerHTML = '<dt>Username</dt><dd class="mono" id="prof-username">' + esc(u.username) + '</dd>' +
+        '<dt>Role</dt><dd id="prof-role"><span class="role-chip' + (admin ? " admin" : "") + '">' + (admin ? "Admin" : "User") + '</span> <span class="muted small">' + esc(ROLE_TEXT[u.role] || "") + '</span></dd>' +
+        '<dt>Account created</dt><dd>' + esc(fmtDate(u.created_at)) + '</dd>' +
+        '<dt>This login</dt><dd>' + esc(fmtDate(s.logged_in_at)) + ' · ' + (s.remember ? "remembered on this device" : "until the browser closes" +
+          (s.idle_minutes ? ", or " + s.idle_minutes + " min without activity" : "")) + '</dd>' +
+        '<dt>Previous login</dt><dd>' + esc(r.data.previous_login_at ? fmtDate(r.data.previous_login_at) : "—") + '</dd>';
+    });
+    api("/api/me/devices").then(function (r) {
+      if (!r.ok) { showError($("prof-error"), r.data); return; }
+      var ds = r.data.devices || [];
+      $("prof-devices").innerHTML = '<table id="prof-devices-table"><thead><tr><th>Device</th><th>Logged in</th><th>Last active</th><th>Kept</th><th></th></tr></thead><tbody>' +
+        ds.map(function (d) {
+          return '<tr data-device="' + esc(d.id) + '"><td>' + esc(deviceName(d.user_agent)) + (d.current ? ' <span class="chip ok">this device</span>' : "") + '</td>' +
+            '<td class="small">' + esc(fmtDate(d.created_at)) + '</td><td class="small">' + esc(fmtDate(d.last_used_at)) + '</td>' +
+            '<td class="small">' + (d.remember ? "Remember me" : "Until the browser closes") + '</td>' +
+            '<td><button type="button" class="btn small-btn" data-revoke="' + esc(d.id) + '"' + (d.current ? ' data-current="1"' : "") + '>Log out</button></td></tr>';
+        }).join("") + '</tbody></table>';
+      $("prof-devices").querySelectorAll("[data-revoke]").forEach(function (b) { b.addEventListener("click", function () {
+        if (b.getAttribute("data-current")) { logout(); return; }
+        api("/api/me/devices/" + b.getAttribute("data-revoke"), { method: "DELETE" }).then(function (x) {
+          if (!x.ok) showError($("prof-error"), x.data); else loadProfile();
+        });
+      }); });
+    });
+  }
   function afterLogin() {
-    $("cp-user").hidden = $("cp-logout").hidden = false;
-    $("cp-user").textContent = AUTH.user.username;
-    $("nav-admin").hidden = !isAdmin();
+    fillProfileMenu();
     return api("/api/settings").then(function (r) {
       SETTINGS = r.ok ? r.data.settings : null;
       if (SETTINGS && SETTINGS.theme && SETTINGS.theme !== themePref()) applyTheme(SETTINGS.theme, true);

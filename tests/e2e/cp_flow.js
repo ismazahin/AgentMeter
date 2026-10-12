@@ -45,10 +45,14 @@ async function waitFor(fn, ms, step = 500) {
   while (Date.now() < end) { if (await fn()) return true; await sleep(step); }
   return false;
 }
-async function login(p, u, pw) {
+async function login(p, u, pw, remember = false) {
   await p.goto(APP + '/'); await p.waitForSelector('#login-form:not([hidden])');
-  await p.fill('#login-user', u); await p.fill('#login-pass', pw); await p.click('#login-go');
+  await p.fill('#login-user', u); await p.fill('#login-pass', pw);
+  if (remember) await p.check('#login-remember');
+  await p.click('#login-go');
 }
+async function menu(p) { if (await p.isHidden('#cp-menu')) await p.click('#cp-profile-btn'); await p.waitForSelector('#cp-menu:not([hidden])'); }
+async function logout(p) { await menu(p); await p.click('#cp-logout'); await p.waitForSelector('#login-form:not([hidden])'); }
 async function noHScroll(p) { return p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1); }
 
 (async () => {
@@ -73,8 +77,32 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(/wrong username or password/.test(await p.textContent('#login-error')), 'a wrong password is refused');
     await p.fill('#login-pass', 'admin-password-123'); await p.click('#login-go');
     await p.waitForSelector('#view-home:not([hidden])');
-    log(await p.isVisible('#nav-admin'), 'the admin sees the Admin page link');
-    log(!(await p.evaluate(() => Object.keys(localStorage).some(k => /access/.test(k)))), 'the access token is kept in memory only (refresh token in localStorage)');
+    log(/admin/i.test(await p.textContent('#cp-role')) && /admin/.test(await p.textContent('#cp-user')), 'the header shows a profile button with the name and an Admin badge');
+    await menu(p);
+    log(await p.isVisible('#nav-admin') && await p.isVisible('#cp-menu a[href="#/profile"]') && await p.isVisible('#cp-menu a[href="#/settings"]'),
+        'the profile menu has Profile, Settings and (for the admin) Admin');
+    await p.screenshot({ path: path.join(OUT, 'profile-menu.png') });
+    await p.keyboard.press('Escape');
+    log(await p.isHidden('#cp-menu'), 'Escape closes the profile menu');
+    log(!(await p.evaluate(() => Object.keys(localStorage).concat(Object.keys(sessionStorage)).some(k => /access/.test(k)))), 'the access token is kept in memory only');
+    log(!(await p.evaluate(() => localStorage.getItem('agentmeter.refresh'))) && !!(await p.evaluate(() => sessionStorage.getItem('agentmeter.refresh'))),
+        'Remember me off (default): the login is kept only for this browser session (sessionStorage)');
+    await p.goto(APP + '/#/profile'); await p.waitForSelector('#prof-devices-table');
+    log(/Admin/.test(await p.textContent('#prof-role')) && /admin/.test(await p.textContent('#prof-username')), 'Profile shows the username and the Admin role');
+    log((await p.$$('#prof-devices-table tbody tr')).length >= 1 && /this device/.test(await p.textContent('#prof-devices-table')), 'Profile lists the logged-in devices, this one marked');
+    log(await p.isVisible('#set-password'), 'Change password lives on the Profile page');
+    await p.screenshot({ path: path.join(OUT, 'profile.png'), fullPage: true });
+    const extra = await loginApi('admin', 'admin-password-123');                     // another "device"
+    const extraSid = JSON.parse(Buffer.from(extra.access_token.split('.')[1], 'base64url').toString()).sid;
+    await p.goto(APP + '/#/'); await p.goto(APP + '/#/profile'); await p.waitForSelector(`tr[data-device="${extraSid}"]`);
+    const before = (await p.$$('#prof-devices-table tbody tr')).length;
+    await p.click(`#prof-devices-table button[data-revoke="${extraSid}"]`);
+    await p.waitForFunction(n => document.querySelectorAll('#prof-devices-table tbody tr').length === n - 1, before);
+    const gone = await fetch(WORKER + '/api/auth/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: extra.refresh_token }) });
+    log(gone.status === 401, 'Profile: "Log out" on another device ends that login');
+    // a new tab of the same browser (fresh sessionStorage) asks to log in again
+    const p2 = await ctx.newPage(); await p2.goto(APP + '/'); await p2.waitForSelector('#login-form:not([hidden])');
+    log(true, 'a new tab without Remember me starts at the login page'); await p2.close();
 
     // 2. admin creates a user
     await p.goto(APP + '/#/admin'); await p.waitForSelector('#adm-users-table');
@@ -89,13 +117,18 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(true, 'admin saved the system limits');
 
     // 3. alice logs in, forced password change
-    await p.click('#cp-logout'); await p.waitForSelector('#login-form:not([hidden])');
-    log(!(await p.evaluate(() => localStorage.getItem('agentmeter.refresh'))), 'logout removes the refresh token');
-    await login(p, 'alice', 'temporary-pass-1');
+    await logout(p);
+    log(!(await p.evaluate(() => localStorage.getItem('agentmeter.refresh') || sessionStorage.getItem('agentmeter.refresh'))), 'logout removes the refresh token');
+    await login(p, 'alice', 'temporary-pass-1', true);
     await p.waitForSelector('#pwchange-form:not([hidden])');
     await p.fill('#pwc-new', 'alice-password-123'); await p.click('#pwc-go');
     await p.waitForSelector('#view-home:not([hidden])');
-    log(!(await p.isVisible('#nav-admin')), 'alice (user) changed her password; no Admin link for a user');
+    log(!!(await p.evaluate(() => localStorage.getItem('agentmeter.refresh'))), 'Remember me on: the login is kept in localStorage');
+    await menu(p);
+    log(!(await p.isVisible('#nav-admin')) && /User/.test(await p.textContent('#cp-role')), 'alice (user) changed her password; User badge, no Admin link');
+    await p.keyboard.press('Escape');
+    const p3 = await ctx.newPage(); await p3.goto(APP + '/'); await p3.waitForSelector('#view-home:not([hidden])');
+    log(true, 'Remember me on: a new tab opens already logged in'); await p3.close();
     await p.goto(APP + '/#/admin'); await p.waitForTimeout(500);
     log(await p.isVisible('#view-home'), 'a user cannot open the Admin page');
 
@@ -223,8 +256,8 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log((await p.$$('.lb-group')).length === 1, 'Leaderboard keeps all three sessions in one group');
 
     // 9. logout revokes
-    const rt = await p.evaluate(() => localStorage.getItem('agentmeter.refresh'));
-    await p.click('#cp-logout'); await p.waitForSelector('#login-form:not([hidden])');
+    const rt = await p.evaluate(() => localStorage.getItem('agentmeter.refresh') || sessionStorage.getItem('agentmeter.refresh'));
+    await logout(p);
     const reuse = await fetch(WORKER + '/api/auth/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: rt }) });
     log(reuse.status === 401, 'logout revokes the session (the old refresh token is refused)');
 

@@ -52,7 +52,7 @@ describe("admin system limits", () => {
     expect((await api("/api/admin/limits", { method: "PUT", token: u.token, body: { sessions_per_hour: 99 } })).status).toBe(403);
     const r = await api("/api/admin/limits", { method: "PUT", token: admin.token,
       body: { sessions_per_hour: 3, max_queued_sessions: 2, max_upload_mb: 50, idle_minutes: 20, keep_identification_columns_in_r2: true } });
-    expect(r.data.limits).toEqual({ sessions_per_hour: 3, max_queued_sessions: 2, max_upload_mb: 50, idle_minutes: 20, keep_identification_columns_in_r2: true });
+    expect(r.data.limits).toEqual({ sessions_per_hour: 3, max_queued_sessions: 2, max_upload_mb: 50, idle_minutes: 20, session_idle_minutes: 30, keep_identification_columns_in_r2: true });
     for (const body of [{ max_upload_mb: 91 }, { sessions_per_hour: 0 }, { idle_minutes: -1 }, { keep_identification_columns_in_r2: "no" }, { gpu_price: 1 }])
       expect((await api("/api/admin/limits", { method: "PUT", token: admin.token, body })).status).toBe(400);
   });

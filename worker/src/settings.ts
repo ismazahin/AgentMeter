@@ -109,11 +109,13 @@ export const DEFAULT_LIMITS = {
   max_queued_sessions: 4,
   max_upload_mb: 90,            // hard cap 90: Cloudflare (tunnel + Workers) caps a request at 100 MB
   idle_minutes: 30,             // backend auto-shutdown after this long idle (0 = never)
+  session_idle_minutes: 30,     // log out a "Remember me"-off login after this long without activity (0 = never)
   keep_identification_columns_in_r2: false,
 };
 export type Limits = typeof DEFAULT_LIMITS;
 const LIMIT_RANGES: Record<string, [number, number]> = {
   sessions_per_hour: [1, 1000], max_queued_sessions: [1, 50], max_upload_mb: [1, 90], idle_minutes: [0, 1440],
+  session_idle_minutes: [0, 1440],
 };
 
 export async function loadLimits(env: Env): Promise<Limits> {

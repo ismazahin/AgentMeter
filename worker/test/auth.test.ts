@@ -137,3 +137,74 @@ describe("users: admin only, max 5, roles", () => {
     expect((await api("/api/admin/users", { body: { username: uname(), password: PW, role: "root" }, token: admin.token })).data.code).toMatch(/bad_role|max_users/);
   });
 });
+
+describe("Remember me, inactivity logout, devices (profile)", () => {
+  const login = (name: string, remember?: boolean, ua = "TestBrowser/1.0") =>
+    api("/api/auth/login", { body: { username: name, password: PW, ...(remember === undefined ? {} : { remember }) }, headers: { "User-Agent": ua } });
+
+  it("Remember me off (the default) gives a 12 h login with an idle limit; on gives 30 days and no idle limit", async () => {
+    const u = await user();
+    const off = await login(u.name);
+    expect(off.data.session).toEqual({ remember: false, idle_minutes: 30 });
+    const on = await login(u.name, true);
+    expect(on.data.session).toEqual({ remember: true, idle_minutes: 0 });
+    const rows = (await E.DB.prepare("SELECT remember, created_at, expires_at FROM auth_sessions WHERE user_id=? ORDER BY remember").bind(u.id).all()).results;
+    const hours = (r: any) => (Date.parse(r.expires_at) - Date.parse(r.created_at)) / 3600e3;
+    const offRow = rows.filter((r: any) => !r.remember).pop(), onRow = rows.find((r: any) => r.remember);
+    expect(Math.round(hours(offRow))).toBe(12);
+    expect(Math.round(hours(onRow))).toBe(30 * 24);
+  });
+
+  it("a Remember-me-off login that went quiet past the idle limit cannot refresh; a remembered one can", async () => {
+    const u = await user();
+    const off = await login(u.name), on = await login(u.name, true);
+    const old = new Date(Date.now() - 60 * 60e3).toISOString();         // 60 min > 30 idle + 15 slack
+    await E.DB.prepare("UPDATE auth_sessions SET last_used_at=? WHERE user_id=?").bind(old, u.id).run();
+    const r = await api("/api/auth/refresh", { body: { refresh_token: off.data.refresh_token } });
+    expect(r.status).toBe(401);
+    expect(r.data.code).toBe("session_idle");
+    expect((await api("/api/me", { token: off.data.access_token })).status).toBe(401);      // revoked, not just refused
+    expect((await api("/api/auth/refresh", { body: { refresh_token: on.data.refresh_token } })).status).toBe(200);
+  });
+
+  it("the admin's session_idle_minutes applies; 0 turns the idle logout off", async () => {
+    const admin = await user("admin"), u = await user();
+    expect((await api("/api/admin/limits", { method: "PUT", token: admin.token, body: { session_idle_minutes: 0 } })).status).toBe(200);
+    const off = await login(u.name);
+    expect(off.data.session.idle_minutes).toBe(0);
+    await E.DB.prepare("UPDATE auth_sessions SET last_used_at=? WHERE user_id=?").bind(new Date(Date.now() - 5 * 3600e3).toISOString(), u.id).run();
+    expect((await api("/api/auth/refresh", { body: { refresh_token: off.data.refresh_token } })).status).toBe(200);
+  });
+
+  it("/api/me tells the role, this login and the previous one", async () => {
+    const u = await user();                                       // first login (helper)
+    const second = await login(u.name, true);
+    const me = await api("/api/me", { token: second.data.access_token });
+    expect(me.data.user.role).toBe("user");
+    expect(me.data.session.remember).toBe(true);
+    expect(me.data.session.logged_in_at).toBeTruthy();
+    expect(me.data.previous_login_at).toBeTruthy();
+    expect(JSON.stringify(me.data)).not.toMatch(/pw_hash|pw_salt|refresh_hash/);
+  });
+
+  it("lists my logged-in devices and logs one out; never someone else's", async () => {
+    const u = await user(), other = await user();
+    const phone = await login(u.name, true, "Phone/2.0");
+    const list = await api("/api/me/devices", { token: u.token });
+    expect(list.status).toBe(200);
+    expect(list.data.devices.length).toBe(2);
+    expect(list.data.devices.filter((d: any) => d.current).length).toBe(1);
+    const ph = list.data.devices.find((d: any) => d.user_agent === "Phone/2.0");
+    expect(ph.remember).toBe(true);
+    expect(JSON.stringify(list.data)).not.toMatch(/refresh_hash|prev_hash/);
+    // someone else cannot revoke it (looks like "no such device")
+    expect((await api(`/api/me/devices/${ph.id}`, { method: "DELETE", token: other.token })).status).toBe(404);
+    const del = await api(`/api/me/devices/${ph.id}`, { method: "DELETE", token: u.token });
+    expect(del.status).toBe(200);
+    expect(del.data.current).toBe(false);
+    expect((await api("/api/me", { token: phone.data.access_token })).status).toBe(401);
+    expect((await api("/api/auth/refresh", { body: { refresh_token: phone.data.refresh_token } })).status).toBe(401);
+    expect((await api("/api/me/devices", { token: u.token })).data.devices.length).toBe(1);
+    expect((await api("/api/me", { token: u.token })).status).toBe(200);                   // this device still logged in
+  });
+});

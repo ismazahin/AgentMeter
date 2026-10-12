@@ -16,7 +16,10 @@ Design (kept deliberately simple):
     atomically (temp file + os.replace), so a crash never leaves a torn record.
   * Single-job lock: ONE background worker thread runs jobs one at a time from
     a FIFO queue (GPU/VRAM safety). A create while busy is accepted as "queued".
-  * Status: queued -> running -> done | failed | interrupted.
+  * Status: queued -> running -> done | failed | interrupted | stopped.
+  * Stop: a user stops a queued job (it never starts) or a running one (the current model's
+    worker process is terminated; a prepare stops at its next progress step). A stopped job is
+    final: never scored, never uploaded as a session; "benchmark these flows again" restarts.
   * Restart: a new JobManager re-reads the store. A job left "running" by a dead
     process becomes "interrupted" (resumable); "queued" jobs are re-queued in
     creation order.
@@ -50,13 +53,28 @@ DEFAULT_JOBS_DIR = DEFAULT_RESULTS_ROOT / "jobs"
 RUN_ROOTS = ("csv_runs", "pcap_runs")
 CONFIGS_DIR = PROJECT_ROOT / "configs"
 
-TERMINAL = ("done", "failed", "interrupted")
+TERMINAL = ("done", "failed", "interrupted", "stopped")
+STOPPABLE = ("queued", "running")
 RESUMABLE = ("interrupted", "failed")
 # Phase 47: new job ids carry 128 random bits (secrets.token_hex(16)), so a job's status page can
 # stay open by id; ids from before Phase 47 (24 random bits) are still read, but only with a token.
 _JOB_ID = re.compile(r"^job_[0-9]{8}_[0-9]{6}_([0-9a-f]{6}|[0-9a-f]{32})$")
 _STRONG_JOB_ID = re.compile(r"^job_[0-9]{8}_[0-9]{6}_[0-9a-f]{32}$")
 _RUN_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
+
+
+class JobStopped(RuntimeError):
+    """Raised inside a job's work when a user stopped it."""
+
+
+def _default_stop_runner() -> None:
+    from ..run.runner import request_stop
+    request_stop()
+
+
+def _default_clear_stop() -> None:
+    from ..run.runner import clear_stop
+    clear_stop()
 
 
 class JobError(ValueError):
@@ -178,8 +196,13 @@ class JobManager:
                  progress_fn: Callable[[dict], dict] = session_progress,
                  prepare_runner: Callable[[dict, Callable], str] = run_prepare_job,
                  gpu_available: Callable[[], bool] = default_gpu_available,
-                 autostart: bool = True):
+                 autostart: bool = True,
+                 stop_runner: Callable[[], None] = _default_stop_runner,
+                 clear_stop: Callable[[], None] = _default_clear_stop):
         self.jobs_dir = Path(jobs_dir)
+        self.stop_runner = stop_runner
+        self.clear_stop = clear_stop
+        self._stopping: set[str] = set()            # running jobs a user asked to stop
         self.results_root = Path(results_root)
         self.runner = runner
         self.progress_fn = progress_fn
@@ -455,6 +478,8 @@ class JobManager:
         state = {"t": 0.0, "phase": None}
 
         def report(**kw) -> None:
+            if job_id in self._stopping:
+                raise JobStopped("stopped by a user")
             src = kw.pop("source", None)
             now = time.monotonic()
             phase = kw.get("phase", state["phase"])
@@ -491,6 +516,26 @@ class JobManager:
                                   else "queued — waiting for the data to be prepared" if prep_id
                                   else "queued to resume (completed flows will be skipped)"))
             self._enqueue(job_id)
+        return self.get(job_id)
+
+    def stop(self, job_id: str, by: Optional[str] = None) -> dict[str, Any]:
+        """Stop a queued job (it never starts) or a running one. Final: a stopped benchmark is
+        never scored or uploaded (half a run would misrepresent a model)."""
+        who = f" by {by}" if by else ""
+        with self._lock:
+            job = self._load(job_id)
+            st = job["status"]
+            if st not in STOPPABLE:
+                raise JobError(f"job {job_id} is {st}; only queued or running jobs can be stopped",
+                               "not_stoppable", 409)
+            if st == "queued":
+                self._update(job_id, status="stopped", finished_at=_now(), stopped_by=by,
+                             message=f"stopped{who} before it started — not scored")
+                return self.get(job_id)
+            self._stopping.add(job_id)
+            self._update(job_id, stop_requested=True, stopped_by=by, message=f"stopping{who}…")
+        if job.get("kind") != "prepare":
+            self.stop_runner()                      # ends the current model's worker process
         return self.get(job_id)
 
     def get(self, job_id: str) -> dict[str, Any]:
@@ -581,17 +626,24 @@ class JobManager:
         if prep:
             self._run_prepare(job)
             return
+        self.clear_stop()
         try:
             if not job.get("run_dir") and job.get("after_prepare"):
                 job = self._resolve_chained(job)
+            if job_id in self._stopping:
+                raise JobStopped("stopped by a user")
             result_path = self.runner(job)
         except BaseException as e:               # noqa: BLE001 — a job must never kill the worker
+            if job_id in self._stopping:
+                self._finish_stopped(job_id, final_progress=self.progress_fn(self._load(job_id)))
+                return
             self._update(job_id, status="failed", finished_at=_now(),
                          error=f"{type(e).__name__}: {e}",
                          error_trace=traceback.format_exc(limit=5),
                          final_progress=self.progress_fn(self._load(job_id)),
                          message="failed — resume to retry from the last completed flow")
             return
+        self._stopping.discard(job_id)             # finished before the stop took effect: keep it
         done = self._load(job_id)
         done["status"] = "done"
         self._update(job_id, status="done", finished_at=_now(), result_path=str(result_path),
@@ -603,6 +655,9 @@ class JobManager:
         try:
             prepared = self.prepare_runner(job, report)
         except BaseException as e:               # noqa: BLE001 — a job must never kill the worker
+            if job_id in self._stopping:
+                self._finish_stopped(job_id)
+                return
             msg = str(e) if getattr(e, "code", None) else f"{type(e).__name__}: {e}"
             self._update(job_id, status="failed", finished_at=_now(), error=msg,
                          error_code=getattr(e, "code", "prepare_failed"),
@@ -610,8 +665,16 @@ class JobManager:
                          error_trace=traceback.format_exc(limit=5),
                          message="failed — fix the input or resume to retry")
             return
+        self._stopping.discard(job_id)
         kind, name = prepared.split("/")
         self._update(job_id, status="done", finished_at=_now(), prepared=prepared,
                      result_path=str(self.results_root / kind / name / "manifest.json"),
                      prep_progress={**(self._load(job_id).get("prep_progress") or {}), "phase": "done"},
                      message="done — prepared set ready")
+
+    def _finish_stopped(self, job_id: str, **fields) -> None:
+        self._stopping.discard(job_id)
+        by = self._load(job_id).get("stopped_by")
+        self._update(job_id, status="stopped", finished_at=_now(), stop_requested=False,
+                     message=f"stopped{' by ' + by if by else ''} — not scored; benchmark these flows again to restart",
+                     **fields)

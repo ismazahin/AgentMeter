@@ -106,3 +106,23 @@ describe("run tokens + per-user rate limit", () => {
     expect(r.data.code).toBe("queue_full");
   });
 });
+
+describe("stop tokens", () => {
+  it("a stop token names the job, says whether the caller is an admin, and never counts against the hourly limit", async () => {
+    const admin = await user("admin"), u = await user();
+    await register();
+    await api("/api/admin/limits", { method: "PUT", token: admin.token, body: { sessions_per_hour: 1 } });
+    for (let i = 0; i < 3; i++) {
+      const r = await api("/api/runs/authorize", { body: { kind: "stop", job_id: JOB(i) }, token: u.token });
+      expect(r.status).toBe(200);
+      const p = await verifyToken<any>(E.RUN_TOKEN_SECRET, r.data.token, "run");
+      expect(p).toMatchObject({ kind: "stop", job_id: JOB(i), sub: u.id, admin: false });
+    }
+    const a = await api("/api/runs/authorize", { body: { kind: "stop", job_id: JOB(5) }, token: admin.token });
+    expect((await verifyToken<any>(E.RUN_TOKEN_SECRET, a.data.token, "run"))!.admin).toBe(true);
+    expect((await api("/api/runs/authorize", { body: { kind: "stop", job_id: "nope" }, token: u.token })).status).toBe(400);
+    const n = await E.DB.prepare("SELECT COUNT(*) AS n FROM run_grants").first();
+    expect(n.n).toBe(0);                                                       // nothing was counted
+    expect((await api("/api/runs/authorize", { body: { kind: "prepare" }, token: u.token })).status).toBe(200);   // still allowed
+  });
+});

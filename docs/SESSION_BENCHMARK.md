@@ -169,6 +169,7 @@ way a benchmark is computed does not change.
 | `GET /api/jobs/<id>/result` | `session_results.json` once the job is `done`. Before that it returns **409** `not_ready` |
 | `GET /api/jobs` | Recent jobs, newest first, plus the job currently running |
 | `POST /api/jobs/<id>/resume` | Re-queue an `interrupted` or `failed` job |
+| `POST /api/jobs/<id>/stop` | Stop a `queued` job (it never starts) or a `running` one (the current model's worker process is terminated). Final: a stopped job is never scored or uploaded. With a control plane: a single-use `stop` token for that job, from its owner or an admin |
 | `POST /api/jobs` with `{"after_prepare": "<prepare job id>", "models": [...]}` | Phase 46: queue the benchmark **behind** a data-preparation job (the wizard's "Run when data is ready"); the single worker runs the preparation first and the benchmark then takes its prepared set. A failed preparation fails the benchmark with `prepare_failed` |
 | `GET /api/jobs/<id>/constraints?max_mean_latency_s=…` | Decision helper: each measured model against your limits (`configs/constraint_rules.yaml`); the same query string on `/report.pdf` puts the limits in the PDF |
 | `GET /api/sessions` (`?status=Done\|Demo\|Running\|Failed&input=CSV\|PCAP`) | Phase 46: benchmark sessions for Home / Sessions (needs a read token with a control plane; the app reads the Worker copy) |
@@ -176,7 +177,11 @@ way a benchmark is computed does not change.
 | `GET /api/compare?a=<id>&b=<id>` | Side-by-side efficiency metrics plus the like-for-like check |
 | `GET /api/leaderboard?sort=latency\|vram\|tokens\|cost\|energy` | Models ranked within (prepared-set hash, GPU) groups (needs a read token with a control plane; the app reads the Worker copy) |
 
-- **Status:** `queued → running → done | failed | interrupted`.
+- **Status:** `queued → running → done | failed | interrupted | stopped`.
+- **Stop:** the Stop button (owner or admin) on a running session. No further model starts,
+  the running model's worker exits (the OS frees its GPU memory), flows already measured stay in
+  `session.db` but the session is **not scored** and never reaches Compare or Leaderboard (half
+  a run would misrepresent a model). Not resumable: "Benchmark these flows again" restarts it.
 - **One job at a time (single-job lock):** a single worker thread runs jobs in order,
   for GPU and VRAM safety. A job created while another is running stays `queued`,
   and its `queue_position` shows how many jobs are ahead of it.
@@ -189,7 +194,7 @@ way a benchmark is computed does not change.
 - **Progress** is read live from the run's own `session.db`, so it stays correct
   after a restart.
 - **Errors** return `{"error", "code"}`, with codes `too_many_models`, `bad_models`,
-  `run_missing` (404), `no_gpu` (503), `not_ready` (409), `not_resumable` (409),
+  `run_missing` (404), `no_gpu` (503), `not_ready` (409), `not_resumable` (409), `not_stoppable` (409),
   `not_found` (404) and `bad_request`.
 - **No GPU:** a job that needs one (hf provider) is rejected when it is created.
   It never falls back to the CPU.

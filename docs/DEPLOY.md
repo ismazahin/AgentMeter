@@ -54,8 +54,10 @@ Worker. Nothing is pasted between them.
   `*.workers.dev`, which are different sites.
 - **Run tokens (they replace the shared passcode).** The backend accepts work only with a
   token the Worker signed for a logged-in user (`AGENTMETER_RUN_TOKEN_SECRET` = Worker
-  `RUN_TOKEN_SECRET`): 5 minutes, single use for prepare / import / benchmark / resume, bound
-  to the request (the prepared set, the prepare job, the job to resume). Listings and stored
+  `RUN_TOKEN_SECRET`): 5 minutes, single use for prepare / import / benchmark / resume / stop, bound
+  to the request (the prepared set, the prepare job, the job to resume or stop; a stop token says
+  whether the user is an admin — otherwise only the job's owner may stop it, and it never counts
+  against the hourly limit). Listings and stored
   results need a `read` token; prepared-set files a `files` token for that set (and the R2
   copies a login). A job's status by id stays open: job ids carry **128 random bits**
   (`secrets.token_hex(16)`); ids from before Phase 47 (24 bits) need a token even for status.

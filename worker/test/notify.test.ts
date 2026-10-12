@@ -61,4 +61,15 @@ describe("Telegram notifications (sent by the control plane, per user settings)"
     const w = await user();
     expect((await api("/api/settings/telegram-test", { method: "POST", token: w.token })).data.code).toBe("bad_setting");
   });
+
+  it("a stopped session tells its owner who stopped it (notify on failed)", async () => {
+    const sent = spyTelegram();
+    const u = await user();
+    await api("/api/settings", { method: "PUT", token: u.token, body: { telegram_chat_id: "999", notify_on: "failed" } });
+    await ownedSession(u);
+    await backendCall("POST", `/api/backend/jobs/${SID}/status`, { status: "stopped", stopped_by: "olivia" });
+    expect(sent.map((x) => x.body.text)).toEqual([expect.stringMatching(/Stopped[\s\S]*Stopped by olivia[\s\S]*not scored/)]);
+    const s = await api(`/api/sessions/${SID}`, { token: u.token });
+    expect((s.data.session || s.data).status).toBe("Stopped");
+  });
 });

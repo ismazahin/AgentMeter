@@ -46,7 +46,7 @@ function checkUrl(env: Env, url: unknown): string {
   return u.origin;
 }
 
-const STATUS = (s: string) => ({ queued: "Running", running: "Running", done: "Done", failed: "Failed", interrupted: "Interrupted" } as Record<string, string>)[s] || "Running";
+const STATUS = (s: string) => ({ queued: "Running", running: "Running", done: "Done", failed: "Failed", interrupted: "Interrupted", stopped: "Stopped" } as Record<string, string>)[s] || "Running";
 
 async function reconcile(env: Env, jobs: unknown) {
   if (!Array.isArray(jobs)) return;
@@ -56,8 +56,9 @@ async function reconcile(env: Env, jobs: unknown) {
   const stmts = [];
   for (const r of open.results) {
     const st = known.get(r.id);
-    if (st === undefined || st === "interrupted" || st === "failed")
-      stmts.push(env.DB.prepare("UPDATE sessions SET status=?, updated_at=? WHERE id=?").bind(st === "failed" ? "Failed" : "Interrupted", nowIso(), r.id));
+    if (st === undefined || st === "interrupted" || st === "failed" || st === "stopped")
+      stmts.push(env.DB.prepare("UPDATE sessions SET status=?, updated_at=? WHERE id=?")
+        .bind(st === "failed" ? "Failed" : st === "stopped" ? "Stopped" : "Interrupted", nowIso(), r.id));
   }
   if (stmts.length) await env.DB.batch(stmts);
 }

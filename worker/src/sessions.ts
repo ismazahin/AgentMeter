@@ -57,7 +57,7 @@ export async function listSessions(req: Request, env: Env): Promise<Response> {
   const r = await env.DB.prepare(
     `SELECT id, owner_id, owner_username, status, created_at, finished_at, input_type, n_flows, gpu, provider, models_json, prepared_set, summary_json, results_bytes, files_json
      FROM sessions WHERE ${where.join(" AND ")} ORDER BY created_at DESC LIMIT ?`).bind(...args, limit).all<Row>();
-  return json({ sessions: r.results.map(view), statuses: ["Done", "Demo", "Running", "Failed", "Interrupted"] });
+  return json({ sessions: r.results.map(view), statuses: ["Done", "Demo", "Running", "Failed", "Interrupted", "Stopped"] });
 }
 
 export async function getSession(req: Request, env: Env, id: string): Promise<Response> {
@@ -181,7 +181,7 @@ export async function jobStatus(req: Request, env: Env, id: string): Promise<Res
   const st = STATUS_FROM_JOB(String(b.status || ""));
   await env.DB.prepare("UPDATE sessions SET status=CASE WHEN status IN ('Done','Demo') THEN status ELSE ? END, updated_at=? WHERE id=?")
     .bind(st, nowIso(), id).run();
-  if (st === "Failed" || st === "Interrupted") await notifyFinal(env, id, st);   // Done: after the summary arrives
+  if (st === "Failed" || st === "Interrupted" || st === "Stopped") await notifyFinal(env, id, st, b.stopped_by ? String(b.stopped_by) : undefined);   // Done: after the summary arrives
   return json({ ok: true });
 }
 

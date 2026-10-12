@@ -22,12 +22,12 @@ const out = []; const log = (ok, msg) => { out.push((ok ? 'PASS ' : 'FAIL ') + m
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 let backend = null;
-function startBackend() {
+function startBackend(extraEnv = {}) {
   fs.mkdirSync(RESULTS, { recursive: true });
   const env = Object.assign({}, process.env, {
     AGENTMETER_RESULTS_DIR: RESULTS, AGENTMETER_RUN_TOKEN_SECRET: process.env.DEV_RUN_SECRET,
     AGENTMETER_BACKEND_SECRET: process.env.DEV_BACKEND_SECRET, AGENTMETER_WORKER_URL: WORKER,
-    AGENTMETER_PUBLIC_URL: `http://127.0.0.1:${BP}`, AGENTMETER_ALLOWED_ORIGINS: APP, AGENTMETER_HEARTBEAT_S: '3' });
+    AGENTMETER_PUBLIC_URL: `http://127.0.0.1:${BP}`, AGENTMETER_ALLOWED_ORIGINS: APP, AGENTMETER_HEARTBEAT_S: '3' }, extraEnv);
   backend = cp.spawn(process.env.PYTHON || 'python', ['scripts/serve.py', '--provider', 'mock', '--host', '127.0.0.1', '--port', String(BP),
                                                      '--results-dir', RESULTS], { cwd: REPO, env, stdio: ['ignore', fs.openSync(path.join(OUT, 'backend.log'), 'a'), fs.openSync(path.join(OUT, 'backend.log'), 'a')] });
 }
@@ -254,6 +254,37 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Compare: rental-1 session vs rental-2 session on the restored set is like-for-like');
     await p.goto(APP + '/#/leaderboard'); await p.waitForSelector('.lb-table');
     log((await p.$$('.lb-group')).length === 1, 'Leaderboard keeps all three sessions in one group');
+
+    // 8c. Stop a running benchmark (a slow mock run): never scored, never stored as a session
+    await stopBackend(); startBackend({ AGENTMETER_MOCK_LATENCY_S: '0.4' });
+    log(await waitFor(async () => (await workerJson('/api/backend', (await loginApi('admin', 'admin-password-123')).access_token)).online, 30000), 'backend restarted (slow mock runs)');
+    const lbBefore = (await workerJson('/api/leaderboard', (await loginApi('admin', 'admin-password-123')).access_token));
+    await p.goto(APP + '/#/'); await p.waitForTimeout(1500);
+    const set3 = (await workerJson('/api/sessions/' + job3, offTok)).run_name;          // the restored set on this rental
+    await p.goto(APP + '/#/new/models?set=' + encodeURIComponent(set3)); await p.waitForSelector('#svc-models input');
+    await p.waitForFunction(() => !document.getElementById('svc-run').disabled, null, { timeout: 30000 });
+    await p.click('#svc-run');
+    await p.waitForFunction(() => /^#\/(new\/run|session)\//.test(location.hash), null, { timeout: 30000 });
+    if (!/^#\/new\/run\//.test(await p.evaluate(() => location.hash))) log(false, 'Run opened the watch page');
+    const jobS = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[3]);
+    await p.waitForSelector('#svc-stop:not([hidden])', { timeout: 60000 });
+    log(true, 'a running benchmark shows a Stop button to its owner');
+    await p.waitForFunction(() => /now running/.test(document.getElementById('svc-progress-text').textContent), null, { timeout: 60000 });
+    p.once('dialog', d => d.accept());
+    await p.click('#svc-stop');
+    await p.waitForFunction(() => /Stopped/.test(document.getElementById('svc-job-status').textContent), null, { timeout: 60000 });
+    log(/not scored/.test(await p.textContent('#svc-progress-text')) && await p.isHidden('#svc-stop'), 'after confirming, the run stops: "Stopped … not scored", no Stop button');
+    log(await p.isVisible('.again-link a'), 'a stopped run offers "Benchmark these flows again"');
+    const stoppedRow = await waitFor(async () => (await workerJson('/api/sessions/' + jobS, (await loginApi('admin', 'admin-password-123')).access_token)).status === 'Stopped', 20000);
+    log(stoppedRow, 'the control plane marks the session Stopped');
+    const sj = await workerJson('/api/sessions/' + jobS, (await loginApi('admin', 'admin-password-123')).access_token);
+    log(!sj.has_results, 'a stopped session has no stored results (never scored or uploaded)');
+    const lbAfter = await workerJson('/api/leaderboard', (await loginApi('admin', 'admin-password-123')).access_token);
+    log(JSON.stringify(lbAfter.groups) === JSON.stringify(lbBefore.groups), 'the Leaderboard is unchanged by a stopped run');
+    await p.goto(APP + '/#/sessions'); await p.waitForSelector('#sessions-table');
+    log(/Stopped/.test(await p.textContent(`tr:has(a[data-open="${jobS}"])`)), 'Sessions lists it as Stopped');
+    await stopBackend(); startBackend();
+    await waitFor(async () => (await workerJson('/api/backend', (await loginApi('admin', 'admin-password-123')).access_token)).online, 30000);
 
     // 9. logout revokes
     const rt = await p.evaluate(() => localStorage.getItem('agentmeter.refresh') || sessionStorage.getItem('agentmeter.refresh'));

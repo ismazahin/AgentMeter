@@ -10,6 +10,7 @@ behaviour arrives with the HF provider in Phase 4.
 """
 from __future__ import annotations
 
+import os
 import re
 import time
 
@@ -68,6 +69,9 @@ class MockProvider(ModelProvider):
         self.classes: list[str] = list(config.get("classes", []) or [])
         self.mitre: dict[str, str] = dict(config.get("mitre", {}) or {})
         self.latency_s: float = float(config.get("model.mock.latency_s", 0.0) or 0.0)
+        # walk-throughs only (e.g. the Stop button needs a run that lasts a few seconds)
+        if os.environ.get("AGENTMETER_MOCK_LATENCY_S"):
+            self.latency_s = float(os.environ["AGENTMETER_MOCK_LATENCY_S"])
 
     # --- interface ------------------------------------------------------
     def generate(

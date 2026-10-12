@@ -21,11 +21,12 @@ export async function sendTelegram(env: Env, chatId: string, text: string): Prom
   }
 }
 
-const WANTS: Record<string, string[]> = { done: ["Done", "Demo"], failed: ["Failed", "Interrupted"], both: ["Done", "Demo", "Failed", "Interrupted"], none: [] };
+const WANTS: Record<string, string[]> = { done: ["Done", "Demo"], failed: ["Failed", "Interrupted", "Stopped"],
+                                          both: ["Done", "Demo", "Failed", "Interrupted", "Stopped"], none: [] };
 
 /** Call when a session reaches a final status; notifies its owner once, per their settings. */
-export async function notifyFinal(env: Env, id: string, status: string): Promise<boolean> {
-  if (!["Done", "Demo", "Failed", "Interrupted"].includes(status) || !env.TELEGRAM_BOT_TOKEN) return false;
+export async function notifyFinal(env: Env, id: string, status: string, stoppedBy?: string): Promise<boolean> {
+  if (!["Done", "Demo", "Failed", "Interrupted", "Stopped"].includes(status) || !env.TELEGRAM_BOT_TOKEN) return false;
   const row = await env.DB.prepare("SELECT owner_id, owner_username, more_efficient, models_json FROM sessions WHERE id=? AND notified_status IS NULL")
     .bind(id).first<{ owner_id: string | null; owner_username: string | null; more_efficient: string | null; models_json: string | null }>();
   if (!row?.owner_id) return false;
@@ -36,8 +37,9 @@ export async function notifyFinal(env: Env, id: string, status: string): Promise
   const models = row.models_json ? (JSON.parse(row.models_json) as string[]).join(" vs ") : "";
   const more = status === "Done" && row.more_efficient && row.more_efficient !== "—" ? `\nMore efficient (measured): ${row.more_efficient}` : "";
   const demo = status === "Demo" ? "\nDEMO (mock provider) — not a measurement." : "";
+  const stop = status === "Stopped" ? `\nStopped${stoppedBy ? " by " + stoppedBy.slice(0, 32) : ""} before it finished — not scored.` : "";
   return sendTelegram(env, s.telegram_chat_id,
-    `AgentMeter: session ${id} — ${status}\n${models}${more}${demo}\nAgentMeter measures LLM efficiency; it is not a threat detector.`);
+    `AgentMeter: session ${id} — ${status}\n${models}${more}${demo}${stop}\nAgentMeter measures LLM efficiency; it is not a threat detector.`);
 }
 
 /** POST /api/settings/telegram-test — a test message to the caller's own chat id. */

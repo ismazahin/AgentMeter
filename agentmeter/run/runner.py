@@ -28,6 +28,7 @@ import hashlib
 import json
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from dataclasses import dataclass
@@ -45,6 +46,35 @@ class ConfigMismatchError(RuntimeError):
 
 class WorkerError(RuntimeError):
     """Raised when a per-model worker subprocess exits non-zero."""
+
+
+class Stopped(RuntimeError):
+    """A user stopped the benchmark (request_stop). The run is left incomplete, never scored."""
+
+
+# One benchmark runs at a time (the job layer's single worker thread), so one slot is enough.
+_STOP = threading.Event()
+_PROC_LOCK = threading.Lock()
+_PROC: Optional[subprocess.Popen] = None
+
+
+def clear_stop() -> None:
+    _STOP.clear()
+
+
+def request_stop(grace_s: float = 15.0) -> None:
+    """Stop the running benchmark: no further model starts, and the current model's worker
+    process is terminated (killed after grace_s). The OS frees its GPU memory when it exits;
+    flows it already persisted stay in session.db, but the session is not scored."""
+    _STOP.set()
+    with _PROC_LOCK:
+        p = _PROC
+    if p is not None and p.poll() is None:
+        p.terminate()
+        try:
+            p.wait(timeout=grace_s)
+        except subprocess.TimeoutExpired:
+            p.kill()
 
 
 def _spawn_model_worker(
@@ -77,7 +107,20 @@ def _spawn_model_worker(
         cmd += ["--baseline-vram-mb", repr(float(baseline_vram_mb))]
     if vram_out is not None:
         cmd += ["--vram-out", vram_out]
-    return subprocess.run(cmd).returncode
+    global _PROC
+    if _STOP.is_set():
+        raise Stopped("stopped by a user before the next model started")
+    proc = subprocess.Popen(cmd)
+    with _PROC_LOCK:
+        _PROC = proc
+    try:
+        rc = proc.wait()
+    finally:
+        with _PROC_LOCK:
+            _PROC = None
+    if _STOP.is_set():
+        raise Stopped("stopped by a user")
+    return rc
 
 
 def _read_worker_before_load(sidecar_path: str) -> Optional[float]:

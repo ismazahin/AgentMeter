@@ -16,6 +16,8 @@ every request that starts work or lists/reads stored work needs a run token the 
   POST /api/prepared/import               kind import      (single use)
   POST /api/jobs                          kind benchmark   (single use; body run/after_prepare = the token's)
   POST /api/jobs/<id>/resume              kind resume      (single use; job_id = the token's)
+  POST /api/jobs/<id>/stop                kind stop        (single use; job_id = the token's; the
+                                          job's owner or an admin — checked by jobs_api)
   GET  /api/jobs, /api/sessions, /api/sessions/<id>, /api/compare, /api/leaderboard,
        /api/jobs/<id>/result|report.pdf|constraints, /api/prepared/<kind>/<name>     kind read
   GET  /api/prepared/<kind>/<name>/<file> kind files       (set = <kind>/<name>)
@@ -53,7 +55,7 @@ JOB_CREATING = {("POST", "/api/prepare"), ("POST", "/api/prepared/import"), ("PO
 _WRITE = {"POST", "PUT", "PATCH", "DELETE"}
 _WRITE_KIND = {"/api/prepare": "prepare", "/api/prepared/import": "import", "/api/jobs": "benchmark"}
 _READ_EXACT = {"/api/jobs", "/api/sessions", "/api/compare", "/api/leaderboard"}
-_JOB_SUB = re.compile(r"^/api/jobs/([^/]+)(?:/(result|report\.pdf|constraints|resume))?$")
+_JOB_SUB = re.compile(r"^/api/jobs/([^/]+)(?:/(result|report\.pdf|constraints|resume|stop))?$")
 _SESSION = re.compile(r"^/api/sessions/[^/]+$")
 _PREPARED = re.compile(r"^/api/prepared/([^/]+)/([^/]+)(?:/([^/]+))?$")
 
@@ -65,8 +67,8 @@ def required(method: str, path: str) -> tuple[Optional[str], dict]:
         if path in _WRITE_KIND:
             return _WRITE_KIND[path], {}
         m = _JOB_SUB.match(path)
-        if m and m.group(2) == "resume":
-            return "resume", {"job_id": m.group(1)}
+        if m and m.group(2) in ("resume", "stop"):
+            return m.group(2), {"job_id": m.group(1)}
         return "deny", {}
     if method != "GET":
         return None, {}
@@ -199,7 +201,7 @@ def install(app, *, mode: str, queue_depth: Callable[[], int]) -> dict:
                         e.status)
         if p["kind"] != kind:
             return deny("run_token_wrong_kind", f"this request needs a {kind!r} token, not {p['kind']!r}", 403)
-        if kind == "resume" and p.get("job_id") != need["job_id"]:
+        if kind in ("resume", "stop") and p.get("job_id") != need["job_id"]:
             return deny("run_token_mismatch", "the token was issued for another job", 403)
         if kind == "files" and p.get("set") != need["set"]:
             return deny("run_token_mismatch", "the token was issued for another prepared set", 403)

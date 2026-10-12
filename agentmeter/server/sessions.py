@@ -18,7 +18,7 @@ from typing import Any, Optional
 import yaml
 
 STATUS = {"done": "Done", "queued": "Running", "running": "Running", "failed": "Failed",
-          "interrupted": "Failed"}
+          "interrupted": "Failed", "stopped": "Stopped"}
 
 # (key, label, unit, lower_is_better) — every efficiency metric a session reports
 METRICS = [

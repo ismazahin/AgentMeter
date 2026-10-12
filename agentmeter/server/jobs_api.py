@@ -9,6 +9,7 @@ covers them like every other route.
   GET  /api/jobs/<id>/report.pdf  PDF benchmark report once done (409 until then)
   GET  /api/jobs/<id>/constraints ?max_mean_latency_s=..  decision helper (Phase 46)
   POST /api/jobs/<id>/resume    re-queue an interrupted/failed job -> 202 {job}
+  POST /api/jobs/<id>/stop      stop a queued or running job -> 202 {job} (final; never scored)
 
 Errors are {"error": <message>, "code": <stable reason>} with codes such as
 not_found, run_missing, too_many_models, bad_models, no_gpu, not_ready,
@@ -177,6 +178,22 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
             return jsonify(evaluate_constraints(res, request.args))
         except ConstraintError as e:
             return fail(JobError(str(e), "bad_request", 400))
+
+    @app.route("/api/jobs/<job_id>/stop", methods=["POST"])
+    def job_stop(job_id):
+        mgr = get_manager()
+        tok = runtoken.current()
+        try:
+            job = mgr.get(job_id)
+            if tok is not None:                    # control-plane mode: the owner or an admin
+                owner = (job.get("user") or {}).get("sub") if isinstance(job.get("user"), dict) else None
+                if not tok.get("admin") and (not owner or owner != tok.get("sub")):
+                    raise JobError("only the person who started this benchmark (or an admin) can stop it",
+                                   "forbidden", 403)
+            by = (tok or {}).get("uname")
+            return jsonify(with_links(mgr.stop(job_id, by=by))), 202
+        except JobError as e:
+            return fail(e)
 
     @app.route("/api/jobs/<job_id>/resume", methods=["POST"])
     def job_resume(job_id):

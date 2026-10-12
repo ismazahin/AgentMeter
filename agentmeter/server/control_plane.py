@@ -259,7 +259,10 @@ class ControlPlane:
         if what == "created":
             self.client.call("POST", "/api/backend/jobs", job_created_payload(job))
         else:
-            self.client.call("POST", f"/api/backend/jobs/{job['job_id']}/status", {"status": _job_summary_status(job)})
+            body = {"status": _job_summary_status(job)}
+            if job.get("status") == "stopped" and job.get("stopped_by"):
+                body["stopped_by"] = job["stopped_by"]
+            self.client.call("POST", f"/api/backend/jobs/{job['job_id']}/status", body)
             if job.get("status") == "done" and (job.get("kind") or "benchmark") == "benchmark":
                 self.upload(job["job_id"])
 

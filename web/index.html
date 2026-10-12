@@ -140,6 +140,8 @@
   .btn:hover { background: var(--surface-2); }
   .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
   .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .btn.danger { border-color: var(--danger); color: var(--danger); }
+  .btn.danger:hover { background: var(--danger-soft); }
   .btn.big { min-height: 52px; padding: 0 24px; font-size: 16px; }
   .btn[disabled], .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
   label { font-weight: 600; }
@@ -184,6 +186,7 @@
   .status.Demo { background: var(--accent-soft); color: var(--accent-text); }
   .status.Running { background: var(--info-soft); color: var(--text); }
   .status.Failed { background: var(--danger-soft); color: var(--danger); }
+  .status.Stopped, .status.Interrupted { background: var(--surface-2); color: var(--muted-2); border: 1px solid var(--border-2); }
 
   /* notices */
   .notice { border-radius: var(--radius); padding: 12px 14px; margin: 12px 0; border: 1px solid var(--border); background: var(--surface-2); font-size: 14px; }
@@ -512,7 +515,8 @@
         <p id="svc-progress-text" aria-live="polite"></p>
         <p class="muted small">You can close this page — the run continues on the server. Find it again under <a href="#/sessions">Sessions</a>.</p>
         <div id="svc-job-error" class="notice error" role="alert" hidden></div>
-        <div class="actions"><button type="button" class="btn" id="svc-resume" hidden>Resume</button>
+        <div class="actions"><button type="button" class="btn danger" id="svc-stop" hidden>Stop benchmark</button>
+          <button type="button" class="btn" id="svc-resume" hidden>Resume</button>
           <a class="btn primary" id="svc-open-session" hidden href="#/sessions">Open session</a></div>
       </div>
     </div>
@@ -526,7 +530,7 @@
     <div class="card">
       <form class="row" style="margin-top:0" id="sessions-filter">
         <div class="field"><label for="flt-status">Status</label>
-          <select id="flt-status"><option value="">All</option><option>Done</option><option>Demo</option><option>Running</option><option>Failed</option></select></div>
+          <select id="flt-status"><option value="">All</option><option>Done</option><option>Demo</option><option>Running</option><option>Failed</option><option>Stopped</option></select></div>
         <div class="field"><label for="flt-input">Input type</label>
           <select id="flt-input"><option value="">All</option><option value="CSV">CSV</option><option value="PCAP">PCAP</option></select></div>
       </form>
@@ -845,7 +849,7 @@
       if (p === "/api/prepare") return { kind: "prepare" };
       if (p === "/api/prepared/import") return { kind: "import" };
       if (p === "/api/jobs") return { kind: "benchmark" };
-      if ((m = /^\/api\/jobs\/([^/]+)\/resume$/.exec(p))) return { kind: "resume", job_id: decodeURIComponent(m[1]) };
+      if ((m = /^\/api\/jobs\/([^/]+)\/(resume|stop)$/.exec(p))) return { kind: m[2], job_id: decodeURIComponent(m[1]) };
       return null;
     }
     if (/^\/api\/(jobs|sessions|compare|leaderboard)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
@@ -871,7 +875,7 @@
       return authorize(need).then(function (r) { if (r.ok) FILE_TOK[need.set] = { token: r.data.token, until: Date.now() + (r.data.expires_in - 60) * 1000 }; return r; });
     }
     var body = { kind: need.kind };
-    if (need.kind === "resume") body.job_id = need.job_id;
+    if (need.kind === "resume" || need.kind === "stop") body.job_id = need.job_id;
     if (need.kind === "benchmark") {
       var b = {};
       try { b = JSON.parse(opts.body || "{}"); } catch (e) { b = {}; }
@@ -1396,7 +1400,7 @@
   // step 3 (also the "Watch" view of a running session)
   function renderProgress(j, target) {
     var p = j.progress || {}, prep = j.prepare, st = target.status, bar = target.bar;
-    var label = { queued: "Queued", running: "Running", done: "Done", failed: "Failed", interrupted: "Failed" }[j.status] || j.status;
+    var label = { queued: "Queued", running: "Running", done: "Done", failed: "Failed", interrupted: "Failed", stopped: "Stopped" }[j.status] || j.status;
     st.textContent = label; st.className = "status " + (label === "Queued" ? "Running" : label);
     target.models.textContent = (j.models || []).join("  vs  ") + (j.run_name ? " · " + j.run_name : "");
     var pct = 0, text, phase;
@@ -1413,8 +1417,18 @@
       if (j.status === "queued") text = "Queued — " + (j.queue_position ? j.queue_position + " job(s) ahead" : "starting next") + ". One benchmark runs at a time.";
       else if (j.status === "running") text = (p.completed || 0) + " / " + (p.total || 0) + " flows · " + pct + "% · now running " + (p.current_model || "…");
       else if (j.status === "done") text = (p.completed || 0) + " / " + (p.total || 0) + " flows · done";
+      else if (j.status === "stopped") text = "Stopped" + (j.stopped_by ? " by " + j.stopped_by : "") + " after " + (p.completed || 0) + " / " + (p.total || 0) + " flows — not scored.";
       else text = (p.completed || 0) + " / " + (p.total || 0) + " flows completed before it stopped.";
     }
+    if (j.status === "stopped") {
+      phase = "Benchmark stopped";
+      if (j.run_name && !target.text.parentNode.querySelector(".again-link")) {
+        var a = document.createElement("div"); a.className = "actions again-link";
+        a.innerHTML = '<a class="btn" href="#/new/models?set=' + enc(j.run_name) + '">Benchmark these flows again</a>';
+        target.text.parentNode.insertBefore(a, target.error);
+      }
+    }
+    if (target.stop) wireStop(j, target);
     target.phase.textContent = phase;
     target.fill.style.width = pct + "%";
     bar.setAttribute("aria-valuenow", String(pct));
@@ -1424,10 +1438,34 @@
       target.resume.hidden = false;
     }
   }
+  // Stop: the owner (or an admin) stops a queued or running benchmark. Final: never scored.
+  function canStop(j) {
+    if (!CP) return true;
+    var u = j.user && j.user.uname;
+    return isAdmin() || (!!u && AUTH.user && u === AUTH.user.username);
+  }
+  function wireStop(j, t) {
+    var b = t.stop, live = j.status === "queued" || j.status === "running";
+    b.hidden = !(live && canStop(j)) || !!j.stop_requested;
+    if (j.stop_requested && live) t.text.textContent = "Stopping…";
+    if (b.getAttribute("data-wired") === t.id) return;
+    b.setAttribute("data-wired", t.id);
+    b.onclick = function () {
+      if (!confirm("Stop this benchmark?\n\nFlows finished so far will not be scored. You can start it again later with \u201cBenchmark these flows again\u201d.")) return;
+      b.disabled = true;
+      api("/api/jobs/" + enc(t.id) + "/stop", { method: "POST" }).then(function (r) {
+        b.disabled = false;
+        if (!r.ok) { showError(t.error, r.data); return; }
+        b.hidden = true; t.text.textContent = "Stopping…";
+        if (t.onStopped) t.onStopped();
+      });
+    };
+  }
   function watchRun(id) {
     var token = ++pollToken;
     var t = { status: $("svc-job-status"), bar: $("svc-progress"), fill: $("svc-progress-bar"), models: $("svc-job-models"),
-              text: $("svc-progress-text"), phase: $("svc-job-phase"), error: $("svc-job-error"), resume: $("svc-resume") };
+              text: $("svc-progress-text"), phase: $("svc-job-phase"), error: $("svc-job-error"), resume: $("svc-resume"),
+              stop: $("svc-stop"), id: id, onStopped: function () { watchRun(id); } };
     t.error.hidden = true; t.resume.hidden = true;
     $("svc-open-session").hidden = false;
     $("svc-open-session").setAttribute("href", "#/session/" + enc(id));
@@ -1446,7 +1484,7 @@
         if (!r.ok) { showError(t.error, r.data); return; }
         renderProgress(r.data, t);
         if (r.data.status === "done") { setTimeout(function () { if (token === pollToken) location.hash = "#/session/" + enc(id); }, 700); return; }
-        if (r.data.status === "failed" || r.data.status === "interrupted") return;
+        if (r.data.status === "failed" || r.data.status === "interrupted" || r.data.status === "stopped") return;
         setTimeout(tick, r.data.prepare ? 1000 : 2000);
       });
     })();
@@ -1499,14 +1537,15 @@
             w.innerHTML = '<div class="card" id="watch-card"><div class="row" style="margin-top:0;justify-content:space-between"><h2 id="watch-phase">…</h2><span id="watch-status" class="status Running">…</span></div>' +
               '<p id="watch-models" class="muted small"></p><div class="bar" id="watch-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Session progress"><span id="watch-fill"></span></div>' +
               '<p id="watch-text" aria-live="polite"></p><div id="watch-error" class="notice error" role="alert" hidden></div>' +
-              '<div class="actions"><button type="button" class="btn" id="watch-resume" hidden>Resume</button></div></div>';
+              '<div class="actions"><button type="button" class="btn danger" id="watch-stop" hidden>Stop benchmark</button><button type="button" class="btn" id="watch-resume" hidden>Resume</button></div></div>';
             $("watch-resume").onclick = function () {
               api("/api/jobs/" + enc(id) + "/resume", { method: "POST" }).then(function (rr) { if (!rr.ok) showError($("watch-error"), rr.data); else { SESSION.id = null; loadSession(id, tab); } });
             };
           }
           renderProgress(j, { status: $("watch-status"), bar: $("watch-bar"), fill: $("watch-fill"), models: $("watch-models"),
-                              text: $("watch-text"), phase: $("watch-phase"), error: $("watch-error"), resume: $("watch-resume") });
-          if (j.status === "failed" || j.status === "interrupted") return;
+                              text: $("watch-text"), phase: $("watch-phase"), error: $("watch-error"), resume: $("watch-resume"),
+                              stop: $("watch-stop"), id: id, onStopped: function () { SESSION.id = null; loadSession(id, tab); } });
+          if (j.status === "failed" || j.status === "interrupted" || j.status === "stopped") return;
           setTimeout(tick, 2000);
           return;
         }
@@ -1562,7 +1601,9 @@
         w.innerHTML = '<div class="card" id="watch-card"><div class="row" style="margin-top:0;justify-content:space-between"><h2>' +
           (r.data.status === "Running" ? "Running on the GPU" : "Session " + esc(r.data.status).toLowerCase()) + '</h2>' + statusChip(r.data.status) + '</div>' +
           '<p class="muted small">' + esc((r.data.models || []).join("  vs  ")) + (r.data.owner ? " · started by " + esc(r.data.owner) : "") + '</p>' +
-          (ONLINE ? "" : '<div class="notice warn" id="watch-offline">GPU offline — live progress and Resume need the GPU backend. Stored sessions stay browsable.</div>') + '</div>';
+          (ONLINE ? "" : '<div class="notice warn" id="watch-offline">GPU offline — live progress and Resume need the GPU backend. Stored sessions stay browsable.</div>') +
+          (r.data.status === "Stopped" ? '<p class="muted small">Stopped before it finished — not scored.</p>' +
+            (r.data.run_name ? '<div class="actions"><a class="btn" id="watch-again" href="#/new/models?set=' + enc(r.data.run_name) + '">Benchmark these flows again</a></div>' : "") : "") + '</div>';
         if (ONLINE && (r.data.status === "Failed" || r.data.status === "Interrupted")) fromBackend();
       });
     }
@@ -1581,14 +1622,15 @@
             w.innerHTML = '<div class="card" id="watch-card"><div id="watch-progress"></div><div class="row" style="margin-top:0;justify-content:space-between"><h2 id="watch-phase">…</h2><span id="watch-status" class="status Running">…</span></div>' +
               '<p id="watch-models" class="muted small"></p><div class="bar" id="watch-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Session progress"><span id="watch-fill"></span></div>' +
               '<p id="watch-text" aria-live="polite"></p><div id="watch-error" class="notice error" role="alert" hidden></div>' +
-              '<div class="actions"><button type="button" class="btn" id="watch-resume" hidden>Resume</button></div></div>';
+              '<div class="actions"><button type="button" class="btn danger" id="watch-stop" hidden>Stop benchmark</button><button type="button" class="btn" id="watch-resume" hidden>Resume</button></div></div>';
             $("watch-resume").onclick = function () {
               api("/api/jobs/" + enc(id) + "/resume", { method: "POST" }).then(function (rr) { if (!rr.ok) showError($("watch-error"), rr.data); else { SESSION.id = null; loadSession(id, tab); } });
             };
           }
           renderProgress(j, { status: $("watch-status"), bar: $("watch-bar"), fill: $("watch-fill"), models: $("watch-models"),
-                              text: $("watch-text"), phase: $("watch-phase"), error: $("watch-error"), resume: $("watch-resume") });
-          if (j.status === "failed" || j.status === "interrupted") return;
+                              text: $("watch-text"), phase: $("watch-phase"), error: $("watch-error"), resume: $("watch-resume"),
+                              stop: $("watch-stop"), id: id, onStopped: function () { SESSION.id = null; loadSession(id, tab); } });
+          if (j.status === "failed" || j.status === "interrupted" || j.status === "stopped") return;
           setTimeout(tick, 2000);
         });
       })();

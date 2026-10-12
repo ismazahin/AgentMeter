@@ -117,6 +117,10 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
     data.setdefault("run", {})
     data["run"]["models"] = models
     data["run"]["auto_analyze"] = False          # session scoring replaces analyze
+    # A service backend runs many sessions against the same downloaded models (HF_HUB_OFFLINE):
+    # deleting a model's cache after it finishes (the locked study's disk-safety setting) would
+    # make every later session with that model fail. Measurements are unaffected either way.
+    data["run"]["cleanup_model_cache_after"] = False
     data.setdefault("model", {})["name"] = models[0]
     if provider:
         data["model"]["provider"] = provider

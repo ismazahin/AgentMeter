@@ -126,12 +126,15 @@ def _hub_cache() -> Path:
 
 
 def model_on_disk(model_id: str, cache: Optional[Path] = None) -> bool:
-    """A model counts as local when its snapshot has a config and weight files."""
+    """A model counts as local when its snapshot has a config and weight files. Snapshot entries
+    are symlinks into blobs/, so each weight file must resolve (a deleted blob leaves a dangling
+    link that would otherwise look present)."""
     d = (cache or _hub_cache()) / ("models--" + model_id.replace("/", "--")) / "snapshots"
     if not d.is_dir():
         return False
     for snap in d.iterdir():
-        if (snap / "config.json").exists() and (any(snap.glob("*.safetensors")) or any(snap.glob("*.bin"))):
+        weights = list(snap.glob("*.safetensors")) or list(snap.glob("*.bin"))
+        if (snap / "config.json").exists() and weights and all(w.exists() for w in weights):
             return True
     return False
 

@@ -296,6 +296,17 @@ def test_canonical_models_are_recognised(tmp_path):
     assert [m["canonical"] for m in plan["models"]] == [True, False]
 
 
+def test_session_keeps_model_caches_even_on_the_real_base_config(tmp_path):
+    # the locked study's config deletes each model's HF cache after it finishes (disk safety);
+    # a service session must not, or the next session with that model finds nothing offline
+    assert load_config(PROJECT_ROOT / "configs" / "run_full_l4.yaml").get("run.cleanup_model_cache_after") is True
+    process_csv(SAMPLE, out_root=tmp_path, max_flows=5)
+    plan = prepare_session(tmp_path / "cicids2017_sample", ["Qwen/Qwen2.5-7B-Instruct"],
+                           base_config=str(PROJECT_ROOT / "configs" / "run_full_l4.yaml"))
+    cfg = yaml.safe_load(open(plan["config_path"], encoding="utf-8"))
+    assert cfg["run"]["cleanup_model_cache_after"] is False
+
+
 def test_locked_study_untouched(labelled, six_class, locked_before):
     assert _db_hashes() == locked_before["dbs"]
     assert _sha(DATASET) == locked_before["dataset"] == DATASET_SHA256
@@ -327,3 +338,17 @@ def test_relative_comparison_absent_for_one_model(tmp_path):
     p = run_session(tmp_path / "cicids2017_sample", ["mock-a"], provider="mock")
     assert p["relative_comparison"] is None and p["comparison"] is None
 
+
+
+def test_model_on_disk_rejects_dangling_weight_links(tmp_path):
+    from agentmeter.server import runtime
+    snap = tmp_path / "models--org--m" / "snapshots" / "abc"
+    snap.mkdir(parents=True)
+    blob = tmp_path / "models--org--m" / "blobs" / "w"
+    blob.parent.mkdir()
+    blob.write_bytes(b"x")
+    (snap / "config.json").write_text("{}")
+    (snap / "model.safetensors").symlink_to(blob)
+    assert runtime.model_on_disk("org/m", cache=tmp_path)
+    blob.unlink()                       # what a deleted cache blob leaves behind
+    assert not runtime.model_on_disk("org/m", cache=tmp_path)

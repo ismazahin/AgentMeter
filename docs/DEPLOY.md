@@ -250,6 +250,10 @@ says either **Real GPU: <name>** or **DEMO (mock)**.
 Use "Instance → Connect → SSH" to get a shell on it.
 
 ### 2. Bring the backend up (on the instance)
+**From Windows, in one command:** `powershell -ExecutionPolicy Bypass -File scripts\vast_start.ps1`
+asks for the instance's *Direct SSH Connect* line, copies `%USERPROFILE%\.agentmeter\backend.env`
+and the repo's `.env` to `/root` over scp (values never shown), and runs the steps below inside
+tmux session `am` (reconnect: `tmux attach -t am`). By hand:
 ```bash
 cd /workspace
 git clone https://github.com/ismazahin/AgentMeter.git && cd AgentMeter

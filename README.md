@@ -201,7 +201,8 @@ docs/SESSION_BENCHMARK.md, docs/DEPLOY.md) or its CLI
 twins (`scripts/ingest.py`, `scripts/benchmark.py`). Every such run writes its own
 session DB under `results/csv_runs|pcap_runs/<name>/`, is labelled `non_validated`, and
 never changes the locked SAW ranking or statistics.
-Each session has Summary, Detailed analysis, Agents, Recommendation and Downloads tabs,
+Each session has Overview, Model Ranking, Accuracy, Performance, Agent Analysis, Cost & Energy,
+Recommendations and Data & Exports sections,
 including cost per 1,000 flows, energy per flow (real GPU runs), per-agent overhead,
 effect sizes and a decision helper. The rule-base stages (flow selection,
 scoring/verdict, and stage-3 context from Hugging Face metadata that never changes a

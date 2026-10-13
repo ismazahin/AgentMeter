@@ -166,6 +166,34 @@
   .tabs [role="tab"] { min-height: 44px; padding: 0 14px; border: 0; background: none; color: var(--muted-2); font: 600 14.5px var(--font); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; text-decoration: none; display: inline-flex; align-items: center; }
   .tabs [role="tab"]:hover { color: var(--text); }
   .tabs [role="tab"][aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+  /* session page: one tab bar + sub-tabs for the data-heavy sections */
+  .stabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .stabs [role="tab"] { white-space: nowrap; }
+  .stabs [role="tab"][aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+  .subtabs-bar { display: flex; gap: 6px; flex-wrap: wrap; margin: -4px 0 16px; }
+  .subtabs-bar [role="tab"] { min-height: 36px; padding: 0 14px; border: 1px solid var(--border-2); border-radius: 999px; background: var(--surface);
+    color: var(--muted-2); font: 600 13.5px var(--font); text-decoration: none; display: inline-flex; align-items: center; white-space: nowrap; }
+  .subtabs-bar [role="tab"]:hover { color: var(--text); }
+  .subtabs-bar [role="tab"][aria-selected="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+  @media (max-width: 640px) { .subtabs-bar { flex-wrap: nowrap; overflow-x: auto; } }
+  .headline { font-size: clamp(20px, 2.6vw, 26px); line-height: 1.3; font-weight: 700; margin: 2px 0 12px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin: 6px 0 10px; }
+  .tile { border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px 14px; background: var(--surface-2); }
+  .tile .k { font-size: 12.5px; color: var(--muted-2); font-weight: 600; }
+  .tile .v { font-size: 22px; font-weight: 700; margin-top: 2px; }
+  .tile .w { font-size: 12.5px; color: var(--muted-2); margin-top: 2px; }
+  details.info { border: 0; padding: 4px 0; }
+  details.info > summary { font-weight: 600; font-size: 13.5px; color: var(--muted-2); min-height: 28px; }
+  details.info > summary:hover { color: var(--text); }
+  details.info[open] > summary { color: var(--text); }
+  .info-i { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; border: 1px solid var(--border-2);
+    font: 700 11px var(--font); color: var(--muted-2); cursor: help; vertical-align: 1px; margin-left: 4px; }
+  .gtk { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .gtk button { font: 600 13px var(--font); min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border-2);
+    background: var(--surface); color: var(--text); cursor: pointer; }
+  .gtk button[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .gtk-detail { font-size: 14px; color: var(--muted-2); margin: 10px 0 0; }
+  .embed-host iframe.embed { border: 0; border-radius: 0; background: transparent; }
 
   /* stepper */
   .stepper { display: flex; gap: 8px; flex-wrap: wrap; list-style: none; padding: 0; margin: 0 0 18px; }
@@ -542,29 +570,37 @@
   <section id="view-session" class="view" hidden aria-labelledby="h-session">
     <div class="page-head">
       <div>
-        <p class="small muted" style="margin:0">Session · non-validated user run</p>
+        <p class="small muted" style="margin:0">Session</p>
         <h1 id="h-session">Session</h1>
         <div class="chips" id="session-chips" style="margin-top:8px"></div>
       </div>
       <div class="actions" style="margin-top:0">
-        <a class="btn" id="session-compare" href="#/compare">Compare with another session</a>
+        <a class="btn" id="session-compare" href="#/compare">Compare</a>
         <a class="btn primary" id="svc-dl-pdf" href="#" download>Download PDF</a>
       </div>
     </div>
     <div id="session-watch" hidden></div>
     <div id="session-body" hidden>
-      <div class="tabs" role="tablist" aria-label="Session views" id="session-tabs">
-        <a role="tab" href="#" data-tab="summary" id="stab-summary" aria-controls="spanel-summary">Summary</a>
-        <a role="tab" href="#" data-tab="detailed" id="stab-detailed" aria-controls="spanel-detailed">Detailed analysis</a>
-        <a role="tab" href="#" data-tab="agents" id="stab-agents" aria-controls="spanel-agents">Agents</a>
-        <a role="tab" href="#" data-tab="recommendation" id="stab-recommendation" aria-controls="spanel-recommendation">Recommendation</a>
-        <a role="tab" href="#" data-tab="downloads" id="stab-downloads" aria-controls="spanel-downloads">Downloads</a>
+      <div class="tabs stabs" role="tablist" aria-label="Session sections" id="session-tabs">
+        <a role="tab" href="#" data-tab="overview" id="stab-overview" aria-controls="spanel-overview">Overview</a>
+        <a role="tab" href="#" data-tab="ranking" id="stab-ranking" aria-controls="spanel-ranking">Model Ranking</a>
+        <a role="tab" href="#" data-tab="accuracy" id="stab-accuracy" aria-controls="spanel-accuracy">Accuracy</a>
+        <a role="tab" href="#" data-tab="performance" id="stab-performance" aria-controls="spanel-performance">Performance</a>
+        <a role="tab" href="#" data-tab="agents" id="stab-agents" aria-controls="spanel-agents">Agent Analysis</a>
+        <a role="tab" href="#" data-tab="cost" id="stab-cost" aria-controls="spanel-cost">Cost &amp; Energy</a>
+        <a role="tab" href="#" data-tab="recommendations" id="stab-recommendations" aria-controls="spanel-recommendations">Recommendations</a>
+        <a role="tab" href="#" data-tab="data" id="stab-data" aria-controls="spanel-data">Data &amp; Exports</a>
       </div>
-      <div role="tabpanel" id="spanel-summary" aria-labelledby="stab-summary"></div>
-      <div role="tabpanel" id="spanel-detailed" aria-labelledby="stab-detailed" hidden></div>
+      <div class="subtabs-bar" role="tablist" aria-label="Views in this section" id="session-subtabs" hidden></div>
+      <div role="tabpanel" id="spanel-overview" aria-labelledby="stab-overview"></div>
+      <div role="tabpanel" id="spanel-ranking" aria-labelledby="stab-ranking" hidden></div>
+      <div role="tabpanel" id="spanel-accuracy" aria-labelledby="stab-accuracy" hidden></div>
+      <div role="tabpanel" id="spanel-performance" aria-labelledby="stab-performance" hidden></div>
       <div role="tabpanel" id="spanel-agents" aria-labelledby="stab-agents" hidden></div>
-      <div role="tabpanel" id="spanel-recommendation" aria-labelledby="stab-recommendation" hidden></div>
-      <div role="tabpanel" id="spanel-downloads" aria-labelledby="stab-downloads" hidden></div>
+      <div role="tabpanel" id="spanel-cost" aria-labelledby="stab-cost" hidden></div>
+      <div role="tabpanel" id="spanel-recommendations" aria-labelledby="stab-recommendations" hidden></div>
+      <div role="tabpanel" id="spanel-data" aria-labelledby="stab-data" hidden></div>
+      <div id="embed-host" class="embed-host" hidden></div>
     </div>
   </section>
 
@@ -1017,7 +1053,7 @@
     if (v === "home") loadHome();
     else if (v === "new") routeWizard(p, r.q);
     else if (v === "sessions") loadSessions();
-    else if (v === "session" && p[1]) loadSession(p[1], p[2] || "summary");
+    else if (v === "session" && p[1]) loadSession(p[1], p[2] ? p[2] + (p[3] ? "/" + p[3] : "") : rememberedTab());
     else if (v === "compare") loadCompare(r.q);
     else if (v === "leaderboard") loadLeaderboard();
     else if (v === "settings") loadSettings();
@@ -1509,8 +1545,30 @@
 
   // ---------- ONE SESSION ----------
   var SESSION = { id: null, res: null, job: null };
+  // Session sections (workflow order) and the sub-views of the two data-heavy ones. Each section
+  // and sub-view has its own link: #/session/<id>/<section>[/<view>].
+  var SECTIONS = {
+    overview: {}, accuracy: {}, agents: {}, cost: {}, data: {},
+    ranking: { subs: [["scores", "Scores"], ["weighting", "Weighting"], ["robustness", "Robustness"], ["pareto", "Pareto & Trade-offs"], ["guide", "Model Guide"]] },
+    performance: { subs: [["comparison", "Comparison"], ["latency", "Latency"], ["gpu", "GPU & Throughput"], ["statistics", "Statistics"]] },
+    recommendations: { subs: [["limits", "Your limits"], ["context", "Model context"], ["guidance", "Deployment guidance"]] }
+  };
+  // sections of the embedded analysis page (web/analysis.html data-part) shown under a view
+  var EMBED_PARTS = {
+    "ranking/scores": ["highlights", "saw"], "ranking/weighting": ["weights"], "ranking/robustness": ["robustness"],
+    "ranking/pareto": ["pareto"], "ranking/guide": ["modelctx", "faq", "glossary"], "accuracy": ["accuracy"],
+    "performance/comparison": ["perclass"], "performance/latency": ["cov", "prefill"],
+    "performance/gpu": ["throughput"], "performance/statistics": ["stats"],
+    "recommendations/guidance": ["ds-rec", "ds-optim"]
+  };
+  var LEGACY_TAB = { summary: "overview", detailed: "ranking", recommendation: "recommendations", downloads: "data" };
   var sessionTabs = Array.prototype.slice.call(document.querySelectorAll("#session-tabs [role=tab]"));
-  tablist($("session-tabs"), function (t) { location.hash = "#/session/" + enc(SESSION.id) + "/" + t.getAttribute("data-tab"); });
+  var SUB_MEMORY = {};
+  tablist($("session-tabs"), function (t) {
+    if (t.getAttribute("aria-disabled") === "true") return;
+    var k = t.getAttribute("data-tab"), sub = SUB_MEMORY[k] || (SECTIONS[k].subs ? SECTIONS[k].subs[0][0] : null);
+    location.hash = "#/session/" + enc(SESSION.id) + "/" + k + (sub ? "/" + sub : "");
+  });
   function loadSession(id, tab) {
     if (CP) return loadSessionCP(id, tab);
     var token = ++pollToken;
@@ -1637,12 +1695,32 @@
     }
     fromWorker(0);
   }
-  function showSessionTab(tab) {
-    var t = sessionTabs.filter(function (x) { return x.getAttribute("data-tab") === tab; })[0] || sessionTabs[0];
-    sessionTabs.forEach(function (x) { x.setAttribute("href", "#/session/" + enc(SESSION.id) + "/" + x.getAttribute("data-tab")); });
-    selectTab(sessionTabs, t);
-    if (t.getAttribute("data-tab") === "detailed") ensureEmbed();
+  function rememberedTab() { try { return localStorage.getItem("agentmeter.sessionTab") || "overview"; } catch (e) { return "overview"; } }
+  function parseTab(tab) {
+    var parts = String(tab || "overview").split("/"), k = LEGACY_TAB[parts[0]] || parts[0];
+    if (!SECTIONS[k]) k = "overview";
+    var subs = SECTIONS[k].subs, sub = null;
+    if (subs) sub = subs.some(function (x) { return x[0] === parts[1]; }) ? parts[1] : (SUB_MEMORY[k] || subs[0][0]);
+    if (k === "accuracy" && SESSION.res && !(SESSION.res.session || {}).accuracy_available) k = "overview";
+    return { tab: k, sub: sub };
   }
+  function showSessionTab(tab) {
+    var t = parseTab(tab), key = t.tab + (t.sub ? "/" + t.sub : ""), base = "#/session/" + enc(SESSION.id) + "/";
+    if (t.sub) SUB_MEMORY[t.tab] = t.sub;
+    try { localStorage.setItem("agentmeter.sessionTab", key); } catch (e) { /* not remembered */ }
+    sessionTabs.forEach(function (x) { x.setAttribute("href", base + x.getAttribute("data-tab")); });
+    selectTab(sessionTabs, $("stab-" + t.tab));
+    var bar = $("session-subtabs"), subs = SECTIONS[t.tab].subs;
+    bar.hidden = !subs;
+    bar.innerHTML = subs ? subs.map(function (x) {
+      return '<a role="tab" href="' + base + t.tab + "/" + x[0] + '" id="ssub-' + x[0] + '" data-sub="' + x[0] + '" aria-selected="' + (x[0] === t.sub) + '" tabindex="' + (x[0] === t.sub ? 0 : -1) + '">' + esc(x[1]) + '</a>';
+    }).join("") : "";
+    if (subs) tablist(bar, function (x) { location.hash = base + t.tab + "/" + x.getAttribute("data-sub"); });
+    var panel = $("spanel-" + t.tab);
+    panel.querySelectorAll("[data-pane]").forEach(function (pn) { pn.hidden = pn.getAttribute("data-pane") !== (t.sub || "main"); });
+    showEmbed(EMBED_PARTS[key] || null, t.tab);
+  }
+  function pane(name, html) { return '<div data-pane="' + name + '"' + (name === "main" ? "" : " hidden") + '>' + html + '</div>'; }
   function renderSession(res, job) {
     var s = res.session, env = res.environment || {}, real = env.provider === "real";
     $("h-session").textContent = (res.per_model || []).map(function (m) { return short(m.model); }).join(" vs ") || job.job_id;
@@ -1654,12 +1732,21 @@
     setDl($("svc-dl-pdf"), pdfPath(job), "agentmeter_report_" + job.job_id + ".pdf");
     $("svc-dl-pdf").hidden = false;
     $("session-body").hidden = false;
-    $("spanel-summary").innerHTML = summaryTab(res);
-    $("spanel-detailed").innerHTML = detailedTab(res);
-    $("spanel-agents").innerHTML = agentsTab(res);
-    $("spanel-recommendation").innerHTML = recommendationTab(res);
-    $("spanel-downloads").innerHTML = downloadsTab(res, job);
-    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res);
+    var acc = $("stab-accuracy");
+    acc.setAttribute("aria-disabled", s.accuracy_available ? "false" : "true");
+    acc.title = s.accuracy_available ? "" : "No labels in this data — efficiency only";
+    var base = "#/session/" + enc(job.job_id) + "/";
+    $("spanel-overview").innerHTML = pane("main", overviewTab(res));
+    $("spanel-ranking").innerHTML = pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
+        'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", "") + pane("pareto", "") + pane("guide", "");
+    $("spanel-accuracy").innerHTML = pane("main", "");
+    $("spanel-performance").innerHTML = pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res)) + pane("gpu", memoryCard(res)) + pane("statistics", effectsCard(res));
+    $("spanel-agents").innerHTML = pane("main", agentsTab(res));
+    $("spanel-cost").innerHTML = pane("main", costCard(res));
+    $("spanel-recommendations").innerHTML = pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
+    $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
+    resetEmbed();
+    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res);
   }
 
   function setDl(a, path, name) {
@@ -1710,18 +1797,75 @@
     });
   }
 
-  // Summary tab
-  function summaryTab(res) {
+  // Overview: headline, number tiles, per-model table, "Good to know" labels
+  function gpuShort(n) { return String(n || "").replace(/^NVIDIA\s+/, "").replace(/^GeForce\s+/, ""); }
+  function headline(rel, pm) {
+    if (!rel) return short((pm[0] || {}).model) + ": single-model run";
+    var ev = rel.efficiency_verdict || {}, a = short(rel.models[0]), b = short(rel.models[1]);
+    if (ev.verdict === "more_efficient") return short(ev.model) + " is more efficient than " + (ev.model === rel.models[0] ? b : a);
+    if (ev.verdict === "mixed") return "Mixed result: each model wins somewhere";
+    return a + " and " + b + " are tied on efficiency";
+  }
+  var TILE = { mean_latency_s: ["⚡ Latency", "faster"], mean_peak_vram_mb: ["🧠 VRAM", "less"], mean_tokens_per_flow: ["🔤 Tokens", "fewer"] };
+  function tiles(res) {
+    var rel = res.relative_comparison, lab = !!(res.session || {}).accuracy_available;
+    if (!rel) return "";
+    var t = rel.metrics.filter(function (m) { return TILE[m.metric]; }).map(function (m) {
+      var v = !m.available ? "—" : m.winner === "tie" ? "Tie" : Math.round(m.pct_better) + " % " + TILE[m.metric][1];
+      var w = !m.available ? "not measured" : m.winner === "tie" ? "within the tie range" : short(m.winner);
+      return '<div class="tile" data-metric="' + esc(m.metric) + '"><div class="k">' + TILE[m.metric][0] + '</div><div class="v">' + esc(v) + '</div><div class="w">' + esc(w) + '</div></div>';
+    });
+    var acc = rel.metrics.filter(function (m) { return m.metric === "accuracy"; })[0];
+    t.push('<div class="tile" data-metric="accuracy"><div class="k">🎯 Accuracy <span class="muted">(context)</span></div><div class="v">' +
+      (!lab || !acc ? "—" : acc.winner === "tie" ? "Tie" : "+" + acc.diff_pp + " pp") + '</div><div class="w">' +
+      esc(!lab || !acc ? "no labels" : acc.winner === "tie" ? "within " + rel.thresholds.accuracy_tie_pp + " pp" : short(acc.winner)) + '</div></div>');
+    return '<div class="tiles" id="svc-tiles">' + t.join("") + '</div>';
+  }
+  // the stored caveat sentences, shown as short labels (each opens its full sentence)
+  var CAVEAT_LABEL = [
+    [/^Relative view/, function () { return "✓ Fair A-vs-B"; }],
+    [/^Measured on (.+?): absolute numbers/, function (m) { return (/^cpu$/i.test(m[1]) ? "CPU" : gpuShort(m[1])) + " ≠ study GPU (L4)"; }],
+    [/^NON-VALIDATED/, function () { return "Exploratory run"; }],
+    [/^Efficiency only/, function () { return "No labels → efficiency only"; }],
+    [/^PCAP features are approximate/, function () { return "PCAP features approximate"; }],
+    [/^Balanced sample/, function () { return "Balanced sample"; }],
+    [/^6-class run/, function () { return "6 classes (Other Attack)"; }],
+    [/^No VRAM readings/, function () { return "No VRAM readings"; }],
+    [/^MOCK provider/, function () { return "Demo data (mock)"; }],
+    [/^Small sample \((\d+) flows/, function (m) { return "Small sample (" + m[1] + " flows)"; }]
+  ];
+  function caveatItems(cav) {
+    var items = cav.map(function (c) {
+      for (var i = 0; i < CAVEAT_LABEL.length; i++) { var m = CAVEAT_LABEL[i][0].exec(c); if (m) return { label: CAVEAT_LABEL[i][1](m), text: c }; }
+      return { label: c.split(/[:.;—]/)[0].slice(0, 40), text: c };
+    });
+    // said once: the feature half of "Efficiency only: …; N of 78 features are not numerically comparable …"
+    // goes with the PCAP label when there is one (both sentences stay readable, regrouped)
+    var eff = items.filter(function (x) { return /^Efficiency only/.test(x.text); })[0];
+    var pcap = items.filter(function (x) { return /^PCAP features are approximate/.test(x.text); })[0];
+    if (eff && pcap) {
+      var parts = eff.text.replace(/\.$/, "").split("; "), keep = parts.filter(function (x) { return !/features/.test(x); });
+      var moved = parts.filter(function (x) { return /features/.test(x); });
+      if (moved.length && keep.length) { eff.text = keep.join("; ") + "."; pcap.text = pcap.text + " (" + moved.join("; ") + ".)"; }
+    }
+    return items;
+  }
+  function overviewTab(res) {
     var s = res.session, pm = res.per_model, rel = res.relative_comparison, cmp = res.comparison, env = res.environment || {};
-    var lab = !!s.accuracy_available, names = pm.map(function (m) { return m.model; }), h = [];
+    var lab = !!s.accuracy_available, h = [];
     var ce = {}; ((res.cost_energy || {}).per_model || []).forEach(function (r) { ce[r.model] = r; });
     var mm = {}; ((res.memory || {}).per_model || []).forEach(function (r) { mm[r.model] = r; });
-    h.push('<div class="card" id="svc-verdict-card"><h2>Measured verdict</h2>' +
-      '<p id="svc-env" class="small" style="margin:4px 0 0">' + (env.provider === "real"
-        ? '<span class="chip ok">Real GPU: ' + esc(env.gpu_name || "unknown") + '</span> <span class="muted">driver ' + esc(env.driver_version || "—") + ' · CUDA ' + esc(env.cuda_runtime_version || "—") + ' · 4-bit NF4</span>'
-        : '<span class="chip warn">DEMO (mock)</span> <span class="muted">a deterministic heuristic, not a language model — not a model measurement</span>') + '</p>' +
-      '<p class="verdict" id="svc-verdict">' + esc(rel ? rel.verdict : "Single-model run — no head-to-head comparison.") + '</p>' +
-      (rel && cmp ? '<p class="muted small" id="svc-absolute"><b>Absolute SAW</b> (against fixed L4-study targets): ' + esc(cmp.statement) + '</p>' : "") + '</div>');
+    var real = env.provider === "real";
+    h.push('<div class="card" id="svc-verdict-card"><h2 class="headline" id="svc-headline">' + esc(headline(rel, pm)) + '</h2>' + tiles(res) +
+      '<p id="svc-env" class="small" style="margin:6px 0 0">' + (real ? '<span class="chip ok">Real GPU · ' + esc(gpuShort(env.gpu_name) || "unknown") + '</span>'
+        : '<span class="chip warn">Demo (mock): not a model measurement</span>') + (lab ? "" : ' <span class="chip">Efficiency only</span>') + '</p>' +
+      '<details class="info" id="svc-full-verdict"><summary>Show full verdict</summary><p class="verdict" id="svc-verdict">' +
+        esc(rel ? rel.verdict : "Single-model run — no head-to-head comparison.") + '</p></details>' +
+      '<details class="info" id="svc-measured"><summary>ⓘ How this was measured</summary><p class="small muted">' +
+        (real ? 'GPU ' + esc(env.gpu_name || "unknown") + ' · NVIDIA driver ' + esc(env.driver_version || "—") + ' · CUDA ' + esc(env.cuda_runtime_version || "—") + ' · 4-bit NF4, one model at a time.'
+          : 'MOCK provider: a deterministic heuristic, not a language model. It shows the flow; the numbers are not model measurements.') + '</p>' +
+        (rel && cmp ? '<p class="small muted" id="svc-absolute"><b>Absolute SAW</b> (against fixed L4-study targets): ' + esc(cmp.statement) + '</p>' : "") + '</details></div>');
+    var tip = function (t) { return '<span class="info-i" tabindex="0" title="' + esc(t) + '" aria-label="' + esc(t) + '">i</span>'; };
     var rows = pm.map(function (m) {
       var e = m.efficiency.end_to_end, c = ce[m.model] || {};
       return '<tr><td class="mono">' + esc(m.model) + '</td><td class="num">' + fmtTime(e.mean_latency_s) + '</td><td class="num">' + fmtTime(e.p95_latency_s) +
@@ -1732,114 +1876,148 @@
         (lab ? '<td class="num">' + fmtPct(m.accuracy && m.accuracy.accuracy) + '</td>' : "") +
         '<td class="num">' + esc(m.saw.composite_100) + ' <span class="muted">' + esc(m.saw.tier) + '</span></td></tr>';
     }).join("");
-    h.push('<div class="card"><h2>Per model</h2><div class="table-wrap"><table id="svc-models-table"><thead><tr><th>Model</th><th class="num">Latency / flow</th><th class="num">p95</th><th class="num">Tokens / flow</th><th class="num">Working VRAM<br><span class="small">(excludes model weights)</span></th><th class="num">Total peak VRAM<br><span class="small">(weights + working)</span></th><th class="num">Cost / 1k flows</th><th class="num">Energy / flow</th>' +
+    h.push('<div class="card"><h2>Per model</h2><div class="table-wrap"><table id="svc-models-table"><thead><tr><th>Model</th><th class="num">Latency / flow</th><th class="num">p95</th><th class="num">Tokens / flow</th>' +
+      '<th class="num">Working VRAM' + tip("Excludes the model weights: the memory the agent calls add") + '</th><th class="num">Total peak VRAM' + tip("Model weights + working memory") + '</th>' +
+      '<th class="num">Cost / 1k flows</th><th class="num">Energy / flow</th>' +
       (lab ? '<th class="num">Accuracy (context)</th>' : "") + '<th class="num">SAW' + (lab ? "" : " (efficiency)") + '</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
-      '<p class="muted small">Accuracy is context only: AgentMeter measures efficiency; it does not rank threat detectors.</p></div>');
-    if (rel) {
-      var rr = rel.metrics.map(function (m) {
-        var a = m.values[names[0]], b = m.values[names[1]], isAcc = m.metric === "accuracy";
-        var f = isAcc ? fmtPct : m.metric === "mean_latency_s" ? fmtTime : m.metric === "mean_peak_vram_mb" ? fmtMB : function (v) { return fmtNum(v); };
-        var res2 = !m.available ? '<span class="muted">not available</span>' : m.winner === "tie" ? 'tie <span class="muted">(' + esc(m.note || "") + ')</span>'
-          : esc(short(m.winner)) + ' — ' + (isAcc ? m.diff_pp + " pp higher" : m.pct_better + "% better");
-        return '<tr><td>' + esc(m.label) + (m.metric === "mean_peak_vram_mb" ? ' <span class="muted small">(working VRAM, excludes model weights)</span>' : "") +
-          '</td><td class="num">' + f(a) + '</td><td class="num">' + f(b) + '</td><td>' + res2 + '</td></tr>';
-      }).join("");
-      h.push('<div class="card"><h2>Head-to-head</h2><p class="muted small">Same flows, same hardware. Ties: within ' + (rel.thresholds.efficiency_tie_rel * 100) +
-        '% (latency/VRAM also need p &lt; ' + rel.thresholds.significance_alpha + '), accuracy within ' + rel.thresholds.accuracy_tie_pp + ' pp.</p>' +
-        '<div class="table-wrap"><table id="svc-relative-table"><thead><tr><th>Metric</th><th class="num">' + esc(short(names[0])) + '</th><th class="num">' + esc(short(names[1])) + '</th><th>Result</th></tr></thead><tbody>' + rr + '</tbody></table></div></div>');
-    }
-    var cen = res.cost_energy;
-    if (cen) {
-      var pr = cen.price || {}, es = cen.energy_sampling || {};
-      h.push('<div class="card" id="svc-cost-card"><h2>Cost and energy</h2><dl class="kv small">' +
-        '<dt>GPU price</dt><dd>' + (pr.usd_per_hour != null ? "$" + pr.usd_per_hour.toFixed(3) + "/h · " + esc(pr.source) + " · fetched " + esc(fmtDate(pr.fetched_at)) : esc(pr.reason || "not applicable (no GPU)")) + '</dd>' +
-        '<dt>Power sampling</dt><dd>' + (es.method ? esc(es.method) + " every " + esc(es.interval_s) + " s · " + fmtNum(es.n_samples) + " samples" : "not sampled (no GPU)") + '</dd></dl>' +
-        '<div class="table-wrap" style="margin-top:10px"><table id="svc-cost-table"><thead><tr><th>Model</th><th class="num">Cost / 1,000 flows</th><th class="num">Energy / flow<br><span class="small">(whole board)</span></th><th class="num">Energy / flow<br><span class="small">(net of idle)</span></th><th class="num">Energy / 1,000 flows</th><th class="num">Mean GPU power</th><th class="num">Idle power</th></tr></thead><tbody>' +
-        (cen.per_model || []).map(function (r) {
-          return '<tr><td class="mono">' + esc(r.model) + '</td><td class="num">' + (r.cost_per_1k_flows_usd != null ? fmtUsd(r.cost_per_1k_flows_usd) : '<span class="muted">' + esc(r.cost_status) + '</span>') +
-            '</td><td class="num">' + (r.wh_per_flow != null ? fmtWh(r.wh_per_flow) : '<span class="muted">' + esc(r.energy_status) + '</span>') +
-            '</td><td class="num">' + (r.wh_per_flow_net_idle != null ? fmtWh(r.wh_per_flow_net_idle) : '<span class="muted">' + (r.wh_per_flow != null ? "no idle sample" : "—") + '</span>') +
-            '</td><td class="num">' + fmtWh(r.wh_per_1k_flows) + '</td><td class="num">' + (r.mean_power_w != null ? fmtNum(r.mean_power_w) + " W" : "—") +
-            '</td><td class="num">' + (r.idle_power_w != null ? fmtNum(r.idle_power_w) + " W" : "—") + '</td></tr>';
-        }).join("") + '</tbody></table></div>' +
-        '<p class="muted small" id="svc-energy-method"><b>Method.</b> ' + esc(((cen.per_model || [])[0] || {}).cost_reason || "") + ' ' + esc((cen.notes || {}).cost || "") + ' ' +
-        esc((cen.notes || {}).energy || "") + ' ' + esc((cen.notes || {}).energy_net || "") + '</p></div>');
-    }
-    var mem = res.memory;
-    if (mem) {
-      h.push('<div class="card" id="svc-memory-card"><h2>GPU memory</h2><div class="table-wrap"><table id="svc-memory-table"><thead><tr><th>Model</th>' +
-        '<th class="num">Model weights<br><span class="small">(after load)</span></th><th class="num">Working VRAM, mean<br><span class="small">(excludes model weights)</span></th>' +
-        '<th class="num">Working VRAM, highest<br><span class="small">(excludes model weights)</span></th><th class="num">Total peak<br><span class="small">(weights + working)</span></th>' +
-        '<th class="num">Torch peak allocated / reserved</th><th class="num">NVML device peak</th></tr></thead><tbody>' +
-        mem.per_model.map(function (r) {
-          var na = '<span class="muted">' + esc(r.status === "measured" ? "—" : r.status) + '</span>';
-          return '<tr><td class="mono">' + esc(r.model) + '</td><td class="num">' + (r.weights_mb != null ? fmtMB(r.weights_mb) : na) + '</td><td class="num">' + fmtMB(r.working_mean_mb) +
-            '</td><td class="num">' + fmtMB(r.working_peak_mb) + '</td><td class="num"><b>' + (r.total_peak_mb != null ? fmtMB(r.total_peak_mb) : na) + '</b></td><td class="num">' +
-            (r.total_peak_allocated_mb != null ? fmtNum(r.total_peak_allocated_mb) + " / " + fmtNum(r.total_peak_reserved_mb) + " MB" : na) + '</td><td class="num">' +
-            (r.device_peak_nvml_mb != null ? fmtMB(r.device_peak_nvml_mb) : na) + '</td></tr>';
-        }).join("") + '</tbody></table></div><p class="muted small">' + esc(mem.notes.working) + ' ' + esc(mem.notes.total) +
-        (mem.per_model.some(function (r) { return r.reason; }) ? ' ' + esc(mem.per_model.filter(function (r) { return r.reason; })[0].reason) + '.' : "") + '</p></div>');
-    }
-    h.push(weightsCard(res));
-    var cav = (rel ? rel.caveats : s.caveats) || [];
-    h.push('<div class="card" id="svc-caveats-card"><h2>Read this before quoting the numbers</h2><ul class="list" id="svc-caveats">' +
-      cav.map(function (c) { return '<li>' + esc(c) + '</li>'; }).join("") + '</ul></div>');
+      '<p class="muted small">Accuracy is context only.' + tip("AgentMeter measures efficiency; it does not rank threat detectors.") + '</p></div>');
+    var items = caveatItems((rel ? rel.caveats : s.caveats) || []);
+    h.push('<div class="card" id="svc-caveats-card"><h2>Good to know</h2><div class="gtk" id="svc-caveats">' +
+      items.map(function (x, i) { return '<button type="button" data-cav="' + i + '" aria-expanded="false" aria-controls="svc-cav-detail">' + esc(x.label) + '</button>'; }).join("") +
+      '</div><p class="gtk-detail" id="svc-cav-detail" hidden></p><template id="svc-cav-texts">' +
+      items.map(function (x) { return '<p>' + esc(x.text) + '</p>'; }).join("") + '</template></div>');
     return h.join("");
+  }
+  function wireOverview(res) {
+    var box = $("svc-caveats"), det = $("svc-cav-detail"), texts = $("svc-cav-texts");
+    if (!box) return;
+    box.querySelectorAll("[data-cav]").forEach(function (b) { b.addEventListener("click", function () {
+      var open = b.getAttribute("aria-expanded") === "true";
+      box.querySelectorAll("[data-cav]").forEach(function (x) { x.setAttribute("aria-expanded", "false"); });
+      if (open) { det.hidden = true; return; }
+      b.setAttribute("aria-expanded", "true");
+      det.textContent = texts.content.children[+b.getAttribute("data-cav")].textContent;
+      det.hidden = false;
+    }); });
+  }
+  function h2hCard(res) {
+    var rel = res.relative_comparison, pm = res.per_model, names = pm.map(function (m) { return m.model; });
+    if (!rel) return '<div class="card"><h2>Head-to-head</h2><p class="muted">Single-model run: there is no second model to compare with.</p></div>';
+    var rr = rel.metrics.map(function (m) {
+      var a = m.values[names[0]], b = m.values[names[1]], isAcc = m.metric === "accuracy";
+      var f = isAcc ? fmtPct : m.metric === "mean_latency_s" ? fmtTime : m.metric === "mean_peak_vram_mb" ? fmtMB : function (v) { return fmtNum(v); };
+      var res2 = !m.available ? '<span class="muted">not available</span>' : m.winner === "tie" ? 'tie <span class="muted">(' + esc(m.note || "") + ')</span>'
+        : esc(short(m.winner)) + ' — ' + (isAcc ? m.diff_pp + " pp higher" : m.pct_better + "% better");
+      return '<tr><td>' + esc(m.label) + (m.metric === "mean_peak_vram_mb" ? ' <span class="muted small">(excludes model weights)</span>' : "") +
+        '</td><td class="num">' + f(a) + '</td><td class="num">' + f(b) + '</td><td>' + res2 + '</td></tr>';
+    }).join("");
+    return '<div class="card"><h2>Head-to-head</h2><p class="muted small">Fair comparison: same flows, same GPU.' +
+      '<span class="info-i" tabindex="0" title="Ties: within ' + (rel.thresholds.efficiency_tie_rel * 100) + '% (latency and VRAM also need p < ' + rel.thresholds.significance_alpha +
+      '); accuracy within ' + rel.thresholds.accuracy_tie_pp + ' pp.">i</span></p>' +
+      '<div class="table-wrap"><table id="svc-relative-table"><thead><tr><th>Metric</th><th class="num">' + esc(short(names[0])) + '</th><th class="num">' + esc(short(names[1])) + '</th><th>Result</th></tr></thead><tbody>' + rr + '</tbody></table></div></div>';
+  }
+  function costCard(res) {
+    var cen = res.cost_energy;
+    if (!cen) return '<div class="card"><p class="muted">This session predates the cost and energy measurements.</p></div>';
+    var pr = cen.price || {}, es = cen.energy_sampling || {};
+    return '<div class="card" id="svc-cost-card"><h2>Cost and energy</h2><dl class="kv small">' +
+      '<dt>GPU price</dt><dd>' + (pr.usd_per_hour != null ? "$" + pr.usd_per_hour.toFixed(3) + "/h · " + esc(pr.source) + " · fetched " + esc(fmtDate(pr.fetched_at)) : esc(pr.reason || "not applicable (no GPU)")) + '</dd>' +
+      '<dt>Power sampling</dt><dd>' + (es.method ? esc(es.method) + " every " + esc(es.interval_s) + " s · " + fmtNum(es.n_samples) + " samples" : "not sampled (no GPU)") + '</dd></dl>' +
+      '<div class="table-wrap" style="margin-top:10px"><table id="svc-cost-table"><thead><tr><th>Model</th><th class="num">Cost / 1,000 flows</th><th class="num">Energy / flow<br><span class="small">(whole board)</span></th><th class="num">Energy / flow<br><span class="small">(net of idle)</span></th><th class="num">Energy / 1,000 flows</th><th class="num">Mean GPU power</th><th class="num">Idle power</th></tr></thead><tbody>' +
+      (cen.per_model || []).map(function (r) {
+        return '<tr><td class="mono">' + esc(r.model) + '</td><td class="num">' + (r.cost_per_1k_flows_usd != null ? fmtUsd(r.cost_per_1k_flows_usd) : '<span class="muted">' + esc(r.cost_status) + '</span>') +
+          '</td><td class="num">' + (r.wh_per_flow != null ? fmtWh(r.wh_per_flow) : '<span class="muted">' + esc(r.energy_status) + '</span>') +
+          '</td><td class="num">' + (r.wh_per_flow_net_idle != null ? fmtWh(r.wh_per_flow_net_idle) : '<span class="muted">' + (r.wh_per_flow != null ? "no idle sample" : "—") + '</span>') +
+          '</td><td class="num">' + fmtWh(r.wh_per_1k_flows) + '</td><td class="num">' + (r.mean_power_w != null ? fmtNum(r.mean_power_w) + " W" : "—") +
+          '</td><td class="num">' + (r.idle_power_w != null ? fmtNum(r.idle_power_w) + " W" : "—") + '</td></tr>';
+      }).join("") + '</tbody></table></div>' +
+      '<details class="info"><summary>How this is calculated</summary><p class="muted small" id="svc-energy-method"><b>Method.</b> ' + esc(((cen.per_model || [])[0] || {}).cost_reason || "") + ' ' + esc((cen.notes || {}).cost || "") + ' ' +
+      esc((cen.notes || {}).energy || "") + ' ' + esc((cen.notes || {}).energy_net || "") + '</p></details></div>';
+  }
+  function memoryCard(res) {
+    var mem = res.memory;
+    if (!mem) return '<div class="card"><p class="muted">This session predates the GPU memory breakdown.</p></div>';
+    return '<div class="card" id="svc-memory-card"><h2>GPU memory</h2><div class="table-wrap"><table id="svc-memory-table"><thead><tr><th>Model</th>' +
+      '<th class="num">Model weights<br><span class="small">(after load)</span></th><th class="num">Working VRAM, mean</th>' +
+      '<th class="num">Working VRAM, highest</th><th class="num">Total peak<br><span class="small">(weights + working)</span></th>' +
+      '<th class="num">Torch peak allocated / reserved</th><th class="num">NVML device peak</th></tr></thead><tbody>' +
+      mem.per_model.map(function (r) {
+        var na = '<span class="muted">' + esc(r.status === "measured" ? "—" : r.status) + '</span>';
+        return '<tr><td class="mono">' + esc(r.model) + '</td><td class="num">' + (r.weights_mb != null ? fmtMB(r.weights_mb) : na) + '</td><td class="num">' + fmtMB(r.working_mean_mb) +
+          '</td><td class="num">' + fmtMB(r.working_peak_mb) + '</td><td class="num"><b>' + (r.total_peak_mb != null ? fmtMB(r.total_peak_mb) : na) + '</b></td><td class="num">' +
+          (r.total_peak_allocated_mb != null ? fmtNum(r.total_peak_allocated_mb) + " / " + fmtNum(r.total_peak_reserved_mb) + " MB" : na) + '</td><td class="num">' +
+          (r.device_peak_nvml_mb != null ? fmtMB(r.device_peak_nvml_mb) : na) + '</td></tr>';
+      }).join("") + '</tbody></table></div><details class="info"><summary>What these columns mean</summary><p class="muted small">' + esc(mem.notes.working) + ' ' + esc(mem.notes.total) +
+      (mem.per_model.some(function (r) { return r.reason; }) ? ' ' + esc(mem.per_model.filter(function (r) { return r.reason; })[0].reason) + '.' : "") + '</p></details></div>';
   }
 
-  // Detailed analysis tab: statistical depth (native) + the analysis page (embedded)
+  // Performance: latency distribution (Latency) and effect sizes (Statistics), native
   var EF_LABEL = { latency_s: "latency per flow", peak_vram_mb: "working VRAM (excludes model weights)", tokens_per_flow: "tokens per flow" };
-  function analysisSrc(id) {
-    var q = "?session=" + enc(id) + "&embed=1&theme=" + resolvedTheme();
+  function latencyCard(res) {
+    var ld = res.latency_distribution, ef = res.effect_sizes;
+    if (!ld) return '<div class="card"><p class="muted">This session predates the latency distribution.</p></div>';
+    var colors = ["var(--series-1)", "var(--series-2)"];
+    return '<div class="card" id="stats-depth"><h2>Latency distribution</h2>' +
+      (ld.small_sample_note || (ef && ef.small_sample_note) ? '<div class="notice warn" id="stats-small" role="note">' + esc(ld.small_sample_note || ef.small_sample_note) + '</div>' : "") +
+      '<div class="table-wrap"><table id="stats-percentiles"><thead><tr><th>Model</th><th class="num">Flows</th><th class="num">p50</th><th class="num">p95</th><th class="num">p99</th><th>Distribution</th><th>Warm-up check</th></tr></thead><tbody>' +
+      ld.per_model.map(function (r, i) {
+        var mx = Math.max.apply(null, (r.histogram || [0]).concat([1]));
+        return '<tr><td class="mono">' + esc(short(r.model)) + '</td><td class="num">' + fmtNum(r.n) + '</td><td class="num">' + fmtTime(r.p50) + '</td><td class="num">' + fmtTime(r.p95) +
+          '</td><td class="num">' + fmtTime(r.p99) + '</td><td style="min-width:140px"><div class="hist" style="--c:' + colors[i % 2] + '" role="img" aria-label="Latency histogram, ' + (r.histogram || []).length + ' bins">' +
+          (r.histogram || []).map(function (c) { return '<i style="height:' + (100 * c / mx) + '%"></i>'; }).join("") + '</div></td><td class="small">' + esc((r.warmup || {}).note || "—") + '</td></tr>';
+      }).join("") + '</tbody></table></div>' +
+      '<details class="info"><summary>How to read this</summary><p class="muted small">Histogram bins span ' + fmtTime(ld.bin_edges_s[0]) + ' to ' + fmtTime(ld.bin_edges_s[ld.bin_edges_s.length - 1]) +
+      ' (shared across models). ' + esc(ld.warmup_rule) + '.</p></details></div>';
+  }
+  function effectsCard(res) {
+    var ef = res.effect_sizes;
+    if (!ef) return '<div class="card"><p class="muted">This session predates the effect sizes.</p></div>';
+    if (ef.skipped) return '<div class="card" id="stats-effects-card"><h2>Effect size and confidence</h2><p class="muted small">' + esc(ef.skipped) + '.</p></div>';
+    return '<div class="card" id="stats-effects-card"><h2>Effect size and confidence <span class="muted small">A = ' + esc(short(ef.model_a)) + ', B = ' + esc(short(ef.model_b)) + '</span></h2>' +
+      '<div class="table-wrap" style="margin-top:8px"><table id="stats-effects"><thead><tr><th>Metric</th><th class="num">Cliff\'s delta</th><th>Magnitude</th><th class="num">Mean diff A − B</th><th class="num">95% CI (bootstrap)</th><th class="num">Kruskal-Wallis p</th></tr></thead><tbody>' +
+      ef.metrics.map(function (m) {
+        if (!m.available) return '<tr><td>' + esc(EF_LABEL[m.metric] || m.metric) + '</td><td colspan="5" class="muted">' + esc(m.reason) + '</td></tr>';
+        var f = m.metric === "latency_s" ? fmtTime : function (v) { return fmtNum(v, 1); };
+        var d = function (v) { return (v < 0 ? "−" : "") + f(Math.abs(v)); };
+        return '<tr><td>' + esc(EF_LABEL[m.metric] || m.metric) + '</td><td class="num">' + (m.cliffs_delta >= 0 ? "+" : "") + m.cliffs_delta.toFixed(2) + '</td><td>' + esc(m.magnitude) +
+          '</td><td class="num">' + d(m.diff_mean_a_minus_b) + '</td><td class="num">[' + d(m.ci95_low) + ', ' + d(m.ci95_high) + ']' + (m.ci_excludes_zero ? "" : ' <span class="muted">includes 0</span>') +
+          '</td><td class="num">' + (m.kruskal_wallis_p == null ? "—" : m.kruskal_wallis_p.toPrecision(3)) + '</td></tr>';
+      }).join("") + '</tbody></table></div><details class="info"><summary>Method</summary><p class="muted small">' + esc(ef.method) + '</p></details></div>';
+  }
+  // The analysis page (charts, SAW ranking, robustness, …) embedded ONCE per session; each view
+  // asks it (by message, no reload) to show only its sections.
+  var EMBED = { parts: null, loaded: false };
+  function analysisSrc(id, parts) {
+    var q = "?session=" + enc(id) + "&embed=1&solo=1&parts=" + enc((parts || []).join(",")) + "&theme=" + resolvedTheme();
     return CP ? "analysis.html" + q : apiUrl("/analysis" + q);     // CP: same origin; results passed by message
   }
-  function detailedTab(res) {
-    var ld = res.latency_distribution, ef = res.effect_sizes, h = [];
-    if (ld) {
-      var colors = ["var(--series-1)", "var(--series-2)"];
-      h.push('<div class="card" id="stats-depth"><h2>Statistical depth</h2>' +
-        (ld.small_sample_note || (ef && ef.small_sample_note) ? '<div class="notice warn" id="stats-small" role="note">' + esc(ld.small_sample_note || ef.small_sample_note) + '</div>' : "") +
-        '<div class="table-wrap"><table id="stats-percentiles"><thead><tr><th>Model</th><th class="num">Flows</th><th class="num">p50</th><th class="num">p95</th><th class="num">p99</th><th>Distribution</th><th>Warm-up check</th></tr></thead><tbody>' +
-        ld.per_model.map(function (r, i) {
-          var mx = Math.max.apply(null, (r.histogram || [0]).concat([1]));
-          return '<tr><td class="mono">' + esc(short(r.model)) + '</td><td class="num">' + fmtNum(r.n) + '</td><td class="num">' + fmtTime(r.p50) + '</td><td class="num">' + fmtTime(r.p95) +
-            '</td><td class="num">' + fmtTime(r.p99) + '</td><td style="min-width:140px"><div class="hist" style="--c:' + colors[i % 2] + '" role="img" aria-label="Latency histogram, ' + (r.histogram || []).length + ' bins">' +
-            (r.histogram || []).map(function (c) { return '<i style="height:' + (100 * c / mx) + '%"></i>'; }).join("") + '</div></td><td class="small">' + esc((r.warmup || {}).note || "—") + '</td></tr>';
-        }).join("") + '</tbody></table></div>' +
-        '<p class="muted small">Histogram bins span ' + fmtTime(ld.bin_edges_s[0]) + ' to ' + fmtTime(ld.bin_edges_s[ld.bin_edges_s.length - 1]) + ' (shared across models). ' + esc(ld.warmup_rule) + '.</p>');
-      if (ef && !ef.skipped) {
-        h.push('<h3 style="margin-top:16px">Effect size and confidence (A = ' + esc(short(ef.model_a)) + ', B = ' + esc(short(ef.model_b)) + ')</h3>' +
-          '<div class="table-wrap" style="margin-top:8px"><table id="stats-effects"><thead><tr><th>Metric</th><th class="num">Cliff\'s delta</th><th>Magnitude</th><th class="num">Mean diff A − B</th><th class="num">95% CI (bootstrap)</th><th class="num">Kruskal-Wallis p</th></tr></thead><tbody>' +
-          ef.metrics.map(function (m) {
-            if (!m.available) return '<tr><td>' + esc(EF_LABEL[m.metric] || m.metric) + '</td><td colspan="5" class="muted">' + esc(m.reason) + '</td></tr>';
-            var f = m.metric === "latency_s" ? fmtTime : function (v) { return fmtNum(v, 1); };
-            var d = function (v) { return (v < 0 ? "−" : "") + f(Math.abs(v)); };
-            return '<tr><td>' + esc(EF_LABEL[m.metric] || m.metric) + '</td><td class="num">' + (m.cliffs_delta >= 0 ? "+" : "") + m.cliffs_delta.toFixed(2) + '</td><td>' + esc(m.magnitude) +
-              '</td><td class="num">' + d(m.diff_mean_a_minus_b) + '</td><td class="num">[' + d(m.ci95_low) + ', ' + d(m.ci95_high) + ']' + (m.ci_excludes_zero ? "" : ' <span class="muted">includes 0</span>') +
-              '</td><td class="num">' + (m.kruskal_wallis_p == null ? "—" : m.kruskal_wallis_p.toPrecision(3)) + '</td></tr>';
-          }).join("") + '</tbody></table></div><p class="muted small">' + esc(ef.method) + '</p>');
-      } else if (ef) {
-        h.push('<p class="muted small">' + esc(ef.skipped) + '.</p>');
-      }
-      h.push('</div>');
+  function embedOrigin() { return CP || !API ? location.origin : new URL(API, location.href).origin; }
+  function resetEmbed() { EMBED = { parts: null, loaded: false }; $("embed-host").innerHTML = ""; $("embed-host").hidden = true; }
+  function showEmbed(parts, tab) {
+    var host = $("embed-host");
+    if (!parts) { host.hidden = true; return; }
+    EMBED.parts = parts;
+    host.hidden = false;
+    var f = $("analysis-frame");
+    if (!f) {
+      host.innerHTML = '<iframe class="embed" id="analysis-frame" title="Session analysis views" data-session="' + esc(SESSION.id) + '" src="' + esc(analysisSrc(SESSION.id, parts)) + '"></iframe>';
+      f = $("analysis-frame");
+      f.addEventListener("load", function () { EMBED.loaded = true; postParts(); });
+      return;
     }
-    h.push('<div class="card flat"><h2>Overview and detailed analysis</h2><p class="muted small">The same views as the validation study, rendered from this session ' +
-      '(non-validated).</p><div id="embed-box"></div></div>');
-    return h.join("");
+    postParts();
   }
-  function ensureEmbed() {
-    var box = $("embed-box");
-    if (!box || box.querySelector("iframe")) return;
-    box.innerHTML = '<iframe class="embed" id="analysis-frame" title="Session overview and detailed analysis" data-session="' + esc(SESSION.id) + '" src="' + esc(analysisSrc(SESSION.id)) + '" loading="lazy"></iframe>';
+  function postParts() {
+    var f = $("analysis-frame");
+    if (f && EMBED.loaded && EMBED.parts) f.contentWindow.postMessage({ type: "agentmeter-embed-show", parts: EMBED.parts }, embedOrigin());
   }
   window.addEventListener("message", function (ev) {
-    var origin = CP || !API ? location.origin : new URL(API, location.href).origin;
     var f = $("analysis-frame");
-    if (ev.origin !== origin || !ev.data || !f || ev.source !== f.contentWindow) return;
-    if (ev.data.type === "agentmeter-embed-height") f.style.height = Math.max(400, Math.min(30000, +ev.data.height || 0)) + "px";
+    if (ev.origin !== embedOrigin() || !ev.data || !f || ev.source !== f.contentWindow) return;
+    if (ev.data.type === "agentmeter-embed-height") f.style.height = Math.max(120, Math.min(30000, +ev.data.height || 0)) + "px";
     // the embedded analysis page (same origin with a control plane) asks for the stored results
     if (ev.data.type === "agentmeter-embed-ready" && ev.data.session === SESSION.id && SESSION.res)
-      f.contentWindow.postMessage({ type: "agentmeter-embed-results", session: SESSION.id, results: SESSION.res }, origin);
+      f.contentWindow.postMessage({ type: "agentmeter-embed-results", session: SESSION.id, results: SESSION.res }, embedOrigin());
   });
 
   // Agents tab
@@ -1896,13 +2074,13 @@
 
   // Recommendation tab: measured verdict, resource hint, stage 3 context, decision helper
   var DH_KEYS = ["max_mean_latency_s", "max_p95_latency_s", "max_peak_vram_mb", "max_cost_per_1k_flows_usd"];
-  function recommendationTab(res) {
-    var rel = res.relative_comparison, s3 = res.recommendation_stage3, dh = res.decision_helper, h = [];
+  function recLimitsTab(res) {
+    var rel = res.relative_comparison, dh = res.decision_helper, h = [];
     var hint = window.REPORT ? window.REPORT.optimisationHint(res, ((res.per_model || [])[0] || {}).db_label) : { text: "" };
-    h.push('<div class="card"><h2>Measured verdict (stage 2)</h2><p class="verdict">' + esc(rel ? rel.verdict : (res.comparison || {}).statement || "Single-model run — no head-to-head comparison.") + '</p>' +
-      (hint.text ? '<p class="small">' + esc(hint.text) + '</p>' : "") + '<p class="muted small">Decision support, not a deployment sign-off. Accuracy is context only.</p></div>');
+    h.push('<div class="card"><h2>Measured verdict</h2><p class="verdict">' + esc(rel ? rel.verdict : (res.comparison || {}).statement || "Single-model run — no head-to-head comparison.") + '</p>' +
+      (hint.text ? '<p class="small">' + esc(hint.text) + '</p>' : "") + '<p class="muted small">Decision support, not a deployment sign-off.</p></div>');
     if (dh) {
-      h.push('<form class="card" id="dh-form" novalidate><h2>Decision helper — does a model fit your limits?</h2><p class="muted small">' + esc(dh.framing) +
+      h.push('<form class="card" id="dh-form" novalidate><h2>Does a model fit your limits?</h2><p class="muted small">' + esc(dh.framing) +
         ' Rule set: <span class="mono">' + esc(dh.rulebase) + '</span>.</p><div class="row">' +
         DH_KEYS.map(function (k) {
           var inp = (dh.inputs || {})[k] || {};
@@ -1910,6 +2088,11 @@
         }).join("") + '</div><div class="row"><button type="submit" class="btn primary" id="dh-go">Check models</button><a class="btn" id="dh-pdf" href="#" download>PDF with these limits</a></div>' +
         '<div id="dh-error" class="notice error" role="alert" hidden></div><div id="dh-result" style="margin-top:14px"></div></form>');
     }
+    return h.join("");
+  }
+  function recContextTab(res) {
+    var s3 = res.recommendation_stage3, h = [];
+    if (!s3) return '<div class="card"><p class="muted">This session predates the model-context rules.</p></div>';
     if (s3) {
       var notes = (s3.notes || []).map(function (n) {
         return '<li><span class="chip mono">' + esc(n.rule) + '</span> ' + esc(n.note) + ' <span class="muted small">— source: ' + esc((n.sources || []).join(", ")) +
@@ -1919,7 +2102,7 @@
         return '<tr><td class="mono">' + esc(r.rule) + '</td><td class="mono">' + esc(short(r.model)) + '</td><td class="mono small">' + esc(r.condition) + '</td><td>' + esc(r.result) +
           (r.result === "no_data" ? ' <span class="muted small">(' + esc(r.detail) + ')</span>' : "") + '</td><td>' + esc((r.sources || []).join(", ")) + '</td><td class="mono small">' + esc(r.fetched_at || "—") + '</td></tr>';
       }).join("");
-      h.push('<div class="card" id="svc-stage3"><h2>Model context — stage 3</h2><p><b>Measured verdict:</b> ' + esc((s3.verdict || {}).text || "—") + '</p>' +
+      h.push('<div class="card" id="svc-stage3"><h2>Model context</h2><p><b>Measured verdict:</b> ' + esc((s3.verdict || {}).text || "—") + '</p>' +
         (notes ? '<ul class="list" id="svc-stage3-notes">' + notes + '</ul>' : '<p class="muted" id="svc-stage3-notes">No context rule fired' +
           (s3.metadata_status === "ok" ? "" : " — Hugging Face metadata " + esc(s3.metadata_status) + ", so the metadata rules had no data") + '.</p>') +
         '<p class="muted small">' + esc(s3.framing || "") + ' Rule set: <span class="mono">' + esc(s3.rulebase || "") + '</span>.</p>' +

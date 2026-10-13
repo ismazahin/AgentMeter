@@ -37,9 +37,15 @@ async function pickAndRun(p, models) {
   await p.waitForSelector('#session-body:not([hidden])', { timeout: 30000 });
   return job;
 }
-async function tab(p, name) {
+async function tab(p, name, sub) {
   await p.click(`#session-tabs [data-tab="${name}"]`);
-  await p.waitForSelector(`#spanel-${name}:not([hidden])`);
+  await p.waitForSelector(`#stab-${name}[aria-selected="true"]`);
+  if (sub) { await p.click(`#ssub-${sub}`); await p.waitForSelector(`#spanel-${name} [data-pane="${sub}"]:not([hidden])`); }
+}
+async function frameOf(p) {
+  const fr = await (await p.waitForSelector('#analysis-frame')).contentFrame();
+  await fr.waitForFunction(() => document.body && document.body.classList.contains('solo') && !!document.querySelector('#saw-body'), null, { timeout: 20000 });
+  return fr;
 }
 
 (async () => {
@@ -138,29 +144,64 @@ async function tab(p, name) {
   await p.click('#home-sessions-table a[data-open="' + job1 + '"]');
   await p.waitForSelector('#session-body:not([hidden])');
 
-  // 6. session tabs (CSV, 2 models)
+  // 6. session sections (CSV, 2 models)
   const stabs = await p.$$eval('#session-tabs [role=tab]', ts => ts.map(t => t.textContent.trim()));
-  log(stabs.join('|') === 'Summary|Detailed analysis|Agents|Recommendation|Downloads', 'session tabs: ' + stabs.join(', '));
+  log(stabs.join('|') === 'Overview|Model Ranking|Accuracy|Performance|Agent Analysis|Cost & Energy|Recommendations|Data & Exports', 'session sections: ' + stabs.join(', '));
   const chips = await p.textContent('#session-chips');
   log(/Demo \(no GPU\)/.test(chips) && /10 flows/.test(chips) && /CSV/.test(chips), 'session chips: GPU, flows, input type');
   log(await p.isVisible('#svc-dl-pdf') && await p.isVisible('#session-compare'), 'Download PDF + Compare buttons');
-  log(!!(await p.$('#svc-verdict')) && (await p.$$('#svc-models-table tbody tr')).length === 2, 'Summary: verdict + 2-model table');
-  log(/not measured/.test(await p.textContent('#svc-cost-card')), 'Summary: cost/energy "not measured" on a mock run');
-  await p.screenshot({ path: S + '/05-session-summary.png', fullPage: true });
+  await tab(p, 'overview');
+  log(/is more efficient than|Mixed result|tied on efficiency/.test(await p.textContent('#svc-headline')), 'Overview: one-line headline: ' + await p.textContent('#svc-headline'));
+  log((await p.$$('#svc-tiles .tile')).length === 4, 'Overview: 4 tiles (latency, VRAM, tokens, accuracy)');
+  log(await p.isHidden('#svc-verdict') && !!(await p.textContent('#svc-verdict')), 'Overview: the full verdict sentence is one click away (collapsed)');
+  await p.click('#svc-full-verdict summary');
+  log(await p.isVisible('#svc-verdict'), 'Overview: "Show full verdict" opens it');
+  log((await p.$$('#svc-models-table tbody tr')).length === 2, 'Overview: 2-model table');
+  const cavs = await p.$$eval('#svc-caveats button', bs => bs.map(b => b.textContent));
+  log(cavs.includes('Exploratory run') && cavs.includes('Demo data (mock)') && cavs.every(t => t.length <= 40), 'Good to know: short labels (' + cavs.join(' · ') + ')');
+  await p.click('#svc-caveats button[data-cav="0"]');
+  log(/Relative view|NON-VALIDATED/.test(await p.textContent('#svc-cav-detail')) && await p.isVisible('#svc-cav-detail'), 'a label opens its full original sentence');
+  await p.screenshot({ path: S + '/05-session-overview.png', fullPage: true });
 
-  await tab(p, 'detailed');
-  log((await p.$$('#stats-percentiles tbody tr')).length === 2, 'Detailed: p50/p95/p99 per model');
-  log((await p.$$('#stats-effects tbody tr')).length === 3, "Detailed: Cliff's delta + bootstrap CI rows");
-  log(/too small/i.test(await p.textContent('#stats-small')), 'Detailed: small-sample note');
-  await p.waitForSelector('#analysis-frame');
-  const fr = await (await p.$('#analysis-frame')).contentFrame();
+  await tab(p, 'ranking');
+  let fr = await frameOf(p);
   await fr.waitForSelector('#saw-body tr', { timeout: 20000 });
-  log((await fr.$$('#saw-body tr')).length === 2, 'Detailed: embedded Overview ranks the 2 session models');
-  log(await fr.evaluate(() => document.documentElement.classList.contains('embed') && getComputedStyle(document.querySelector('.topbar .brand')).display === 'none'),
-      'embedded analysis has no second header');
-  await p.waitForFunction(() => parseInt(document.querySelector('#analysis-frame').style.height || '0', 10) > 600, null, { timeout: 10000 });
+  log((await fr.$$('#saw-body tr')).length === 2, 'Model Ranking › Scores: the embedded SAW ranking ranks the 2 session models');
+  log(await fr.evaluate(() => !document.querySelector('#nav').offsetParent && !document.querySelector('#sliders').offsetParent),
+      'the embedded view shows only this sub-tab (no second menu, no weights here)');
+  await p.waitForFunction(() => parseInt(document.querySelector('#analysis-frame').style.height || '0', 10) > 200, null, { timeout: 10000 });
   log(true, 'embedded analysis reports its height to the app');
-  await p.screenshot({ path: S + '/06-session-detailed.png', fullPage: true });
+  await p.screenshot({ path: S + '/06-session-ranking.png', fullPage: true });
+  await p.click('#ssub-weighting');
+  await fr.waitForFunction(() => !!document.querySelector('#sliders').offsetParent && !document.querySelector('#saw-body').offsetParent, null, { timeout: 10000 });
+  log(await p.isVisible('#svc-weights-card'), 'Model Ranking › Weighting: live weights (embedded, no reload) + your presets');
+  log((await p.$$('#analysis-frame')).length === 1, 'one embedded page for all sub-tabs');
+  await p.click('#ssub-guide');
+  await fr.waitForFunction(() => !!document.querySelector('#glossary-panel').offsetParent, null, { timeout: 10000 });
+  log(true, 'Model Ranking › Model Guide: model info, FAQ and glossary');
+  await p.click('#ssub-scores');
+  await p.click('#svc-evaluate');
+  await p.waitForSelector('#spanel-recommendations [data-pane="limits"]:not([hidden])');
+  log(/\/recommendations\/limits$/.test(await p.evaluate(() => location.hash)), '"Evaluate for my workload" opens Recommendations › Your limits');
+
+  await tab(p, 'accuracy');
+  fr = await frameOf(p);
+  await fr.waitForFunction(() => [...document.querySelectorAll('[data-part="accuracy"].part-on')].some(x => x.offsetParent), null, { timeout: 10000 });
+  log(true, 'Accuracy: the accuracy detail (embedded)');
+
+  await tab(p, 'performance');
+  log(/\/performance\/comparison$/.test(await p.evaluate(() => location.hash)) && !!(await p.$('#svc-relative-table')), 'Performance › Comparison: head-to-head');
+  await tab(p, 'performance', 'latency');
+  log((await p.$$('#stats-percentiles tbody tr')).length === 2, 'Performance › Latency: p50/p95/p99 per model');
+  log(/too small/i.test(await p.textContent('#stats-small')), 'Performance › Latency: small-sample note');
+  await tab(p, 'performance', 'statistics');
+  log((await p.$$('#stats-effects tbody tr')).length === 3, "Performance › Statistics: Cliff's delta + bootstrap CI rows");
+  await p.goto(BASE + '/#/session/' + job1 + '/performance/gpu'); await p.waitForSelector('#spanel-performance [data-pane="gpu"]:not([hidden])');
+  log(!!(await p.$('#svc-memory-table')), 'a sub-tab has its own link (…/performance/gpu)');
+  await p.screenshot({ path: S + '/06b-session-performance.png', fullPage: true });
+
+  await tab(p, 'cost');
+  log(/not measured/.test(await p.textContent('#svc-cost-card')), 'Cost & Energy: "not measured" on a mock run');
 
   await tab(p, 'agents');
   log((await p.$$('#agents-table-0 tbody tr')).length === 4, 'Agents: 4 agents per model');
@@ -172,8 +213,9 @@ async function tab(p, name) {
   log((await p.$$('#agents-gantt .g-seg')).length === 8, 'Agents: timeline follows the selected flow');
   await p.screenshot({ path: S + '/07-session-agents.png', fullPage: true });
 
-  await tab(p, 'recommendation');
-  log(!!(await p.$('#svc-stage3')), 'Recommendation: stage-3 model context');
+  await tab(p, 'recommendations', 'context');
+  log(!!(await p.$('#svc-stage3')), 'Recommendations › Model context (stage 3)');
+  await tab(p, 'recommendations', 'limits');
   await p.fill('#dh-max_mean_latency_s', '0.0000001');
   await p.click('#dh-go'); await p.waitForSelector('#dh-table');
   log((await p.$$eval('#dh-table tbody tr', rs => rs.map(r => r.textContent))).every(t => /fails mean_latency/.test(t)), 'Decision helper: tiny latency limit -> fails mean_latency');
@@ -189,7 +231,7 @@ async function tab(p, name) {
   log(/Decision helper/.test(lt) && /Max mean latency 1000/.test(lt), 'PDF: decision helper with the entered limits');
   log(/Agents . per-agent breakdown/.test(lt) && /Cost and energy/.test(lt) && /Statistical depth/.test(lt), 'PDF: Agents, Cost and energy, Statistical depth sections');
 
-  await tab(p, 'downloads');
+  await tab(p, 'data');
   await p.waitForSelector('#svc-downloads a');
   const dls = await p.$$eval('#svc-downloads a', as => as.map(a => a.textContent));
   log(dls.join(',') === 'features.csv,labels.csv,manifest.json', 'Downloads: prepared-set files ' + dls.join(','));
@@ -200,8 +242,12 @@ async function tab(p, name) {
   // PCAP session: accuracy hidden, efficiency only
   await p.goto(BASE + '/#/session/' + job2); await p.waitForSelector('#session-body:not([hidden])');
   log(/unlabelled · efficiency only/.test(await p.textContent('#session-chips')) && !/Accuracy/.test(await p.textContent('#svc-models-table thead')), 'PCAP session: efficiency only, no accuracy column');
-  await tab(p, 'detailed');
-  log(/single-model/.test(await p.textContent('#stats-depth')), 'PCAP 1-model session: effect sizes explain they need two models');
+  log(await p.getAttribute('#stab-accuracy', 'aria-disabled') === 'true' && /No labels/.test(await p.getAttribute('#stab-accuracy', 'title')), 'PCAP session: Accuracy greyed out ("No labels in this data")');
+  await p.goto(BASE + '/#/session/' + job2 + '/accuracy'); await p.waitForSelector('#spanel-overview:not([hidden])');
+  log(true, 'PCAP session: a link to Accuracy falls back to Overview');
+  log(/single-model/.test(await p.textContent('#svc-headline')), 'PCAP 1-model session: headline says single-model run');
+  await tab(p, 'performance', 'statistics');
+  log(/single-model|two models/i.test(await p.textContent('#stats-effects-card')), 'PCAP 1-model session: effect sizes explain they need two models');
 
   // 7. reuse the CSV's prepared set with the same 2 models -> a like-for-like pair
   await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');

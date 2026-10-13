@@ -168,16 +168,17 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(/alice/.test(chips), 'the session records who started it (alice)');
     const st = await workerJson('/api/sessions/' + job1, (await loginApi('admin', 'admin-password-123')).access_token);
     log(st.status === 'Demo' && st.has_results && st.owner === 'alice', 'stored in the control plane: status Demo, results, owner alice');
-    log(/Stored scores use:/.test(await p.textContent('#svc-weights-used')), 'Summary shows the SAW weights the stored scores used');
+    await p.click('#stab-ranking'); await p.click('#ssub-weighting'); await p.waitForSelector('#svc-weights-used');
+    log(/Stored scores use:/.test(await p.textContent('#svc-weights-used')), 'Model Ranking › Weighting shows the SAW weights the stored scores used');
     await p.selectOption('#svc-preset', '0');
     log(/speed first/.test(await p.textContent('#svc-preset-weights')) && await p.$$eval('#svc-preset-table tbody tr', r => r.length) === 2,
         'a preset re-ranks in the view only, naming its weights');
-    await p.click('#stab-detailed');
+    await p.click('#ssub-scores');
     const frame = await (await p.waitForSelector('#analysis-frame')).contentFrame();
     await frame.waitForFunction(() => document.body && document.getElementById('banner') && document.body.classList.contains('session-mode') &&
       !/Loading/.test(document.getElementById('banner').textContent), null, { timeout: 30000 });
-    log(!/unavailable/.test(await frame.textContent('#banner')) && /analysis\.html/.test(frame.url()), 'Detailed analysis renders on the same origin (results handed over by the app)');
-    await p.click('#stab-downloads');
+    log(!/unavailable/.test(await frame.textContent('#banner')) && /analysis\.html/.test(frame.url()), 'the embedded analysis renders on the same origin (results handed over by the app)');
+    await p.click('#stab-data');
     const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#svc-downloads-main a')]);
     const pdfPath = path.join(OUT, 'report.pdf'); await dl.saveAs(pdfPath);
     const pdfText = cp.execFileSync(process.env.PYTHON || 'python', ['-c', 'import sys,pypdf;print("\\n".join(p.extract_text() for p in pypdf.PdfReader(sys.argv[1]).pages))', pdfPath]).toString();

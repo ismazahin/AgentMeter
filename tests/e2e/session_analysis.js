@@ -44,8 +44,9 @@ async function embedded(p, job, labelled, nModels, tag) {
     const miss = await fr.$$eval('.acc-missing', els => els.filter(e => e.offsetParent !== null).map(e => e.textContent).join(' '));
     log(/not measured for unlabelled input/i.test(miss), tag + ': "accuracy not measured for unlabelled input"');
   }
-  await fr.click('#nav [data-view="detailed"]');
-  log(await fr.isVisible('#view-detailed'), tag + ': embedded Detailed analysis opens (in-page switch)');
+  await p.click('#stab-performance'); await p.click('#ssub-statistics');
+  await fr.waitForFunction(() => [...document.querySelectorAll('[data-part="stats"].part-on')].some(x => x.offsetParent), null, { timeout: 10000 });
+  log((await p.$$('#analysis-frame')).length === 1, tag + ': Performance › Statistics shows the embedded statistics (same page, no reload)');
   await p.screenshot({ path: S + '/' + tag + '-detailed.png', fullPage: true });
 }
 
@@ -56,8 +57,8 @@ async function embedded(p, job, labelled, nModels, tag) {
   p.on('console', m => { if (m.type() === 'error' && !/fonts|ERR_|Failed to load resource/.test(m.text())) errs.push(m.text()); });
 
   const csvJob = await session(p, REPO + '/data/sample_csv/cicids2017_sample.csv', 10, [0, 3]);
-  await p.click('#session-tabs [data-tab="recommendation"]'); await p.waitForSelector('#spanel-recommendation:not([hidden])');
-  log(await p.isVisible('#svc-stage3') && /Measured verdict/.test(await p.textContent('#svc-stage3')), 'Recommendation tab: stage 3, measured verdict first');
+  await p.click('#stab-recommendations'); await p.click('#ssub-context'); await p.waitForSelector('#svc-stage3');
+  log(await p.isVisible('#svc-stage3') && /Measured verdict/.test(await p.textContent('#svc-stage3')), 'Recommendations › Model context: stage 3, measured verdict first');
   const [pdf] = await Promise.all([p.waitForEvent('download'), p.click('#svc-dl-pdf')]);
   await pdf.saveAs(S + '/csv-report.pdf');
   const txt = pdfText(S + '/csv-report.pdf');

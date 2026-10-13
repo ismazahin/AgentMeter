@@ -89,7 +89,7 @@ async function run(p, idx) {
   log(true, 'reload during the run re-attached and landed on the session');
   log((await p.$$('#svc-models-table tbody tr')).length === 2 && /Accuracy/.test(await p.textContent('#svc-models-table thead')),
       'session: 2 models, accuracy shown as context');
-  await p.click('#session-tabs [data-tab="downloads"]'); await p.waitForSelector('#svc-downloads a');
+  await p.click('#session-tabs [data-tab="data"]'); await p.waitForSelector('#svc-downloads a');
   log((await p.$$eval('#svc-downloads a', as => as.map(a => a.textContent))).join(',') === 'features.csv,labels.csv,manifest.json',
       'session Downloads: prepared-set files');
 

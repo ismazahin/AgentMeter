@@ -143,19 +143,12 @@ no later stage can change an earlier stage's result.
 
 ## Viewing a session
 
-Every finished session has its own page in the app (`#/session/<id>`), with these tabs:
+Every finished session has its own page in the app (`#/session/<id>`), with eight sections:
+Overview, Model Ranking, Accuracy, Performance, Agent Analysis, Cost & Energy, Recommendations
+(your limits = the stage-2b decision helper; model context = stage 3) and Data & Exports. See
+[SESSION_BENCHMARK.md](SESSION_BENCHMARK.md) for what each contains.
 
-- **Summary:** the measured verdict, the per-model table, cost and energy, and caveats.
-- **Detailed analysis:** statistical depth (p50/p95/p99, warm-up check, Cliff's delta
-  and bootstrap CIs), plus the former dashboard's Overview and Detailed views. These are
-  embedded from `/analysis?session=<id>&embed=1`, rendered from the session's results.
-- **Agents:** the per-agent breakdown, agentic overhead, failures, and the per-flow
-  timeline.
-- **Recommendation:** the stage-2 verdict, the stage-2b decision helper and the stage-3
-  model context.
-- **Downloads:** the PDF, the results JSON, the CSVs and the prepared-set files.
-
-On unlabelled input (PCAP), the accuracy panels are hidden and say "accuracy not measured
+On unlabelled input (PCAP), the Accuracy section is greyed out, the accuracy panels are hidden and say "accuracy not measured
 for unlabelled input". The locked Validation baseline is not in the app's navigation; it
 stays reachable by direct URL at `/baseline`, and reproducing it is CLI-only
 ([REPRODUCE_BASELINE.md](REPRODUCE_BASELINE.md)).

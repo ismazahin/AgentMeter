@@ -619,6 +619,18 @@
   html.embed .topbar .brand, html.embed .topbar .tools, html.embed .site-foot,
   html.embed #getting-started, html.embed #banner, html.embed #session-panel { display: none !important; }
   html.embed .band { padding: 0; min-height: 0; }
+  /* ?solo=1 (inside a session tab of the app): only the sections the tab asks for (data-part) */
+  body.solo .topbar, body.solo .view-hero, body.solo .section-label, body.solo .section-desc,
+  body.solo .subtabs, body.solo .band { display: none !important; }
+  body.solo .view, body.solo .subview, body.solo .dlayout, body.solo .dpanes { display: block !important; }
+  body.solo [data-part]:not(.part-on) { display: none !important; }
+  body.solo .view > :not([data-part]):not(.dlayout), body.solo .subview > :not([data-part]) { display: none !important; }
+  body.solo .main, body.solo .main.container { padding: 0 !important; max-width: none !important; margin: 0 !important; }
+  body.solo .app { min-height: 0 !important; }
+  body.solo .panel > h2 .hint, body.solo .panel h2 > .hint { display: none !important; }      /* explained by its ? help */
+  body.solo .panel > h2, body.solo .hcard h3 { font-family: var(--sans); font-weight: 650; font-size: 19px; letter-spacing: 0; }
+  body.solo .panel, body.solo .highlights { margin-left: 0; margin-right: 0; }
+  body.solo .highlights { margin-bottom: 16px; }
   html.embed body { --sans: "Manrope", "Inter Tight", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
                     --serif: "Manrope", "Inter Tight", -apple-system, "Segoe UI", Roboto, sans-serif; }
   html.embed[data-theme="dark"] {
@@ -3290,8 +3302,8 @@
     clearTimeout(_paretoResizeT);
     _paretoResizeT = setTimeout(function () {
       var pane = document.getElementById("dsub-tradeoffs");
-      if (state.data && pane && pane.classList.contains("active") &&
-          document.getElementById("view-detailed").classList.contains("active")) {
+      if (state.data && pane && ((SOLO && SOLO.indexOf("pareto") >= 0) || (pane.classList.contains("active") &&
+          document.getElementById("view-detailed").classList.contains("active")))) {
         try { renderPareto(); } catch (e) { /* non-fatal */ }
       }
     }, 150);
@@ -3578,6 +3590,62 @@
     if (t.getAttribute("data-scroll")) document.getElementById(t.getAttribute("data-scroll")).scrollIntoView();
     else if (t.getAttribute("data-top")) window.scrollTo(0, 0);
   });
+  // ---- solo mode: one session tab of the app shows only some sections (data-part) ----
+  var PART_OF_HELP = { "hc-composite": "highlights", saw: "saw", "ds-rec": "ds-rec", "ds-filter": "ds-filter", "ds-optim": "ds-optim",
+    modelctx: "modelctx", "sens-live": "weights", "vram-finding": "vram-finding", accuracy: "accuracy", misclass: "accuracy",
+    peragent: "peragent", perclass: "perclass", cov: "cov", prefill: "prefill", throughput: "throughput",
+    sensitivity: "robustness", pareto: "pareto", statistics: "stats" };
+  var PART_GROUP = { accuracy: "accuracy", peragent: "resource", perclass: "resource", cov: "resource", prefill: "resource",
+    throughput: "resource", robustness: "tradeoffs", pareto: "tradeoffs", stats: "stats" };
+  function tagParts() {
+    Array.prototype.forEach.call(document.querySelectorAll(".view .panel, .view .highlights, .view .faq"), function (el) {
+      var part = null;
+      if (el.classList.contains("highlights")) part = "highlights";
+      else if (el.classList.contains("faq")) part = "faq";
+      else if (el.id === "glossary-panel") part = "glossary";
+      else {
+        var h = el.querySelector("[data-help]");
+        part = h ? PART_OF_HELP[h.getAttribute("data-help")] : null;
+        if (!part && el.closest("#dsub-accuracy")) part = "accuracy";
+        if (!part && el.closest("#dsub-tradeoffs")) part = "pareto";            // "Pareto frontier: accuracy not measured"
+      }
+      if (part) el.setAttribute("data-part", part);
+    });
+  }
+  var SOLO = null;
+  function soloShow(parts) {
+    SOLO = parts;
+    document.body.classList.add("solo");
+    var want = {};
+    parts.forEach(function (x) { want[x] = true; });
+    Array.prototype.forEach.call(document.querySelectorAll("[data-part]"), function (el) {
+      el.classList.toggle("part-on", !!want[el.getAttribute("data-part")]);
+    });
+    if (!state.data) return;                        // re-applied once the results are loaded
+    var groups = {};
+    parts.forEach(function (x) { if (PART_GROUP[x]) groups[PART_GROUP[x]] = true; });
+    Object.keys(groups).forEach(function (g) {
+      if (!_detailSubRevealed[g] && DETAIL_SUB_RENDER[g]) { _detailSubRevealed[g] = true; try { DETAIL_SUB_RENDER[g](); } catch (e) { /* non-fatal */ } }
+    });
+    if (want.modelctx) MODELCTX.load();
+    if (want.pareto) setTimeout(function () { try { renderPareto(); } catch (e) { /* non-fatal */ } }, 30);   // drawn at its visible width
+  }
+  function validParts(list) {
+    var known = { highlights: 1, faq: 1, glossary: 1 };
+    Object.keys(PART_OF_HELP).forEach(function (k) { known[PART_OF_HELP[k]] = 1; });
+    return (Array.isArray(list) ? list : []).filter(function (x) { return typeof x === "string" && known[x]; });
+  }
+  tagParts();
+  (function () {
+    var q = new URLSearchParams(location.search);
+    if (!document.documentElement.classList.contains("embed") || q.get("solo") !== "1") return;
+    soloShow(validParts((q.get("parts") || "").split(",")));
+    // the app switches tabs by message (no reload): only which sections to show crosses frames
+    window.addEventListener("message", function (ev) {
+      if (ev.source !== window.parent || !ev.data || ev.data.type !== "agentmeter-embed-show") return;
+      soloShow(validParts(ev.data.parts));
+    });
+  })();
   var SESSION_ID = new URLSearchParams(location.search).get("session");
   if (SESSION_ID && !/^job_[0-9]{8}_[0-9]{6}_([0-9a-f]{6}|[0-9a-f]{32})$/.test(SESSION_ID)) SESSION_ID = null;
   if (SESSION_ID) {
@@ -3623,6 +3691,7 @@
       load(validate(d), "session", "job " + SESSION_ID + " · " + ((d.session && d.session.run_dir) || "").split("/").slice(-1)[0]);
       renderSessionPanel(d, SESSION_ID);
       MODELCTX.load();
+      if (SOLO) soloShow(SOLO);
     }).catch(function (e) {
       var b = document.getElementById("banner");
       b.className = "banner unvalidated";
@@ -3649,7 +3718,9 @@
     if (!document.documentElement.classList.contains("embed") || window.parent === window) return;
     var last = 0;
     function post() {
-      var h = Math.ceil(document.documentElement.scrollHeight);
+      // solo views shrink too: measure the content, not the frame (scrollHeight never drops below it)
+      var m = document.querySelector("main"), solo = document.body.classList.contains("solo");
+      var h = solo && m ? Math.ceil(m.getBoundingClientRect().bottom + window.scrollY + 4) : Math.ceil(document.documentElement.scrollHeight);
       if (Math.abs(h - last) < 2) return;
       last = h;
       window.parent.postMessage({ type: "agentmeter-embed-height", height: h }, "*");

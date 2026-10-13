@@ -62,21 +62,21 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     log(/DEMO \(mock\)/.test(await p.textContent('#svc-run-mode')), 'run-mode line says DEMO (mock) next to Run');
     const boxes = await p.$$('#svc-models input'); await boxes[2].check(); await boxes[3].check();
     await p.click('#svc-run');
-    await p.waitForSelector('#svc-verdict', { timeout: 180000 });
+    await p.waitForSelector('#svc-headline', { timeout: 180000 });
     log(/^#\/session\//.test(await p.evaluate(() => location.hash)), 'run -> session page');
-    log(/DEMO \(mock\)/.test(await p.textContent('#svc-env')), 'results carry the DEMO (mock) environment');
+    log(/Demo \(mock\)/.test(await p.textContent('#svc-env')), 'results carry the DEMO (mock) environment');
     const pdfHref = await p.getAttribute('#svc-dl-pdf', 'href');
     log(pdfHref.startsWith(apiBase), 'PDF link goes straight to the backend');
     const [pdf] = await Promise.all([p.waitForEvent('download'), p.click('#svc-dl-pdf')]);
     await pdf.saveAs(S + '/report.pdf');
     log(fs.readFileSync(S + '/report.pdf').subarray(0, 5).toString() === '%PDF-', 'PDF downloads cross-origin');
-    await p.click('#session-tabs [data-tab="detailed"]'); await p.waitForSelector('#analysis-frame');
-    log((await p.getAttribute('#analysis-frame', 'src')).startsWith(apiBase + '/analysis?session='), 'Detailed analysis embeds the backend analysis page');
+    await p.click('#session-tabs [data-tab="ranking"]'); await p.waitForSelector('#analysis-frame');
+    log((await p.getAttribute('#analysis-frame', 'src')).startsWith(apiBase + '/analysis?session='), 'Model Ranking embeds the backend analysis page');
     const fr = await (await p.$('#analysis-frame')).contentFrame();
     await fr.waitForSelector('#saw-body tr', { timeout: 20000 });
-    await p.waitForFunction(() => parseInt(document.querySelector('#analysis-frame').style.height || '0', 10) > 600, null, { timeout: 10000 });
+    await p.waitForFunction(() => parseInt(document.querySelector('#analysis-frame').style.height || '0', 10) > 200, null, { timeout: 10000 });
     log((await fr.$$('#saw-body tr')).length === 2, 'cross-origin embed renders the session and sizes itself (postMessage)');
-    await p.click('#session-tabs [data-tab="downloads"]'); await p.waitForSelector('#svc-dl-json');
+    await p.click('#session-tabs [data-tab="data"]'); await p.waitForSelector('#svc-dl-json');
     const [js] = await Promise.all([p.waitForEvent('download'), p.click('#svc-dl-json')]);
     log(/session_results\.json$/.test(js.suggestedFilename()), 'results JSON download');
     await p.screenshot({ path: S + '/online-results.png', fullPage: true });
@@ -84,7 +84,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     // 4. a finished result opens by its URL in a fresh browser
     const jobHash = await p.evaluate(() => location.hash);
     const p2 = await (await b.newContext()).newPage();
-    await p2.goto(FRONT + jobHash.replace(/\/downloads$/, '')); await p2.waitForSelector('#svc-verdict', { timeout: 30000 });
+    await p2.goto(FRONT + jobHash.replace(/\/data$/, '')); await p2.waitForSelector('#svc-headline', { timeout: 30000 });
     log(true, 'finished results open by their job URL in a fresh browser');
 
     // 5. Prepare by URL (cross-origin), optional
@@ -97,7 +97,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
       log(/Imported from/.test(await p.textContent('#svc-summary-card')), 'URL import works cross-origin');
       await p.waitForSelector('#svc-models input');
       const bx = await p.$$('#svc-models input'); await bx[0].check();
-      await p.click('#svc-run'); await p.waitForSelector('#svc-verdict', { timeout: 180000 });
+      await p.click('#svc-run'); await p.waitForSelector('#svc-headline', { timeout: 180000 });
       const [pdf2] = await Promise.all([p.waitForEvent('download'), p.click('#svc-dl-pdf')]);
       await pdf2.saveAs(S + '/report-url.pdf');
       log(fs.readFileSync(S + '/report-url.pdf').subarray(0, 5).toString() === '%PDF-', 'URL-prepared set -> Benchmark -> PDF');

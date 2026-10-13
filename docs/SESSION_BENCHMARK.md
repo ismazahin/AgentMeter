@@ -231,22 +231,33 @@ wizard.
   Prepare and benchmark jobs are never shown as separate concepts.
 - **Sessions:** every benchmark run, filterable by status and input type. A session
   page has chips for the GPU, flows and input type, with **Download PDF** and **Compare
-  with another session**, and five tabs:
-  - **Summary:** the measured verdict, the per-model table (latency, p95, tokens, peak
-    VRAM, cost per 1,000 flows, energy per flow, accuracy as context), the head-to-head,
-    cost and energy, and caveats.
-  - **Detailed analysis:** statistical depth (p50/p95/p99 with a histogram, the warm-up
-    check, Cliff's delta and bootstrap 95% CIs beside the Kruskal-Wallis p, and a
-    small-sample note), plus the former dashboard's Overview and Detailed views. Those
-    are embedded from `/analysis?session=<id>&embed=1`, which follows the app's theme and
-    has no second header.
-  - **Agents:** per agent, the latency and token shares, working VRAM (excludes model weights),
-    agentic overhead (an estimate: hand-off tokens), failures (empty output, hit token cap, unparseable
-    label), and a Gantt-style timeline of one flow.
-  - **Recommendation:** the stage-2 verdict and the resource hint, the decision helper
-    (your limits → meets / fails / no_data), and the stage-3 model context.
-  - **Downloads:** the PDF, `session_results.json`, the SAW and per-agent CSVs, and the
+  **Compare**, and eight sections in workflow order (each section and sub-view has its own link,
+  `#/session/<id>/<section>[/<view>]`; old tab names still work):
+  - **Overview:** a one-line headline, four tiles (latency, VRAM, tokens, accuracy as
+    context), the per-model table and "Good to know" labels; each label opens its stored
+    caveat sentence, and "Show full verdict" shows the stored verdict word for word.
+  - **Model Ranking:** Scores (SAW ranking), Weighting (live weights and your presets, view
+    only), Robustness, Pareto & Trade-offs, Model Guide (Hugging Face info, FAQ, glossary),
+    and "Evaluate for my workload →" to Recommendations.
+  - **Accuracy:** accuracy detail, per class, confusion, misclassification cost. Greyed out
+    when the data has no labels.
+  - **Performance:** Comparison (head-to-head, cost per class), Latency (p50/p95/p99 with a
+    histogram, warm-up check, CoV, prefill vs decode), GPU & Throughput (GPU memory,
+    output throughput), Statistics (Cliff's delta, bootstrap 95% CIs, Kruskal-Wallis + Dunn).
+  - **Agent Analysis:** per agent, the latency and token shares, working VRAM (excludes
+    model weights), agentic overhead (an estimate: hand-off tokens), failures, and a
+    Gantt-style timeline of one flow.
+  - **Cost & Energy:** cost per 1,000 flows, energy per flow, power.
+  - **Recommendations:** Your limits (the measured verdict and the decision helper: meets /
+    fails / no_data), Model context (stage 3), Deployment guidance.
+  - **Data & Exports:** the PDF, `session_results.json`, the SAW and per-agent CSVs, and the
     prepared-set files.
+
+  The charts and tables of the former analysis page are embedded once from
+  `/analysis?session=<id>&embed=1&solo=1` (the app's theme, no second header); each view
+  asks it, by message, to show only its own sections. Only the layout and wording are the
+  app's: every number comes unchanged from the stored results, and the PDF keeps its full
+  wording.
 - **Compare:** pick 2 finished sessions to see every efficiency metric side by side. The
   validity check sits at the top: same prepared-set hash? same GPU? same settings
   (provider, quantisation, generation, agents, token caps, classes)? If anything
@@ -275,8 +286,8 @@ that every scored key is byte-identical to the pre-Phase-46 output.
 | key | what | where shown |
 |---|---|---|
 | `agents` | per agent: latency, tokens in/out and their share of the flow, working VRAM (excludes model weights), failures (`empty_output`, `hit_token_cap`, Decide's `unparseable_label`; no timeouts or retries exist by design); agentic overhead **(an estimate)** = earlier agents' outputs re-sent in later prompts (`pipeline/agents.py` `HANDOFFS`), counted from the recorded output-token numbers, not by re-tokenising the prompts; a per-flow timeline | Agents tab, PDF |
-| `latency_distribution` | p50/p95/p99, a 20-bin histogram on shared edges, and the warm-up check (median of the first 5 flows vs the rest, flagged above 1.2×) | Detailed analysis, PDF |
-| `effect_sizes` | Cliff's delta with Romano magnitude, and a percentile-bootstrap 95% CI (2,000 resamples, seed 46) of mean(A) − mean(B) for latency, VRAM and tokens, beside the existing Kruskal-Wallis p; a note under 20 flows per model | Detailed analysis, PDF |
+| `latency_distribution` | p50/p95/p99, a 20-bin histogram on shared edges, and the warm-up check (median of the first 5 flows vs the rest, flagged above 1.2×) | Performance, PDF |
+| `effect_sizes` | Cliff's delta with Romano magnitude, and a percentile-bootstrap 95% CI (2,000 resamples, seed 46) of mean(A) − mean(B) for latency, VRAM and tokens, beside the existing Kruskal-Wallis p; a note under 20 flows per model | Performance, PDF |
 | `cost_energy` | cost per 1,000 flows = mean latency × 1,000 / 3,600 × GPU $/h, using the live Vast instance price (`VAST_API_KEY` + `VAST_INSTANCE_ID`, server-side only) or `config.yaml` `pricing.gpu_usd_per_hour`, with source and fetched_at; energy = GPU board power sampled from the parent process (NVML, or nvidia-smi; `energy.sample_interval_s`, default 0.5 s) and integrated over each model's window → Wh per flow and per 1,000 flows, reported **whole board** and **net of idle**. Idle board power is sampled for `energy.idle_sample_s` (default 5 s) right before each model's worker starts, while the GPU is idle (`run_full`'s `before_model` hook). Net = whole-board energy − idle W × window, a lower bound on the model's own share (the GPU may still be leaving a high-power state). Mock/CPU: "not measured" | Summary, Leaderboard, Compare, PDF |
 | `memory` | per model: **working VRAM** (excludes model weights: the allocator peak above the memory held before each agent call, mean and highest), **model weights** (torch allocated right after load), **total peak** = weights + working = the larger of torch's peak reserved memory over all agent calls and the NVML device-used peak sampled during the run (CUDA context included). The worker records the absolute allocator peaks at the point where it already reads the per-call peak, after the call's timer has stopped, so nothing is added to a timing. They go in a `model_memory` table in the session DB. Sessions from before this change have no total peak: shown as "no_data", and the decision helper's VRAM limit gives `no_data` | Summary (GPU memory), Home bars, Compare, Leaderboard, PDF |
 | `decision_helper` | stage-2 fit scoring with `configs/constraint_rules.yaml` (RULE_BASE.md) | Recommendation tab, PDF |

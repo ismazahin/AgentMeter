@@ -47,7 +47,9 @@
      "wh_per_flow_net_idle": 0.03,
      "total_peak_mb": 5000.0,
      "weights_mb": 4100.0,
-     "accuracy": 0.2
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -68,7 +70,9 @@
      "wh_per_flow_net_idle": 0.03,
      "total_peak_mb": 5333.3,
      "weights_mb": 4101.0,
-     "accuracy": 0.2
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -160,7 +164,9 @@
      "wh_per_flow_net_idle": 0.039,
      "total_peak_mb": 6500.0,
      "weights_mb": 4100.0,
-     "accuracy": 0.2
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -181,7 +187,9 @@
      "wh_per_flow_net_idle": 0.039,
      "total_peak_mb": 6833.3,
      "weights_mb": 4101.0,
-     "accuracy": 0.2
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -273,7 +281,9 @@
      "wh_per_flow_net_idle": 0.024,
      "total_peak_mb": 4000.0,
      "weights_mb": 4100.0,
-     "accuracy": 0.2
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -294,7 +304,9 @@
      "wh_per_flow_net_idle": 0.024,
      "total_peak_mb": 4333.3,
      "weights_mb": 4101.0,
-     "accuracy": 0.2
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -385,7 +397,9 @@
      "wh_per_flow_net_idle": 0.015,
      "total_peak_mb": 2500.0,
      "weights_mb": 4100.0,
-     "accuracy": 0.2
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -470,7 +484,9 @@
      "wh_per_flow_net_idle": 0.03,
      "total_peak_mb": 5000.0,
      "weights_mb": 4100.0,
-     "accuracy": 0.2
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -491,7 +507,9 @@
      "wh_per_flow_net_idle": 0.03,
      "total_peak_mb": 5333.3,
      "weights_mb": 4101.0,
-     "accuracy": 0.2
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
     }
    },
    "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -583,7 +601,9 @@
      "wh_per_flow_net_idle": 0.033,
      "total_peak_mb": 5500.0,
      "weights_mb": 4100.0,
-     "accuracy": 0.2
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -604,7 +624,9 @@
      "wh_per_flow_net_idle": 0.033,
      "total_peak_mb": 5833.3,
      "weights_mb": 4101.0,
-     "accuracy": 0.2
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
     }
    },
    "prepared_set_sha256": null,
@@ -625,6 +647,123 @@
      "measured.p95_latency_s": 0.0006049156230074857,
      "measured.peak_vram_mb": 5833.3,
      "measured.cost_per_1k_flows_usd": 0.02716032
+    }
+   ],
+   "weights_used": {
+    "weights": {
+     "accuracy": 0.4,
+     "latency": 0.25,
+     "vram": 0.2,
+     "tokens": 0.15
+    },
+    "basis": "full SAW (config weights)",
+    "note": "the weights the stored SAW scores were computed with; presets re-rank in the view only and never change a stored score"
+   },
+   "owner_username": "alice"
+  },
+  {
+   "session_id": "job_20261001_160000_66666666666666666666666666666666",
+   "job_id": "job_20261001_160000_66666666666666666666666666666666",
+   "status": "Done",
+   "raw_status": "done",
+   "demo": false,
+   "created_at": "20261001_160000",
+   "finished_at": "20261001_160000",
+   "models": [
+    "Qwen/Qwen2.5-7B-Instruct",
+    "microsoft/Phi-3-mini-4k-instruct"
+   ],
+   "run_name": "csv_runs/parity_1",
+   "input_type": "CSV",
+   "labelled": true,
+   "n_flows": 10,
+   "gpu": "NVIDIA L4",
+   "message": null,
+   "error": null,
+   "waiting_for_prepare": null,
+   "verdict": {
+    "kind": "more_efficient",
+    "model": "Qwen/Qwen2.5-7B-Instruct",
+    "text": "Qwen/Qwen2.5-7B-Instruct is more resource-efficient than microsoft/Phi-3-mini-4k-instruct: 18.8% lower latency (tie on mean tokens per flow) (mean peak working VRAM: not available). Accuracy: tie (Qwen/Qwen2.5-7B-Instruct 20.0% vs microsoft/Phi-3-mini-4k-instruct 20.0%)."
+   },
+   "more_efficient": "Qwen/Qwen2.5-7B-Instruct",
+   "metrics": {
+    "Qwen/Qwen2.5-7B-Instruct": {
+     "n_flows": 10,
+     "mean_latency_s": 0.00028242558000556527,
+     "median_latency_s": 0.0002468686500151307,
+     "p95_latency_s": 0.000436793490007119,
+     "mean_peak_vram_mb": 810.0,
+     "mean_tokens_per_flow": 1287.9,
+     "mean_input_tokens_per_flow": 1242.9,
+     "mean_output_tokens_per_flow": 45.0,
+     "throughput_flows_per_s": 2868.01216796311,
+     "p99_latency_s": null,
+     "max_peak_vram_mb": null,
+     "handoff_share_of_total": null,
+     "cost_per_1k_flows_usd": 0.01111104,
+     "wh_per_flow": 0.03789,
+     "wh_per_1k_flows": 37.89,
+     "wh_per_flow_net_idle": 0.027,
+     "total_peak_mb": 4500.0,
+     "weights_mb": 4100.0,
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
+    },
+    "microsoft/Phi-3-mini-4k-instruct": {
+     "n_flows": 10,
+     "mean_latency_s": 0.0003746600749922493,
+     "median_latency_s": 0.00037272735000016155,
+     "p95_latency_s": 0.000501511243006206,
+     "mean_peak_vram_mb": 935.0,
+     "mean_tokens_per_flow": 1388.07,
+     "mean_input_tokens_per_flow": 1339.57,
+     "mean_output_tokens_per_flow": 48.5,
+     "throughput_flows_per_s": 2511.3431155413737,
+     "p99_latency_s": null,
+     "max_peak_vram_mb": null,
+     "handoff_share_of_total": null,
+     "cost_per_1k_flows_usd": 0.02222208,
+     "wh_per_flow": 0.03889,
+     "wh_per_1k_flows": 37.89,
+     "wh_per_flow_net_idle": 0.027,
+     "total_peak_mb": 4833.3,
+     "weights_mb": 4101.0,
+     "accuracy": 0.2,
+     "saw_composite_100": 47.58,
+     "saw_tier": "Critical"
+    }
+   },
+   "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "settings_fingerprint": "fp1",
+   "identity": {
+    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "prepared_set_hash_version": 2,
+    "gpu_label": "NVIDIA L4",
+    "settings_fingerprint": "fp1",
+    "provider": "hf",
+    "settings": {
+     "provider": "hf",
+     "quantization": "4bit",
+     "max_new_tokens": 128
+    }
+   },
+   "provider": "hf",
+   "facts": [
+    {
+     "model": "Qwen/Qwen2.5-7B-Instruct",
+     "measured.mean_latency_s": 0.00028242558000556527,
+     "measured.p95_latency_s": 0.000436793490007119,
+     "measured.peak_vram_mb": 4500.0,
+     "measured.cost_per_1k_flows_usd": 0.01111104
+    },
+    {
+     "model": "microsoft/Phi-3-mini-4k-instruct",
+     "measured.mean_latency_s": 0.0003746600749922493,
+     "measured.p95_latency_s": 0.000501511243006206,
+     "measured.peak_vram_mb": 4833.3,
+     "measured.cost_per_1k_flows_usd": 0.02222208
     }
    ],
    "weights_used": {
@@ -691,7 +830,9 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5000.0,
        "weights_mb": 4100.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -712,7 +853,9 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -776,7 +919,9 @@
        "wh_per_flow_net_idle": 0.039,
        "total_peak_mb": 6500.0,
        "weights_mb": 4100.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -797,7 +942,9 @@
        "wh_per_flow_net_idle": 0.039,
        "total_peak_mb": 6833.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1187,7 +1334,9 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5000.0,
        "weights_mb": 4100.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1208,7 +1357,9 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1272,7 +1423,9 @@
        "wh_per_flow_net_idle": 0.024,
        "total_peak_mb": 4000.0,
        "weights_mb": 4100.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1293,7 +1446,9 @@
        "wh_per_flow_net_idle": 0.024,
        "total_peak_mb": 4333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1673,7 +1828,9 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5000.0,
        "weights_mb": 4100.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1694,7 +1851,9 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1757,7 +1916,9 @@
        "wh_per_flow_net_idle": 0.015,
        "total_peak_mb": 2500.0,
        "weights_mb": 4100.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -2124,7 +2285,9 @@
        "wh_per_flow_net_idle": 0.039,
        "total_peak_mb": 6500.0,
        "weights_mb": 4100.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2145,7 +2308,9 @@
        "wh_per_flow_net_idle": 0.039,
        "total_peak_mb": 6833.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -2209,7 +2374,9 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5000.0,
        "weights_mb": 4100.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2230,7 +2397,9 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       }
      },
      "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -2626,7 +2795,9 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5000.0,
        "weights_mb": 4100.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2647,7 +2818,9 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       }
      },
      "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -2711,7 +2884,9 @@
        "wh_per_flow_net_idle": 0.033,
        "total_peak_mb": 5500.0,
        "weights_mb": 4100.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2732,7 +2907,9 @@
        "wh_per_flow_net_idle": 0.033,
        "total_peak_mb": 5833.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       }
      },
      "prepared_set_sha256": null,
@@ -3130,7 +3307,9 @@
        "wh_per_flow_net_idle": 0.024,
        "total_peak_mb": 4000.0,
        "weights_mb": 4100.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -3151,7 +3330,9 @@
        "wh_per_flow_net_idle": 0.024,
        "total_peak_mb": 4333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -3214,7 +3395,9 @@
        "wh_per_flow_net_idle": 0.015,
        "total_peak_mb": 2500.0,
        "weights_mb": 4100.0,
-       "accuracy": 0.2
+       "accuracy": 0.2,
+       "saw_composite_100": 47.58,
+       "saw_tier": "Critical"
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -3541,41 +3724,43 @@
      "demo": false,
      "input_type": "CSV",
      "n_flows_per_session": 10,
-     "n_sessions": 3,
+     "n_sessions": 4,
      "mixed_settings": true,
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 3,
-       "n_flows": 30,
+       "n_sessions": 4,
+       "n_flows": 40,
        "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
         "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0003242664066730564,
-       "mean_peak_vram_mb": 930.0,
-       "total_peak_mb": 5166.666666666667,
-       "mean_tokens_per_flow": 1478.7,
-       "cost_per_1k_flows_usd": 0.01275712,
-       "wh_per_flow": 0.04350333333333333,
+       "mean_latency_s": 0.0003138062000061836,
+       "mean_peak_vram_mb": 900.0,
+       "total_peak_mb": 5000.0,
+       "mean_tokens_per_flow": 1431.0,
+       "cost_per_1k_flows_usd": 0.012345600000000002,
+       "wh_per_flow": 0.0421,
        "rank": 1
       },
       {
        "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 3,
-       "n_flows": 30,
+       "n_sessions": 4,
+       "n_flows": 40,
        "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
         "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.00042615974165785054,
-       "mean_peak_vram_mb": 1055.0,
-       "total_peak_mb": 5499.966666666666,
-       "mean_tokens_per_flow": 1578.8700000000001,
-       "cost_per_1k_flows_usd": 0.02551424,
-       "wh_per_flow": 0.04450333333333333,
+       "mean_latency_s": 0.0004132848249914503,
+       "mean_peak_vram_mb": 1025.0,
+       "total_peak_mb": 5333.3,
+       "mean_tokens_per_flow": 1531.17,
+       "cost_per_1k_flows_usd": 0.024691200000000003,
+       "wh_per_flow": 0.043100000000000006,
        "rank": 2
       }
      ]
@@ -3709,41 +3894,43 @@
      "demo": false,
      "input_type": "CSV",
      "n_flows_per_session": 10,
-     "n_sessions": 3,
+     "n_sessions": 4,
      "mixed_settings": true,
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 3,
-       "n_flows": 30,
+       "n_sessions": 4,
+       "n_flows": 40,
        "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
         "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0003242664066730564,
-       "mean_peak_vram_mb": 930.0,
-       "total_peak_mb": 5166.666666666667,
-       "mean_tokens_per_flow": 1478.7,
-       "cost_per_1k_flows_usd": 0.01275712,
-       "wh_per_flow": 0.04350333333333333,
+       "mean_latency_s": 0.0003138062000061836,
+       "mean_peak_vram_mb": 900.0,
+       "total_peak_mb": 5000.0,
+       "mean_tokens_per_flow": 1431.0,
+       "cost_per_1k_flows_usd": 0.012345600000000002,
+       "wh_per_flow": 0.0421,
        "rank": 1
       },
       {
        "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 3,
-       "n_flows": 30,
+       "n_sessions": 4,
+       "n_flows": 40,
        "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
         "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.00042615974165785054,
-       "mean_peak_vram_mb": 1055.0,
-       "total_peak_mb": 5499.966666666666,
-       "mean_tokens_per_flow": 1578.8700000000001,
-       "cost_per_1k_flows_usd": 0.02551424,
-       "wh_per_flow": 0.04450333333333333,
+       "mean_latency_s": 0.0004132848249914503,
+       "mean_peak_vram_mb": 1025.0,
+       "total_peak_mb": 5333.3,
+       "mean_tokens_per_flow": 1531.17,
+       "cost_per_1k_flows_usd": 0.024691200000000003,
+       "wh_per_flow": 0.043100000000000006,
        "rank": 2
       }
      ]
@@ -3877,41 +4064,43 @@
      "demo": false,
      "input_type": "CSV",
      "n_flows_per_session": 10,
-     "n_sessions": 3,
+     "n_sessions": 4,
      "mixed_settings": true,
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 3,
-       "n_flows": 30,
+       "n_sessions": 4,
+       "n_flows": 40,
        "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
         "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0003242664066730564,
-       "mean_peak_vram_mb": 930.0,
-       "total_peak_mb": 5166.666666666667,
-       "mean_tokens_per_flow": 1478.7,
-       "cost_per_1k_flows_usd": 0.01275712,
-       "wh_per_flow": 0.04350333333333333,
+       "mean_latency_s": 0.0003138062000061836,
+       "mean_peak_vram_mb": 900.0,
+       "total_peak_mb": 5000.0,
+       "mean_tokens_per_flow": 1431.0,
+       "cost_per_1k_flows_usd": 0.012345600000000002,
+       "wh_per_flow": 0.0421,
        "rank": 1
       },
       {
        "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 3,
-       "n_flows": 30,
+       "n_sessions": 4,
+       "n_flows": 40,
        "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
         "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.00042615974165785054,
-       "mean_peak_vram_mb": 1055.0,
-       "total_peak_mb": 5499.966666666666,
-       "mean_tokens_per_flow": 1578.8700000000001,
-       "cost_per_1k_flows_usd": 0.02551424,
-       "wh_per_flow": 0.04450333333333333,
+       "mean_latency_s": 0.0004132848249914503,
+       "mean_peak_vram_mb": 1025.0,
+       "total_peak_mb": 5333.3,
+       "mean_tokens_per_flow": 1531.17,
+       "cost_per_1k_flows_usd": 0.024691200000000003,
+       "wh_per_flow": 0.043100000000000006,
        "rank": 2
       }
      ]
@@ -4045,41 +4234,43 @@
      "demo": false,
      "input_type": "CSV",
      "n_flows_per_session": 10,
-     "n_sessions": 3,
+     "n_sessions": 4,
      "mixed_settings": true,
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 3,
-       "n_flows": 30,
+       "n_sessions": 4,
+       "n_flows": 40,
        "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
         "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0003242664066730564,
-       "mean_peak_vram_mb": 930.0,
-       "total_peak_mb": 5166.666666666667,
-       "mean_tokens_per_flow": 1478.7,
-       "cost_per_1k_flows_usd": 0.01275712,
-       "wh_per_flow": 0.04350333333333333,
+       "mean_latency_s": 0.0003138062000061836,
+       "mean_peak_vram_mb": 900.0,
+       "total_peak_mb": 5000.0,
+       "mean_tokens_per_flow": 1431.0,
+       "cost_per_1k_flows_usd": 0.012345600000000002,
+       "wh_per_flow": 0.0421,
        "rank": 1
       },
       {
        "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 3,
-       "n_flows": 30,
+       "n_sessions": 4,
+       "n_flows": 40,
        "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
         "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.00042615974165785054,
-       "mean_peak_vram_mb": 1055.0,
-       "total_peak_mb": 5499.966666666666,
-       "mean_tokens_per_flow": 1578.8700000000001,
-       "cost_per_1k_flows_usd": 0.02551424,
-       "wh_per_flow": 0.04450333333333333,
+       "mean_latency_s": 0.0004132848249914503,
+       "mean_peak_vram_mb": 1025.0,
+       "total_peak_mb": 5333.3,
+       "mean_tokens_per_flow": 1531.17,
+       "cost_per_1k_flows_usd": 0.024691200000000003,
+       "wh_per_flow": 0.043100000000000006,
        "rank": 2
       }
      ]
@@ -4213,41 +4404,43 @@
      "demo": false,
      "input_type": "CSV",
      "n_flows_per_session": 10,
-     "n_sessions": 3,
+     "n_sessions": 4,
      "mixed_settings": true,
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 3,
-       "n_flows": 30,
+       "n_sessions": 4,
+       "n_flows": 40,
        "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
         "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0003242664066730564,
-       "mean_peak_vram_mb": 930.0,
-       "total_peak_mb": 5166.666666666667,
-       "mean_tokens_per_flow": 1478.7,
-       "cost_per_1k_flows_usd": 0.01275712,
-       "wh_per_flow": 0.04350333333333333,
+       "mean_latency_s": 0.0003138062000061836,
+       "mean_peak_vram_mb": 900.0,
+       "total_peak_mb": 5000.0,
+       "mean_tokens_per_flow": 1431.0,
+       "cost_per_1k_flows_usd": 0.012345600000000002,
+       "wh_per_flow": 0.0421,
        "rank": 1
       },
       {
        "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 3,
-       "n_flows": 30,
+       "n_sessions": 4,
+       "n_flows": 40,
        "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
         "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.00042615974165785054,
-       "mean_peak_vram_mb": 1055.0,
-       "total_peak_mb": 5499.966666666666,
-       "mean_tokens_per_flow": 1578.8700000000001,
-       "cost_per_1k_flows_usd": 0.02551424,
-       "wh_per_flow": 0.04450333333333333,
+       "mean_latency_s": 0.0004132848249914503,
+       "mean_peak_vram_mb": 1025.0,
+       "total_peak_mb": 5333.3,
+       "mean_tokens_per_flow": 1531.17,
+       "cost_per_1k_flows_usd": 0.024691200000000003,
+       "wh_per_flow": 0.043100000000000006,
        "rank": 2
       }
      ]
@@ -4381,41 +4574,43 @@
      "demo": false,
      "input_type": "CSV",
      "n_flows_per_session": 10,
-     "n_sessions": 3,
+     "n_sessions": 4,
      "mixed_settings": true,
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 3,
-       "n_flows": 30,
+       "n_sessions": 4,
+       "n_flows": 40,
        "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
         "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0003242664066730564,
-       "mean_peak_vram_mb": 930.0,
-       "total_peak_mb": 5166.666666666667,
-       "mean_tokens_per_flow": 1478.7,
-       "cost_per_1k_flows_usd": 0.01275712,
-       "wh_per_flow": 0.04350333333333333,
+       "mean_latency_s": 0.0003138062000061836,
+       "mean_peak_vram_mb": 900.0,
+       "total_peak_mb": 5000.0,
+       "mean_tokens_per_flow": 1431.0,
+       "cost_per_1k_flows_usd": 0.012345600000000002,
+       "wh_per_flow": 0.0421,
        "rank": 1
       },
       {
        "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 3,
-       "n_flows": 30,
+       "n_sessions": 4,
+       "n_flows": 40,
        "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
         "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.00042615974165785054,
-       "mean_peak_vram_mb": 1055.0,
-       "total_peak_mb": 5499.966666666666,
-       "mean_tokens_per_flow": 1578.8700000000001,
-       "cost_per_1k_flows_usd": 0.02551424,
-       "wh_per_flow": 0.04450333333333333,
+       "mean_latency_s": 0.0004132848249914503,
+       "mean_peak_vram_mb": 1025.0,
+       "total_peak_mb": 5333.3,
+       "mean_tokens_per_flow": 1531.17,
+       "cost_per_1k_flows_usd": 0.024691200000000003,
+       "wh_per_flow": 0.043100000000000006,
        "rank": 2
       }
      ]
@@ -9565,6 +9760,2939 @@
       ]
      }
     ]
+   }
+  },
+  {
+   "session": "job_20261001_160000_66666666666666666666666666666666",
+   "limits": null,
+   "out": {
+    "stage": "2 (fit scoring)",
+    "rulebase": "configs/constraint_rules.yaml",
+    "version": 1,
+    "inputs": {
+     "max_mean_latency_s": {
+      "label": "Max mean latency",
+      "unit": "s",
+      "default": null,
+      "value": null
+     },
+     "max_p95_latency_s": {
+      "label": "Max p95 latency",
+      "unit": "s",
+      "default": null,
+      "value": null
+     },
+     "max_peak_vram_mb": {
+      "label": "Max total peak VRAM",
+      "unit": "MB",
+      "default": null,
+      "value": null
+     },
+     "max_cost_per_1k_flows_usd": {
+      "label": "Max cost per 1,000 flows",
+      "unit": "USD",
+      "default": null,
+      "value": null
+     }
+    },
+    "limits_set": false,
+    "framing": "Fit check of the measured numbers against your limits. It never changes a score, rank, SAW value or the verdict.",
+    "per_model": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "result": "no_constraints",
+      "failed": [],
+      "no_data": [],
+      "rows": [
+       {
+        "rule": "mean_latency",
+        "description": "Mean end-to-end latency per flow within the limit.",
+        "field": "measured.mean_latency_s",
+        "op": "le",
+        "input": "max_mean_latency_s",
+        "limit": null,
+        "value": 0.00028242558000556527,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "p95_latency",
+        "description": "95th-percentile latency per flow within the limit.",
+        "field": "measured.p95_latency_s",
+        "op": "le",
+        "input": "max_p95_latency_s",
+        "limit": null,
+        "value": 0.000436793490007119,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "peak_vram",
+        "description": "Total peak VRAM (weights + working memory) within the limit.",
+        "field": "measured.peak_vram_mb",
+        "op": "le",
+        "input": "max_peak_vram_mb",
+        "limit": null,
+        "value": 4500.0,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "cost_per_1k_flows",
+        "description": "Cost per 1,000 flows within the budget.",
+        "field": "measured.cost_per_1k_flows_usd",
+        "op": "le",
+        "input": "max_cost_per_1k_flows_usd",
+        "limit": null,
+        "value": 0.01111104,
+        "result": "not_set",
+        "note": null
+       }
+      ]
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "result": "no_constraints",
+      "failed": [],
+      "no_data": [],
+      "rows": [
+       {
+        "rule": "mean_latency",
+        "description": "Mean end-to-end latency per flow within the limit.",
+        "field": "measured.mean_latency_s",
+        "op": "le",
+        "input": "max_mean_latency_s",
+        "limit": null,
+        "value": 0.0003746600749922493,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "p95_latency",
+        "description": "95th-percentile latency per flow within the limit.",
+        "field": "measured.p95_latency_s",
+        "op": "le",
+        "input": "max_p95_latency_s",
+        "limit": null,
+        "value": 0.000501511243006206,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "peak_vram",
+        "description": "Total peak VRAM (weights + working memory) within the limit.",
+        "field": "measured.peak_vram_mb",
+        "op": "le",
+        "input": "max_peak_vram_mb",
+        "limit": null,
+        "value": 4833.3,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "cost_per_1k_flows",
+        "description": "Cost per 1,000 flows within the budget.",
+        "field": "measured.cost_per_1k_flows_usd",
+        "op": "le",
+        "input": "max_cost_per_1k_flows_usd",
+        "limit": null,
+        "value": 0.02222208,
+        "result": "not_set",
+        "note": null
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "session": "job_20261001_160000_66666666666666666666666666666666",
+   "limits": {},
+   "out": {
+    "stage": "2 (fit scoring)",
+    "rulebase": "configs/constraint_rules.yaml",
+    "version": 1,
+    "inputs": {
+     "max_mean_latency_s": {
+      "label": "Max mean latency",
+      "unit": "s",
+      "default": null,
+      "value": null
+     },
+     "max_p95_latency_s": {
+      "label": "Max p95 latency",
+      "unit": "s",
+      "default": null,
+      "value": null
+     },
+     "max_peak_vram_mb": {
+      "label": "Max total peak VRAM",
+      "unit": "MB",
+      "default": null,
+      "value": null
+     },
+     "max_cost_per_1k_flows_usd": {
+      "label": "Max cost per 1,000 flows",
+      "unit": "USD",
+      "default": null,
+      "value": null
+     }
+    },
+    "limits_set": false,
+    "framing": "Fit check of the measured numbers against your limits. It never changes a score, rank, SAW value or the verdict.",
+    "per_model": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "result": "no_constraints",
+      "failed": [],
+      "no_data": [],
+      "rows": [
+       {
+        "rule": "mean_latency",
+        "description": "Mean end-to-end latency per flow within the limit.",
+        "field": "measured.mean_latency_s",
+        "op": "le",
+        "input": "max_mean_latency_s",
+        "limit": null,
+        "value": 0.00028242558000556527,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "p95_latency",
+        "description": "95th-percentile latency per flow within the limit.",
+        "field": "measured.p95_latency_s",
+        "op": "le",
+        "input": "max_p95_latency_s",
+        "limit": null,
+        "value": 0.000436793490007119,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "peak_vram",
+        "description": "Total peak VRAM (weights + working memory) within the limit.",
+        "field": "measured.peak_vram_mb",
+        "op": "le",
+        "input": "max_peak_vram_mb",
+        "limit": null,
+        "value": 4500.0,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "cost_per_1k_flows",
+        "description": "Cost per 1,000 flows within the budget.",
+        "field": "measured.cost_per_1k_flows_usd",
+        "op": "le",
+        "input": "max_cost_per_1k_flows_usd",
+        "limit": null,
+        "value": 0.01111104,
+        "result": "not_set",
+        "note": null
+       }
+      ]
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "result": "no_constraints",
+      "failed": [],
+      "no_data": [],
+      "rows": [
+       {
+        "rule": "mean_latency",
+        "description": "Mean end-to-end latency per flow within the limit.",
+        "field": "measured.mean_latency_s",
+        "op": "le",
+        "input": "max_mean_latency_s",
+        "limit": null,
+        "value": 0.0003746600749922493,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "p95_latency",
+        "description": "95th-percentile latency per flow within the limit.",
+        "field": "measured.p95_latency_s",
+        "op": "le",
+        "input": "max_p95_latency_s",
+        "limit": null,
+        "value": 0.000501511243006206,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "peak_vram",
+        "description": "Total peak VRAM (weights + working memory) within the limit.",
+        "field": "measured.peak_vram_mb",
+        "op": "le",
+        "input": "max_peak_vram_mb",
+        "limit": null,
+        "value": 4833.3,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "cost_per_1k_flows",
+        "description": "Cost per 1,000 flows within the budget.",
+        "field": "measured.cost_per_1k_flows_usd",
+        "op": "le",
+        "input": "max_cost_per_1k_flows_usd",
+        "limit": null,
+        "value": 0.02222208,
+        "result": "not_set",
+        "note": null
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "session": "job_20261001_160000_66666666666666666666666666666666",
+   "limits": {
+    "max_mean_latency_s": "0.0004"
+   },
+   "out": {
+    "stage": "2 (fit scoring)",
+    "rulebase": "configs/constraint_rules.yaml",
+    "version": 1,
+    "inputs": {
+     "max_mean_latency_s": {
+      "label": "Max mean latency",
+      "unit": "s",
+      "default": null,
+      "value": 0.0004
+     },
+     "max_p95_latency_s": {
+      "label": "Max p95 latency",
+      "unit": "s",
+      "default": null,
+      "value": null
+     },
+     "max_peak_vram_mb": {
+      "label": "Max total peak VRAM",
+      "unit": "MB",
+      "default": null,
+      "value": null
+     },
+     "max_cost_per_1k_flows_usd": {
+      "label": "Max cost per 1,000 flows",
+      "unit": "USD",
+      "default": null,
+      "value": null
+     }
+    },
+    "limits_set": true,
+    "framing": "Fit check of the measured numbers against your limits. It never changes a score, rank, SAW value or the verdict.",
+    "per_model": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "result": "meets",
+      "failed": [],
+      "no_data": [],
+      "rows": [
+       {
+        "rule": "mean_latency",
+        "description": "Mean end-to-end latency per flow within the limit.",
+        "field": "measured.mean_latency_s",
+        "op": "le",
+        "input": "max_mean_latency_s",
+        "limit": 0.0004,
+        "value": 0.00028242558000556527,
+        "result": "meets",
+        "note": "mean latency 0.0002824 s vs limit 0.0004 s"
+       },
+       {
+        "rule": "p95_latency",
+        "description": "95th-percentile latency per flow within the limit.",
+        "field": "measured.p95_latency_s",
+        "op": "le",
+        "input": "max_p95_latency_s",
+        "limit": null,
+        "value": 0.000436793490007119,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "peak_vram",
+        "description": "Total peak VRAM (weights + working memory) within the limit.",
+        "field": "measured.peak_vram_mb",
+        "op": "le",
+        "input": "max_peak_vram_mb",
+        "limit": null,
+        "value": 4500.0,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "cost_per_1k_flows",
+        "description": "Cost per 1,000 flows within the budget.",
+        "field": "measured.cost_per_1k_flows_usd",
+        "op": "le",
+        "input": "max_cost_per_1k_flows_usd",
+        "limit": null,
+        "value": 0.01111104,
+        "result": "not_set",
+        "note": null
+       }
+      ]
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "result": "meets",
+      "failed": [],
+      "no_data": [],
+      "rows": [
+       {
+        "rule": "mean_latency",
+        "description": "Mean end-to-end latency per flow within the limit.",
+        "field": "measured.mean_latency_s",
+        "op": "le",
+        "input": "max_mean_latency_s",
+        "limit": 0.0004,
+        "value": 0.0003746600749922493,
+        "result": "meets",
+        "note": "mean latency 0.0003747 s vs limit 0.0004 s"
+       },
+       {
+        "rule": "p95_latency",
+        "description": "95th-percentile latency per flow within the limit.",
+        "field": "measured.p95_latency_s",
+        "op": "le",
+        "input": "max_p95_latency_s",
+        "limit": null,
+        "value": 0.000501511243006206,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "peak_vram",
+        "description": "Total peak VRAM (weights + working memory) within the limit.",
+        "field": "measured.peak_vram_mb",
+        "op": "le",
+        "input": "max_peak_vram_mb",
+        "limit": null,
+        "value": 4833.3,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "cost_per_1k_flows",
+        "description": "Cost per 1,000 flows within the budget.",
+        "field": "measured.cost_per_1k_flows_usd",
+        "op": "le",
+        "input": "max_cost_per_1k_flows_usd",
+        "limit": null,
+        "value": 0.02222208,
+        "result": "not_set",
+        "note": null
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "session": "job_20261001_160000_66666666666666666666666666666666",
+   "limits": {
+    "max_mean_latency_s": "1",
+    "max_p95_latency_s": 0.0001,
+    "max_peak_vram_mb": "5200",
+    "max_cost_per_1k_flows_usd": "0.02"
+   },
+   "out": {
+    "stage": "2 (fit scoring)",
+    "rulebase": "configs/constraint_rules.yaml",
+    "version": 1,
+    "inputs": {
+     "max_mean_latency_s": {
+      "label": "Max mean latency",
+      "unit": "s",
+      "default": null,
+      "value": 1.0
+     },
+     "max_p95_latency_s": {
+      "label": "Max p95 latency",
+      "unit": "s",
+      "default": null,
+      "value": 0.0001
+     },
+     "max_peak_vram_mb": {
+      "label": "Max total peak VRAM",
+      "unit": "MB",
+      "default": null,
+      "value": 5200.0
+     },
+     "max_cost_per_1k_flows_usd": {
+      "label": "Max cost per 1,000 flows",
+      "unit": "USD",
+      "default": null,
+      "value": 0.02
+     }
+    },
+    "limits_set": true,
+    "framing": "Fit check of the measured numbers against your limits. It never changes a score, rank, SAW value or the verdict.",
+    "per_model": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "result": "fails",
+      "failed": [
+       "p95_latency"
+      ],
+      "no_data": [],
+      "rows": [
+       {
+        "rule": "mean_latency",
+        "description": "Mean end-to-end latency per flow within the limit.",
+        "field": "measured.mean_latency_s",
+        "op": "le",
+        "input": "max_mean_latency_s",
+        "limit": 1.0,
+        "value": 0.00028242558000556527,
+        "result": "meets",
+        "note": "mean latency 0.0002824 s vs limit 1 s"
+       },
+       {
+        "rule": "p95_latency",
+        "description": "95th-percentile latency per flow within the limit.",
+        "field": "measured.p95_latency_s",
+        "op": "le",
+        "input": "max_p95_latency_s",
+        "limit": 0.0001,
+        "value": 0.000436793490007119,
+        "result": "fails",
+        "note": "p95 latency 0.0004368 s vs limit 0.0001 s"
+       },
+       {
+        "rule": "peak_vram",
+        "description": "Total peak VRAM (weights + working memory) within the limit.",
+        "field": "measured.peak_vram_mb",
+        "op": "le",
+        "input": "max_peak_vram_mb",
+        "limit": 5200.0,
+        "value": 4500.0,
+        "result": "meets",
+        "note": "total peak VRAM 4,500 MB (weights + working) vs limit 5,200 MB"
+       },
+       {
+        "rule": "cost_per_1k_flows",
+        "description": "Cost per 1,000 flows within the budget.",
+        "field": "measured.cost_per_1k_flows_usd",
+        "op": "le",
+        "input": "max_cost_per_1k_flows_usd",
+        "limit": 0.02,
+        "value": 0.01111104,
+        "result": "meets",
+        "note": "cost $0.0111 per 1,000 flows vs budget $0.02"
+       }
+      ]
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "result": "fails",
+      "failed": [
+       "p95_latency",
+       "cost_per_1k_flows"
+      ],
+      "no_data": [],
+      "rows": [
+       {
+        "rule": "mean_latency",
+        "description": "Mean end-to-end latency per flow within the limit.",
+        "field": "measured.mean_latency_s",
+        "op": "le",
+        "input": "max_mean_latency_s",
+        "limit": 1.0,
+        "value": 0.0003746600749922493,
+        "result": "meets",
+        "note": "mean latency 0.0003747 s vs limit 1 s"
+       },
+       {
+        "rule": "p95_latency",
+        "description": "95th-percentile latency per flow within the limit.",
+        "field": "measured.p95_latency_s",
+        "op": "le",
+        "input": "max_p95_latency_s",
+        "limit": 0.0001,
+        "value": 0.000501511243006206,
+        "result": "fails",
+        "note": "p95 latency 0.0005015 s vs limit 0.0001 s"
+       },
+       {
+        "rule": "peak_vram",
+        "description": "Total peak VRAM (weights + working memory) within the limit.",
+        "field": "measured.peak_vram_mb",
+        "op": "le",
+        "input": "max_peak_vram_mb",
+        "limit": 5200.0,
+        "value": 4833.3,
+        "result": "meets",
+        "note": "total peak VRAM 4,833 MB (weights + working) vs limit 5,200 MB"
+       },
+       {
+        "rule": "cost_per_1k_flows",
+        "description": "Cost per 1,000 flows within the budget.",
+        "field": "measured.cost_per_1k_flows_usd",
+        "op": "le",
+        "input": "max_cost_per_1k_flows_usd",
+        "limit": 0.02,
+        "value": 0.02222208,
+        "result": "fails",
+        "note": "cost $0.0222 per 1,000 flows vs budget $0.02"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "session": "job_20261001_160000_66666666666666666666666666666666",
+   "limits": {
+    "max_peak_vram_mb": " 12000 "
+   },
+   "out": {
+    "stage": "2 (fit scoring)",
+    "rulebase": "configs/constraint_rules.yaml",
+    "version": 1,
+    "inputs": {
+     "max_mean_latency_s": {
+      "label": "Max mean latency",
+      "unit": "s",
+      "default": null,
+      "value": null
+     },
+     "max_p95_latency_s": {
+      "label": "Max p95 latency",
+      "unit": "s",
+      "default": null,
+      "value": null
+     },
+     "max_peak_vram_mb": {
+      "label": "Max total peak VRAM",
+      "unit": "MB",
+      "default": null,
+      "value": 12000.0
+     },
+     "max_cost_per_1k_flows_usd": {
+      "label": "Max cost per 1,000 flows",
+      "unit": "USD",
+      "default": null,
+      "value": null
+     }
+    },
+    "limits_set": true,
+    "framing": "Fit check of the measured numbers against your limits. It never changes a score, rank, SAW value or the verdict.",
+    "per_model": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "result": "meets",
+      "failed": [],
+      "no_data": [],
+      "rows": [
+       {
+        "rule": "mean_latency",
+        "description": "Mean end-to-end latency per flow within the limit.",
+        "field": "measured.mean_latency_s",
+        "op": "le",
+        "input": "max_mean_latency_s",
+        "limit": null,
+        "value": 0.00028242558000556527,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "p95_latency",
+        "description": "95th-percentile latency per flow within the limit.",
+        "field": "measured.p95_latency_s",
+        "op": "le",
+        "input": "max_p95_latency_s",
+        "limit": null,
+        "value": 0.000436793490007119,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "peak_vram",
+        "description": "Total peak VRAM (weights + working memory) within the limit.",
+        "field": "measured.peak_vram_mb",
+        "op": "le",
+        "input": "max_peak_vram_mb",
+        "limit": 12000.0,
+        "value": 4500.0,
+        "result": "meets",
+        "note": "total peak VRAM 4,500 MB (weights + working) vs limit 12,000 MB"
+       },
+       {
+        "rule": "cost_per_1k_flows",
+        "description": "Cost per 1,000 flows within the budget.",
+        "field": "measured.cost_per_1k_flows_usd",
+        "op": "le",
+        "input": "max_cost_per_1k_flows_usd",
+        "limit": null,
+        "value": 0.01111104,
+        "result": "not_set",
+        "note": null
+       }
+      ]
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "result": "meets",
+      "failed": [],
+      "no_data": [],
+      "rows": [
+       {
+        "rule": "mean_latency",
+        "description": "Mean end-to-end latency per flow within the limit.",
+        "field": "measured.mean_latency_s",
+        "op": "le",
+        "input": "max_mean_latency_s",
+        "limit": null,
+        "value": 0.0003746600749922493,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "p95_latency",
+        "description": "95th-percentile latency per flow within the limit.",
+        "field": "measured.p95_latency_s",
+        "op": "le",
+        "input": "max_p95_latency_s",
+        "limit": null,
+        "value": 0.000501511243006206,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "peak_vram",
+        "description": "Total peak VRAM (weights + working memory) within the limit.",
+        "field": "measured.peak_vram_mb",
+        "op": "le",
+        "input": "max_peak_vram_mb",
+        "limit": 12000.0,
+        "value": 4833.3,
+        "result": "meets",
+        "note": "total peak VRAM 4,833 MB (weights + working) vs limit 12,000 MB"
+       },
+       {
+        "rule": "cost_per_1k_flows",
+        "description": "Cost per 1,000 flows within the budget.",
+        "field": "measured.cost_per_1k_flows_usd",
+        "op": "le",
+        "input": "max_cost_per_1k_flows_usd",
+        "limit": null,
+        "value": 0.02222208,
+        "result": "not_set",
+        "note": null
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "session": "job_20261001_160000_66666666666666666666666666666666",
+   "limits": {
+    "max_cost_per_1k_flows_usd": "abc"
+   },
+   "error": "max_cost_per_1k_flows_usd must be a number (got 'abc')"
+  },
+  {
+   "session": "job_20261001_160000_66666666666666666666666666666666",
+   "limits": {
+    "max_peak_vram_mb": "-1"
+   },
+   "error": "max_peak_vram_mb must be a finite number >= 0 (got '-1')"
+  },
+  {
+   "session": "job_20261001_160000_66666666666666666666666666666666",
+   "limits": {
+    "max_mean_latency_s": "1e-3"
+   },
+   "out": {
+    "stage": "2 (fit scoring)",
+    "rulebase": "configs/constraint_rules.yaml",
+    "version": 1,
+    "inputs": {
+     "max_mean_latency_s": {
+      "label": "Max mean latency",
+      "unit": "s",
+      "default": null,
+      "value": 0.001
+     },
+     "max_p95_latency_s": {
+      "label": "Max p95 latency",
+      "unit": "s",
+      "default": null,
+      "value": null
+     },
+     "max_peak_vram_mb": {
+      "label": "Max total peak VRAM",
+      "unit": "MB",
+      "default": null,
+      "value": null
+     },
+     "max_cost_per_1k_flows_usd": {
+      "label": "Max cost per 1,000 flows",
+      "unit": "USD",
+      "default": null,
+      "value": null
+     }
+    },
+    "limits_set": true,
+    "framing": "Fit check of the measured numbers against your limits. It never changes a score, rank, SAW value or the verdict.",
+    "per_model": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "result": "meets",
+      "failed": [],
+      "no_data": [],
+      "rows": [
+       {
+        "rule": "mean_latency",
+        "description": "Mean end-to-end latency per flow within the limit.",
+        "field": "measured.mean_latency_s",
+        "op": "le",
+        "input": "max_mean_latency_s",
+        "limit": 0.001,
+        "value": 0.00028242558000556527,
+        "result": "meets",
+        "note": "mean latency 0.0002824 s vs limit 0.001 s"
+       },
+       {
+        "rule": "p95_latency",
+        "description": "95th-percentile latency per flow within the limit.",
+        "field": "measured.p95_latency_s",
+        "op": "le",
+        "input": "max_p95_latency_s",
+        "limit": null,
+        "value": 0.000436793490007119,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "peak_vram",
+        "description": "Total peak VRAM (weights + working memory) within the limit.",
+        "field": "measured.peak_vram_mb",
+        "op": "le",
+        "input": "max_peak_vram_mb",
+        "limit": null,
+        "value": 4500.0,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "cost_per_1k_flows",
+        "description": "Cost per 1,000 flows within the budget.",
+        "field": "measured.cost_per_1k_flows_usd",
+        "op": "le",
+        "input": "max_cost_per_1k_flows_usd",
+        "limit": null,
+        "value": 0.01111104,
+        "result": "not_set",
+        "note": null
+       }
+      ]
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "result": "meets",
+      "failed": [],
+      "no_data": [],
+      "rows": [
+       {
+        "rule": "mean_latency",
+        "description": "Mean end-to-end latency per flow within the limit.",
+        "field": "measured.mean_latency_s",
+        "op": "le",
+        "input": "max_mean_latency_s",
+        "limit": 0.001,
+        "value": 0.0003746600749922493,
+        "result": "meets",
+        "note": "mean latency 0.0003747 s vs limit 0.001 s"
+       },
+       {
+        "rule": "p95_latency",
+        "description": "95th-percentile latency per flow within the limit.",
+        "field": "measured.p95_latency_s",
+        "op": "le",
+        "input": "max_p95_latency_s",
+        "limit": null,
+        "value": 0.000501511243006206,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "peak_vram",
+        "description": "Total peak VRAM (weights + working memory) within the limit.",
+        "field": "measured.peak_vram_mb",
+        "op": "le",
+        "input": "max_peak_vram_mb",
+        "limit": null,
+        "value": 4833.3,
+        "result": "not_set",
+        "note": null
+       },
+       {
+        "rule": "cost_per_1k_flows",
+        "description": "Cost per 1,000 flows within the budget.",
+        "field": "measured.cost_per_1k_flows_usd",
+        "op": "le",
+        "input": "max_cost_per_1k_flows_usd",
+        "limit": null,
+        "value": 0.02222208,
+        "result": "not_set",
+        "note": null
+       }
+      ]
+     }
+    ]
+   }
+  }
+ ],
+ "comparable": [
+  {
+   "session": "job_20261001_100000_11111111111111111111111111111111",
+   "out": {
+    "session": {
+     "session_id": "job_20261001_100000_11111111111111111111111111111111",
+     "models": [
+      "Qwen/Qwen2.5-7B-Instruct",
+      "microsoft/Phi-3-mini-4k-instruct"
+     ],
+     "created_at": "20261001_100000",
+     "finished_at": "20261001_100000",
+     "owner_username": "alice",
+     "n_flows": 10,
+     "status": "Done",
+     "run_name": "csv_runs/parity_1",
+     "input_type": "CSV"
+    },
+    "setup": {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp1",
+     "input_type": "CSV",
+     "n_flows": 10,
+     "labelled": true,
+     "demo": false
+    },
+    "sessions": [
+     {
+      "session_id": "job_20261001_160000_66666666666666666666666666666666",
+      "models": [
+       "Qwen/Qwen2.5-7B-Instruct",
+       "microsoft/Phi-3-mini-4k-instruct"
+      ],
+      "created_at": "20261001_160000",
+      "finished_at": "20261001_160000",
+      "owner_username": "alice",
+      "n_flows": 10,
+      "status": "Done",
+      "run_name": "csv_runs/parity_1",
+      "input_type": "CSV"
+     },
+     {
+      "session_id": "job_20261001_110000_22222222222222222222222222222222",
+      "models": [
+       "Qwen/Qwen2.5-7B-Instruct",
+       "microsoft/Phi-3-mini-4k-instruct"
+      ],
+      "created_at": "20261001_110000",
+      "finished_at": "20261001_110000",
+      "owner_username": "alice",
+      "n_flows": 10,
+      "status": "Done",
+      "run_name": "csv_runs/parity_1",
+      "input_type": "CSV"
+     }
+    ],
+    "rule": "Comparable = the same flows (prepared-set hash), the same GPU and the same settings."
+   }
+  },
+  {
+   "session": "job_20261001_110000_22222222222222222222222222222222",
+   "out": {
+    "session": {
+     "session_id": "job_20261001_110000_22222222222222222222222222222222",
+     "models": [
+      "Qwen/Qwen2.5-7B-Instruct",
+      "microsoft/Phi-3-mini-4k-instruct"
+     ],
+     "created_at": "20261001_110000",
+     "finished_at": "20261001_110000",
+     "owner_username": "alice",
+     "n_flows": 10,
+     "status": "Done",
+     "run_name": "csv_runs/parity_1",
+     "input_type": "CSV"
+    },
+    "setup": {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp1",
+     "input_type": "CSV",
+     "n_flows": 10,
+     "labelled": true,
+     "demo": false
+    },
+    "sessions": [
+     {
+      "session_id": "job_20261001_160000_66666666666666666666666666666666",
+      "models": [
+       "Qwen/Qwen2.5-7B-Instruct",
+       "microsoft/Phi-3-mini-4k-instruct"
+      ],
+      "created_at": "20261001_160000",
+      "finished_at": "20261001_160000",
+      "owner_username": "alice",
+      "n_flows": 10,
+      "status": "Done",
+      "run_name": "csv_runs/parity_1",
+      "input_type": "CSV"
+     },
+     {
+      "session_id": "job_20261001_100000_11111111111111111111111111111111",
+      "models": [
+       "Qwen/Qwen2.5-7B-Instruct",
+       "microsoft/Phi-3-mini-4k-instruct"
+      ],
+      "created_at": "20261001_100000",
+      "finished_at": "20261001_100000",
+      "owner_username": "alice",
+      "n_flows": 10,
+      "status": "Done",
+      "run_name": "csv_runs/parity_1",
+      "input_type": "CSV"
+     }
+    ],
+    "rule": "Comparable = the same flows (prepared-set hash), the same GPU and the same settings."
+   }
+  },
+  {
+   "session": "job_20261001_120000_33333333333333333333333333333333",
+   "out": {
+    "session": {
+     "session_id": "job_20261001_120000_33333333333333333333333333333333",
+     "models": [
+      "Qwen/Qwen2.5-7B-Instruct",
+      "microsoft/Phi-3-mini-4k-instruct"
+     ],
+     "created_at": "20261001_120000",
+     "finished_at": "20261001_120000",
+     "owner_username": "alice",
+     "n_flows": 10,
+     "status": "Done",
+     "run_name": "csv_runs/parity_1",
+     "input_type": "CSV"
+    },
+    "setup": {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp2",
+     "input_type": "CSV",
+     "n_flows": 10,
+     "labelled": false,
+     "demo": false
+    },
+    "sessions": [],
+    "rule": "Comparable = the same flows (prepared-set hash), the same GPU and the same settings."
+   }
+  },
+  {
+   "session": "job_20261001_130000_44444444444444444444444444444444",
+   "out": {
+    "session": {
+     "session_id": "job_20261001_130000_44444444444444444444444444444444",
+     "models": [
+      "Qwen/Qwen2.5-7B-Instruct"
+     ],
+     "created_at": "20261001_130000",
+     "finished_at": "20261001_130000",
+     "owner_username": "alice",
+     "n_flows": 10,
+     "status": "Done",
+     "run_name": "csv_runs/parity_1",
+     "input_type": "CSV"
+    },
+    "setup": {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA A100",
+     "settings_fingerprint": "fp1",
+     "input_type": "CSV",
+     "n_flows": 10,
+     "labelled": true,
+     "demo": false
+    },
+    "sessions": [],
+    "rule": "Comparable = the same flows (prepared-set hash), the same GPU and the same settings."
+   }
+  },
+  {
+   "session": "job_20261001_140000_55555555555555555555555555555555",
+   "out": {
+    "session": {
+     "session_id": "job_20261001_140000_55555555555555555555555555555555",
+     "models": [
+      "Qwen/Qwen2.5-7B-Instruct",
+      "microsoft/Phi-3-mini-4k-instruct"
+     ],
+     "created_at": "20261001_140000",
+     "finished_at": "20261001_140000",
+     "owner_username": "alice",
+     "n_flows": 10,
+     "status": "Demo",
+     "run_name": "csv_runs/parity_1",
+     "input_type": "CSV"
+    },
+    "setup": {
+     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "gpu": "Demo (no GPU)",
+     "settings_fingerprint": "fpm",
+     "input_type": "CSV",
+     "n_flows": 10,
+     "labelled": true,
+     "demo": true
+    },
+    "sessions": [],
+    "rule": "Comparable = the same flows (prepared-set hash), the same GPU and the same settings."
+   }
+  },
+  {
+   "session": "job_20261001_150000_abcdef",
+   "out": {
+    "session": {
+     "session_id": "job_20261001_150000_abcdef",
+     "models": [
+      "Qwen/Qwen2.5-7B-Instruct",
+      "microsoft/Phi-3-mini-4k-instruct"
+     ],
+     "created_at": "20261001_150000",
+     "finished_at": "20261001_150000",
+     "owner_username": "alice",
+     "n_flows": 10,
+     "status": "Done",
+     "run_name": "csv_runs/parity_1",
+     "input_type": "CSV"
+    },
+    "setup": null,
+    "sessions": [],
+    "rule": "Comparable = the same flows (prepared-set hash), the same GPU and the same settings."
+   }
+  },
+  {
+   "session": "job_20261001_160000_66666666666666666666666666666666",
+   "out": {
+    "session": {
+     "session_id": "job_20261001_160000_66666666666666666666666666666666",
+     "models": [
+      "Qwen/Qwen2.5-7B-Instruct",
+      "microsoft/Phi-3-mini-4k-instruct"
+     ],
+     "created_at": "20261001_160000",
+     "finished_at": "20261001_160000",
+     "owner_username": "alice",
+     "n_flows": 10,
+     "status": "Done",
+     "run_name": "csv_runs/parity_1",
+     "input_type": "CSV"
+    },
+    "setup": {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp1",
+     "input_type": "CSV",
+     "n_flows": 10,
+     "labelled": true,
+     "demo": false
+    },
+    "sessions": [
+     {
+      "session_id": "job_20261001_110000_22222222222222222222222222222222",
+      "models": [
+       "Qwen/Qwen2.5-7B-Instruct",
+       "microsoft/Phi-3-mini-4k-instruct"
+      ],
+      "created_at": "20261001_110000",
+      "finished_at": "20261001_110000",
+      "owner_username": "alice",
+      "n_flows": 10,
+      "status": "Done",
+      "run_name": "csv_runs/parity_1",
+      "input_type": "CSV"
+     },
+     {
+      "session_id": "job_20261001_100000_11111111111111111111111111111111",
+      "models": [
+       "Qwen/Qwen2.5-7B-Instruct",
+       "microsoft/Phi-3-mini-4k-instruct"
+      ],
+      "created_at": "20261001_100000",
+      "finished_at": "20261001_100000",
+      "owner_username": "alice",
+      "n_flows": 10,
+      "status": "Done",
+      "run_name": "csv_runs/parity_1",
+      "input_type": "CSV"
+     }
+    ],
+    "rule": "Comparable = the same flows (prepared-set hash), the same GPU and the same settings."
+   }
+  }
+ ],
+ "merged": [
+  {
+   "sessions": [
+    "job_20261001_100000_11111111111111111111111111111111",
+    "job_20261001_110000_22222222222222222222222222222222"
+   ],
+   "out": {
+    "setup": {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp1",
+     "input_type": "CSV",
+     "n_flows": 10,
+     "labelled": true,
+     "demo": false
+    },
+    "sessions": [
+     "job_20261001_100000_11111111111111111111111111111111",
+     "job_20261001_110000_22222222222222222222222222222222"
+    ],
+    "runs": [
+     {
+      "session": "job_20261001_100000_11111111111111111111111111111111",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "created_at": "20261001_100000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_100000_11111111111111111111111111111111",
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "created_at": "20261001_100000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_110000_22222222222222222222222222222222",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "created_at": "20261001_110000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_110000_22222222222222222222222222222222",
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "created_at": "20261001_110000",
+      "owner": "alice",
+      "n_flows": 10
+     }
+    ],
+    "rows": [
+     {
+      "metric": "mean_latency_s",
+      "label": "Mean latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       0.0003138062000061836,
+       0.0004132848249914503,
+       0.00040794806000803873,
+       0.0005291590749890531
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "median_latency_s",
+      "label": "Median latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       0.0002742985000168119,
+       0.00041115285000017823,
+       0.00035658805002185544,
+       0.0005264293500002283
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "p95_latency_s",
+      "label": "p95 latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       0.00048532610000791,
+       0.0005532134330068459,
+       0.000630923930010283,
+       0.0007083200030087652
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "p99_latency_s",
+      "label": "p99 latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       null,
+       null,
+       null,
+       null
+      ],
+      "best_index": []
+     },
+     {
+      "metric": "mean_peak_vram_mb",
+      "label": "Working VRAM, mean (excludes model weights)",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       900.0,
+       1025.0,
+       1170.0,
+       1295.0
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "max_peak_vram_mb",
+      "label": "Working VRAM, highest (excludes model weights)",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       null,
+       null,
+       null,
+       null
+      ],
+      "best_index": []
+     },
+     {
+      "metric": "total_peak_mb",
+      "label": "Total peak VRAM (weights + working)",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       5000.0,
+       5333.3,
+       6500.0,
+       6833.3
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "weights_mb",
+      "label": "Model weights after load",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       4100.0,
+       4101.0,
+       4100.0,
+       4101.0
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "mean_tokens_per_flow",
+      "label": "Tokens per flow",
+      "unit": "tokens",
+      "lower_is_better": true,
+      "values": [
+       1431.0,
+       1531.17,
+       1860.3,
+       1960.4700000000003
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "mean_input_tokens_per_flow",
+      "label": "Input tokens per flow",
+      "unit": "tokens",
+      "lower_is_better": true,
+      "values": [
+       1381.0,
+       1477.67,
+       1795.3,
+       1891.9700000000003
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "mean_output_tokens_per_flow",
+      "label": "Output tokens per flow",
+      "unit": "tokens",
+      "lower_is_better": true,
+      "values": [
+       50.0,
+       53.5,
+       65.0,
+       68.5
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "handoff_share_of_total",
+      "label": "Agentic overhead (hand-off share)",
+      "unit": "share",
+      "lower_is_better": true,
+      "values": [
+       null,
+       null,
+       null,
+       null
+      ],
+      "best_index": []
+     },
+     {
+      "metric": "throughput_flows_per_s",
+      "label": "Throughput",
+      "unit": "flows/s",
+      "lower_is_better": false,
+      "values": [
+       3186.680186625678,
+       2770.244467659041,
+       4142.684242613382,
+       3546.9485240120434
+      ],
+      "best_index": [
+       2
+      ]
+     },
+     {
+      "metric": "cost_per_1k_flows_usd",
+      "label": "Cost per 1,000 flows",
+      "unit": "USD",
+      "lower_is_better": true,
+      "values": [
+       0.0123456,
+       0.0246912,
+       0.01604928,
+       0.03209856
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "wh_per_flow",
+      "label": "Energy per flow",
+      "unit": "Wh",
+      "lower_is_better": true,
+      "values": [
+       0.0421,
+       0.0431,
+       0.05473,
+       0.05573
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "wh_per_1k_flows",
+      "label": "Energy per 1,000 flows",
+      "unit": "Wh",
+      "lower_is_better": true,
+      "values": [
+       42.1,
+       42.1,
+       54.730000000000004,
+       54.730000000000004
+      ],
+      "best_index": [
+       0,
+       1
+      ]
+     },
+     {
+      "metric": "wh_per_flow_net_idle",
+      "label": "Energy per flow, net of idle",
+      "unit": "Wh",
+      "lower_is_better": true,
+      "values": [
+       0.03,
+       0.03,
+       0.039,
+       0.039
+      ],
+      "best_index": [
+       0,
+       1
+      ]
+     },
+     {
+      "metric": "saw_composite_100",
+      "label": "SAW composite (stored, fixed targets)",
+      "unit": "score",
+      "lower_is_better": false,
+      "values": [
+       47.58,
+       47.58,
+       47.58,
+       47.58
+      ],
+      "best_index": [
+       0,
+       1,
+       2,
+       3
+      ]
+     },
+     {
+      "metric": "accuracy",
+      "label": "Accuracy (context only)",
+      "unit": "share",
+      "lower_is_better": false,
+      "context_only": true,
+      "values": [
+       0.2,
+       0.2,
+       0.2,
+       0.2
+      ],
+      "best_index": []
+     }
+    ],
+    "by_model": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "n_runs": 2,
+      "sessions": [
+       "job_20261001_100000_11111111111111111111111111111111",
+       "job_20261001_110000_22222222222222222222222222222222"
+      ],
+      "values": {
+       "mean_latency_s": 0.0003608771300071112,
+       "median_latency_s": 0.0003154432750193337,
+       "p95_latency_s": 0.0005581250150090965,
+       "p99_latency_s": null,
+       "mean_peak_vram_mb": 1035.0,
+       "max_peak_vram_mb": null,
+       "total_peak_mb": 5750.0,
+       "weights_mb": 4100.0,
+       "mean_tokens_per_flow": 1645.65,
+       "mean_input_tokens_per_flow": 1588.15,
+       "mean_output_tokens_per_flow": 57.5,
+       "handoff_share_of_total": null,
+       "throughput_flows_per_s": 3664.682214619529,
+       "cost_per_1k_flows_usd": 0.01419744,
+       "wh_per_flow": 0.048415,
+       "wh_per_1k_flows": 48.415000000000006,
+       "wh_per_flow_net_idle": 0.034499999999999996,
+       "saw_composite_100": 47.58,
+       "accuracy": 0.2
+      }
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "n_runs": 2,
+      "sessions": [
+       "job_20261001_100000_11111111111111111111111111111111",
+       "job_20261001_110000_22222222222222222222222222222222"
+      ],
+      "values": {
+       "mean_latency_s": 0.0004712219499902517,
+       "median_latency_s": 0.00046879110000020325,
+       "p95_latency_s": 0.0006307667180078056,
+       "p99_latency_s": null,
+       "mean_peak_vram_mb": 1160.0,
+       "max_peak_vram_mb": null,
+       "total_peak_mb": 6083.3,
+       "weights_mb": 4101.0,
+       "mean_tokens_per_flow": 1745.8200000000004,
+       "mean_input_tokens_per_flow": 1684.8200000000004,
+       "mean_output_tokens_per_flow": 61.0,
+       "handoff_share_of_total": null,
+       "throughput_flows_per_s": 3158.5964958355426,
+       "cost_per_1k_flows_usd": 0.02839488,
+       "wh_per_flow": 0.049415,
+       "wh_per_1k_flows": 48.415000000000006,
+       "wh_per_flow_net_idle": 0.034499999999999996,
+       "saw_composite_100": 47.58,
+       "accuracy": 0.2
+      }
+     }
+    ],
+    "labelled": true,
+    "note": "Same flows, same GPU, same settings: differences are the models'. Values are the stored ones; the best per row is marked. A model in several sessions is shown per run, or as its flow-weighted mean (a view only \u2014 stored scores never change)."
+   }
+  },
+  {
+   "sessions": [
+    "job_20261001_100000_11111111111111111111111111111111",
+    "job_20261001_110000_22222222222222222222222222222222",
+    "job_20261001_160000_66666666666666666666666666666666"
+   ],
+   "out": {
+    "setup": {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp1",
+     "input_type": "CSV",
+     "n_flows": 10,
+     "labelled": true,
+     "demo": false
+    },
+    "sessions": [
+     "job_20261001_100000_11111111111111111111111111111111",
+     "job_20261001_110000_22222222222222222222222222222222",
+     "job_20261001_160000_66666666666666666666666666666666"
+    ],
+    "runs": [
+     {
+      "session": "job_20261001_100000_11111111111111111111111111111111",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "created_at": "20261001_100000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_100000_11111111111111111111111111111111",
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "created_at": "20261001_100000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_110000_22222222222222222222222222222222",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "created_at": "20261001_110000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_110000_22222222222222222222222222222222",
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "created_at": "20261001_110000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_160000_66666666666666666666666666666666",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "created_at": "20261001_160000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_160000_66666666666666666666666666666666",
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "created_at": "20261001_160000",
+      "owner": "alice",
+      "n_flows": 10
+     }
+    ],
+    "rows": [
+     {
+      "metric": "mean_latency_s",
+      "label": "Mean latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       0.0003138062000061836,
+       0.0004132848249914503,
+       0.00040794806000803873,
+       0.0005291590749890531,
+       0.00028242558000556527,
+       0.0003746600749922493
+      ],
+      "best_index": [
+       4
+      ]
+     },
+     {
+      "metric": "median_latency_s",
+      "label": "Median latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       0.0002742985000168119,
+       0.00041115285000017823,
+       0.00035658805002185544,
+       0.0005264293500002283,
+       0.0002468686500151307,
+       0.00037272735000016155
+      ],
+      "best_index": [
+       4
+      ]
+     },
+     {
+      "metric": "p95_latency_s",
+      "label": "p95 latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       0.00048532610000791,
+       0.0005532134330068459,
+       0.000630923930010283,
+       0.0007083200030087652,
+       0.000436793490007119,
+       0.000501511243006206
+      ],
+      "best_index": [
+       4
+      ]
+     },
+     {
+      "metric": "p99_latency_s",
+      "label": "p99 latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       null,
+       null,
+       null,
+       null,
+       null,
+       null
+      ],
+      "best_index": []
+     },
+     {
+      "metric": "mean_peak_vram_mb",
+      "label": "Working VRAM, mean (excludes model weights)",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       900.0,
+       1025.0,
+       1170.0,
+       1295.0,
+       810.0,
+       935.0
+      ],
+      "best_index": [
+       4
+      ]
+     },
+     {
+      "metric": "max_peak_vram_mb",
+      "label": "Working VRAM, highest (excludes model weights)",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       null,
+       null,
+       null,
+       null,
+       null,
+       null
+      ],
+      "best_index": []
+     },
+     {
+      "metric": "total_peak_mb",
+      "label": "Total peak VRAM (weights + working)",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       5000.0,
+       5333.3,
+       6500.0,
+       6833.3,
+       4500.0,
+       4833.3
+      ],
+      "best_index": [
+       4
+      ]
+     },
+     {
+      "metric": "weights_mb",
+      "label": "Model weights after load",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       4100.0,
+       4101.0,
+       4100.0,
+       4101.0,
+       4100.0,
+       4101.0
+      ],
+      "best_index": [
+       0,
+       2,
+       4
+      ]
+     },
+     {
+      "metric": "mean_tokens_per_flow",
+      "label": "Tokens per flow",
+      "unit": "tokens",
+      "lower_is_better": true,
+      "values": [
+       1431.0,
+       1531.17,
+       1860.3,
+       1960.4700000000003,
+       1287.9,
+       1388.07
+      ],
+      "best_index": [
+       4
+      ]
+     },
+     {
+      "metric": "mean_input_tokens_per_flow",
+      "label": "Input tokens per flow",
+      "unit": "tokens",
+      "lower_is_better": true,
+      "values": [
+       1381.0,
+       1477.67,
+       1795.3,
+       1891.9700000000003,
+       1242.9,
+       1339.57
+      ],
+      "best_index": [
+       4
+      ]
+     },
+     {
+      "metric": "mean_output_tokens_per_flow",
+      "label": "Output tokens per flow",
+      "unit": "tokens",
+      "lower_is_better": true,
+      "values": [
+       50.0,
+       53.5,
+       65.0,
+       68.5,
+       45.0,
+       48.5
+      ],
+      "best_index": [
+       4
+      ]
+     },
+     {
+      "metric": "handoff_share_of_total",
+      "label": "Agentic overhead (hand-off share)",
+      "unit": "share",
+      "lower_is_better": true,
+      "values": [
+       null,
+       null,
+       null,
+       null,
+       null,
+       null
+      ],
+      "best_index": []
+     },
+     {
+      "metric": "throughput_flows_per_s",
+      "label": "Throughput",
+      "unit": "flows/s",
+      "lower_is_better": false,
+      "values": [
+       3186.680186625678,
+       2770.244467659041,
+       4142.684242613382,
+       3546.9485240120434,
+       2868.01216796311,
+       2511.3431155413737
+      ],
+      "best_index": [
+       2
+      ]
+     },
+     {
+      "metric": "cost_per_1k_flows_usd",
+      "label": "Cost per 1,000 flows",
+      "unit": "USD",
+      "lower_is_better": true,
+      "values": [
+       0.0123456,
+       0.0246912,
+       0.01604928,
+       0.03209856,
+       0.01111104,
+       0.02222208
+      ],
+      "best_index": [
+       4
+      ]
+     },
+     {
+      "metric": "wh_per_flow",
+      "label": "Energy per flow",
+      "unit": "Wh",
+      "lower_is_better": true,
+      "values": [
+       0.0421,
+       0.0431,
+       0.05473,
+       0.05573,
+       0.03789,
+       0.03889
+      ],
+      "best_index": [
+       4
+      ]
+     },
+     {
+      "metric": "wh_per_1k_flows",
+      "label": "Energy per 1,000 flows",
+      "unit": "Wh",
+      "lower_is_better": true,
+      "values": [
+       42.1,
+       42.1,
+       54.730000000000004,
+       54.730000000000004,
+       37.89,
+       37.89
+      ],
+      "best_index": [
+       4,
+       5
+      ]
+     },
+     {
+      "metric": "wh_per_flow_net_idle",
+      "label": "Energy per flow, net of idle",
+      "unit": "Wh",
+      "lower_is_better": true,
+      "values": [
+       0.03,
+       0.03,
+       0.039,
+       0.039,
+       0.027,
+       0.027
+      ],
+      "best_index": [
+       4,
+       5
+      ]
+     },
+     {
+      "metric": "saw_composite_100",
+      "label": "SAW composite (stored, fixed targets)",
+      "unit": "score",
+      "lower_is_better": false,
+      "values": [
+       47.58,
+       47.58,
+       47.58,
+       47.58,
+       47.58,
+       47.58
+      ],
+      "best_index": [
+       0,
+       1,
+       2,
+       3,
+       4,
+       5
+      ]
+     },
+     {
+      "metric": "accuracy",
+      "label": "Accuracy (context only)",
+      "unit": "share",
+      "lower_is_better": false,
+      "context_only": true,
+      "values": [
+       0.2,
+       0.2,
+       0.2,
+       0.2,
+       0.2,
+       0.2
+      ],
+      "best_index": []
+     }
+    ],
+    "by_model": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "n_runs": 3,
+      "sessions": [
+       "job_20261001_100000_11111111111111111111111111111111",
+       "job_20261001_110000_22222222222222222222222222222222",
+       "job_20261001_160000_66666666666666666666666666666666"
+      ],
+      "values": {
+       "mean_latency_s": 0.00033472661333992917,
+       "median_latency_s": 0.00029258506668459935,
+       "p95_latency_s": 0.0005176811733417707,
+       "p99_latency_s": null,
+       "mean_peak_vram_mb": 960.0,
+       "max_peak_vram_mb": null,
+       "total_peak_mb": 5333.333333333333,
+       "weights_mb": 4100.0,
+       "mean_tokens_per_flow": 1526.4,
+       "mean_input_tokens_per_flow": 1473.0666666666666,
+       "mean_output_tokens_per_flow": 53.333333333333336,
+       "handoff_share_of_total": null,
+       "throughput_flows_per_s": 3399.125532400723,
+       "cost_per_1k_flows_usd": 0.01316864,
+       "wh_per_flow": 0.044906666666666664,
+       "wh_per_1k_flows": 44.906666666666666,
+       "wh_per_flow_net_idle": 0.032,
+       "saw_composite_100": 47.58,
+       "accuracy": 0.2
+      }
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "n_runs": 3,
+      "sessions": [
+       "job_20261001_100000_11111111111111111111111111111111",
+       "job_20261001_110000_22222222222222222222222222222222",
+       "job_20261001_160000_66666666666666666666666666666666"
+      ],
+      "values": {
+       "mean_latency_s": 0.0004390346583242509,
+       "median_latency_s": 0.00043676985000018937,
+       "p95_latency_s": 0.0005876815596739391,
+       "p99_latency_s": null,
+       "mean_peak_vram_mb": 1085.0,
+       "max_peak_vram_mb": null,
+       "total_peak_mb": 5666.633333333333,
+       "weights_mb": 4101.0,
+       "mean_tokens_per_flow": 1626.5700000000002,
+       "mean_input_tokens_per_flow": 1569.736666666667,
+       "mean_output_tokens_per_flow": 56.833333333333336,
+       "handoff_share_of_total": null,
+       "throughput_flows_per_s": 2942.8453690708197,
+       "cost_per_1k_flows_usd": 0.02633728,
+       "wh_per_flow": 0.045906666666666665,
+       "wh_per_1k_flows": 44.906666666666666,
+       "wh_per_flow_net_idle": 0.032,
+       "saw_composite_100": 47.58,
+       "accuracy": 0.2
+      }
+     }
+    ],
+    "labelled": true,
+    "note": "Same flows, same GPU, same settings: differences are the models'. Values are the stored ones; the best per row is marked. A model in several sessions is shown per run, or as its flow-weighted mean (a view only \u2014 stored scores never change)."
+   }
+  },
+  {
+   "sessions": [
+    "job_20261001_160000_66666666666666666666666666666666",
+    "job_20261001_110000_22222222222222222222222222222222",
+    "job_20261001_100000_11111111111111111111111111111111"
+   ],
+   "out": {
+    "setup": {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp1",
+     "input_type": "CSV",
+     "n_flows": 10,
+     "labelled": true,
+     "demo": false
+    },
+    "sessions": [
+     "job_20261001_160000_66666666666666666666666666666666",
+     "job_20261001_110000_22222222222222222222222222222222",
+     "job_20261001_100000_11111111111111111111111111111111"
+    ],
+    "runs": [
+     {
+      "session": "job_20261001_160000_66666666666666666666666666666666",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "created_at": "20261001_160000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_160000_66666666666666666666666666666666",
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "created_at": "20261001_160000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_110000_22222222222222222222222222222222",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "created_at": "20261001_110000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_110000_22222222222222222222222222222222",
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "created_at": "20261001_110000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_100000_11111111111111111111111111111111",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "created_at": "20261001_100000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_100000_11111111111111111111111111111111",
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "created_at": "20261001_100000",
+      "owner": "alice",
+      "n_flows": 10
+     }
+    ],
+    "rows": [
+     {
+      "metric": "mean_latency_s",
+      "label": "Mean latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       0.00028242558000556527,
+       0.0003746600749922493,
+       0.00040794806000803873,
+       0.0005291590749890531,
+       0.0003138062000061836,
+       0.0004132848249914503
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "median_latency_s",
+      "label": "Median latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       0.0002468686500151307,
+       0.00037272735000016155,
+       0.00035658805002185544,
+       0.0005264293500002283,
+       0.0002742985000168119,
+       0.00041115285000017823
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "p95_latency_s",
+      "label": "p95 latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       0.000436793490007119,
+       0.000501511243006206,
+       0.000630923930010283,
+       0.0007083200030087652,
+       0.00048532610000791,
+       0.0005532134330068459
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "p99_latency_s",
+      "label": "p99 latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       null,
+       null,
+       null,
+       null,
+       null,
+       null
+      ],
+      "best_index": []
+     },
+     {
+      "metric": "mean_peak_vram_mb",
+      "label": "Working VRAM, mean (excludes model weights)",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       810.0,
+       935.0,
+       1170.0,
+       1295.0,
+       900.0,
+       1025.0
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "max_peak_vram_mb",
+      "label": "Working VRAM, highest (excludes model weights)",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       null,
+       null,
+       null,
+       null,
+       null,
+       null
+      ],
+      "best_index": []
+     },
+     {
+      "metric": "total_peak_mb",
+      "label": "Total peak VRAM (weights + working)",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       4500.0,
+       4833.3,
+       6500.0,
+       6833.3,
+       5000.0,
+       5333.3
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "weights_mb",
+      "label": "Model weights after load",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       4100.0,
+       4101.0,
+       4100.0,
+       4101.0,
+       4100.0,
+       4101.0
+      ],
+      "best_index": [
+       0,
+       2,
+       4
+      ]
+     },
+     {
+      "metric": "mean_tokens_per_flow",
+      "label": "Tokens per flow",
+      "unit": "tokens",
+      "lower_is_better": true,
+      "values": [
+       1287.9,
+       1388.07,
+       1860.3,
+       1960.4700000000003,
+       1431.0,
+       1531.17
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "mean_input_tokens_per_flow",
+      "label": "Input tokens per flow",
+      "unit": "tokens",
+      "lower_is_better": true,
+      "values": [
+       1242.9,
+       1339.57,
+       1795.3,
+       1891.9700000000003,
+       1381.0,
+       1477.67
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "mean_output_tokens_per_flow",
+      "label": "Output tokens per flow",
+      "unit": "tokens",
+      "lower_is_better": true,
+      "values": [
+       45.0,
+       48.5,
+       65.0,
+       68.5,
+       50.0,
+       53.5
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "handoff_share_of_total",
+      "label": "Agentic overhead (hand-off share)",
+      "unit": "share",
+      "lower_is_better": true,
+      "values": [
+       null,
+       null,
+       null,
+       null,
+       null,
+       null
+      ],
+      "best_index": []
+     },
+     {
+      "metric": "throughput_flows_per_s",
+      "label": "Throughput",
+      "unit": "flows/s",
+      "lower_is_better": false,
+      "values": [
+       2868.01216796311,
+       2511.3431155413737,
+       4142.684242613382,
+       3546.9485240120434,
+       3186.680186625678,
+       2770.244467659041
+      ],
+      "best_index": [
+       2
+      ]
+     },
+     {
+      "metric": "cost_per_1k_flows_usd",
+      "label": "Cost per 1,000 flows",
+      "unit": "USD",
+      "lower_is_better": true,
+      "values": [
+       0.01111104,
+       0.02222208,
+       0.01604928,
+       0.03209856,
+       0.0123456,
+       0.0246912
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "wh_per_flow",
+      "label": "Energy per flow",
+      "unit": "Wh",
+      "lower_is_better": true,
+      "values": [
+       0.03789,
+       0.03889,
+       0.05473,
+       0.05573,
+       0.0421,
+       0.0431
+      ],
+      "best_index": [
+       0
+      ]
+     },
+     {
+      "metric": "wh_per_1k_flows",
+      "label": "Energy per 1,000 flows",
+      "unit": "Wh",
+      "lower_is_better": true,
+      "values": [
+       37.89,
+       37.89,
+       54.730000000000004,
+       54.730000000000004,
+       42.1,
+       42.1
+      ],
+      "best_index": [
+       0,
+       1
+      ]
+     },
+     {
+      "metric": "wh_per_flow_net_idle",
+      "label": "Energy per flow, net of idle",
+      "unit": "Wh",
+      "lower_is_better": true,
+      "values": [
+       0.027,
+       0.027,
+       0.039,
+       0.039,
+       0.03,
+       0.03
+      ],
+      "best_index": [
+       0,
+       1
+      ]
+     },
+     {
+      "metric": "saw_composite_100",
+      "label": "SAW composite (stored, fixed targets)",
+      "unit": "score",
+      "lower_is_better": false,
+      "values": [
+       47.58,
+       47.58,
+       47.58,
+       47.58,
+       47.58,
+       47.58
+      ],
+      "best_index": [
+       0,
+       1,
+       2,
+       3,
+       4,
+       5
+      ]
+     },
+     {
+      "metric": "accuracy",
+      "label": "Accuracy (context only)",
+      "unit": "share",
+      "lower_is_better": false,
+      "context_only": true,
+      "values": [
+       0.2,
+       0.2,
+       0.2,
+       0.2,
+       0.2,
+       0.2
+      ],
+      "best_index": []
+     }
+    ],
+    "by_model": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "n_runs": 3,
+      "sessions": [
+       "job_20261001_160000_66666666666666666666666666666666",
+       "job_20261001_110000_22222222222222222222222222222222",
+       "job_20261001_100000_11111111111111111111111111111111"
+      ],
+      "values": {
+       "mean_latency_s": 0.00033472661333992917,
+       "median_latency_s": 0.00029258506668459935,
+       "p95_latency_s": 0.0005176811733417707,
+       "p99_latency_s": null,
+       "mean_peak_vram_mb": 960.0,
+       "max_peak_vram_mb": null,
+       "total_peak_mb": 5333.333333333333,
+       "weights_mb": 4100.0,
+       "mean_tokens_per_flow": 1526.4,
+       "mean_input_tokens_per_flow": 1473.0666666666666,
+       "mean_output_tokens_per_flow": 53.333333333333336,
+       "handoff_share_of_total": null,
+       "throughput_flows_per_s": 3399.125532400723,
+       "cost_per_1k_flows_usd": 0.01316864,
+       "wh_per_flow": 0.044906666666666664,
+       "wh_per_1k_flows": 44.906666666666666,
+       "wh_per_flow_net_idle": 0.032,
+       "saw_composite_100": 47.58,
+       "accuracy": 0.2
+      }
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "n_runs": 3,
+      "sessions": [
+       "job_20261001_160000_66666666666666666666666666666666",
+       "job_20261001_110000_22222222222222222222222222222222",
+       "job_20261001_100000_11111111111111111111111111111111"
+      ],
+      "values": {
+       "mean_latency_s": 0.00043903465832425095,
+       "median_latency_s": 0.00043676985000018937,
+       "p95_latency_s": 0.0005876815596739391,
+       "p99_latency_s": null,
+       "mean_peak_vram_mb": 1085.0,
+       "max_peak_vram_mb": null,
+       "total_peak_mb": 5666.633333333333,
+       "weights_mb": 4101.0,
+       "mean_tokens_per_flow": 1626.5700000000002,
+       "mean_input_tokens_per_flow": 1569.736666666667,
+       "mean_output_tokens_per_flow": 56.833333333333336,
+       "handoff_share_of_total": null,
+       "throughput_flows_per_s": 2942.8453690708197,
+       "cost_per_1k_flows_usd": 0.02633728,
+       "wh_per_flow": 0.045906666666666665,
+       "wh_per_1k_flows": 44.906666666666666,
+       "wh_per_flow_net_idle": 0.032,
+       "saw_composite_100": 47.58,
+       "accuracy": 0.2
+      }
+     }
+    ],
+    "labelled": true,
+    "note": "Same flows, same GPU, same settings: differences are the models'. Values are the stored ones; the best per row is marked. A model in several sessions is shown per run, or as its flow-weighted mean (a view only \u2014 stored scores never change)."
+   }
+  },
+  {
+   "sessions": [
+    "job_20261001_100000_11111111111111111111111111111111",
+    "job_20261001_120000_33333333333333333333333333333333"
+   ],
+   "out": {
+    "error": "not_same_setup",
+    "differs": [
+     "job_20261001_120000_33333333333333333333333333333333"
+    ]
+   }
+  },
+  {
+   "sessions": [
+    "job_20261001_100000_11111111111111111111111111111111",
+    "job_20261001_150000_abcdef"
+   ],
+   "out": {
+    "error": "not_same_setup",
+    "differs": [
+     "job_20261001_150000_abcdef"
+    ]
+   }
+  },
+  {
+   "sessions": [
+    "job_20261001_140000_55555555555555555555555555555555",
+    "job_20261001_140000_55555555555555555555555555555555"
+   ],
+   "out": {
+    "setup": {
+     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "gpu": "Demo (no GPU)",
+     "settings_fingerprint": "fpm",
+     "input_type": "CSV",
+     "n_flows": 10,
+     "labelled": true,
+     "demo": true
+    },
+    "sessions": [
+     "job_20261001_140000_55555555555555555555555555555555",
+     "job_20261001_140000_55555555555555555555555555555555"
+    ],
+    "runs": [
+     {
+      "session": "job_20261001_140000_55555555555555555555555555555555",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "created_at": "20261001_140000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_140000_55555555555555555555555555555555",
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "created_at": "20261001_140000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_140000_55555555555555555555555555555555",
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "created_at": "20261001_140000",
+      "owner": "alice",
+      "n_flows": 10
+     },
+     {
+      "session": "job_20261001_140000_55555555555555555555555555555555",
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "created_at": "20261001_140000",
+      "owner": "alice",
+      "n_flows": 10
+     }
+    ],
+    "rows": [
+     {
+      "metric": "mean_latency_s",
+      "label": "Mean latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       0.0003138062000061836,
+       0.0004132848249914503,
+       0.0003138062000061836,
+       0.0004132848249914503
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "median_latency_s",
+      "label": "Median latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       0.0002742985000168119,
+       0.00041115285000017823,
+       0.0002742985000168119,
+       0.00041115285000017823
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "p95_latency_s",
+      "label": "p95 latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       0.00048532610000791,
+       0.0005532134330068459,
+       0.00048532610000791,
+       0.0005532134330068459
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "p99_latency_s",
+      "label": "p99 latency per flow",
+      "unit": "s",
+      "lower_is_better": true,
+      "values": [
+       null,
+       null,
+       null,
+       null
+      ],
+      "best_index": []
+     },
+     {
+      "metric": "mean_peak_vram_mb",
+      "label": "Working VRAM, mean (excludes model weights)",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       900.0,
+       1025.0,
+       900.0,
+       1025.0
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "max_peak_vram_mb",
+      "label": "Working VRAM, highest (excludes model weights)",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       null,
+       null,
+       null,
+       null
+      ],
+      "best_index": []
+     },
+     {
+      "metric": "total_peak_mb",
+      "label": "Total peak VRAM (weights + working)",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       5000.0,
+       5333.3,
+       5000.0,
+       5333.3
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "weights_mb",
+      "label": "Model weights after load",
+      "unit": "MB",
+      "lower_is_better": true,
+      "values": [
+       4100.0,
+       4101.0,
+       4100.0,
+       4101.0
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "mean_tokens_per_flow",
+      "label": "Tokens per flow",
+      "unit": "tokens",
+      "lower_is_better": true,
+      "values": [
+       1431.0,
+       1531.17,
+       1431.0,
+       1531.17
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "mean_input_tokens_per_flow",
+      "label": "Input tokens per flow",
+      "unit": "tokens",
+      "lower_is_better": true,
+      "values": [
+       1381.0,
+       1477.67,
+       1381.0,
+       1477.67
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "mean_output_tokens_per_flow",
+      "label": "Output tokens per flow",
+      "unit": "tokens",
+      "lower_is_better": true,
+      "values": [
+       50.0,
+       53.5,
+       50.0,
+       53.5
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "handoff_share_of_total",
+      "label": "Agentic overhead (hand-off share)",
+      "unit": "share",
+      "lower_is_better": true,
+      "values": [
+       null,
+       null,
+       null,
+       null
+      ],
+      "best_index": []
+     },
+     {
+      "metric": "throughput_flows_per_s",
+      "label": "Throughput",
+      "unit": "flows/s",
+      "lower_is_better": false,
+      "values": [
+       3186.680186625678,
+       2770.244467659041,
+       3186.680186625678,
+       2770.244467659041
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "cost_per_1k_flows_usd",
+      "label": "Cost per 1,000 flows",
+      "unit": "USD",
+      "lower_is_better": true,
+      "values": [
+       0.0123456,
+       0.0246912,
+       0.0123456,
+       0.0246912
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "wh_per_flow",
+      "label": "Energy per flow",
+      "unit": "Wh",
+      "lower_is_better": true,
+      "values": [
+       0.0421,
+       0.0431,
+       0.0421,
+       0.0431
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
+      "metric": "wh_per_1k_flows",
+      "label": "Energy per 1,000 flows",
+      "unit": "Wh",
+      "lower_is_better": true,
+      "values": [
+       42.1,
+       42.1,
+       42.1,
+       42.1
+      ],
+      "best_index": [
+       0,
+       1,
+       2,
+       3
+      ]
+     },
+     {
+      "metric": "wh_per_flow_net_idle",
+      "label": "Energy per flow, net of idle",
+      "unit": "Wh",
+      "lower_is_better": true,
+      "values": [
+       0.03,
+       0.03,
+       0.03,
+       0.03
+      ],
+      "best_index": [
+       0,
+       1,
+       2,
+       3
+      ]
+     },
+     {
+      "metric": "saw_composite_100",
+      "label": "SAW composite (stored, fixed targets)",
+      "unit": "score",
+      "lower_is_better": false,
+      "values": [
+       47.58,
+       47.58,
+       47.58,
+       47.58
+      ],
+      "best_index": [
+       0,
+       1,
+       2,
+       3
+      ]
+     },
+     {
+      "metric": "accuracy",
+      "label": "Accuracy (context only)",
+      "unit": "share",
+      "lower_is_better": false,
+      "context_only": true,
+      "values": [
+       0.2,
+       0.2,
+       0.2,
+       0.2
+      ],
+      "best_index": []
+     }
+    ],
+    "by_model": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "n_runs": 2,
+      "sessions": [
+       "job_20261001_140000_55555555555555555555555555555555",
+       "job_20261001_140000_55555555555555555555555555555555"
+      ],
+      "values": {
+       "mean_latency_s": 0.0003138062000061836,
+       "median_latency_s": 0.0002742985000168119,
+       "p95_latency_s": 0.00048532610000791,
+       "p99_latency_s": null,
+       "mean_peak_vram_mb": 900.0,
+       "max_peak_vram_mb": null,
+       "total_peak_mb": 5000.0,
+       "weights_mb": 4100.0,
+       "mean_tokens_per_flow": 1431.0,
+       "mean_input_tokens_per_flow": 1381.0,
+       "mean_output_tokens_per_flow": 50.0,
+       "handoff_share_of_total": null,
+       "throughput_flows_per_s": 3186.680186625678,
+       "cost_per_1k_flows_usd": 0.0123456,
+       "wh_per_flow": 0.0421,
+       "wh_per_1k_flows": 42.1,
+       "wh_per_flow_net_idle": 0.03,
+       "saw_composite_100": 47.58,
+       "accuracy": 0.2
+      }
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "n_runs": 2,
+      "sessions": [
+       "job_20261001_140000_55555555555555555555555555555555",
+       "job_20261001_140000_55555555555555555555555555555555"
+      ],
+      "values": {
+       "mean_latency_s": 0.0004132848249914503,
+       "median_latency_s": 0.0004111528500001783,
+       "p95_latency_s": 0.0005532134330068459,
+       "p99_latency_s": null,
+       "mean_peak_vram_mb": 1025.0,
+       "max_peak_vram_mb": null,
+       "total_peak_mb": 5333.3,
+       "weights_mb": 4101.0,
+       "mean_tokens_per_flow": 1531.17,
+       "mean_input_tokens_per_flow": 1477.67,
+       "mean_output_tokens_per_flow": 53.5,
+       "handoff_share_of_total": null,
+       "throughput_flows_per_s": 2770.244467659041,
+       "cost_per_1k_flows_usd": 0.0246912,
+       "wh_per_flow": 0.0431,
+       "wh_per_1k_flows": 42.1,
+       "wh_per_flow_net_idle": 0.03,
+       "saw_composite_100": 47.58,
+       "accuracy": 0.2
+      }
+     }
+    ],
+    "labelled": true,
+    "note": "Same flows, same GPU, same settings: differences are the models'. Values are the stored ones; the best per row is marked. A model in several sessions is shown per run, or as its flow-weighted mean (a view only \u2014 stored scores never change)."
    }
   }
  ]

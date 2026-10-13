@@ -94,7 +94,10 @@ def model_metrics(res: dict[str, Any]) -> dict[str, dict[str, Any]]:
                "wh_per_flow_net_idle": (cost.get(m) or {}).get("wh_per_flow_net_idle"),
                "total_peak_mb": (mem.get(m) or {}).get("total_peak_mb"),
                "weights_mb": (mem.get(m) or {}).get("weights_mb"),
-               "accuracy": (pm.get("accuracy") or {}).get("accuracy") if pm.get("accuracy") else None}
+               "accuracy": (pm.get("accuracy") or {}).get("accuracy") if pm.get("accuracy") else None,
+               # the stored SAW score (fixed targets) and tier, copied for Compare — never recomputed
+               "saw_composite_100": (pm.get("saw") or {}).get("composite_100"),
+               "saw_tier": (pm.get("saw") or {}).get("tier")}
         out[m] = row
     return out
 
@@ -215,6 +218,80 @@ def compare_s(sa: dict, sb: dict) -> dict[str, Any]:
                      "the sessions are not only the models'. Read side by side, not as a ranking.")}
 
 
+# ---------------------------------------------------------------------------
+# Merged compare: every session on the SAME SETUP (same flows hash, same GPU, same settings)
+# ---------------------------------------------------------------------------
+MERGED_EXTRA = [("saw_composite_100", "SAW composite (stored, fixed targets)", "score", False)]
+
+
+def setup_key(s: dict) -> Optional[tuple]:
+    """(prepared-set hash, GPU label, settings fingerprint) — None when any part is unknown."""
+    i = s.get("identity") or {}
+    k = (i.get("prepared_set_sha256"), i.get("gpu_label"), i.get("settings_fingerprint"))
+    return k if all(k) else None
+
+
+def comparable_s(target: dict, summaries: list[dict]) -> dict[str, Any]:
+    """The finished sessions that share target's setup (newest first, as given), target excluded."""
+    key = setup_key(target)
+    same = [s for s in summaries if key and s.get("session_id") != target.get("session_id") and setup_key(s) == key]
+    brief = lambda s: {k: s.get(k) for k in ("session_id", "models", "created_at", "finished_at", "owner_username",  # noqa: E731
+                                             "n_flows", "status", "run_name", "input_type")}
+    return {"session": brief(target), "setup": _setup(target) if key else None, "sessions": [brief(s) for s in same],
+            "rule": "Comparable = the same flows (prepared-set hash), the same GPU and the same settings."}
+
+
+def _setup(s: dict) -> dict:
+    i = s.get("identity") or {}
+    return {"prepared_set_sha256": i.get("prepared_set_sha256"), "gpu": i.get("gpu_label"),
+            "settings_fingerprint": i.get("settings_fingerprint"), "input_type": s.get("input_type"),
+            "n_flows": s.get("n_flows"), "labelled": bool(s.get("labelled")), "demo": i.get("provider") == "mock"}
+
+
+def compare_many_s(summaries: list[dict]) -> dict[str, Any]:
+    """Every model of every given session side by side (one column per run). All sessions must
+    share one setup; values are the stored ones, best per row marked. by_model: each model's
+    flow-weighted mean over its runs (a view, never stored)."""
+    keys = [setup_key(s) for s in summaries]
+    if len(summaries) < 2 or keys[0] is None or any(k != keys[0] for k in keys):
+        return {"error": "not_same_setup",
+                "differs": [s["session_id"] for s, k in zip(summaries, keys) if k is None or k != keys[0]]}
+    labelled = all(s.get("labelled") for s in summaries)
+    runs = []
+    for s in summaries:
+        for m, row in (s.get("metrics") or {}).items():
+            runs.append({"session": s["session_id"], "model": m, "created_at": s.get("created_at"),
+                         "owner": s.get("owner_username"), "n_flows": row.get("n_flows"), "metrics": row})
+    defs = list(METRICS) + MERGED_EXTRA
+    rows = []
+    for key, label, unit, lower in defs:
+        vals = [r["metrics"].get(key) for r in runs]
+        present = [v for v in vals if v is not None]
+        best = (min(present) if lower else max(present)) if len(present) > 1 else None
+        rows.append({"metric": key, "label": label, "unit": unit, "lower_is_better": lower, "values": vals,
+                     "best_index": [i for i, v in enumerate(vals) if best is not None and v == best]})
+    if labelled:
+        rows.append({"metric": "accuracy", "label": "Accuracy (context only)", "unit": "share",
+                     "lower_is_better": False, "context_only": True,
+                     "values": [r["metrics"].get("accuracy") for r in runs], "best_index": []})
+    by_model: dict[str, dict] = {}
+    for r in runs:
+        b = by_model.setdefault(r["model"], {"model": r["model"], "runs": [], "pairs": {}})
+        b["runs"].append(r["session"])
+        for key, *_ in defs + [("accuracy", "", "", False)]:
+            b["pairs"].setdefault(key, []).append((r["metrics"].get(key), r["n_flows"] or 0))
+    models = []
+    for b in by_model.values():
+        models.append({"model": b["model"], "n_runs": len(b["runs"]), "sessions": b["runs"],
+                       "values": {k: _wmean(v) for k, v in b["pairs"].items()}})
+    strip = lambda r: {k: v for k, v in r.items() if k != "metrics"}   # noqa: E731
+    return {"setup": _setup(summaries[0]), "sessions": [s["session_id"] for s in summaries],
+            "runs": [strip(r) for r in runs], "rows": rows, "by_model": models, "labelled": labelled,
+            "note": "Same flows, same GPU, same settings: differences are the models'. Values are the stored "
+                    "ones; the best per row is marked. A model in several sessions is shown per run, or as its "
+                    "flow-weighted mean (a view only — stored scores never change)."}
+
+
 def validity(a_job: dict, a: dict, b_job: dict, b: dict) -> dict[str, Any]:
     return validity_s(cp_summary(a_job, a), cp_summary(b_job, b))
 
@@ -227,9 +304,14 @@ def compare(a_job: dict, a: dict, b_job: dict, b: dict) -> dict[str, Any]:
 # Leaderboard (on summaries)
 # ---------------------------------------------------------------------------
 def _wmean(pairs: list[tuple[Optional[float], int]]) -> Optional[float]:
-    ps = [(v, n) for v, n in pairs if v is not None and n]
-    tot = sum(n for _, n in ps)
-    return sum(v * n for v, n in ps) / tot if tot else None
+    # plain left-to-right additions (not sum(): Python >= 3.12 compensates float sums), so the
+    # Worker's port (worker/src/analytics.ts) gets bit-identical results
+    tot, acc = 0, 0.0
+    for v, n in pairs:
+        if v is not None and n:
+            tot += n
+            acc += v * n
+    return acc / tot if tot else None
 
 
 def leaderboard_s(summaries: list[dict], sort: str = "latency") -> dict[str, Any]:
@@ -359,6 +441,39 @@ def register_sessions(app, get_manager) -> None:
         if "per_model" not in ra or "per_model" not in rb:
             return fail(JobError("both must be finished benchmark sessions", "bad_request", 400))
         return jsonify(compare(ja, ra, jb, rb))
+
+    def _summaries(mgr) -> list[dict]:
+        out = []
+        for j in _benchmark_jobs(mgr):
+            r = _result(mgr, j)
+            if r and "per_model" in r:
+                out.append(cp_summary(j, r))
+        return out
+
+    @app.route("/api/compare/candidates", methods=["GET"])
+    def compare_candidates():
+        mgr = get_manager()
+        sid = request.args.get("session", "")
+        allsum = _summaries(mgr)
+        target = next((x for x in allsum if x["session_id"] == sid), None)
+        if target is None:
+            return fail(JobError("pick a finished benchmark session", "bad_request", 400))
+        return jsonify(comparable_s(target, allsum))
+
+    @app.route("/api/compare/merged", methods=["GET"])
+    def compare_merged():
+        mgr = get_manager()
+        ids = [x for x in (request.args.get("sessions") or "").split(",") if x]
+        if len(ids) < 2 or len(set(ids)) != len(ids) or len(ids) > 20:
+            return fail(JobError("pick 2 to 20 different sessions (?sessions=a,b,…)", "bad_request", 400))
+        byid = {x["session_id"]: x for x in _summaries(mgr)}
+        if any(i not in byid for i in ids):
+            return fail(JobError("every session must be a finished benchmark session", "bad_request", 400))
+        out = compare_many_s([byid[i] for i in ids])
+        if out.get("error"):
+            return jsonify({"error": "These sessions do not share the same flows, GPU and settings.", "code": "not_same_setup",
+                            "differs": out["differs"]}), 400
+        return jsonify(out)
 
     @app.route("/api/leaderboard", methods=["GET"])
     def sessions_leaderboard():

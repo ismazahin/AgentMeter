@@ -14,7 +14,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from agentmeter.server.sessions import LEADERBOARD_SORTS, compare_s, cp_summary, leaderboard_s  # noqa: E402
+from agentmeter.server.sessions import (LEADERBOARD_SORTS, comparable_s, compare_many_s, compare_s,  # noqa: E402
+                                       cp_summary, leaderboard_s)
 from agentmeter.session.constraints import ConstraintError, evaluate_facts, load_rules  # noqa: E402
 
 OUT = REPO / "worker" / "test" / "fixtures" / "parity.json"
@@ -64,6 +65,7 @@ def build() -> dict:
          ("Qwen/Qwen2.5-7B-Instruct",)),
         ("job_20261001_140000_" + "5" * 32, _ident(B, "Demo (no GPU)", "fpm", "mock"), 1.0, "mock", (), True, ()),
         ("job_20261001_150000_abcdef", {}, 1.1, "hf", (), True, ()),   # legacy id, no identity
+        ("job_20261001_160000_" + "6" * 32, _ident(A, "NVIDIA L4", "fp1", "hf"), 0.9, "hf", (), True, ()),  # 3rd on setup 0
     ]
     summaries = []
     for sid, ident, scale, prov, drop, lab, models in specs:
@@ -92,6 +94,9 @@ def build() -> dict:
                      "out": compare_s(summaries[i], summaries[j])} for i, j in pairs],
         "leaderboard": {sort: leaderboard_s(newest_first, sort) for sort in LEADERBOARD_SORTS},
         "constraints": cons,
+        "comparable": [{"session": x["session_id"], "out": comparable_s(x, newest_first)} for x in summaries],
+        "merged": [{"sessions": [summaries[i]["session_id"] for i in ids], "out": compare_many_s([summaries[i] for i in ids])}
+                   for ids in ([0, 1], [0, 1, 6], [6, 1, 0], [0, 2], [0, 5], [4, 4])],
     }
 
 

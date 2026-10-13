@@ -54,7 +54,8 @@ from .jobs import _JOB_ID, strong_job_id
 JOB_CREATING = {("POST", "/api/prepare"), ("POST", "/api/prepared/import"), ("POST", "/api/jobs")}
 _WRITE = {"POST", "PUT", "PATCH", "DELETE"}
 _WRITE_KIND = {"/api/prepare": "prepare", "/api/prepared/import": "import", "/api/jobs": "benchmark"}
-_READ_EXACT = {"/api/jobs", "/api/sessions", "/api/compare", "/api/leaderboard"}
+_READ_EXACT = {"/api/jobs", "/api/sessions", "/api/compare", "/api/compare/candidates", "/api/compare/merged",
+               "/api/leaderboard"}
 _JOB_SUB = re.compile(r"^/api/jobs/([^/]+)(?:/(result|report\.pdf|constraints|resume|stop))?$")
 _SESSION = re.compile(r"^/api/sessions/[^/]+$")
 _PREPARED = re.compile(r"^/api/prepared/([^/]+)/([^/]+)(?:/([^/]+))?$")

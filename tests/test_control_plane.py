@@ -462,3 +462,20 @@ def test_front_end_never_shows_identification_columns():
     for col in control_plane.IDENTIFICATION_COLUMNS:            # as a field / key (prose naming them is fine)
         assert not re.search(rf"""(["'.\[]){col}(["'\]])""", html) and not re.search(rf"\.{col}\b", html), col
     assert "src_ip" not in html and "dst_ip" not in html
+
+
+def test_merged_compare_only_on_the_same_setup():
+    from agentmeter.server import sessions as S
+    fx = json.loads((PROJECT_ROOT / "worker" / "test" / "fixtures" / "parity.json").read_text())
+    by = {x["session_id"]: x for x in fx["summaries"]}
+    a, b, c, d6 = fx["summaries"][0], fx["summaries"][1], fx["summaries"][2], fx["summaries"][6]
+    cand = S.comparable_s(a, list(reversed(fx["summaries"])))
+    ids = [x["session_id"] for x in cand["sessions"]]
+    assert set(ids) == {b["session_id"], d6["session_id"]}              # same flows, GPU and settings only
+    assert c["session_id"] not in ids                                     # same flows + GPU, other settings
+    out = S.compare_many_s([a, b, d6])
+    assert len(out["runs"]) == 3 * len(a["metrics"]) and {m["n_runs"] for m in out["by_model"]} == {3}
+    saw = next(r for r in out["rows"] if r["metric"] == "saw_composite_100")
+    assert saw["values"][0] == a["metrics"][next(iter(a["metrics"]))]["saw_composite_100"]   # stored, copied
+    assert S.compare_many_s([a, c])["error"] == "not_same_setup"
+    assert by                                                              # fixtures loaded

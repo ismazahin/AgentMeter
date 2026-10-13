@@ -218,3 +218,61 @@ export function evaluateFacts(facts: Record<string, any>[], limits?: Record<stri
     per_model: per,
   };
 }
+
+// --- merged compare: every session on the SAME SETUP (port of sessions.py comparable_s / compare_many_s) ---
+export const MERGED_EXTRA: [string, string, string, boolean][] = [["saw_composite_100", "SAW composite (stored, fixed targets)", "score", false]];
+
+export function setupKey(s: Summary): string | null {
+  const i = s.identity || {};
+  const k = [i.prepared_set_sha256, i.gpu_label, i.settings_fingerprint];
+  return k.every((x) => x) ? JSON.stringify(k) : null;
+}
+function setupOf(s: Summary) {
+  const i = s.identity || {};
+  return { prepared_set_sha256: i.prepared_set_sha256 ?? null, gpu: i.gpu_label ?? null, settings_fingerprint: i.settings_fingerprint ?? null,
+           input_type: s.input_type ?? null, n_flows: s.n_flows ?? null, labelled: !!s.labelled, demo: i.provider === "mock" };
+}
+const BRIEF = ["session_id", "models", "created_at", "finished_at", "owner_username", "n_flows", "status", "run_name", "input_type"];
+const brief = (s: Summary) => Object.fromEntries(BRIEF.map((k) => [k, s[k] ?? null]));
+
+export function comparable(target: Summary, summaries: Summary[]) {
+  const key = setupKey(target);
+  const same = summaries.filter((s) => key && s.session_id !== target.session_id && setupKey(s) === key);
+  return { session: brief(target), setup: key ? setupOf(target) : null, sessions: same.map(brief),
+           rule: "Comparable = the same flows (prepared-set hash), the same GPU and the same settings." };
+}
+
+export function compareMany(summaries: Summary[]) {
+  const keys = summaries.map(setupKey);
+  if (summaries.length < 2 || keys[0] === null || keys.some((k) => k !== keys[0]))
+    return { error: "not_same_setup", differs: summaries.filter((s, i) => keys[i] === null || keys[i] !== keys[0]).map((s) => s.session_id) };
+  const labelled = summaries.every((s) => s.labelled);
+  const runs: any[] = [];
+  for (const s of summaries)
+    for (const [m, row] of Object.entries((s.metrics || {}) as Record<string, any>))
+      runs.push({ session: s.session_id, model: m, created_at: s.created_at ?? null, owner: s.owner_username ?? null, n_flows: row.n_flows ?? null, metrics: row });
+  const defs = [...METRICS, ...MERGED_EXTRA];
+  const rows: any[] = [];
+  for (const [key, label, unit, lower] of defs) {
+    const vals = runs.map((r) => r.metrics[key] ?? null);
+    const present = vals.filter(nn) as number[];
+    const best = present.length > 1 ? (lower ? Math.min(...present) : Math.max(...present)) : null;
+    rows.push({ metric: key, label, unit, lower_is_better: lower, values: vals,
+                best_index: vals.map((v, i) => (best !== null && v === best ? i : -1)).filter((i) => i >= 0) });
+  }
+  if (labelled)
+    rows.push({ metric: "accuracy", label: "Accuracy (context only)", unit: "share", lower_is_better: false, context_only: true,
+                values: runs.map((r) => r.metrics.accuracy ?? null), best_index: [] });
+  const byModel = new Map<string, { model: string; runs: string[]; pairs: Record<string, [number | null, number][]> }>();
+  for (const r of runs) {
+    if (!byModel.has(r.model)) byModel.set(r.model, { model: r.model, runs: [], pairs: {} });
+    const b = byModel.get(r.model)!;
+    b.runs.push(r.session);
+    for (const [key] of [...defs, ["accuracy"]]) (b.pairs[key as string] ||= []).push([r.metrics[key as string] ?? null, r.n_flows || 0]);
+  }
+  const models = [...byModel.values()].map((b) => ({ model: b.model, n_runs: b.runs.length, sessions: b.runs,
+    values: Object.fromEntries(Object.entries(b.pairs).map(([k, v]) => [k, wmean(v)])) }));
+  return { setup: setupOf(summaries[0]), sessions: summaries.map((s) => s.session_id),
+           runs: runs.map(({ metrics, ...r }) => r), rows, by_model: models, labelled,
+           note: "Same flows, same GPU, same settings: differences are the models'. Values are the stored ones; the best per row is marked. A model in several sessions is shown per run, or as its flow-weighted mean (a view only — stored scores never change)." };
+}

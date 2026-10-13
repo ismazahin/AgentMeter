@@ -175,6 +175,8 @@ way a benchmark is computed does not change.
 | `GET /api/sessions` (`?status=Done\|Demo\|Running\|Failed&input=CSV\|PCAP`) | Phase 46: benchmark sessions for Home / Sessions (needs a read token with a control plane; the app reads the Worker copy) |
 | `GET /api/sessions/<id>` | One session's summary and identity (prepared-set hash, GPU, settings fingerprint) |
 | `GET /api/compare?a=<id>&b=<id>` | Side-by-side efficiency metrics plus the like-for-like check |
+| `GET /api/compare/candidates?session=<id>` | The finished sessions on the same setup (same flows hash, GPU, settings) |
+| `GET /api/compare/merged?sessions=<id>,<id>,…` | Every model of 2–20 same-setup sessions side by side, plus each model's flow-weighted mean; 400 `not_same_setup` otherwise |
 | `GET /api/leaderboard?sort=latency\|vram\|tokens\|cost\|energy` | Models ranked within (prepared-set hash, GPU) groups (needs a read token with a control plane; the app reads the Worker copy) |
 
 - **Status:** `queued → running → done | failed | interrupted | stopped`.
@@ -258,11 +260,17 @@ wizard.
   asks it, by message, to show only its own sections. Only the layout and wording are the
   app's: every number comes unchanged from the stored results, and the PDF keeps its full
   wording.
-- **Compare:** pick 2 finished sessions to see every efficiency metric side by side. The
-  validity check sits at the top: same prepared-set hash? same GPU? same settings
-  (provider, quantisation, generation, agents, token caps, classes)? If anything
-  differs, the page lists what differs and labels the comparison **not like-for-like**,
-  with no best-value marks.
+- **Compare:** pick a finished session; the page then lists **only** the sessions on the same
+  setup — the same prepared-set hash (the same flows), the same GPU and the same settings
+  (provider, quantisation, generation, agents, token caps, classes). Tick any of them and
+  Compare shows every model of every ticked session side by side (one column per run, best
+  value per row marked; a row where all runs are equal marks none): Overview (fastest, least
+  working VRAM, fewest tokens, top stored SAW score), Performance, Cost & Energy, Accuracy
+  (context; labelled sets only), and All metrics. A model in several sessions can be shown per
+  run or as its flow-weighted mean (a view only). A session with no match says so and offers
+  "Benchmark these flows again". Values are the stored ones (the SAW score is the stored score
+  against fixed targets, never recomputed). Cross-session statistics (Cliff's delta, CIs) are
+  not computed: the stored results hold per-model summaries, not every flow's values.
 - **Leaderboard:** models ranked across sessions, but only inside a (prepared-set hash,
   GPU) group. Each row shows the sessions and flows behind it (flow-weighted means), and
   can be sorted by latency, VRAM, tokens, cost per 1,000 flows or energy per flow. A

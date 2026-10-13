@@ -264,17 +264,30 @@ async function frameOf(p) {
   await p.click('#session-compare'); await p.waitForSelector('#cmp-a option[value="' + job3 + '"]', { state: 'attached' });
   await p.waitForFunction(id => document.querySelector('#cmp-a').value === id, job3);
   log(await p.$eval('#cmp-a', s => s.value) === job3, 'Compare is preselected from the session page');
-  await p.selectOption('#cmp-b', job1); await p.click('#cmp-go');
+  await p.waitForSelector('#cmp-list input');
+  const offered = await p.$$eval('#cmp-list input', xs => xs.map(x => x.value));
+  log(offered.includes(job1) && !offered.includes(job2) && !offered.includes(job3), 'Compare offers only sessions on the same setup (CSV session 1; not the PCAP one)');
+  await p.click('#cmp-go');
   await p.waitForSelector('#cmp-validity');
-  log(/Like-for-like comparison/.test(await p.textContent('#cmp-validity')), 'Compare: same set + GPU + settings -> like-for-like');
-  log((await p.$$('#cmp-table thead th')).length === 5 && (await p.$$('#cmp-table tbody tr')).length >= 14, 'Compare: every efficiency metric, 4 model columns');
+  log(/Like-for-like comparison/.test(await p.textContent('#cmp-validity')) && /2 sessions/.test(await p.textContent('#cmp-validity')), 'Compare: merged view, like-for-like, 2 sessions');
+  log((await p.$$('#cmp-table thead th')).length === 5 && (await p.$$('#cmp-table tbody tr')).length >= 15, 'Compare: every metric (+ SAW, accuracy), 4 run columns');
+  log((await p.$$('#cmp-tiles .tile')).length === 4 && !!(await p.$('#cmp-overview-table td.best')), 'Compare › Overview: who is fastest / least VRAM / fewest tokens / top SAW, best marked');
+  if (await p.$('#cmp-mode')) {
+    await p.check('#cmp-mode input[value="mean"]');
+    log((await p.$$('#cmp-overview-table thead th')).length < 5, 'Compare: "Mean per model" folds the same model of both sessions into one column');
+    await p.check('#cmp-mode input[value="runs"]');
+  }
+  await p.click('#ctab-performance');
+  log(!!(await p.$('#cmp-performance-table')), 'Compare › Performance');
+  await p.click('#ctab-accuracy');
+  log(/context/.test(await p.textContent('#cmp-accuracy-table')), 'Compare › Accuracy (context)');
   await p.screenshot({ path: S + '/09-compare-like.png', fullPage: true });
-  await p.selectOption('#cmp-b', job2); await p.click('#cmp-go');
-  await p.waitForFunction(() => /Not like-for-like/.test(document.querySelector('#cmp-validity').textContent));
-  const vt = await p.textContent('#cmp-validity');
-  log(/Same prepared set/.test(vt) && /differs/.test(vt), 'Compare: CSV vs PCAP -> NOT like-for-like, names the prepared set');
-  log(!(await p.$('#cmp-table td.best')), 'Compare: no best-value marks when not like-for-like');
-  await p.screenshot({ path: S + '/10-compare-not.png', fullPage: true });
+  await p.goto(BASE + '/#/compare?a=' + job2); await p.waitForSelector('#cmp-none');
+  log(/No other session uses the same flows/.test(await p.textContent('#cmp-none')) && /Benchmark these flows again/.test(await p.textContent('#cmp-none')),
+      'Compare: a session with no match says so and offers to benchmark its flows again');
+  await p.goto(BASE + '/#/compare?a=' + job1 + '&b=' + job2); await p.waitForSelector('#cmp-error:not([hidden])');
+  log(/same flows, GPU and settings/.test(await p.textContent('#cmp-error')), 'an old link to two different setups is refused (not merged)');
+  await p.screenshot({ path: S + '/10-compare-none.png', fullPage: true });
 
   // 9. Leaderboard
   await p.click('.mainnav a[data-nav="leaderboard"]'); await p.waitForSelector('.lb-group');
@@ -308,7 +321,7 @@ async function frameOf(p) {
   ph.on('pageerror', e => errs.push('phone: ' + e.message));
   for (const [hash, sel] of [['#/', '#home-latest:not([hidden])'], ['#/new', '#svc-upload-form:not([hidden])'],
                              ['#/session/' + job1, '#session-body:not([hidden])'], ['#/leaderboard', '.lb-group'],
-                             ['#/compare?a=' + job1 + '&b=' + job2, '#cmp-validity']]) {
+                             ['#/compare?a=' + job1 + '&b=' + job3, '#cmp-validity']]) {
     await ph.goto(BASE + '/' + hash); await ph.waitForSelector(sel, { timeout: 20000 });
     const over = await ph.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     log(over <= 0, 'phone 375px: no horizontal page scroll on ' + hash + ' (' + over + ')');

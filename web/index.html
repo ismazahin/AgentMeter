@@ -598,15 +598,12 @@
 
   <!-- COMPARE -->
   <section id="view-compare" class="view" hidden aria-labelledby="h-compare">
-    <div class="page-head"><div><h1 id="h-compare">Compare two sessions</h1>
-      <p>Every efficiency metric side by side. A comparison is like-for-like only on the same prepared set, the same GPU
-        and the same settings.</p></div></div>
+    <div class="page-head"><div><h1 id="h-compare">Compare</h1>
+      <p>Pick a session; only sessions on the same flows, GPU and settings can join it.<span class="info-i" tabindex="0" role="button" data-tip="Same flows = the same prepared set (its hash), so every model answered exactly the same flows. Same GPU and same settings (4-bit, token caps, agents) mean the differences are the models', not the setup.">i</span></p></div></div>
     <form class="card" id="cmp-form" novalidate>
-      <div class="row" style="margin-top:0">
-        <div class="field" style="flex:1 1 280px"><label for="cmp-a">Session A</label><select id="cmp-a"></select></div>
-        <div class="field" style="flex:1 1 280px"><label for="cmp-b">Session B</label><select id="cmp-b"></select></div>
-        <button type="submit" class="btn primary" id="cmp-go" style="align-self:flex-end">Compare</button>
-      </div>
+      <div class="field" style="max-width:720px"><label for="cmp-a">Session</label><select id="cmp-a"></select></div>
+      <div id="cmp-cands" aria-live="polite"></div>
+      <div class="row"><button type="submit" class="btn primary" id="cmp-go" disabled>Compare</button></div>
       <div id="cmp-error" class="notice error" role="alert" hidden></div>
     </form>
     <div id="cmp-result"></div>
@@ -792,7 +789,7 @@
   // issued (POST /api/runs/authorize). Without CP (local development) the backend is called
   // directly, without tokens.
   var CP = "", AUTH = { access: null, exp: 0, user: null }, SETTINGS = null, BACKEND = null;
-  var WORKER_PATHS = /^\/api\/(sessions(\/|\?|$)|compare(\?|$)|leaderboard(\?|$)|settings(\/|$)|me(\/|$)|admin\/|backend$|runs\/|auth\/)/;
+  var WORKER_PATHS = /^\/api\/(sessions(\/|\?|$)|compare(\/|\?|$)|leaderboard(\?|$)|settings(\/|$)|me(\/|$)|admin\/|backend$|runs\/|auth\/)/;
   var STRONG_JOB = /^job_\d{8}_\d{6}_[0-9a-f]{32}$/;
   var READ_TOK = null, FILE_TOK = {}, GRANTS = {};          // cached read/files tokens; jti of my prepare/import
   // "Remember me" on: the refresh token is kept in localStorage (stays after the browser closes);
@@ -2211,50 +2208,144 @@
   }
 
   // ---------- COMPARE ----------
+  // Compare: one session + the sessions on the SAME setup (same flows hash, GPU, settings) —
+  // only those are offered. The merged view shows every run side by side (stored values).
+  var CMP = { rows: [], data: null, mode: "runs", tab: "overview" };
+  function sessionLabel(s) {
+    return (s.models || []).map(short).join(" vs ") + " · " + (s.input_type || "") + " · " + fmtNum(s.n_flows) + " flows · " +
+      (s.gpu || "") + " · " + fmtDate(s.finished_at || s.created_at);
+  }
   function loadCompare(q) {
     $("cmp-error").hidden = true;
+    if (q.a && q.b && !q.sessions) { location.replace("#/compare?sessions=" + enc(q.a) + "," + enc(q.b)); return; }   // old links
+    var ids = (q.sessions || "").split(",").filter(Boolean), first = ids[0] || q.a || "";
     api("/api/sessions?limit=200").then(function (r) {
-      var rows = ((r.ok && r.data.sessions) || []).filter(function (s) { return s.status === "Done" || s.status === "Demo"; });
       if (!r.ok) { showError($("cmp-error"), r.data); return; }
-      var opts = rows.map(function (s) {
-        return '<option value="' + esc(s.session_id) + '">' + esc((s.models || []).map(short).join(" vs ") + " · " + (s.input_type || "") + " · " + fmtNum(s.n_flows) + " flows · " + s.gpu + " · " + s.session_id) + '</option>';
+      CMP.rows = (r.data.sessions || []).filter(function (s) { return s.status === "Done" || s.status === "Demo"; });
+      $("cmp-a").innerHTML = '<option value="">Choose a session…</option>' + CMP.rows.map(function (s) {
+        return '<option value="' + esc(s.session_id) + '">' + esc(sessionLabel(s)) + '</option>';
       }).join("");
-      ["cmp-a", "cmp-b"].forEach(function (id) { $(id).innerHTML = '<option value="">Choose a session…</option>' + opts; });
-      if (rows.length < 2) $("cmp-result").innerHTML = '<div class="card empty"><p>Comparing needs two finished sessions.</p><a class="btn primary" href="#/new">New benchmark</a></div>';
-      else $("cmp-result").innerHTML = "";
-      if (q.a) $("cmp-a").value = q.a;
-      if (q.b) $("cmp-b").value = q.b;
-      if (q.a && q.b) runCompare(q.a, q.b);
+      $("cmp-result").innerHTML = CMP.rows.length ? "" : '<div class="card empty"><p>No finished sessions yet.</p><a class="btn primary" href="#/new">New benchmark</a></div>';
+      $("cmp-cands").innerHTML = ""; $("cmp-go").disabled = true;
+      if (first) { $("cmp-a").value = first; loadCandidates(first, ids.slice(1)); }
+      if (ids.length >= 2) runMerged(ids);
+    });
+  }
+  $("cmp-a").addEventListener("change", function () { $("cmp-result").innerHTML = ""; loadCandidates($("cmp-a").value, null); });
+  function loadCandidates(id, picked) {
+    var box = $("cmp-cands");
+    $("cmp-go").disabled = true;
+    if (!id) { box.innerHTML = ""; return; }
+    box.innerHTML = '<p class="muted small">Finding sessions on the same setup…</p>';
+    api("/api/compare/candidates?session=" + enc(id)).then(function (r) {
+      if (!r.ok) { box.innerHTML = ""; showError($("cmp-error"), r.data); return; }
+      var c = r.data, list = c.sessions || [], me = CMP.rows.filter(function (s) { return s.session_id === id; })[0] || {};
+      if (!c.setup) { box.innerHTML = '<p class="notice warn small" id="cmp-none">This session predates the setup fingerprint, so it cannot be compared.</p>'; return; }
+      if (!list.length) {
+        box.innerHTML = '<div class="notice" id="cmp-none"><b>No other session uses the same flows, GPU and settings.</b> Run these flows again with other models to compare them.' +
+          (me.run_name ? '<div class="actions"><a class="btn" href="#/new/models?set=' + enc(me.run_name) + '">Benchmark these flows again</a></div>' : "") + '</div>';
+        return;
+      }
+      box.innerHTML = '<fieldset style="border:0;padding:0;margin:12px 0 0"><legend class="small" style="font-weight:600">Same flows, GPU and settings (' + list.length + ')</legend>' +
+        '<div class="models" id="cmp-list">' + list.map(function (s) {
+          var on = !picked || !picked.length || picked.indexOf(s.session_id) >= 0;
+          return '<label class="model"><input type="checkbox" value="' + esc(s.session_id) + '"' + (on ? " checked" : "") + '><span><b>' + esc((s.models || []).map(short).join(" vs ")) +
+            '</b><br><span class="muted small">' + esc(fmtDate(s.finished_at || s.created_at)) + (s.owner_username ? " · " + esc(s.owner_username) : "") + '</span></span></label>';
+        }).join("") + '</div></fieldset>';
+      var sync = function () { $("cmp-go").disabled = !box.querySelector("input:checked"); };
+      box.querySelectorAll("input").forEach(function (x) { x.addEventListener("change", sync); });
+      sync();
     });
   }
   $("cmp-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
-    var a = $("cmp-a").value, b = $("cmp-b").value;
-    if (!a || !b || a === b) { showError($("cmp-error"), { error: "Pick two different sessions." }); return; }
-    location.hash = "#/compare?a=" + enc(a) + "&b=" + enc(b);
+    var a = $("cmp-a").value, rest = Array.prototype.map.call($("cmp-cands").querySelectorAll("input:checked"), function (x) { return x.value; });
+    if (!a || !rest.length) { showError($("cmp-error"), { error: "Pick a session and at least one session to compare it with." }); return; }
+    location.hash = "#/compare?sessions=" + [a].concat(rest).map(enc).join(",");
   });
-  function runCompare(a, b) {
-    api("/api/compare?a=" + enc(a) + "&b=" + enc(b)).then(function (r) {
-      if (!r.ok) { showError($("cmp-error"), r.data); return; }
-      var c = r.data, v = c.validity;
-      var head = c.columns.map(function (col) { return '<th class="num">' + esc(col.side) + ' · ' + esc(short(col.model)) + '</th>'; }).join("");
-      $("cmp-result").innerHTML =
-        '<div class="validity ' + (v.like_for_like ? "ok" : "bad") + '" id="cmp-validity" role="status"><strong>' + (v.like_for_like ? "Like-for-like comparison" : "Not like-for-like") + '</strong>' +
-        '<p class="small" style="margin:6px 0 10px">' + esc(c.note) + '</p><div class="table-wrap"><table id="cmp-checks"><thead><tr><th>Check</th><th>Result</th><th>A</th><th>B</th></tr></thead><tbody>' +
-        v.checks.map(function (k) {
-          return '<tr><td>' + esc(k.label) + '</td><td><span class="chip ' + (k.same ? "ok" : "warn") + '">' + (k.same ? "same" : "differs") + '</span>' +
-            (k.differs && k.differs.length ? ' <span class="small muted">' + esc(k.differs.join(", ")) + '</span>' : "") + '</td><td class="mono small">' + esc(k.a || "—") + '</td><td class="mono small">' + esc(k.b || "—") + '</td></tr>';
-        }).join("") + '</tbody></table></div></div>' +
-        '<div class="card"><h2>Efficiency metrics</h2><p class="muted small">A: <a href="#/session/' + enc(c.a.session_id) + '" title="' + esc(c.a.session_id) + '">' + esc(shortId(c.a.session_id)) + '</a> · B: <a href="#/session/' + enc(c.b.session_id) + '" title="' + esc(c.b.session_id) + '">' + esc(shortId(c.b.session_id)) + '</a>' +
-        (v.like_for_like ? " · best value per row in teal." : " · no best-value marks: these sessions are not like-for-like.") + '</p>' +
-        '<div class="table-wrap"><table id="cmp-table"><thead><tr><th>Metric</th>' + head + '</tr></thead><tbody>' +
-        c.rows.map(function (row) {
-          var f = METRIC_FMT[row.unit] || function (x) { return fmtNum(x, 2); };
-          return '<tr><td>' + esc(row.label) + (row.context_only ? ' <span class="muted small">(context)</span>' : "") + '</td>' + row.values.map(function (x, i) {
-            return '<td class="num' + (v.like_for_like && row.best_index.indexOf(i) >= 0 ? " best" : "") + '">' + (x == null ? '<span class="muted">—</span>' : f(x)) + '</td>';
-          }).join("") + '</tr>';
-        }).join("") + '</tbody></table></div></div>';
+  var CMP_TABS = [["overview", "Overview"], ["performance", "Performance"], ["cost", "Cost & Energy"], ["accuracy", "Accuracy"]];
+  var CMP_GROUPS = {
+    performance: ["mean_latency_s", "median_latency_s", "p95_latency_s", "p99_latency_s", "mean_peak_vram_mb", "max_peak_vram_mb", "total_peak_mb",
+                  "weights_mb", "mean_tokens_per_flow", "mean_input_tokens_per_flow", "mean_output_tokens_per_flow", "handoff_share_of_total", "throughput_flows_per_s"],
+    cost: ["cost_per_1k_flows_usd", "wh_per_flow", "wh_per_1k_flows", "wh_per_flow_net_idle"],
+    accuracy: ["accuracy", "saw_composite_100"]
+  };
+  function runMerged(ids) {
+    $("cmp-result").innerHTML = '<p class="muted">Loading…</p>';
+    api("/api/compare/merged?sessions=" + ids.map(enc).join(",")).then(function (r) {
+      if (!r.ok) { $("cmp-result").innerHTML = ""; showError($("cmp-error"), r.data); return; }
+      CMP.data = r.data; CMP.tab = "overview";
+      CMP.mode = "runs";
+      renderMerged();
     });
+  }
+  // the columns of the current mode: each run, or each model's flow-weighted mean (a view only)
+  function cmpCols() {
+    var d = CMP.data;
+    if (CMP.mode === "mean") return d.by_model.map(function (m) { return { head: short(m.model), sub: m.n_runs + " run" + (m.n_runs === 1 ? "" : "s") + " · mean", val: function (k) { return m.values[k]; } }; });
+    return d.runs.map(function (run, i) {
+      return { head: short(run.model), sub: fmtDate(run.created_at).slice(0, 16) + (run.owner ? " · " + run.owner : ""), session: run.session,
+               val: function (k) { var row = d.rows.filter(function (x) { return x.metric === k; })[0]; return row ? row.values[i] : null; } };
+    });
+  }
+  function bestIdx(vals, lower) {
+    var p = vals.filter(function (v) { return v != null; });
+    if (p.length < 2) return [];
+    var b = lower ? Math.min.apply(null, p) : Math.max.apply(null, p);
+    if (p.every(function (v) { return v === b; })) return [];               // all equal: nothing stands out
+    return vals.map(function (v, i) { return v === b ? i : -1; }).filter(function (i) { return i >= 0; });
+  }
+  function cmpTable(id, keys) {
+    var d = CMP.data, cols = cmpCols();
+    var defs = keys.map(function (k) { return d.rows.filter(function (x) { return x.metric === k; })[0]; }).filter(Boolean);
+    return '<div class="table-wrap"><table id="' + id + '"><thead><tr><th>Metric</th>' + cols.map(function (c) {
+      return '<th class="num">' + esc(c.head) + '<br><span class="small muted" style="font-weight:400">' + esc(c.sub) + '</span></th>';
+    }).join("") + '</tr></thead><tbody>' + defs.map(function (row) {
+      var f = row.unit === "score" ? function (x) { return fmtNum(x, 2); } : (METRIC_FMT[row.unit] || function (x) { return fmtNum(x, 2); });
+      var vals = cols.map(function (c) { return c.val(row.metric); });
+      var best = row.context_only ? [] : bestIdx(vals, row.lower_is_better);
+      return '<tr><td>' + esc(row.label) + (row.context_only && !/context/.test(row.label) ? ' <span class="muted small">(context)</span>' : "") + '</td>' + vals.map(function (x, i) {
+        return '<td class="num' + (best.indexOf(i) >= 0 ? " best" : "") + '">' + (x == null ? '<span class="muted">—</span>' : f(x)) + '</td>';
+      }).join("") + '</tr>';
+    }).join("") + '</tbody></table></div>';
+  }
+  function cmpTiles() {
+    var cols = cmpCols(), pick = function (k, lower) {
+      var vals = cols.map(function (c) { return c.val(k); }), b = bestIdx(vals, lower);
+      return b.length === 1 ? cols[b[0]].head : vals.filter(function (v) { return v != null; }).length > 1 ? "Tie" : "—";
+    };
+    var t = [["⚡ Fastest", pick("mean_latency_s", true)], ["🧠 Least working VRAM", pick("mean_peak_vram_mb", true)],
+             ["🔤 Fewest tokens", pick("mean_tokens_per_flow", true)], ["🏆 Top SAW score", pick("saw_composite_100", false)]];
+    return '<div class="tiles" id="cmp-tiles">' + t.map(function (x) { return '<div class="tile"><div class="k">' + x[0] + '</div><div class="v" style="font-size:18px">' + esc(x[1]) + '</div></div>'; }).join("") + '</div>';
+  }
+  function renderMerged() {
+    var d = CMP.data, st = d.setup, multi = d.by_model.some(function (m) { return m.n_runs > 1; });
+    var tabs = CMP_TABS.filter(function (t) { return t[0] !== "accuracy" || d.labelled; });
+    if (!tabs.some(function (t) { return t[0] === CMP.tab; })) CMP.tab = "overview";
+    var body;
+    if (CMP.tab === "overview") {
+      var cols = cmpCols();
+      body = cmpTiles() + '<div class="card"><h2>' + (CMP.mode === "mean" ? "Models" : "Runs") + '</h2>' +
+        cmpTable("cmp-overview-table", ["mean_latency_s", "mean_peak_vram_mb", "mean_tokens_per_flow", "cost_per_1k_flows_usd", "saw_composite_100"].concat(d.labelled ? ["accuracy"] : [])) +
+        (CMP.mode === "runs" ? '<p class="small muted">Sessions: ' + d.sessions.map(function (sid) { return '<a href="#/session/' + enc(sid) + '" title="' + esc(sid) + '">' + esc(shortId(sid)) + '</a>'; }).join(" · ") + '</p>' : "") + '</div>';
+    } else {
+      body = '<div class="card">' + cmpTable("cmp-" + CMP.tab + "-table", CMP_GROUPS[CMP.tab]) +
+        (CMP.tab === "accuracy" ? '<p class="muted small">Accuracy is context only.' + infoI("AgentMeter measures efficiency; it does not rank threat detectors.") + '</p>' : "") + '</div>';
+    }
+    $("cmp-result").innerHTML =
+      '<div class="validity ok" id="cmp-validity" role="status"><strong>Like-for-like comparison</strong> · ' + d.sessions.length + ' sessions · same flows (' +
+        esc(String(st.input_type || "").toUpperCase()) + ', ' + fmtNum(st.n_flows) + ' flows, set <span class="mono">' + esc(String(st.prepared_set_sha256).slice(0, 12)) + '</span>), same GPU (' + esc(st.gpu) + '), same settings' +
+        infoI(d.note) + '</div>' +
+      (multi ? '<div class="seg-opts" id="cmp-mode" style="margin:12px 0" role="radiogroup" aria-label="Same model in several sessions">' +
+        '<label><input type="radio" name="cmp-mode" value="runs"' + (CMP.mode === "runs" ? " checked" : "") + '> Each run</label>' +
+        '<label><input type="radio" name="cmp-mode" value="mean"' + (CMP.mode === "mean" ? " checked" : "") + '> Mean per model</label></div>' : "") +
+      '<div class="tabs" role="tablist" aria-label="Comparison sections" id="cmp-tabs">' + tabs.map(function (t) {
+        return '<a role="tab" href="#" data-ctab="' + t[0] + '" id="ctab-' + t[0] + '" aria-selected="' + (t[0] === CMP.tab) + '">' + esc(t[1]) + '</a>';
+      }).join("") + '</div>' + body +
+      '<details class="info"><summary>All metrics</summary>' + cmpTable("cmp-table", d.rows.map(function (x) { return x.metric; })) + '</details>' +
+      '<p class="muted small">View only: stored scores never change.</p>';
+    $("cmp-result").querySelectorAll("[data-ctab]").forEach(function (a) { a.addEventListener("click", function (ev) { ev.preventDefault(); CMP.tab = a.getAttribute("data-ctab"); renderMerged(); }); });
+    $("cmp-result").querySelectorAll('input[name="cmp-mode"]').forEach(function (x) { x.addEventListener("change", function () { CMP.mode = x.value; renderMerged(); }); });
   }
 
   // ---------- LEADERBOARD ----------

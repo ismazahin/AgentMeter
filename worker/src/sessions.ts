@@ -4,7 +4,7 @@
 // CPU stays far below 10 ms): in D1 up to RESULTS_R2_THRESHOLD bytes, otherwise in R2.
 import { requireUser } from "./auth";
 import { mapJobStatus as STATUS_FROM_JOB, parseBody, verifyBackend } from "./backend";
-import { ConstraintError, Summary, compare, evaluateFacts, leaderboard, LEADERBOARD_SORTS } from "./analytics";
+import { ConstraintError, Summary, compare, compareMany, comparable, evaluateFacts, leaderboard, LEADERBOARD_SORTS } from "./analytics";
 import { notifyFinal } from "./notify";
 import { Env, fail, intVar, json, nowIso } from "./util";
 
@@ -119,6 +119,51 @@ export async function compareRoute(req: Request, env: Env): Promise<Response> {
   const sa = ss.find((s) => s.session_id === a), sb = ss.find((s) => s.session_id === b);
   if (!sa || !sb) fail(400, "bad_request", "both must be finished sessions");
   return json(compare(sa!, sb!));
+}
+
+/** GET /api/compare/candidates?session=<id> — the finished sessions on the same setup. */
+export async function compareCandidatesRoute(req: Request, env: Env): Promise<Response> {
+  await requireUser(req, env);
+  const id = new URL(req.url).searchParams.get("session") || "";
+  checkId(id);
+  const all = await withSaw(env, await summaries(env));
+  const target = all.find((s) => s.session_id === id);
+  if (!target) fail(400, "bad_request", "pick a finished benchmark session");
+  return json(comparable(target!, all));
+}
+
+/** GET /api/compare/merged?sessions=a,b,… — every model of those sessions side by side (same setup only). */
+export async function compareMergedRoute(req: Request, env: Env): Promise<Response> {
+  await requireUser(req, env);
+  const ids = (new URL(req.url).searchParams.get("sessions") || "").split(",").filter(Boolean);
+  if (ids.length < 2 || new Set(ids).size !== ids.length || ids.length > 20) fail(400, "bad_request", "pick 2 to 20 different sessions (?sessions=a,b,…)");
+  ids.forEach(checkId);
+  const got = await withSaw(env, await summaries(env, ids));
+  const byId = new Map(got.map((s) => [s.session_id, s]));
+  if (ids.some((i) => !byId.has(i))) fail(400, "bad_request", "every session must be a finished benchmark session");
+  const out: any = compareMany(ids.map((i) => byId.get(i)!));
+  if (out.error) return json({ error: "These sessions do not share the same flows, GPU and settings.", code: "not_same_setup", differs: out.differs }, 400);
+  return json(out);
+}
+
+/** Sessions stored before the summary carried the SAW score: copy it from their stored results (never recomputed). */
+async function withSaw(env: Env, ss: Summary[]): Promise<Summary[]> {
+  for (const s of ss) {
+    const rows = Object.values((s.metrics || {}) as Record<string, any>);
+    if (!rows.length || rows.every((r) => "saw_composite_100" in r)) continue;
+    const r = await getRow(env, s.session_id, true).catch(() => null);
+    let res: any = null;
+    try {
+      if (r?.results_json) res = JSON.parse(r.results_json);
+      else if (r?.results_r2_key) { const o = await env.R2.get(r.results_r2_key); if (o) res = await o.json(); }
+    } catch { res = null; }
+    const saw = new Map(((res?.per_model || []) as any[]).map((p) => [p.model, p.saw || {}]));
+    for (const [m, row] of Object.entries(s.metrics as Record<string, any>)) {
+      row.saw_composite_100 = saw.get(m)?.composite_100 ?? null;
+      row.saw_tier = saw.get(m)?.tier ?? null;
+    }
+  }
+  return ss;
 }
 
 export async function leaderboardRoute(req: Request, env: Env): Promise<Response> {

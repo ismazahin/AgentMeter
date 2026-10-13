@@ -5,7 +5,7 @@ import { changePassword, errorResponse, listDevices, login, logout, me, refresh,
 import { getBackend, heartbeat, register } from "./backend";
 import { authorize } from "./runs";
 import {
-  backendGetFile, backendListSessions, backendSetIdentity, compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus,
+  backendGetFile, backendListSessions, backendSetIdentity, compareCandidatesRoute, compareMergedRoute, compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus,
   leaderboardRoute, listSessions, putFile, putResults, putSummary,
 } from "./sessions";
 import { telegramTest } from "./notify";
@@ -45,6 +45,8 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/api\/sessions\/([^/]+)\/constraints$/, constraintsRoute],
   ["GET", /^\/api\/sessions\/([^/]+)\/files\/([a-z_.]+)$/, getFile],
   ["GET", /^\/api\/compare$/, compareRoute],
+  ["GET", /^\/api\/compare\/candidates$/, compareCandidatesRoute],
+  ["GET", /^\/api\/compare\/merged$/, compareMergedRoute],
   ["GET", /^\/api\/leaderboard$/, leaderboardRoute],
   // GPU backend (HMAC-signed with BACKEND_SECRET; user tokens are not accepted here)
   ["POST", /^\/api\/backend\/register$/, register],

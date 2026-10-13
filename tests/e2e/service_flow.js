@@ -51,7 +51,7 @@ async function run(p, idx) {
   await p.goto(ORIGIN + '/service/prepare'); await p.waitForSelector('#wiz-step-data:not([hidden])', { timeout: 15000 });
   log(/#\/new$/.test(p.url()), '/service/prepare opens New benchmark (' + p.url() + ')');
   log(await p.isVisible('#svc-demo'), 'demo-mode notice shown without a GPU');
-  log(/not a threat-detection/.test(await p.textContent('footer')), 'framing: measures efficiency, not a threat-detection product');
+  log(/isn't a threat detector/.test(await p.textContent('footer')), 'framing: measures efficiency, not a threat-detection product');
 
   // 1. upload a labelled CSV -> summary + downloads on step 2 while picking models
   await upload(p, REPO + '/data/sample_csv/cicids2017_sample.csv', 12);

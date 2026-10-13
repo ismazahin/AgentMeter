@@ -71,7 +71,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.goto(APP + '/');
     await p.waitForSelector('#login-form:not([hidden])');
     log(await p.isHidden('.mainnav'), 'login page first (no public sign-up; navigation hidden)');
-    log(/No public sign-up/.test(await p.textContent('#view-login')), 'login page says accounts come from the admin');
+    log(/created by your admin/.test(await p.textContent('#view-login')), 'login page says accounts come from the admin');
     await p.fill('#login-user', 'admin'); await p.fill('#login-pass', 'wrong-password-1'); await p.click('#login-go');
     await p.waitForSelector('#login-error:not([hidden])');
     log(/wrong username or password/.test(await p.textContent('#login-error')), 'a wrong password is refused');

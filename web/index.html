@@ -84,7 +84,8 @@
   h2 { font-size: 19px; line-height: 1.3; }
   h3 { font-size: 15px; line-height: 1.35; }
   p { margin: 8px 0; }
-  .wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 16px; }
+  .wrap { width: 100%; max-width: 1600px; margin: 0 auto; padding: 0 16px; }
+  @media (min-width: 900px) { .wrap { padding: 0 28px; } }
   .muted { color: var(--muted); }
   .small { font-size: 13px; }
   .mono { font-family: var(--mono); font-size: .92em; overflow-wrap: anywhere; }
@@ -115,11 +116,40 @@
   .iconbtn:hover { color: var(--text); background: var(--surface-2); }
   .iconbtn[aria-current="page"] { border-color: var(--accent); color: var(--text); }
   .iconbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .navbtn { display: none; }
   @media (max-width: 720px) {
-    .top-right { margin-left: 0; order: 2; }
-    .mainnav { order: 3; flex-basis: 100%; }
-    .mainnav a { padding: 0 10px; }
+    .top-right { margin-left: auto; }
+    .navbtn { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: var(--radius); border: 1px solid var(--border);
+      background: var(--surface); color: var(--text); font-size: 20px; cursor: pointer; }
+    .mainnav { display: none; order: 3; flex-basis: 100%; flex-direction: column; padding: 4px 0 8px; }
+    body.nav-open .mainnav { display: flex; }
+    .mainnav a { padding: 0 12px; }
+    .top-in .chip-gpu { display: none; }
   }
+  /* wide screens: the menu is a side bar; the content uses the full width */
+  @media (min-width: 1100px) {
+    :root { --side: 216px; }
+    .top .wrap { max-width: none; }
+    .mainnav { position: fixed; left: 0; top: 61px; bottom: 0; width: var(--side); flex-direction: column; flex-wrap: nowrap; gap: 4px;
+      padding: 18px 12px; border-right: 1px solid var(--border); background: var(--bg); overflow-y: auto; }
+    .mainnav a { min-height: 42px; padding: 0 14px; }
+    .mainnav a[aria-current="page"] { box-shadow: inset 3px 0 0 var(--accent); }
+    body:not(.nav-off) main.wrap, body:not(.nav-off) footer .wrap { padding-left: calc(var(--side) + 32px); padding-right: 32px;
+      max-width: calc(1600px + var(--side)); margin-left: 0; }
+  }
+  /* readable line length for running text, even on wide pages */
+  .card p, .page-head p, .cta p, .empty p, .gtk-detail { max-width: 82ch; }
+  .card .table-wrap p, td p { max-width: none; }
+  /* page grids on wide screens */
+  @media (min-width: 1100px) {
+    .home-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+    .wiz-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+    .cards-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+    .cards-2 > .wide { grid-column: 1 / -1; }
+  }
+  .tip-pop { position: absolute; z-index: 60; max-width: min(360px, calc(100vw - 32px)); background: var(--surface); color: var(--text);
+    border: 1px solid var(--border-2); border-radius: var(--radius); padding: 10px 12px; font-size: 13.5px; line-height: 1.5;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25); }
 
   /* ---------------- layout ---------------- */
   main { padding: 20px 0 48px; }
@@ -313,11 +343,12 @@
 <a class="sr-only" href="#main">Skip to content</a>
 <header class="top">
   <div class="wrap top-in">
+    <button type="button" class="navbtn" id="nav-toggle" aria-controls="main-nav" aria-expanded="false" aria-label="Menu">☰</button>
     <a class="logo" href="#/" aria-label="AgentMeter — Home">
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="0" y="12" width="4" height="4" fill="currentColor" opacity=".55"/><rect x="4" y="8" width="4" height="4" fill="currentColor" opacity=".55"/><rect x="8" y="4" width="4" height="4" fill="currentColor" opacity=".55"/><rect x="12" y="0" width="4" height="4" fill="#E8A33D"/></svg>
       AgentMeter
     </a>
-    <nav class="mainnav" aria-label="Main">
+    <nav class="mainnav" id="main-nav" aria-label="Main">
       <a href="#/" data-nav="home">Home</a>
       <a href="#/new" data-nav="new">New benchmark</a>
       <a href="#/sessions" data-nav="sessions">Sessions</a>
@@ -353,20 +384,19 @@
   <section id="view-login" class="view" hidden aria-labelledby="h-login">
     <div class="page-head"><div>
       <h1 id="h-login">Log in to AgentMeter</h1>
-      <p>AgentMeter <b>measures</b> how efficiently open-source language models run a fixed 4-agent analysis task —
-        latency, GPU memory, tokens, cost and energy. It is a measurement tool, not a threat-detection product.</p>
+      <p>Measure how efficiently open-source LLMs run a 4-agent task.</p>
     </div></div>
     <form class="card narrow" id="login-form" novalidate>
       <div class="field"><label for="login-user">Username</label>
         <input type="text" id="login-user" name="username" autocomplete="username" required autocapitalize="none" spellcheck="false"></div>
       <div class="field" style="margin-top:12px"><label for="login-pass">Password</label>
         <input id="login-pass" name="password" type="password" autocomplete="current-password" required></div>
-      <label class="check" style="margin-top:12px"><input type="checkbox" id="login-remember"> Remember me on this device</label>
-      <p class="small muted" style="margin:2px 0 0">Off: you are logged out when the browser closes, or after a while without activity.</p>
+      <div class="row" style="margin-top:12px;gap:4px"><label class="check"><input type="checkbox" id="login-remember"> Remember me on this device</label>
+        <span class="info-i" tabindex="0" role="button" data-tip="Off: you are logged out when the browser closes, or after a while without activity.">i</span></div>
       <div id="login-info" class="notice" role="status" hidden></div>
       <div id="login-error" class="notice error" role="alert" hidden></div>
       <div class="actions"><button type="submit" class="btn primary" id="login-go">Log in</button></div>
-      <p class="muted small">No public sign-up: your admin creates accounts (at most five).</p>
+      <p class="muted small">Accounts are created by your admin.</p>
     </form>
     <form class="card narrow" id="pwchange-form" hidden novalidate>
       <h2>Choose a new password</h2>
@@ -397,33 +427,31 @@
   <section id="view-home" class="view" hidden aria-labelledby="h-home">
     <div class="page-head"><div>
       <h1 id="h-home">Home</h1>
-      <p>Measure how efficiently two open-source LLMs run the same 4-agent task on your flows: latency, memory, tokens,
-        cost and energy, on the same GPU.</p>
+      <p>Compare two LLMs on your own network flows.</p>
     </div></div>
+    <div class="home-grid"><div>
     <div class="cta">
-      <div><h2>Start a new benchmark</h2><p>Upload a CSV or PCAP (or give a link), pick up to two models, and run.
-        Data preparation runs in the background while you choose.</p></div>
+      <div><h2>Start a new benchmark</h2><p>Upload a CSV or PCAP, pick two models, run.</p></div>
       <a class="btn primary big" id="home-new" href="#/new">New benchmark</a>
     </div>
     <div id="home-empty" class="card empty" hidden>
       <h2>No sessions yet</h2>
-      <p>A session is one benchmark run of up to two models on your flows — run your first one to see it here.</p>
+      <p>No sessions yet. Run your first benchmark.</p>
       <a class="btn primary" href="#/new">New benchmark</a>
     </div>
     <div id="home-latest" class="card" hidden></div>
+    </div><div>
     <div id="home-recent" class="card" hidden>
       <div class="row" style="margin-top:0;justify-content:space-between"><h2>Recent sessions</h2><a href="#/sessions">All sessions</a></div>
       <div class="table-wrap" style="margin-top:10px" id="home-sessions"></div>
     </div>
+    </div></div>
   </section>
 
   <!-- NEW BENCHMARK: one wizard -->
   <section id="view-new" class="view" hidden aria-labelledby="h-new">
-    <div class="page-head"><div><h1 id="h-new">New benchmark</h1>
-      <p>Three steps. Your data is prepared in the background while you pick the models.</p></div></div>
-    <div id="wiz-offline" class="notice error" role="status" hidden><b>GPU offline.</b> The benchmark backend is not
-      running (no GPU rented), so new benchmarks cannot start. Sessions, Compare and Leaderboard still work. This page
-      notices by itself when the GPU comes back.</div>
+    <div class="page-head"><div><h1 id="h-new">New benchmark</h1></div></div>
+    <div id="wiz-offline" class="notice error" role="status" hidden><b>GPU offline</b>: new benchmarks can't start. Your sessions are still available.<span class="info-i" tabindex="0" role="button" data-tip="The benchmark backend is not running (no GPU rented). Sessions, Compare and Leaderboard still work. This page notices by itself when the GPU comes back.">i</span></div>
     <ol class="stepper" id="wiz-steps" aria-label="Benchmark steps">
       <li data-step="data"><b>1</b>Data</li>
       <li data-step="models"><b>2</b>Models and settings</li>
@@ -441,7 +469,7 @@
         <div id="src-file" role="tabpanel" aria-labelledby="tab-src-file">
           <label class="drop" id="svc-drop" for="svc-file">
             <strong>Choose a .csv, .pcap or .pcapng file</strong>
-            <span class="muted">Labelled CSV → efficiency + accuracy (context) · PCAP → efficiency only</span><br>
+            <span class="muted">CSV with labels: efficiency + accuracy · PCAP: efficiency only</span><br>
             <span class="muted small" id="svc-limits">Maximum upload: 90 MB — use Import from a link for larger files</span>
             <input type="file" id="svc-file" name="file" accept=".csv,.pcap,.pcapng">
           </label>
@@ -450,8 +478,7 @@
           <div class="field">
             <label for="svc-url">Direct https link to the file</label>
             <input type="url" id="svc-url" name="url" placeholder="https://example.org/capture.pcap" inputmode="url" autocomplete="off">
-            <span class="hint" id="svc-url-limits">The server downloads the file itself (up to 10 GB). Use a direct download link —
-              Google Drive / Dropbox “share” pages are refused. Only public internet addresses are allowed.</span>
+            <span class="hint" id="svc-url-limits">A direct download link, up to 10 GB.</span><span class="info-i" tabindex="0" role="button" id="svc-url-info" data-tip="The server downloads the file itself. Use a direct download link — Google Drive / Dropbox “share” pages are refused. Only public internet addresses are allowed.">i</span>
           </div>
         </div>
         <div class="row" id="wiz-options">
@@ -460,8 +487,7 @@
             <input type="number" id="svc-max-flows" name="max_flows" min="1" max="500" value="50">
           </div>
           <label class="check"><input type="checkbox" id="svc-other-attack" name="other_attack" value="1">
-            <span>Keep attacks outside the 5 study classes as <b>Other Attack</b><br>
-            <span class="muted small" style="font-weight:400">CSV only — otherwise those rows are excluded</span></span></label>
+            <span>Group other attacks as <b>Other Attack</b></span></label><span class="info-i" tabindex="0" role="button" data-tip="Attacks outside the 5 study classes. CSV only; otherwise those rows are left out.">i</span>
         </div>
         <div class="row">
           <button type="submit" class="btn primary" id="svc-upload-btn">Continue</button>
@@ -471,11 +497,8 @@
       </form>
       <div id="src-reuse" role="tabpanel" aria-labelledby="tab-src-reuse" hidden>
         <div class="card" id="svc-stored-card" hidden>
-          <h2>Stored with your sessions</h2>
-          <p class="muted small">The exact flows of earlier sessions, kept by the control plane — usable on any GPU rental, even
-            after the one that prepared them is gone. They are restored without identification columns (IPs, ports,
-            protocol, timestamp), which no model ever sees; the prepared-set hash is the same, so new sessions compare
-            like-for-like with the old ones.</p>
+          <h2>Saved sets</h2>
+          <p class="muted small">The exact flows of earlier sessions. Reuse them on any GPU.<span class="info-i" tabindex="0" role="button" data-tip="Kept by the control plane, so they work on any GPU rental, even after the one that prepared them is gone. They are restored without identification columns (IPs, ports, protocol, timestamp), which no model ever sees; the prepared-set hash is the same, so new sessions compare like-for-like with the old ones.">i</span></p>
           <div id="svc-stored-sets" class="small muted">Loading…</div>
           <div id="svc-stored-error" class="notice error" role="alert" hidden></div>
         </div>
@@ -505,7 +528,7 @@
     </div>
 
     <!-- step 2: models and settings (data prepares in the background) -->
-    <div id="wiz-step-models" hidden>
+    <div id="wiz-step-models" class="wiz-grid" hidden>
       <div class="card" id="wiz-data-card">
         <div class="row" style="margin-top:0;justify-content:space-between">
           <h2>Your data</h2><span id="wiz-data-chip" class="status Running">Preparing</span>
@@ -517,7 +540,7 @@
       </div>
       <div class="card">
         <h2>Models</h2>
-        <p class="muted small" id="svc-mode-line">Pick up to two models. Both run the same flows on the same GPU, one at a time.</p>
+        <p class="muted small" id="svc-mode-line">Pick 1 or 2 models.</p>
         <div class="models" id="svc-models" role="group" aria-describedby="svc-model-hint"></div>
         <p id="svc-model-hint" class="muted small" aria-live="polite">Select 1 or 2 models.</p>
         <hr class="sep">
@@ -541,7 +564,7 @@
         <p id="svc-job-models" class="muted small"></p>
         <div class="bar" id="svc-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Benchmark progress"><span id="svc-progress-bar"></span></div>
         <p id="svc-progress-text" aria-live="polite"></p>
-        <p class="muted small">You can close this page — the run continues on the server. Find it again under <a href="#/sessions">Sessions</a>.</p>
+        <p class="muted small">You can close this page; the run continues. It's under <a href="#/sessions">Sessions</a>.</p>
         <div id="svc-job-error" class="notice error" role="alert" hidden></div>
         <div class="actions"><button type="button" class="btn danger" id="svc-stop" hidden>Stop benchmark</button>
           <button type="button" class="btn" id="svc-resume" hidden>Resume</button>
@@ -553,7 +576,7 @@
   <!-- SESSIONS -->
   <section id="view-sessions" class="view" hidden aria-labelledby="h-sessions">
     <div class="page-head"><div><h1 id="h-sessions">Sessions</h1>
-      <p>Every benchmark run. Sessions are non-validated user runs and never merge into the locked study.</p></div>
+      <p>All your benchmark runs.<span class="info-i" tabindex="0" role="button" data-tip="Sessions are non-validated user runs and never merge into the locked study.">i</span></p></div>
       <a class="btn primary" href="#/new">New benchmark</a></div>
     <div class="card">
       <form class="row" style="margin-top:0" id="sessions-filter">
@@ -645,6 +668,7 @@
   <section id="view-settings" class="view" hidden aria-labelledby="h-settings">
     <div class="page-head"><div><h1 id="h-settings">Settings</h1>
       <p id="set-intro">Theme is saved in this browser.</p></div></div>
+    <div class="cards-2">
     <div class="card">
       <fieldset style="border:0;padding:0;margin:0">
         <legend><h2>Theme</h2></legend>
@@ -655,7 +679,12 @@
         </div>
       </fieldset>
     </div>
-    <form class="card" id="set-account" hidden novalidate>
+    <div class="card">
+      <h2>Backend</h2>
+      <dl class="kv small" id="set-backend"></dl>
+      <p class="muted small" id="set-backend-note">Advanced<span class="info-i" tabindex="0" role="button" data-tip="A new backend address can be given once with ?api=<url> (remembered in this browser; ?api=reset forgets it).">i</span></p>
+    </div>
+    <form class="card wide" id="set-account" hidden novalidate>
       <h2>Notifications</h2>
       <div class="row" style="margin-top:8px">
         <div class="field"><label for="set-tg">Telegram chat ID <span class="hint">(message the bot, then /getUpdates)</span></label>
@@ -676,19 +705,13 @@
       </div>
       <hr class="sep">
       <h2>SAW weight presets</h2>
-      <p class="muted small">A preset re-ranks the models <b>in the view only</b>: stored scores never change, and every view shows
-        which weights it uses. Weights: accuracy, latency, VRAM, tokens (they are scaled to sum to 1).</p>
+      <p class="muted small">Presets re-rank in the view only; stored scores never change.<span class="info-i" tabindex="0" role="button" data-tip="Every view shows which weights it uses. Weights: accuracy, latency, VRAM, tokens (they are scaled to sum to 1).">i</span></p>
       <div id="set-presets"></div>
       <div class="actions"><button type="button" class="btn" id="set-preset-add">Add a preset</button></div>
       <div id="set-error" class="notice error" role="alert" hidden></div>
       <div class="actions"><button type="submit" class="btn primary" id="set-save">Save settings</button>
         <span class="small muted" id="set-saved" role="status" aria-live="polite"></span></div>
     </form>
-    <div class="card">
-      <h2>Backend</h2>
-      <dl class="kv small" id="set-backend"></dl>
-      <p class="muted small" id="set-backend-note">A new backend address can be given once with <span class="mono">?api=&lt;url&gt;</span> (remembered in this
-        browser; <span class="mono">?api=reset</span> forgets it).</p>
     </div>
   </section>
 
@@ -719,8 +742,9 @@
   <!-- ADMIN (control plane, admins only) -->
   <section id="view-admin" class="view" hidden aria-labelledby="h-admin">
     <div class="page-head"><div><h1 id="h-admin">Admin</h1>
-      <p>Accounts (at most five), credential status and system limits. Secrets are never shown here — only whether they are set.</p></div></div>
-    <div class="card">
+      <p>Users, credentials and limits. Secrets are never shown.</p></div></div>
+    <div class="cards-2">
+    <div class="card wide">
       <div class="row" style="margin-top:0;justify-content:space-between"><h2>Users</h2><span class="chip" id="adm-count"></span></div>
       <div class="table-wrap" style="margin-top:10px" id="adm-users"></div>
       <form class="row" id="adm-new" novalidate>
@@ -733,7 +757,7 @@
     </div>
     <div class="card">
       <h2>Credentials</h2>
-      <p class="muted small">Set on the GPU backend (Hugging Face token, Vast API key) or as a Worker secret (Telegram bot token). Status only.</p>
+      <p class="muted small">Status only.<span class="info-i" tabindex="0" role="button" data-tip="Set on the GPU backend (Hugging Face token, Vast API key) or as a Worker secret (Telegram bot token).">i</span></p>
       <dl class="kv" id="adm-creds"></dl>
     </div>
     <form class="card" id="adm-limits" novalidate>
@@ -745,16 +769,15 @@
         <div class="field"><label for="lim-idle">Idle minutes before the GPU stops</label><input id="lim-idle" type="number" min="5" max="1440"></div>
         <div class="field"><label for="lim-sess-idle">Log out after minutes without activity <span class="hint">(Remember me off; 0 = never)</span></label><input id="lim-sess-idle" type="number" min="0" max="1440"></div>
       </div>
-      <label class="check"><input type="checkbox" id="lim-ident"> Keep identification columns (IPs, ports, protocol, timestamp) in the stored copy of
-        features.csv. Off by default: the models never use them; they stay only in the backend's run folder.</label>
+      <div class="row" style="gap:4px"><label class="check"><input type="checkbox" id="lim-ident"> Keep IPs, ports and timestamps in stored copies</label><span class="info-i" tabindex="0" role="button" data-tip="Keep identification columns (IPs, ports, protocol, timestamp) in the stored copy of features.csv. Off by default: the models never use them; they stay only in the backend's run folder.">i</span></div>
       <div id="lim-error" class="notice error" role="alert" hidden></div>
       <div class="actions"><button type="submit" class="btn primary" id="lim-save">Save limits</button><span class="small muted" id="lim-saved" role="status"></span></div>
     </form>
+    </div>
   </section>
 </main>
 
-<footer><div class="wrap">AgentMeter measures LLM resource efficiency — latency, memory, tokens, cost and energy — with
-  accuracy as context only. It is not a threat-detection product. Sessions are non-validated user runs.</div></footer>
+<footer><div class="wrap">AgentMeter measures how efficiently LLMs run: speed, memory, tokens, cost, energy. Accuracy is context only; it isn't a threat detector.</div></footer>
 
 <script src="report.js"></script>
 <script>
@@ -1021,6 +1044,40 @@
     });
   }
 
+  // ---------- ⓘ: a short label's full explanation, on hover (title) and on tap/click (popover) ----------
+  function infoI(text) {
+    return text ? '<span class="info-i" tabindex="0" role="button" data-tip="' + esc(text) + '" aria-label="' + esc(text) + '">i</span>' : "";
+  }
+  var TIP = null;
+  function closeTip() { if (TIP) { TIP.remove(); TIP = null; } }
+  function openTip(el) {
+    closeTip();
+    var text = el.getAttribute("data-tip") || el.getAttribute("title") || el.getAttribute("aria-label");
+    if (!text) return;
+    TIP = document.createElement("div");
+    TIP.className = "tip-pop"; TIP.setAttribute("role", "tooltip"); TIP.textContent = text;
+    document.body.appendChild(TIP);
+    var r = el.getBoundingClientRect(), w = TIP.offsetWidth;
+    TIP.style.top = (window.scrollY + r.bottom + 6) + "px";
+    TIP.style.left = Math.max(8, Math.min(window.scrollX + r.left - 12, window.scrollX + document.documentElement.clientWidth - w - 8)) + "px";
+  }
+  document.addEventListener("click", function (ev) {
+    var el = ev.target.closest && ev.target.closest(".info-i");
+    if (el) { ev.preventDefault(); ev.stopPropagation(); if (TIP && TIP._for === el) closeTip(); else { openTip(el); TIP._for = el; } return; }
+    closeTip();
+  }, true);
+  document.addEventListener("keydown", function (ev) {
+    var el = document.activeElement;
+    if (ev.key === "Escape") closeTip();
+    else if ((ev.key === "Enter" || ev.key === " ") && el && el.classList && el.classList.contains("info-i")) { ev.preventDefault(); openTip(el); TIP._for = el; }
+  });
+  window.addEventListener("scroll", closeTip, { passive: true });
+  // phone: the menu opens from the ☰ button
+  $("nav-toggle").addEventListener("click", function () {
+    var open = document.body.classList.toggle("nav-open");
+    this.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+
   // ---------- routing ----------
   var VIEWS = ["home", "new", "sessions", "session", "compare", "leaderboard", "settings", "profile", "admin", "login"];
   function parseHash() {
@@ -1033,6 +1090,9 @@
     VIEWS.forEach(function (v) { $("view-" + v).hidden = v !== view; });
     $("view-offline").hidden = true;
     document.querySelector(".mainnav").hidden = view === "login";
+    document.body.classList.toggle("nav-off", view === "login");
+    document.body.classList.remove("nav-open"); $("nav-toggle").setAttribute("aria-expanded", "false");
+    $("nav-toggle").hidden = view === "login";
     var nav = view === "session" ? "sessions" : view;
     document.querySelectorAll("[data-nav]").forEach(function (a) {
       if (a.getAttribute("data-nav") === nav) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
@@ -1095,6 +1155,12 @@
   }
 
   // ---------- HOME ----------
+  function homeHeadline(row, models) {
+    var w = row.more_efficient;
+    if (models.length < 2) return short(models[0] || "") + ": single-model run";
+    if (w && w !== "tie" && w !== "—" && w !== "mixed") return short(w) + " is more efficient";
+    return w === "mixed" ? "Mixed result: each model wins somewhere" : "Tied on efficiency";
+  }
   function loadHome() {
     api("/api/sessions?limit=8").then(function (r) {
       var rows = (r.ok && r.data.sessions) || [];
@@ -1112,7 +1178,8 @@
         '<div class="row" style="margin-top:0;justify-content:space-between"><div><h2>Latest session</h2><p class="muted small" style="margin:2px 0 0">' +
         esc(last.input_type || "") + ' · ' + fmtNum(last.n_flows) + ' flows · ' + esc(last.gpu) + ' · ' + esc(fmtDate(last.finished_at)) + '</p></div>' +
         '<a class="btn" href="#/session/' + enc(last.session_id) + '" id="home-open-latest">Open session</a></div>' +
-        (last.verdict ? '<p class="verdict" id="home-verdict">' + esc(last.verdict.text) + '</p>' : "") +
+        '<p class="headline" id="home-headline">' + esc(homeHeadline(last, models)) + '</p>' +
+        (last.verdict ? '<details class="info"><summary>Show full verdict</summary><p class="verdict" id="home-verdict">' + esc(last.verdict.text) + '</p></details>' : "") +
         '<div class="grid two">' +
         hbars("Mean latency per flow (lower is better)", models.map(function (m) { return { label: short(m), v: last.metrics[m].mean_latency_s }; }), fmtTime) +
         hbars("Mean working VRAM (excludes model weights; lower is better)", models.map(function (m) {
@@ -1414,7 +1481,7 @@
   function renderSettings() {
     var s = WIZ.summary;
     $("wiz-settings").innerHTML = [
-      ["Provider", HEALTH && HEALTH.provider === "real" ? "real models (4-bit NF4), one model at a time" : "mock (demo) — no GPU"],
+      ["Provider", HEALTH && HEALTH.provider === "real" ? "Real GPU · 4-bit" : "Demo (no GPU)"],
       ["Flows", s ? fmtNum(s.rows_selected) : "from step 1 (" + ($("svc-max-flows").value || 50) + " max)"],
       ["Evaluation", s ? (s.accuracy_available ? "efficiency + accuracy (context)" : "efficiency only") : "known when the data is ready"],
       ["Agents", "Perceive → Reason → Decide → Act (fixed)"]
@@ -2271,7 +2338,7 @@
           : '<dt>Access</dt><dd>' + (h.auth_required ? "run tokens from a control plane" : "open (local development)") + '</dd>');
     $("set-backend-note").hidden = !!CP;
     $("set-account").hidden = !CP;
-    $("set-intro").textContent = CP ? "Saved to your account (theme is also kept in this browser)." : "Saved in this browser only.";
+    $("set-intro").textContent = CP ? "Saved to your account." : "Saved in this browser only.";
     if (!CP) return;
     var S = SETTINGS || {};
     $("set-tg").value = S.telegram_chat_id || ""; $("set-notify").value = S.notify_on || "none";
@@ -2586,15 +2653,14 @@
     return api("/api/service/config").then(function (r) {
       CONFIG = r.ok ? r.data : { canonical_models: [], max_models: 2, provider: "mock", base_config: null, demo_mode: true, note: "Service config unavailable." };
       $("svc-demo").hidden = !CONFIG.demo_mode;
-      $("svc-demo").textContent = CONFIG.note || "";
+      $("svc-demo").innerHTML = '<b>Demo mode:</b> no GPU, so results are simulated, not model measurements.' + infoI(CONFIG.note || "");
       $("svc-max-flows").value = (SETTINGS && SETTINGS.default_flows) || CONFIG.default_max_flows || 50;
       if (SETTINGS) $("svc-other-attack").checked = !!SETTINGS.default_other_attack;
       var L = CONFIG.limits;
       if (L) {
-        $("svc-limits").textContent = "Maximum upload: " + L.max_upload_label + " — for larger files use Import from a link (up to " +
-          L.max_url_download_label + "). Large inputs are sampled across the whole file.";
-        $("svc-url-limits").textContent = "The server downloads the file itself (up to " + L.max_url_download_label +
-          "). Use a direct download link — Google Drive / Dropbox “share” pages are refused. Only public internet addresses are allowed.";
+        $("svc-limits").innerHTML = "Up to " + esc(L.max_upload_label) + "; bigger files: Import from a link." +
+          infoI("For larger files use Import from a link (up to " + L.max_url_download_label + "). Large inputs are sampled across the whole file.");
+        $("svc-url-limits").textContent = "A direct download link, up to " + L.max_url_download_label + ".";
       }
       if (CP) { if (!$("view-new").hidden) routeWizard(parseHash().parts, parseHash().q); }
       else route();

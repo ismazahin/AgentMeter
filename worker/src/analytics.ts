@@ -27,9 +27,12 @@ export const METRICS: [string, string, string, boolean][] = [
   ["wh_per_flow_net_idle", "Energy per flow, net of idle", "Wh", true],
 ];
 export const LEADERBOARD_SORTS: Record<string, string> = {
-  latency: "mean_latency_s", vram: "mean_peak_vram_mb", total_vram: "total_peak_mb",
+  saw: "saw_composite_100", efficiency: "saw_eff_composite_100", latency: "mean_latency_s", vram: "mean_peak_vram_mb", total_vram: "total_peak_mb",
   tokens: "mean_tokens_per_flow", cost: "cost_per_1k_flows_usd", energy: "wh_per_flow",
 };
+
+export const HIGHER_IS_BETTER = new Set(["saw_composite_100", "saw_eff_composite_100", "accuracy"]);
+export const OVERALL_BY: Record<string, string> = { saw: "saw_composite_100", efficiency: "saw_eff_composite_100", accuracy: "accuracy" };
 
 const nn = (v: unknown) => v !== null && v !== undefined;
 /** Python json.dumps(v, sort_keys=True) equivalent for equality checks. */
@@ -81,25 +84,21 @@ export function compare(sa: Summary, sb: Summary) {
 }
 
 function wmean(pairs: [number | null | undefined, number][]): number | null {
-  const ps = pairs.filter(([v, n]) => nn(v) && n) as [number, number][];
-  const tot = ps.reduce((s, [, n]) => s + n, 0);
-  return tot ? ps.reduce((s, [v, n]) => s + v * n, 0) / tot : null;
+  let tot = 0, acc = 0;
+  for (const [v, n] of pairs) if (nn(v) && n) { tot += n; acc += (v as number) * n; }
+  return tot ? acc / tot : null;
 }
 
 export function leaderboard(summaries: Summary[], sort = "latency") {
   const key = LEADERBOARD_SORTS[sort] || LEADERBOARD_SORTS.latency;
+  const higher = HIGHER_IS_BETTER.has(key);
   const groups = new Map<string, any>();
   for (const s of summaries) {
-    const ident = s.identity || {};
-    const gk: [string, string] = [ident.prepared_set_sha256 || `unknown:${s.session_id}`, ident.gpu_label || "?"];
-    const k = JSON.stringify(gk);
-    if (!groups.has(k))
-      groups.set(k, { prepared_set_sha256: gk[0], gpu: gk[1], sessions: [], settings: [] as unknown[], input_type: s.input_type || "",
-                      n_flows_per_session: s.n_flows ?? null, demo: ident.provider === "mock", models: new Map<string, [string, any][]>() });
+    const k = setupKey(s);
+    if (k === null) continue;
+    if (!groups.has(k)) groups.set(k, { ...setupOf(s), sessions: [], models: new Map<string, [string, any][]>() });
     const g = groups.get(k);
     g.sessions.push(s.session_id);
-    const fp = ident.settings_fingerprint ?? null;
-    if (!g.settings.includes(fp)) g.settings.push(fp);
     for (const [m, row] of Object.entries(s.metrics || {})) {
       if (!g.models.has(m)) g.models.set(m, []);
       g.models.get(m).push([s.session_id, row]);
@@ -114,15 +113,62 @@ export function leaderboard(summaries: Summary[], sort = "latency") {
       rows.push({ model: m, n_sessions: items.length, n_flows: items.reduce((s, [, r]) => s + (r.n_flows || 0), 0),
                   sessions: items.map(([sid]) => sid), ...agg });
     }
-    const ranked = rows.filter((r) => nn(r[key])).sort((x, y) => x[key] - y[key]);
+    const ranked = rows.filter((r) => nn(r[key])).sort((x, y) => (higher ? y[key] - x[key] : x[key] - y[key]));
     ranked.forEach((r, i) => (r.rank = i + 1));
     rows = [...ranked, ...rows.filter((r) => !nn(r[key])).map((r) => ({ ...r, rank: null }))];
-    out.push({ prepared_set_sha256: g.prepared_set_sha256, gpu: g.gpu, demo: g.demo, input_type: g.input_type,
-               n_flows_per_session: g.n_flows_per_session, n_sessions: g.sessions.length, mixed_settings: g.settings.length > 1, rows });
+    out.push({ prepared_set_sha256: g.prepared_set_sha256, gpu: g.gpu, settings_fingerprint: g.settings_fingerprint,
+               input_type: g.input_type, labelled: g.labelled, demo: g.demo, n_flows_per_session: g.n_flows,
+               n_sessions: g.sessions.length, sessions: g.sessions, rows });
   }
   out.sort((x, y) => (Number(x.demo) - Number(y.demo)) || (y.n_sessions - x.n_sessions));
-  return { sort, sort_metric: key, sorts: LEADERBOARD_SORTS, groups: out,
-           rule: "Models are ranked only against others measured on the same prepared set (flows hash) and the same GPU; values are flow-weighted means over that group's sessions. Lower is better for every sort key." };
+  return { sort, sort_metric: key, higher_is_better: higher, sorts: LEADERBOARD_SORTS, groups: out,
+           rule: "Models are ranked only against others on the same flows, GPU and settings. Values are flow-weighted means over that setup's sessions." };
+}
+
+const isDemo = (s: Summary) => !!s.demo || (s.identity || {}).provider === "mock";
+
+export function leaderboardOverall(summaries: Summary[], by = "saw", includeDemo = false) {
+  const key = OVERALL_BY[by] || OVERALL_BY.saw;
+  const groups = new Map<string, Map<string, { sessions: string[]; pairs: [number | null, number][] }>>();
+  for (const s of summaries) {
+    const k = setupKey(s);
+    if (k === null || (isDemo(s) && !includeDemo) || (key === "accuracy" && !s.labelled)) continue;
+    if (!groups.has(k)) groups.set(k, new Map());
+    const g = groups.get(k)!;
+    for (const [m, row] of Object.entries((s.metrics || {}) as Record<string, any>)) {
+      if (!g.has(m)) g.set(m, { sessions: [], pairs: [] });
+      g.get(m)!.sessions.push(s.session_id);
+      g.get(m)!.pairs.push([row[key] ?? null, row.n_flows || 0]);
+    }
+  }
+  const stats = new Map<string, { model: string; setups: number; wins: number; beaten: number[]; sessions: string[] }>();
+  let used = 0, single = 0;
+  for (const g of groups.values()) {
+    const vals = new Map<string, number>();
+    for (const [m, x] of g) { const v = wmean(x.pairs); if (v !== null) vals.set(m, v); }
+    if (vals.size < 2) { single++; continue; }
+    used++;
+    const all = [...vals.values()];
+    for (const [m, v] of vals) {
+      const better = all.filter((o) => o > v).length, worse = all.filter((o) => o < v).length;
+      if (!stats.has(m)) stats.set(m, { model: m, setups: 0, wins: 0, beaten: [], sessions: [] });
+      const st = stats.get(m)!;
+      st.setups++;
+      st.wins += better === 0 ? 1 : 0;
+      st.beaten.push(worse / (vals.size - 1));
+      for (const x of g.get(m)!.sessions) if (!st.sessions.includes(x)) st.sessions.push(x);
+    }
+  }
+  const rows: any[] = [...stats.values()].map((st) => {
+    let acc = 0;
+    for (const b of st.beaten) acc += b;
+    return { model: st.model, wins: st.wins, setups: st.setups, win_rate: st.wins / st.setups, rivals_beaten: acc / st.beaten.length,
+             n_sessions: st.sessions.length, few_data: st.setups < 2 };
+  });
+  rows.sort((x, y) => (y.wins - x.wins) || (y.win_rate - x.win_rate) || (y.rivals_beaten - x.rivals_beaten) || (x.model < y.model ? -1 : x.model > y.model ? 1 : 0));
+  rows.forEach((r, i) => (r.rank = i + 1));
+  return { by, metric: key, bys: OVERALL_BY, include_demo: includeDemo, n_setups: used, n_setups_single_model: single, rows,
+           rule: "Counted inside each setup (same flows, GPU and settings) with 2+ models: a win is 1st place there. Rivals beaten = the share of the other models it placed above, averaged over its setups." };
 }
 
 // --- decision helper ---------------------------------------------------------------------

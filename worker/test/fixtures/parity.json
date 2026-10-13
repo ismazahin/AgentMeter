@@ -49,7 +49,8 @@
      "weights_mb": 4100.0,
      "accuracy": 0.2,
      "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "saw_tier": "Critical",
+     "saw_eff_composite_100": 62.63
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -70,9 +71,10 @@
      "wh_per_flow_net_idle": 0.03,
      "total_peak_mb": 5333.3,
      "weights_mb": 4101.0,
-     "accuracy": 0.2,
-     "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "accuracy": 0.22000000000000003,
+     "saw_composite_100": 44.33,
+     "saw_tier": "Critical",
+     "saw_eff_composite_100": 57.13
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -166,7 +168,8 @@
      "weights_mb": 4100.0,
      "accuracy": 0.2,
      "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "saw_tier": "Critical",
+     "saw_eff_composite_100": 62.63
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -187,9 +190,10 @@
      "wh_per_flow_net_idle": 0.039,
      "total_peak_mb": 6833.3,
      "weights_mb": 4101.0,
-     "accuracy": 0.2,
-     "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "accuracy": 0.22599999999999998,
+     "saw_composite_100": 44.33,
+     "saw_tier": "Critical",
+     "saw_eff_composite_100": 57.13
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -282,8 +286,9 @@
      "total_peak_mb": 4000.0,
      "weights_mb": 4100.0,
      "accuracy": 0.2,
-     "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "saw_composite_100": 62.63,
+     "saw_tier": "Degraded",
+     "saw_eff_composite_100": 62.63
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -304,9 +309,10 @@
      "wh_per_flow_net_idle": 0.024,
      "total_peak_mb": 4333.3,
      "weights_mb": 4101.0,
-     "accuracy": 0.2,
-     "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "accuracy": 0.21600000000000003,
+     "saw_composite_100": 68.13,
+     "saw_tier": "Degraded",
+     "saw_eff_composite_100": 68.13
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -399,7 +405,8 @@
      "weights_mb": 4100.0,
      "accuracy": 0.2,
      "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "saw_tier": "Critical",
+     "saw_eff_composite_100": 62.63
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -486,7 +493,8 @@
      "weights_mb": 4100.0,
      "accuracy": 0.2,
      "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "saw_tier": "Critical",
+     "saw_eff_composite_100": 62.63
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -507,9 +515,10 @@
      "wh_per_flow_net_idle": 0.03,
      "total_peak_mb": 5333.3,
      "weights_mb": 4101.0,
-     "accuracy": 0.2,
-     "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "accuracy": 0.22000000000000003,
+     "saw_composite_100": 44.33,
+     "saw_tier": "Critical",
+     "saw_eff_composite_100": 57.13
     }
    },
    "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -603,7 +612,8 @@
      "weights_mb": 4100.0,
      "accuracy": 0.2,
      "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "saw_tier": "Critical",
+     "saw_eff_composite_100": 62.63
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -624,9 +634,10 @@
      "wh_per_flow_net_idle": 0.033,
      "total_peak_mb": 5833.3,
      "weights_mb": 4101.0,
-     "accuracy": 0.2,
-     "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "accuracy": 0.22200000000000003,
+     "saw_composite_100": 44.33,
+     "saw_tier": "Critical",
+     "saw_eff_composite_100": 57.13
     }
    },
    "prepared_set_sha256": null,
@@ -709,7 +720,8 @@
      "weights_mb": 4100.0,
      "accuracy": 0.2,
      "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "saw_tier": "Critical",
+     "saw_eff_composite_100": 62.63
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -730,9 +742,10 @@
      "wh_per_flow_net_idle": 0.027,
      "total_peak_mb": 4833.3,
      "weights_mb": 4101.0,
-     "accuracy": 0.2,
-     "saw_composite_100": 47.58,
-     "saw_tier": "Critical"
+     "accuracy": 0.21800000000000003,
+     "saw_composite_100": 50.83,
+     "saw_tier": "Critical",
+     "saw_eff_composite_100": 68.13
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -832,7 +845,8 @@
        "weights_mb": 4100.0,
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 62.63
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -853,9 +867,10 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2,
-       "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "accuracy": 0.22000000000000003,
+       "saw_composite_100": 44.33,
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 57.13
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -921,7 +936,8 @@
        "weights_mb": 4100.0,
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 62.63
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -942,9 +958,10 @@
        "wh_per_flow_net_idle": 0.039,
        "total_peak_mb": 6833.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2,
-       "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "accuracy": 0.22599999999999998,
+       "saw_composite_100": 44.33,
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 57.13
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1274,9 +1291,9 @@
       "context_only": true,
       "values": [
        0.2,
+       0.22000000000000003,
        0.2,
-       0.2,
-       0.2
+       0.22599999999999998
       ],
       "best_index": []
      }
@@ -1336,7 +1353,8 @@
        "weights_mb": 4100.0,
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 62.63
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1357,9 +1375,10 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2,
-       "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "accuracy": 0.22000000000000003,
+       "saw_composite_100": 44.33,
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 57.13
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1424,8 +1443,9 @@
        "total_peak_mb": 4000.0,
        "weights_mb": 4100.0,
        "accuracy": 0.2,
-       "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "saw_composite_100": 62.63,
+       "saw_tier": "Degraded",
+       "saw_eff_composite_100": 62.63
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1446,9 +1466,10 @@
        "wh_per_flow_net_idle": 0.024,
        "total_peak_mb": 4333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2,
-       "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "accuracy": 0.21600000000000003,
+       "saw_composite_100": 68.13,
+       "saw_tier": "Degraded",
+       "saw_eff_composite_100": 68.13
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1830,7 +1851,8 @@
        "weights_mb": 4100.0,
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 62.63
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1851,9 +1873,10 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2,
-       "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "accuracy": 0.22000000000000003,
+       "saw_composite_100": 44.33,
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 57.13
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1918,7 +1941,8 @@
        "weights_mb": 4100.0,
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 62.63
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -2226,7 +2250,7 @@
       "context_only": true,
       "values": [
        0.2,
-       0.2,
+       0.22000000000000003,
        0.2
       ],
       "best_index": []
@@ -2287,7 +2311,8 @@
        "weights_mb": 4100.0,
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 62.63
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2308,9 +2333,10 @@
        "wh_per_flow_net_idle": 0.039,
        "total_peak_mb": 6833.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2,
-       "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "accuracy": 0.22599999999999998,
+       "saw_composite_100": 44.33,
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 57.13
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -2376,7 +2402,8 @@
        "weights_mb": 4100.0,
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 62.63
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2397,9 +2424,10 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2,
-       "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "accuracy": 0.22000000000000003,
+       "saw_composite_100": 44.33,
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 57.13
       }
      },
      "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -2735,9 +2763,9 @@
       "context_only": true,
       "values": [
        0.2,
+       0.22599999999999998,
        0.2,
-       0.2,
-       0.2
+       0.22000000000000003
       ],
       "best_index": []
      }
@@ -2797,7 +2825,8 @@
        "weights_mb": 4100.0,
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 62.63
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2818,9 +2847,10 @@
        "wh_per_flow_net_idle": 0.03,
        "total_peak_mb": 5333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2,
-       "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "accuracy": 0.22000000000000003,
+       "saw_composite_100": 44.33,
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 57.13
       }
      },
      "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -2886,7 +2916,8 @@
        "weights_mb": 4100.0,
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 62.63
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2907,9 +2938,10 @@
        "wh_per_flow_net_idle": 0.033,
        "total_peak_mb": 5833.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2,
-       "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "accuracy": 0.22200000000000003,
+       "saw_composite_100": 44.33,
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 57.13
       }
      },
      "prepared_set_sha256": null,
@@ -3247,9 +3279,9 @@
       "context_only": true,
       "values": [
        0.2,
+       0.22000000000000003,
        0.2,
-       0.2,
-       0.2
+       0.22200000000000003
       ],
       "best_index": []
      }
@@ -3308,8 +3340,9 @@
        "total_peak_mb": 4000.0,
        "weights_mb": 4100.0,
        "accuracy": 0.2,
-       "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "saw_composite_100": 62.63,
+       "saw_tier": "Degraded",
+       "saw_eff_composite_100": 62.63
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -3330,9 +3363,10 @@
        "wh_per_flow_net_idle": 0.024,
        "total_peak_mb": 4333.3,
        "weights_mb": 4101.0,
-       "accuracy": 0.2,
-       "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "accuracy": 0.21600000000000003,
+       "saw_composite_100": 68.13,
+       "saw_tier": "Degraded",
+       "saw_eff_composite_100": 68.13
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -3397,7 +3431,8 @@
        "weights_mb": 4100.0,
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
-       "saw_tier": "Critical"
+       "saw_tier": "Critical",
+       "saw_eff_composite_100": 62.63
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -3706,10 +3741,13 @@
   }
  ],
  "leaderboard": {
-  "latency": {
-   "sort": "latency",
-   "sort_metric": "mean_latency_s",
+  "saw": {
+   "sort": "saw",
+   "sort_metric": "saw_composite_100",
+   "higher_is_better": true,
    "sorts": {
+    "saw": "saw_composite_100",
+    "efficiency": "saw_eff_composite_100",
     "latency": "mean_latency_s",
     "vram": "mean_peak_vram_mb",
     "total_vram": "total_peak_mb",
@@ -3721,87 +3759,54 @@
     {
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "gpu": "NVIDIA L4",
-     "demo": false,
+     "settings_fingerprint": "fp1",
      "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
      "n_flows_per_session": 10,
-     "n_sessions": 4,
-     "mixed_settings": true,
+     "n_sessions": 3,
+     "sessions": [
+      "job_20261001_160000_66666666666666666666666666666666",
+      "job_20261001_110000_22222222222222222222222222222222",
+      "job_20261001_100000_11111111111111111111111111111111"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 4,
-       "n_flows": 40,
+       "n_sessions": 3,
+       "n_flows": 30,
        "sessions": [
         "job_20261001_160000_66666666666666666666666666666666",
-        "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0003138062000061836,
-       "mean_peak_vram_mb": 900.0,
-       "total_peak_mb": 5000.0,
-       "mean_tokens_per_flow": 1431.0,
-       "cost_per_1k_flows_usd": 0.012345600000000002,
-       "wh_per_flow": 0.0421,
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63,
+       "mean_latency_s": 0.00033472661333992917,
+       "mean_peak_vram_mb": 960.0,
+       "total_peak_mb": 5333.333333333333,
+       "mean_tokens_per_flow": 1526.4,
+       "cost_per_1k_flows_usd": 0.01316864,
+       "wh_per_flow": 0.044906666666666664,
        "rank": 1
       },
       {
        "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 4,
-       "n_flows": 40,
+       "n_sessions": 3,
+       "n_flows": 30,
        "sessions": [
         "job_20261001_160000_66666666666666666666666666666666",
-        "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0004132848249914503,
-       "mean_peak_vram_mb": 1025.0,
-       "total_peak_mb": 5333.3,
-       "mean_tokens_per_flow": 1531.17,
-       "cost_per_1k_flows_usd": 0.024691200000000003,
-       "wh_per_flow": 0.043100000000000006,
-       "rank": 2
-      }
-     ]
-    },
-    {
-     "prepared_set_sha256": "unknown:job_20261001_150000_abcdef",
-     "gpu": "?",
-     "demo": false,
-     "input_type": "CSV",
-     "n_flows_per_session": 10,
-     "n_sessions": 1,
-     "mixed_settings": false,
-     "rows": [
-      {
-       "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 1,
-       "n_flows": 10,
-       "sessions": [
-        "job_20261001_150000_abcdef"
-       ],
-       "mean_latency_s": 0.00034518682000680203,
-       "mean_peak_vram_mb": 990.0000000000002,
-       "total_peak_mb": 5500.0,
-       "mean_tokens_per_flow": 1574.1000000000001,
-       "cost_per_1k_flows_usd": 0.013580160000000003,
-       "wh_per_flow": 0.046310000000000004,
-       "rank": 1
-      },
-      {
-       "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 1,
-       "n_flows": 10,
-       "sessions": [
-        "job_20261001_150000_abcdef"
-       ],
-       "mean_latency_s": 0.00045190957499065124,
-       "mean_peak_vram_mb": 1115.0,
-       "total_peak_mb": 5833.3,
-       "mean_tokens_per_flow": 1674.27,
-       "cost_per_1k_flows_usd": 0.027160320000000005,
-       "wh_per_flow": 0.047310000000000005,
+       "saw_composite_100": 46.49666666666666,
+       "saw_eff_composite_100": 60.79666666666667,
+       "mean_latency_s": 0.00043903465832425095,
+       "mean_peak_vram_mb": 1085.0,
+       "total_peak_mb": 5666.633333333333,
+       "mean_tokens_per_flow": 1626.5700000000002,
+       "cost_per_1k_flows_usd": 0.02633728,
+       "wh_per_flow": 0.045906666666666665,
        "rank": 2
       }
      ]
@@ -3809,11 +3814,15 @@
     {
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "gpu": "NVIDIA A100",
-     "demo": false,
+     "settings_fingerprint": "fp1",
      "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
      "n_flows_per_session": 10,
      "n_sessions": 1,
-     "mixed_settings": false,
+     "sessions": [
+      "job_20261001_130000_44444444444444444444444444444444"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -3822,6 +3831,414 @@
        "sessions": [
         "job_20261001_130000_44444444444444444444444444444444"
        ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
+       "mean_latency_s": null,
+       "mean_peak_vram_mb": 450.0,
+       "total_peak_mb": 2500.0,
+       "mean_tokens_per_flow": 715.5,
+       "cost_per_1k_flows_usd": 0.0061728,
+       "wh_per_flow": 0.02105,
+       "rank": 1
+      }
+     ]
+    },
+    {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp2",
+     "input_type": "CSV",
+     "labelled": false,
+     "demo": false,
+     "n_flows_per_session": 10,
+     "n_sessions": 1,
+     "sessions": [
+      "job_20261001_120000_33333333333333333333333333333333"
+     ],
+     "rows": [
+      {
+       "model": "microsoft/Phi-3-mini-4k-instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 68.13,
+       "saw_eff_composite_100": 68.13,
+       "mean_latency_s": 0.00033603532499304836,
+       "mean_peak_vram_mb": 845.0,
+       "total_peak_mb": 4333.3,
+       "mean_tokens_per_flow": 1244.9700000000003,
+       "cost_per_1k_flows_usd": 0.01975296,
+       "wh_per_flow": 0.03468,
+       "rank": 1
+      },
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 62.63000000000001,
+       "saw_eff_composite_100": 62.63000000000001,
+       "mean_latency_s": 0.0002510449600049469,
+       "mean_peak_vram_mb": 720.0,
+       "total_peak_mb": 4000.0,
+       "mean_tokens_per_flow": 1144.8,
+       "cost_per_1k_flows_usd": 0.00987648,
+       "wh_per_flow": 0.03368,
+       "rank": 2
+      }
+     ]
+    },
+    {
+     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "gpu": "Demo (no GPU)",
+     "settings_fingerprint": "fpm",
+     "input_type": "CSV",
+     "labelled": true,
+     "demo": true,
+     "n_flows_per_session": 10,
+     "n_sessions": 1,
+     "sessions": [
+      "job_20261001_140000_55555555555555555555555555555555"
+     ],
+     "rows": [
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_140000_55555555555555555555555555555555"
+       ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
+       "mean_latency_s": 0.0003138062000061836,
+       "mean_peak_vram_mb": 900.0,
+       "total_peak_mb": 5000.0,
+       "mean_tokens_per_flow": 1431.0,
+       "cost_per_1k_flows_usd": 0.0123456,
+       "wh_per_flow": 0.0421,
+       "rank": 1
+      },
+      {
+       "model": "microsoft/Phi-3-mini-4k-instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_140000_55555555555555555555555555555555"
+       ],
+       "saw_composite_100": 44.33,
+       "saw_eff_composite_100": 57.13000000000001,
+       "mean_latency_s": 0.0004132848249914503,
+       "mean_peak_vram_mb": 1025.0,
+       "total_peak_mb": 5333.3,
+       "mean_tokens_per_flow": 1531.17,
+       "cost_per_1k_flows_usd": 0.0246912,
+       "wh_per_flow": 0.0431,
+       "rank": 2
+      }
+     ]
+    }
+   ],
+   "rule": "Models are ranked only against others on the same flows, GPU and settings. Values are flow-weighted means over that setup's sessions."
+  },
+  "efficiency": {
+   "sort": "efficiency",
+   "sort_metric": "saw_eff_composite_100",
+   "higher_is_better": true,
+   "sorts": {
+    "saw": "saw_composite_100",
+    "efficiency": "saw_eff_composite_100",
+    "latency": "mean_latency_s",
+    "vram": "mean_peak_vram_mb",
+    "total_vram": "total_peak_mb",
+    "tokens": "mean_tokens_per_flow",
+    "cost": "cost_per_1k_flows_usd",
+    "energy": "wh_per_flow"
+   },
+   "groups": [
+    {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp1",
+     "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
+     "n_flows_per_session": 10,
+     "n_sessions": 3,
+     "sessions": [
+      "job_20261001_160000_66666666666666666666666666666666",
+      "job_20261001_110000_22222222222222222222222222222222",
+      "job_20261001_100000_11111111111111111111111111111111"
+     ],
+     "rows": [
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 3,
+       "n_flows": 30,
+       "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
+        "job_20261001_110000_22222222222222222222222222222222",
+        "job_20261001_100000_11111111111111111111111111111111"
+       ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63,
+       "mean_latency_s": 0.00033472661333992917,
+       "mean_peak_vram_mb": 960.0,
+       "total_peak_mb": 5333.333333333333,
+       "mean_tokens_per_flow": 1526.4,
+       "cost_per_1k_flows_usd": 0.01316864,
+       "wh_per_flow": 0.044906666666666664,
+       "rank": 1
+      },
+      {
+       "model": "microsoft/Phi-3-mini-4k-instruct",
+       "n_sessions": 3,
+       "n_flows": 30,
+       "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
+        "job_20261001_110000_22222222222222222222222222222222",
+        "job_20261001_100000_11111111111111111111111111111111"
+       ],
+       "saw_composite_100": 46.49666666666666,
+       "saw_eff_composite_100": 60.79666666666667,
+       "mean_latency_s": 0.00043903465832425095,
+       "mean_peak_vram_mb": 1085.0,
+       "total_peak_mb": 5666.633333333333,
+       "mean_tokens_per_flow": 1626.5700000000002,
+       "cost_per_1k_flows_usd": 0.02633728,
+       "wh_per_flow": 0.045906666666666665,
+       "rank": 2
+      }
+     ]
+    },
+    {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA A100",
+     "settings_fingerprint": "fp1",
+     "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
+     "n_flows_per_session": 10,
+     "n_sessions": 1,
+     "sessions": [
+      "job_20261001_130000_44444444444444444444444444444444"
+     ],
+     "rows": [
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_130000_44444444444444444444444444444444"
+       ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
+       "mean_latency_s": null,
+       "mean_peak_vram_mb": 450.0,
+       "total_peak_mb": 2500.0,
+       "mean_tokens_per_flow": 715.5,
+       "cost_per_1k_flows_usd": 0.0061728,
+       "wh_per_flow": 0.02105,
+       "rank": 1
+      }
+     ]
+    },
+    {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp2",
+     "input_type": "CSV",
+     "labelled": false,
+     "demo": false,
+     "n_flows_per_session": 10,
+     "n_sessions": 1,
+     "sessions": [
+      "job_20261001_120000_33333333333333333333333333333333"
+     ],
+     "rows": [
+      {
+       "model": "microsoft/Phi-3-mini-4k-instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 68.13,
+       "saw_eff_composite_100": 68.13,
+       "mean_latency_s": 0.00033603532499304836,
+       "mean_peak_vram_mb": 845.0,
+       "total_peak_mb": 4333.3,
+       "mean_tokens_per_flow": 1244.9700000000003,
+       "cost_per_1k_flows_usd": 0.01975296,
+       "wh_per_flow": 0.03468,
+       "rank": 1
+      },
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 62.63000000000001,
+       "saw_eff_composite_100": 62.63000000000001,
+       "mean_latency_s": 0.0002510449600049469,
+       "mean_peak_vram_mb": 720.0,
+       "total_peak_mb": 4000.0,
+       "mean_tokens_per_flow": 1144.8,
+       "cost_per_1k_flows_usd": 0.00987648,
+       "wh_per_flow": 0.03368,
+       "rank": 2
+      }
+     ]
+    },
+    {
+     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "gpu": "Demo (no GPU)",
+     "settings_fingerprint": "fpm",
+     "input_type": "CSV",
+     "labelled": true,
+     "demo": true,
+     "n_flows_per_session": 10,
+     "n_sessions": 1,
+     "sessions": [
+      "job_20261001_140000_55555555555555555555555555555555"
+     ],
+     "rows": [
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_140000_55555555555555555555555555555555"
+       ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
+       "mean_latency_s": 0.0003138062000061836,
+       "mean_peak_vram_mb": 900.0,
+       "total_peak_mb": 5000.0,
+       "mean_tokens_per_flow": 1431.0,
+       "cost_per_1k_flows_usd": 0.0123456,
+       "wh_per_flow": 0.0421,
+       "rank": 1
+      },
+      {
+       "model": "microsoft/Phi-3-mini-4k-instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_140000_55555555555555555555555555555555"
+       ],
+       "saw_composite_100": 44.33,
+       "saw_eff_composite_100": 57.13000000000001,
+       "mean_latency_s": 0.0004132848249914503,
+       "mean_peak_vram_mb": 1025.0,
+       "total_peak_mb": 5333.3,
+       "mean_tokens_per_flow": 1531.17,
+       "cost_per_1k_flows_usd": 0.0246912,
+       "wh_per_flow": 0.0431,
+       "rank": 2
+      }
+     ]
+    }
+   ],
+   "rule": "Models are ranked only against others on the same flows, GPU and settings. Values are flow-weighted means over that setup's sessions."
+  },
+  "latency": {
+   "sort": "latency",
+   "sort_metric": "mean_latency_s",
+   "higher_is_better": false,
+   "sorts": {
+    "saw": "saw_composite_100",
+    "efficiency": "saw_eff_composite_100",
+    "latency": "mean_latency_s",
+    "vram": "mean_peak_vram_mb",
+    "total_vram": "total_peak_mb",
+    "tokens": "mean_tokens_per_flow",
+    "cost": "cost_per_1k_flows_usd",
+    "energy": "wh_per_flow"
+   },
+   "groups": [
+    {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp1",
+     "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
+     "n_flows_per_session": 10,
+     "n_sessions": 3,
+     "sessions": [
+      "job_20261001_160000_66666666666666666666666666666666",
+      "job_20261001_110000_22222222222222222222222222222222",
+      "job_20261001_100000_11111111111111111111111111111111"
+     ],
+     "rows": [
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 3,
+       "n_flows": 30,
+       "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
+        "job_20261001_110000_22222222222222222222222222222222",
+        "job_20261001_100000_11111111111111111111111111111111"
+       ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63,
+       "mean_latency_s": 0.00033472661333992917,
+       "mean_peak_vram_mb": 960.0,
+       "total_peak_mb": 5333.333333333333,
+       "mean_tokens_per_flow": 1526.4,
+       "cost_per_1k_flows_usd": 0.01316864,
+       "wh_per_flow": 0.044906666666666664,
+       "rank": 1
+      },
+      {
+       "model": "microsoft/Phi-3-mini-4k-instruct",
+       "n_sessions": 3,
+       "n_flows": 30,
+       "sessions": [
+        "job_20261001_160000_66666666666666666666666666666666",
+        "job_20261001_110000_22222222222222222222222222222222",
+        "job_20261001_100000_11111111111111111111111111111111"
+       ],
+       "saw_composite_100": 46.49666666666666,
+       "saw_eff_composite_100": 60.79666666666667,
+       "mean_latency_s": 0.00043903465832425095,
+       "mean_peak_vram_mb": 1085.0,
+       "total_peak_mb": 5666.633333333333,
+       "mean_tokens_per_flow": 1626.5700000000002,
+       "cost_per_1k_flows_usd": 0.02633728,
+       "wh_per_flow": 0.045906666666666665,
+       "rank": 2
+      }
+     ]
+    },
+    {
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA A100",
+     "settings_fingerprint": "fp1",
+     "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
+     "n_flows_per_session": 10,
+     "n_sessions": 1,
+     "sessions": [
+      "job_20261001_130000_44444444444444444444444444444444"
+     ],
+     "rows": [
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_130000_44444444444444444444444444444444"
+       ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "mean_latency_s": null,
        "mean_peak_vram_mb": 450.0,
        "total_peak_mb": 2500.0,
@@ -3833,13 +4250,66 @@
      ]
     },
     {
-     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-     "gpu": "Demo (no GPU)",
-     "demo": true,
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp2",
      "input_type": "CSV",
+     "labelled": false,
+     "demo": false,
      "n_flows_per_session": 10,
      "n_sessions": 1,
-     "mixed_settings": false,
+     "sessions": [
+      "job_20261001_120000_33333333333333333333333333333333"
+     ],
+     "rows": [
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 62.63000000000001,
+       "saw_eff_composite_100": 62.63000000000001,
+       "mean_latency_s": 0.0002510449600049469,
+       "mean_peak_vram_mb": 720.0,
+       "total_peak_mb": 4000.0,
+       "mean_tokens_per_flow": 1144.8,
+       "cost_per_1k_flows_usd": 0.00987648,
+       "wh_per_flow": 0.03368,
+       "rank": 1
+      },
+      {
+       "model": "microsoft/Phi-3-mini-4k-instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 68.13,
+       "saw_eff_composite_100": 68.13,
+       "mean_latency_s": 0.00033603532499304836,
+       "mean_peak_vram_mb": 845.0,
+       "total_peak_mb": 4333.3,
+       "mean_tokens_per_flow": 1244.9700000000003,
+       "cost_per_1k_flows_usd": 0.01975296,
+       "wh_per_flow": 0.03468,
+       "rank": 2
+      }
+     ]
+    },
+    {
+     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "gpu": "Demo (no GPU)",
+     "settings_fingerprint": "fpm",
+     "input_type": "CSV",
+     "labelled": true,
+     "demo": true,
+     "n_flows_per_session": 10,
+     "n_sessions": 1,
+     "sessions": [
+      "job_20261001_140000_55555555555555555555555555555555"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -3848,6 +4318,8 @@
        "sessions": [
         "job_20261001_140000_55555555555555555555555555555555"
        ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "mean_latency_s": 0.0003138062000061836,
        "mean_peak_vram_mb": 900.0,
        "total_peak_mb": 5000.0,
@@ -3863,6 +4335,8 @@
        "sessions": [
         "job_20261001_140000_55555555555555555555555555555555"
        ],
+       "saw_composite_100": 44.33,
+       "saw_eff_composite_100": 57.13000000000001,
        "mean_latency_s": 0.0004132848249914503,
        "mean_peak_vram_mb": 1025.0,
        "total_peak_mb": 5333.3,
@@ -3874,12 +4348,15 @@
      ]
     }
    ],
-   "rule": "Models are ranked only against others measured on the same prepared set (flows hash) and the same GPU; values are flow-weighted means over that group's sessions. Lower is better for every sort key."
+   "rule": "Models are ranked only against others on the same flows, GPU and settings. Values are flow-weighted means over that setup's sessions."
   },
   "vram": {
    "sort": "vram",
    "sort_metric": "mean_peak_vram_mb",
+   "higher_is_better": false,
    "sorts": {
+    "saw": "saw_composite_100",
+    "efficiency": "saw_eff_composite_100",
     "latency": "mean_latency_s",
     "vram": "mean_peak_vram_mb",
     "total_vram": "total_peak_mb",
@@ -3891,87 +4368,54 @@
     {
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "gpu": "NVIDIA L4",
-     "demo": false,
+     "settings_fingerprint": "fp1",
      "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
      "n_flows_per_session": 10,
-     "n_sessions": 4,
-     "mixed_settings": true,
+     "n_sessions": 3,
+     "sessions": [
+      "job_20261001_160000_66666666666666666666666666666666",
+      "job_20261001_110000_22222222222222222222222222222222",
+      "job_20261001_100000_11111111111111111111111111111111"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 4,
-       "n_flows": 40,
+       "n_sessions": 3,
+       "n_flows": 30,
        "sessions": [
         "job_20261001_160000_66666666666666666666666666666666",
-        "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0003138062000061836,
-       "mean_peak_vram_mb": 900.0,
-       "total_peak_mb": 5000.0,
-       "mean_tokens_per_flow": 1431.0,
-       "cost_per_1k_flows_usd": 0.012345600000000002,
-       "wh_per_flow": 0.0421,
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63,
+       "mean_latency_s": 0.00033472661333992917,
+       "mean_peak_vram_mb": 960.0,
+       "total_peak_mb": 5333.333333333333,
+       "mean_tokens_per_flow": 1526.4,
+       "cost_per_1k_flows_usd": 0.01316864,
+       "wh_per_flow": 0.044906666666666664,
        "rank": 1
       },
       {
        "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 4,
-       "n_flows": 40,
+       "n_sessions": 3,
+       "n_flows": 30,
        "sessions": [
         "job_20261001_160000_66666666666666666666666666666666",
-        "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0004132848249914503,
-       "mean_peak_vram_mb": 1025.0,
-       "total_peak_mb": 5333.3,
-       "mean_tokens_per_flow": 1531.17,
-       "cost_per_1k_flows_usd": 0.024691200000000003,
-       "wh_per_flow": 0.043100000000000006,
-       "rank": 2
-      }
-     ]
-    },
-    {
-     "prepared_set_sha256": "unknown:job_20261001_150000_abcdef",
-     "gpu": "?",
-     "demo": false,
-     "input_type": "CSV",
-     "n_flows_per_session": 10,
-     "n_sessions": 1,
-     "mixed_settings": false,
-     "rows": [
-      {
-       "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 1,
-       "n_flows": 10,
-       "sessions": [
-        "job_20261001_150000_abcdef"
-       ],
-       "mean_latency_s": 0.00034518682000680203,
-       "mean_peak_vram_mb": 990.0000000000002,
-       "total_peak_mb": 5500.0,
-       "mean_tokens_per_flow": 1574.1000000000001,
-       "cost_per_1k_flows_usd": 0.013580160000000003,
-       "wh_per_flow": 0.046310000000000004,
-       "rank": 1
-      },
-      {
-       "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 1,
-       "n_flows": 10,
-       "sessions": [
-        "job_20261001_150000_abcdef"
-       ],
-       "mean_latency_s": 0.00045190957499065124,
-       "mean_peak_vram_mb": 1115.0,
-       "total_peak_mb": 5833.3,
-       "mean_tokens_per_flow": 1674.27,
-       "cost_per_1k_flows_usd": 0.027160320000000005,
-       "wh_per_flow": 0.047310000000000005,
+       "saw_composite_100": 46.49666666666666,
+       "saw_eff_composite_100": 60.79666666666667,
+       "mean_latency_s": 0.00043903465832425095,
+       "mean_peak_vram_mb": 1085.0,
+       "total_peak_mb": 5666.633333333333,
+       "mean_tokens_per_flow": 1626.5700000000002,
+       "cost_per_1k_flows_usd": 0.02633728,
+       "wh_per_flow": 0.045906666666666665,
        "rank": 2
       }
      ]
@@ -3979,11 +4423,15 @@
     {
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "gpu": "NVIDIA A100",
-     "demo": false,
+     "settings_fingerprint": "fp1",
      "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
      "n_flows_per_session": 10,
      "n_sessions": 1,
-     "mixed_settings": false,
+     "sessions": [
+      "job_20261001_130000_44444444444444444444444444444444"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -3992,6 +4440,8 @@
        "sessions": [
         "job_20261001_130000_44444444444444444444444444444444"
        ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "mean_latency_s": null,
        "mean_peak_vram_mb": 450.0,
        "total_peak_mb": 2500.0,
@@ -4003,13 +4453,66 @@
      ]
     },
     {
-     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-     "gpu": "Demo (no GPU)",
-     "demo": true,
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp2",
      "input_type": "CSV",
+     "labelled": false,
+     "demo": false,
      "n_flows_per_session": 10,
      "n_sessions": 1,
-     "mixed_settings": false,
+     "sessions": [
+      "job_20261001_120000_33333333333333333333333333333333"
+     ],
+     "rows": [
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 62.63000000000001,
+       "saw_eff_composite_100": 62.63000000000001,
+       "mean_latency_s": 0.0002510449600049469,
+       "mean_peak_vram_mb": 720.0,
+       "total_peak_mb": 4000.0,
+       "mean_tokens_per_flow": 1144.8,
+       "cost_per_1k_flows_usd": 0.00987648,
+       "wh_per_flow": 0.03368,
+       "rank": 1
+      },
+      {
+       "model": "microsoft/Phi-3-mini-4k-instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 68.13,
+       "saw_eff_composite_100": 68.13,
+       "mean_latency_s": 0.00033603532499304836,
+       "mean_peak_vram_mb": 845.0,
+       "total_peak_mb": 4333.3,
+       "mean_tokens_per_flow": 1244.9700000000003,
+       "cost_per_1k_flows_usd": 0.01975296,
+       "wh_per_flow": 0.03468,
+       "rank": 2
+      }
+     ]
+    },
+    {
+     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "gpu": "Demo (no GPU)",
+     "settings_fingerprint": "fpm",
+     "input_type": "CSV",
+     "labelled": true,
+     "demo": true,
+     "n_flows_per_session": 10,
+     "n_sessions": 1,
+     "sessions": [
+      "job_20261001_140000_55555555555555555555555555555555"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -4018,6 +4521,8 @@
        "sessions": [
         "job_20261001_140000_55555555555555555555555555555555"
        ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "mean_latency_s": 0.0003138062000061836,
        "mean_peak_vram_mb": 900.0,
        "total_peak_mb": 5000.0,
@@ -4033,6 +4538,8 @@
        "sessions": [
         "job_20261001_140000_55555555555555555555555555555555"
        ],
+       "saw_composite_100": 44.33,
+       "saw_eff_composite_100": 57.13000000000001,
        "mean_latency_s": 0.0004132848249914503,
        "mean_peak_vram_mb": 1025.0,
        "total_peak_mb": 5333.3,
@@ -4044,12 +4551,15 @@
      ]
     }
    ],
-   "rule": "Models are ranked only against others measured on the same prepared set (flows hash) and the same GPU; values are flow-weighted means over that group's sessions. Lower is better for every sort key."
+   "rule": "Models are ranked only against others on the same flows, GPU and settings. Values are flow-weighted means over that setup's sessions."
   },
   "total_vram": {
    "sort": "total_vram",
    "sort_metric": "total_peak_mb",
+   "higher_is_better": false,
    "sorts": {
+    "saw": "saw_composite_100",
+    "efficiency": "saw_eff_composite_100",
     "latency": "mean_latency_s",
     "vram": "mean_peak_vram_mb",
     "total_vram": "total_peak_mb",
@@ -4061,87 +4571,54 @@
     {
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "gpu": "NVIDIA L4",
-     "demo": false,
+     "settings_fingerprint": "fp1",
      "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
      "n_flows_per_session": 10,
-     "n_sessions": 4,
-     "mixed_settings": true,
+     "n_sessions": 3,
+     "sessions": [
+      "job_20261001_160000_66666666666666666666666666666666",
+      "job_20261001_110000_22222222222222222222222222222222",
+      "job_20261001_100000_11111111111111111111111111111111"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 4,
-       "n_flows": 40,
+       "n_sessions": 3,
+       "n_flows": 30,
        "sessions": [
         "job_20261001_160000_66666666666666666666666666666666",
-        "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0003138062000061836,
-       "mean_peak_vram_mb": 900.0,
-       "total_peak_mb": 5000.0,
-       "mean_tokens_per_flow": 1431.0,
-       "cost_per_1k_flows_usd": 0.012345600000000002,
-       "wh_per_flow": 0.0421,
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63,
+       "mean_latency_s": 0.00033472661333992917,
+       "mean_peak_vram_mb": 960.0,
+       "total_peak_mb": 5333.333333333333,
+       "mean_tokens_per_flow": 1526.4,
+       "cost_per_1k_flows_usd": 0.01316864,
+       "wh_per_flow": 0.044906666666666664,
        "rank": 1
       },
       {
        "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 4,
-       "n_flows": 40,
+       "n_sessions": 3,
+       "n_flows": 30,
        "sessions": [
         "job_20261001_160000_66666666666666666666666666666666",
-        "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0004132848249914503,
-       "mean_peak_vram_mb": 1025.0,
-       "total_peak_mb": 5333.3,
-       "mean_tokens_per_flow": 1531.17,
-       "cost_per_1k_flows_usd": 0.024691200000000003,
-       "wh_per_flow": 0.043100000000000006,
-       "rank": 2
-      }
-     ]
-    },
-    {
-     "prepared_set_sha256": "unknown:job_20261001_150000_abcdef",
-     "gpu": "?",
-     "demo": false,
-     "input_type": "CSV",
-     "n_flows_per_session": 10,
-     "n_sessions": 1,
-     "mixed_settings": false,
-     "rows": [
-      {
-       "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 1,
-       "n_flows": 10,
-       "sessions": [
-        "job_20261001_150000_abcdef"
-       ],
-       "mean_latency_s": 0.00034518682000680203,
-       "mean_peak_vram_mb": 990.0000000000002,
-       "total_peak_mb": 5500.0,
-       "mean_tokens_per_flow": 1574.1000000000001,
-       "cost_per_1k_flows_usd": 0.013580160000000003,
-       "wh_per_flow": 0.046310000000000004,
-       "rank": 1
-      },
-      {
-       "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 1,
-       "n_flows": 10,
-       "sessions": [
-        "job_20261001_150000_abcdef"
-       ],
-       "mean_latency_s": 0.00045190957499065124,
-       "mean_peak_vram_mb": 1115.0,
-       "total_peak_mb": 5833.3,
-       "mean_tokens_per_flow": 1674.27,
-       "cost_per_1k_flows_usd": 0.027160320000000005,
-       "wh_per_flow": 0.047310000000000005,
+       "saw_composite_100": 46.49666666666666,
+       "saw_eff_composite_100": 60.79666666666667,
+       "mean_latency_s": 0.00043903465832425095,
+       "mean_peak_vram_mb": 1085.0,
+       "total_peak_mb": 5666.633333333333,
+       "mean_tokens_per_flow": 1626.5700000000002,
+       "cost_per_1k_flows_usd": 0.02633728,
+       "wh_per_flow": 0.045906666666666665,
        "rank": 2
       }
      ]
@@ -4149,11 +4626,15 @@
     {
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "gpu": "NVIDIA A100",
-     "demo": false,
+     "settings_fingerprint": "fp1",
      "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
      "n_flows_per_session": 10,
      "n_sessions": 1,
-     "mixed_settings": false,
+     "sessions": [
+      "job_20261001_130000_44444444444444444444444444444444"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -4162,6 +4643,8 @@
        "sessions": [
         "job_20261001_130000_44444444444444444444444444444444"
        ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "mean_latency_s": null,
        "mean_peak_vram_mb": 450.0,
        "total_peak_mb": 2500.0,
@@ -4173,13 +4656,66 @@
      ]
     },
     {
-     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-     "gpu": "Demo (no GPU)",
-     "demo": true,
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp2",
      "input_type": "CSV",
+     "labelled": false,
+     "demo": false,
      "n_flows_per_session": 10,
      "n_sessions": 1,
-     "mixed_settings": false,
+     "sessions": [
+      "job_20261001_120000_33333333333333333333333333333333"
+     ],
+     "rows": [
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 62.63000000000001,
+       "saw_eff_composite_100": 62.63000000000001,
+       "mean_latency_s": 0.0002510449600049469,
+       "mean_peak_vram_mb": 720.0,
+       "total_peak_mb": 4000.0,
+       "mean_tokens_per_flow": 1144.8,
+       "cost_per_1k_flows_usd": 0.00987648,
+       "wh_per_flow": 0.03368,
+       "rank": 1
+      },
+      {
+       "model": "microsoft/Phi-3-mini-4k-instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 68.13,
+       "saw_eff_composite_100": 68.13,
+       "mean_latency_s": 0.00033603532499304836,
+       "mean_peak_vram_mb": 845.0,
+       "total_peak_mb": 4333.3,
+       "mean_tokens_per_flow": 1244.9700000000003,
+       "cost_per_1k_flows_usd": 0.01975296,
+       "wh_per_flow": 0.03468,
+       "rank": 2
+      }
+     ]
+    },
+    {
+     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "gpu": "Demo (no GPU)",
+     "settings_fingerprint": "fpm",
+     "input_type": "CSV",
+     "labelled": true,
+     "demo": true,
+     "n_flows_per_session": 10,
+     "n_sessions": 1,
+     "sessions": [
+      "job_20261001_140000_55555555555555555555555555555555"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -4188,6 +4724,8 @@
        "sessions": [
         "job_20261001_140000_55555555555555555555555555555555"
        ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "mean_latency_s": 0.0003138062000061836,
        "mean_peak_vram_mb": 900.0,
        "total_peak_mb": 5000.0,
@@ -4203,6 +4741,8 @@
        "sessions": [
         "job_20261001_140000_55555555555555555555555555555555"
        ],
+       "saw_composite_100": 44.33,
+       "saw_eff_composite_100": 57.13000000000001,
        "mean_latency_s": 0.0004132848249914503,
        "mean_peak_vram_mb": 1025.0,
        "total_peak_mb": 5333.3,
@@ -4214,12 +4754,15 @@
      ]
     }
    ],
-   "rule": "Models are ranked only against others measured on the same prepared set (flows hash) and the same GPU; values are flow-weighted means over that group's sessions. Lower is better for every sort key."
+   "rule": "Models are ranked only against others on the same flows, GPU and settings. Values are flow-weighted means over that setup's sessions."
   },
   "tokens": {
    "sort": "tokens",
    "sort_metric": "mean_tokens_per_flow",
+   "higher_is_better": false,
    "sorts": {
+    "saw": "saw_composite_100",
+    "efficiency": "saw_eff_composite_100",
     "latency": "mean_latency_s",
     "vram": "mean_peak_vram_mb",
     "total_vram": "total_peak_mb",
@@ -4231,87 +4774,54 @@
     {
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "gpu": "NVIDIA L4",
-     "demo": false,
+     "settings_fingerprint": "fp1",
      "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
      "n_flows_per_session": 10,
-     "n_sessions": 4,
-     "mixed_settings": true,
+     "n_sessions": 3,
+     "sessions": [
+      "job_20261001_160000_66666666666666666666666666666666",
+      "job_20261001_110000_22222222222222222222222222222222",
+      "job_20261001_100000_11111111111111111111111111111111"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 4,
-       "n_flows": 40,
+       "n_sessions": 3,
+       "n_flows": 30,
        "sessions": [
         "job_20261001_160000_66666666666666666666666666666666",
-        "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0003138062000061836,
-       "mean_peak_vram_mb": 900.0,
-       "total_peak_mb": 5000.0,
-       "mean_tokens_per_flow": 1431.0,
-       "cost_per_1k_flows_usd": 0.012345600000000002,
-       "wh_per_flow": 0.0421,
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63,
+       "mean_latency_s": 0.00033472661333992917,
+       "mean_peak_vram_mb": 960.0,
+       "total_peak_mb": 5333.333333333333,
+       "mean_tokens_per_flow": 1526.4,
+       "cost_per_1k_flows_usd": 0.01316864,
+       "wh_per_flow": 0.044906666666666664,
        "rank": 1
       },
       {
        "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 4,
-       "n_flows": 40,
+       "n_sessions": 3,
+       "n_flows": 30,
        "sessions": [
         "job_20261001_160000_66666666666666666666666666666666",
-        "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0004132848249914503,
-       "mean_peak_vram_mb": 1025.0,
-       "total_peak_mb": 5333.3,
-       "mean_tokens_per_flow": 1531.17,
-       "cost_per_1k_flows_usd": 0.024691200000000003,
-       "wh_per_flow": 0.043100000000000006,
-       "rank": 2
-      }
-     ]
-    },
-    {
-     "prepared_set_sha256": "unknown:job_20261001_150000_abcdef",
-     "gpu": "?",
-     "demo": false,
-     "input_type": "CSV",
-     "n_flows_per_session": 10,
-     "n_sessions": 1,
-     "mixed_settings": false,
-     "rows": [
-      {
-       "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 1,
-       "n_flows": 10,
-       "sessions": [
-        "job_20261001_150000_abcdef"
-       ],
-       "mean_latency_s": 0.00034518682000680203,
-       "mean_peak_vram_mb": 990.0000000000002,
-       "total_peak_mb": 5500.0,
-       "mean_tokens_per_flow": 1574.1000000000001,
-       "cost_per_1k_flows_usd": 0.013580160000000003,
-       "wh_per_flow": 0.046310000000000004,
-       "rank": 1
-      },
-      {
-       "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 1,
-       "n_flows": 10,
-       "sessions": [
-        "job_20261001_150000_abcdef"
-       ],
-       "mean_latency_s": 0.00045190957499065124,
-       "mean_peak_vram_mb": 1115.0,
-       "total_peak_mb": 5833.3,
-       "mean_tokens_per_flow": 1674.27,
-       "cost_per_1k_flows_usd": 0.027160320000000005,
-       "wh_per_flow": 0.047310000000000005,
+       "saw_composite_100": 46.49666666666666,
+       "saw_eff_composite_100": 60.79666666666667,
+       "mean_latency_s": 0.00043903465832425095,
+       "mean_peak_vram_mb": 1085.0,
+       "total_peak_mb": 5666.633333333333,
+       "mean_tokens_per_flow": 1626.5700000000002,
+       "cost_per_1k_flows_usd": 0.02633728,
+       "wh_per_flow": 0.045906666666666665,
        "rank": 2
       }
      ]
@@ -4319,11 +4829,15 @@
     {
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "gpu": "NVIDIA A100",
-     "demo": false,
+     "settings_fingerprint": "fp1",
      "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
      "n_flows_per_session": 10,
      "n_sessions": 1,
-     "mixed_settings": false,
+     "sessions": [
+      "job_20261001_130000_44444444444444444444444444444444"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -4332,6 +4846,8 @@
        "sessions": [
         "job_20261001_130000_44444444444444444444444444444444"
        ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "mean_latency_s": null,
        "mean_peak_vram_mb": 450.0,
        "total_peak_mb": 2500.0,
@@ -4343,13 +4859,66 @@
      ]
     },
     {
-     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-     "gpu": "Demo (no GPU)",
-     "demo": true,
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp2",
      "input_type": "CSV",
+     "labelled": false,
+     "demo": false,
      "n_flows_per_session": 10,
      "n_sessions": 1,
-     "mixed_settings": false,
+     "sessions": [
+      "job_20261001_120000_33333333333333333333333333333333"
+     ],
+     "rows": [
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 62.63000000000001,
+       "saw_eff_composite_100": 62.63000000000001,
+       "mean_latency_s": 0.0002510449600049469,
+       "mean_peak_vram_mb": 720.0,
+       "total_peak_mb": 4000.0,
+       "mean_tokens_per_flow": 1144.8,
+       "cost_per_1k_flows_usd": 0.00987648,
+       "wh_per_flow": 0.03368,
+       "rank": 1
+      },
+      {
+       "model": "microsoft/Phi-3-mini-4k-instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 68.13,
+       "saw_eff_composite_100": 68.13,
+       "mean_latency_s": 0.00033603532499304836,
+       "mean_peak_vram_mb": 845.0,
+       "total_peak_mb": 4333.3,
+       "mean_tokens_per_flow": 1244.9700000000003,
+       "cost_per_1k_flows_usd": 0.01975296,
+       "wh_per_flow": 0.03468,
+       "rank": 2
+      }
+     ]
+    },
+    {
+     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "gpu": "Demo (no GPU)",
+     "settings_fingerprint": "fpm",
+     "input_type": "CSV",
+     "labelled": true,
+     "demo": true,
+     "n_flows_per_session": 10,
+     "n_sessions": 1,
+     "sessions": [
+      "job_20261001_140000_55555555555555555555555555555555"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -4358,6 +4927,8 @@
        "sessions": [
         "job_20261001_140000_55555555555555555555555555555555"
        ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "mean_latency_s": 0.0003138062000061836,
        "mean_peak_vram_mb": 900.0,
        "total_peak_mb": 5000.0,
@@ -4373,6 +4944,8 @@
        "sessions": [
         "job_20261001_140000_55555555555555555555555555555555"
        ],
+       "saw_composite_100": 44.33,
+       "saw_eff_composite_100": 57.13000000000001,
        "mean_latency_s": 0.0004132848249914503,
        "mean_peak_vram_mb": 1025.0,
        "total_peak_mb": 5333.3,
@@ -4384,12 +4957,15 @@
      ]
     }
    ],
-   "rule": "Models are ranked only against others measured on the same prepared set (flows hash) and the same GPU; values are flow-weighted means over that group's sessions. Lower is better for every sort key."
+   "rule": "Models are ranked only against others on the same flows, GPU and settings. Values are flow-weighted means over that setup's sessions."
   },
   "cost": {
    "sort": "cost",
    "sort_metric": "cost_per_1k_flows_usd",
+   "higher_is_better": false,
    "sorts": {
+    "saw": "saw_composite_100",
+    "efficiency": "saw_eff_composite_100",
     "latency": "mean_latency_s",
     "vram": "mean_peak_vram_mb",
     "total_vram": "total_peak_mb",
@@ -4401,87 +4977,54 @@
     {
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "gpu": "NVIDIA L4",
-     "demo": false,
+     "settings_fingerprint": "fp1",
      "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
      "n_flows_per_session": 10,
-     "n_sessions": 4,
-     "mixed_settings": true,
+     "n_sessions": 3,
+     "sessions": [
+      "job_20261001_160000_66666666666666666666666666666666",
+      "job_20261001_110000_22222222222222222222222222222222",
+      "job_20261001_100000_11111111111111111111111111111111"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 4,
-       "n_flows": 40,
+       "n_sessions": 3,
+       "n_flows": 30,
        "sessions": [
         "job_20261001_160000_66666666666666666666666666666666",
-        "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0003138062000061836,
-       "mean_peak_vram_mb": 900.0,
-       "total_peak_mb": 5000.0,
-       "mean_tokens_per_flow": 1431.0,
-       "cost_per_1k_flows_usd": 0.012345600000000002,
-       "wh_per_flow": 0.0421,
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63,
+       "mean_latency_s": 0.00033472661333992917,
+       "mean_peak_vram_mb": 960.0,
+       "total_peak_mb": 5333.333333333333,
+       "mean_tokens_per_flow": 1526.4,
+       "cost_per_1k_flows_usd": 0.01316864,
+       "wh_per_flow": 0.044906666666666664,
        "rank": 1
       },
       {
        "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 4,
-       "n_flows": 40,
+       "n_sessions": 3,
+       "n_flows": 30,
        "sessions": [
         "job_20261001_160000_66666666666666666666666666666666",
-        "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0004132848249914503,
-       "mean_peak_vram_mb": 1025.0,
-       "total_peak_mb": 5333.3,
-       "mean_tokens_per_flow": 1531.17,
-       "cost_per_1k_flows_usd": 0.024691200000000003,
-       "wh_per_flow": 0.043100000000000006,
-       "rank": 2
-      }
-     ]
-    },
-    {
-     "prepared_set_sha256": "unknown:job_20261001_150000_abcdef",
-     "gpu": "?",
-     "demo": false,
-     "input_type": "CSV",
-     "n_flows_per_session": 10,
-     "n_sessions": 1,
-     "mixed_settings": false,
-     "rows": [
-      {
-       "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 1,
-       "n_flows": 10,
-       "sessions": [
-        "job_20261001_150000_abcdef"
-       ],
-       "mean_latency_s": 0.00034518682000680203,
-       "mean_peak_vram_mb": 990.0000000000002,
-       "total_peak_mb": 5500.0,
-       "mean_tokens_per_flow": 1574.1000000000001,
-       "cost_per_1k_flows_usd": 0.013580160000000003,
-       "wh_per_flow": 0.046310000000000004,
-       "rank": 1
-      },
-      {
-       "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 1,
-       "n_flows": 10,
-       "sessions": [
-        "job_20261001_150000_abcdef"
-       ],
-       "mean_latency_s": 0.00045190957499065124,
-       "mean_peak_vram_mb": 1115.0,
-       "total_peak_mb": 5833.3,
-       "mean_tokens_per_flow": 1674.27,
-       "cost_per_1k_flows_usd": 0.027160320000000005,
-       "wh_per_flow": 0.047310000000000005,
+       "saw_composite_100": 46.49666666666666,
+       "saw_eff_composite_100": 60.79666666666667,
+       "mean_latency_s": 0.00043903465832425095,
+       "mean_peak_vram_mb": 1085.0,
+       "total_peak_mb": 5666.633333333333,
+       "mean_tokens_per_flow": 1626.5700000000002,
+       "cost_per_1k_flows_usd": 0.02633728,
+       "wh_per_flow": 0.045906666666666665,
        "rank": 2
       }
      ]
@@ -4489,11 +5032,15 @@
     {
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "gpu": "NVIDIA A100",
-     "demo": false,
+     "settings_fingerprint": "fp1",
      "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
      "n_flows_per_session": 10,
      "n_sessions": 1,
-     "mixed_settings": false,
+     "sessions": [
+      "job_20261001_130000_44444444444444444444444444444444"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -4502,6 +5049,8 @@
        "sessions": [
         "job_20261001_130000_44444444444444444444444444444444"
        ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "mean_latency_s": null,
        "mean_peak_vram_mb": 450.0,
        "total_peak_mb": 2500.0,
@@ -4513,13 +5062,66 @@
      ]
     },
     {
-     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-     "gpu": "Demo (no GPU)",
-     "demo": true,
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp2",
      "input_type": "CSV",
+     "labelled": false,
+     "demo": false,
      "n_flows_per_session": 10,
      "n_sessions": 1,
-     "mixed_settings": false,
+     "sessions": [
+      "job_20261001_120000_33333333333333333333333333333333"
+     ],
+     "rows": [
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 62.63000000000001,
+       "saw_eff_composite_100": 62.63000000000001,
+       "mean_latency_s": 0.0002510449600049469,
+       "mean_peak_vram_mb": 720.0,
+       "total_peak_mb": 4000.0,
+       "mean_tokens_per_flow": 1144.8,
+       "cost_per_1k_flows_usd": 0.00987648,
+       "wh_per_flow": 0.03368,
+       "rank": 1
+      },
+      {
+       "model": "microsoft/Phi-3-mini-4k-instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 68.13,
+       "saw_eff_composite_100": 68.13,
+       "mean_latency_s": 0.00033603532499304836,
+       "mean_peak_vram_mb": 845.0,
+       "total_peak_mb": 4333.3,
+       "mean_tokens_per_flow": 1244.9700000000003,
+       "cost_per_1k_flows_usd": 0.01975296,
+       "wh_per_flow": 0.03468,
+       "rank": 2
+      }
+     ]
+    },
+    {
+     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "gpu": "Demo (no GPU)",
+     "settings_fingerprint": "fpm",
+     "input_type": "CSV",
+     "labelled": true,
+     "demo": true,
+     "n_flows_per_session": 10,
+     "n_sessions": 1,
+     "sessions": [
+      "job_20261001_140000_55555555555555555555555555555555"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -4528,6 +5130,8 @@
        "sessions": [
         "job_20261001_140000_55555555555555555555555555555555"
        ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "mean_latency_s": 0.0003138062000061836,
        "mean_peak_vram_mb": 900.0,
        "total_peak_mb": 5000.0,
@@ -4543,6 +5147,8 @@
        "sessions": [
         "job_20261001_140000_55555555555555555555555555555555"
        ],
+       "saw_composite_100": 44.33,
+       "saw_eff_composite_100": 57.13000000000001,
        "mean_latency_s": 0.0004132848249914503,
        "mean_peak_vram_mb": 1025.0,
        "total_peak_mb": 5333.3,
@@ -4554,12 +5160,15 @@
      ]
     }
    ],
-   "rule": "Models are ranked only against others measured on the same prepared set (flows hash) and the same GPU; values are flow-weighted means over that group's sessions. Lower is better for every sort key."
+   "rule": "Models are ranked only against others on the same flows, GPU and settings. Values are flow-weighted means over that setup's sessions."
   },
   "energy": {
    "sort": "energy",
    "sort_metric": "wh_per_flow",
+   "higher_is_better": false,
    "sorts": {
+    "saw": "saw_composite_100",
+    "efficiency": "saw_eff_composite_100",
     "latency": "mean_latency_s",
     "vram": "mean_peak_vram_mb",
     "total_vram": "total_peak_mb",
@@ -4571,87 +5180,54 @@
     {
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "gpu": "NVIDIA L4",
-     "demo": false,
+     "settings_fingerprint": "fp1",
      "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
      "n_flows_per_session": 10,
-     "n_sessions": 4,
-     "mixed_settings": true,
+     "n_sessions": 3,
+     "sessions": [
+      "job_20261001_160000_66666666666666666666666666666666",
+      "job_20261001_110000_22222222222222222222222222222222",
+      "job_20261001_100000_11111111111111111111111111111111"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 4,
-       "n_flows": 40,
+       "n_sessions": 3,
+       "n_flows": 30,
        "sessions": [
         "job_20261001_160000_66666666666666666666666666666666",
-        "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0003138062000061836,
-       "mean_peak_vram_mb": 900.0,
-       "total_peak_mb": 5000.0,
-       "mean_tokens_per_flow": 1431.0,
-       "cost_per_1k_flows_usd": 0.012345600000000002,
-       "wh_per_flow": 0.0421,
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63,
+       "mean_latency_s": 0.00033472661333992917,
+       "mean_peak_vram_mb": 960.0,
+       "total_peak_mb": 5333.333333333333,
+       "mean_tokens_per_flow": 1526.4,
+       "cost_per_1k_flows_usd": 0.01316864,
+       "wh_per_flow": 0.044906666666666664,
        "rank": 1
       },
       {
        "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 4,
-       "n_flows": 40,
+       "n_sessions": 3,
+       "n_flows": 30,
        "sessions": [
         "job_20261001_160000_66666666666666666666666666666666",
-        "job_20261001_120000_33333333333333333333333333333333",
         "job_20261001_110000_22222222222222222222222222222222",
         "job_20261001_100000_11111111111111111111111111111111"
        ],
-       "mean_latency_s": 0.0004132848249914503,
-       "mean_peak_vram_mb": 1025.0,
-       "total_peak_mb": 5333.3,
-       "mean_tokens_per_flow": 1531.17,
-       "cost_per_1k_flows_usd": 0.024691200000000003,
-       "wh_per_flow": 0.043100000000000006,
-       "rank": 2
-      }
-     ]
-    },
-    {
-     "prepared_set_sha256": "unknown:job_20261001_150000_abcdef",
-     "gpu": "?",
-     "demo": false,
-     "input_type": "CSV",
-     "n_flows_per_session": 10,
-     "n_sessions": 1,
-     "mixed_settings": false,
-     "rows": [
-      {
-       "model": "Qwen/Qwen2.5-7B-Instruct",
-       "n_sessions": 1,
-       "n_flows": 10,
-       "sessions": [
-        "job_20261001_150000_abcdef"
-       ],
-       "mean_latency_s": 0.00034518682000680203,
-       "mean_peak_vram_mb": 990.0000000000002,
-       "total_peak_mb": 5500.0,
-       "mean_tokens_per_flow": 1574.1000000000001,
-       "cost_per_1k_flows_usd": 0.013580160000000003,
-       "wh_per_flow": 0.046310000000000004,
-       "rank": 1
-      },
-      {
-       "model": "microsoft/Phi-3-mini-4k-instruct",
-       "n_sessions": 1,
-       "n_flows": 10,
-       "sessions": [
-        "job_20261001_150000_abcdef"
-       ],
-       "mean_latency_s": 0.00045190957499065124,
-       "mean_peak_vram_mb": 1115.0,
-       "total_peak_mb": 5833.3,
-       "mean_tokens_per_flow": 1674.27,
-       "cost_per_1k_flows_usd": 0.027160320000000005,
-       "wh_per_flow": 0.047310000000000005,
+       "saw_composite_100": 46.49666666666666,
+       "saw_eff_composite_100": 60.79666666666667,
+       "mean_latency_s": 0.00043903465832425095,
+       "mean_peak_vram_mb": 1085.0,
+       "total_peak_mb": 5666.633333333333,
+       "mean_tokens_per_flow": 1626.5700000000002,
+       "cost_per_1k_flows_usd": 0.02633728,
+       "wh_per_flow": 0.045906666666666665,
        "rank": 2
       }
      ]
@@ -4659,11 +5235,15 @@
     {
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "gpu": "NVIDIA A100",
-     "demo": false,
+     "settings_fingerprint": "fp1",
      "input_type": "CSV",
+     "labelled": true,
+     "demo": false,
      "n_flows_per_session": 10,
      "n_sessions": 1,
-     "mixed_settings": false,
+     "sessions": [
+      "job_20261001_130000_44444444444444444444444444444444"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -4672,6 +5252,8 @@
        "sessions": [
         "job_20261001_130000_44444444444444444444444444444444"
        ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "mean_latency_s": null,
        "mean_peak_vram_mb": 450.0,
        "total_peak_mb": 2500.0,
@@ -4683,13 +5265,66 @@
      ]
     },
     {
-     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-     "gpu": "Demo (no GPU)",
-     "demo": true,
+     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "gpu": "NVIDIA L4",
+     "settings_fingerprint": "fp2",
      "input_type": "CSV",
+     "labelled": false,
+     "demo": false,
      "n_flows_per_session": 10,
      "n_sessions": 1,
-     "mixed_settings": false,
+     "sessions": [
+      "job_20261001_120000_33333333333333333333333333333333"
+     ],
+     "rows": [
+      {
+       "model": "Qwen/Qwen2.5-7B-Instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 62.63000000000001,
+       "saw_eff_composite_100": 62.63000000000001,
+       "mean_latency_s": 0.0002510449600049469,
+       "mean_peak_vram_mb": 720.0,
+       "total_peak_mb": 4000.0,
+       "mean_tokens_per_flow": 1144.8,
+       "cost_per_1k_flows_usd": 0.00987648,
+       "wh_per_flow": 0.03368,
+       "rank": 1
+      },
+      {
+       "model": "microsoft/Phi-3-mini-4k-instruct",
+       "n_sessions": 1,
+       "n_flows": 10,
+       "sessions": [
+        "job_20261001_120000_33333333333333333333333333333333"
+       ],
+       "saw_composite_100": 68.13,
+       "saw_eff_composite_100": 68.13,
+       "mean_latency_s": 0.00033603532499304836,
+       "mean_peak_vram_mb": 845.0,
+       "total_peak_mb": 4333.3,
+       "mean_tokens_per_flow": 1244.9700000000003,
+       "cost_per_1k_flows_usd": 0.01975296,
+       "wh_per_flow": 0.03468,
+       "rank": 2
+      }
+     ]
+    },
+    {
+     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+     "gpu": "Demo (no GPU)",
+     "settings_fingerprint": "fpm",
+     "input_type": "CSV",
+     "labelled": true,
+     "demo": true,
+     "n_flows_per_session": 10,
+     "n_sessions": 1,
+     "sessions": [
+      "job_20261001_140000_55555555555555555555555555555555"
+     ],
      "rows": [
       {
        "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -4698,6 +5333,8 @@
        "sessions": [
         "job_20261001_140000_55555555555555555555555555555555"
        ],
+       "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "mean_latency_s": 0.0003138062000061836,
        "mean_peak_vram_mb": 900.0,
        "total_peak_mb": 5000.0,
@@ -4713,6 +5350,8 @@
        "sessions": [
         "job_20261001_140000_55555555555555555555555555555555"
        ],
+       "saw_composite_100": 44.33,
+       "saw_eff_composite_100": 57.13000000000001,
        "mean_latency_s": 0.0004132848249914503,
        "mean_peak_vram_mb": 1025.0,
        "total_peak_mb": 5333.3,
@@ -4724,9 +5363,245 @@
      ]
     }
    ],
-   "rule": "Models are ranked only against others measured on the same prepared set (flows hash) and the same GPU; values are flow-weighted means over that group's sessions. Lower is better for every sort key."
+   "rule": "Models are ranked only against others on the same flows, GPU and settings. Values are flow-weighted means over that setup's sessions."
   }
  },
+ "leaderboard_overall": [
+  {
+   "by": "saw",
+   "demo": false,
+   "out": {
+    "by": "saw",
+    "metric": "saw_composite_100",
+    "bys": {
+     "saw": "saw_composite_100",
+     "efficiency": "saw_eff_composite_100",
+     "accuracy": "accuracy"
+    },
+    "include_demo": false,
+    "n_setups": 2,
+    "n_setups_single_model": 1,
+    "rows": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "wins": 1,
+      "setups": 2,
+      "win_rate": 0.5,
+      "rivals_beaten": 0.5,
+      "n_sessions": 4,
+      "few_data": false,
+      "rank": 1
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "wins": 1,
+      "setups": 2,
+      "win_rate": 0.5,
+      "rivals_beaten": 0.5,
+      "n_sessions": 4,
+      "few_data": false,
+      "rank": 2
+     }
+    ],
+    "rule": "Counted inside each setup (same flows, GPU and settings) with 2+ models: a win is 1st place there. Rivals beaten = the share of the other models it placed above, averaged over its setups."
+   }
+  },
+  {
+   "by": "saw",
+   "demo": true,
+   "out": {
+    "by": "saw",
+    "metric": "saw_composite_100",
+    "bys": {
+     "saw": "saw_composite_100",
+     "efficiency": "saw_eff_composite_100",
+     "accuracy": "accuracy"
+    },
+    "include_demo": true,
+    "n_setups": 3,
+    "n_setups_single_model": 1,
+    "rows": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "wins": 2,
+      "setups": 3,
+      "win_rate": 0.6666666666666666,
+      "rivals_beaten": 0.6666666666666666,
+      "n_sessions": 5,
+      "few_data": false,
+      "rank": 1
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "wins": 1,
+      "setups": 3,
+      "win_rate": 0.3333333333333333,
+      "rivals_beaten": 0.3333333333333333,
+      "n_sessions": 5,
+      "few_data": false,
+      "rank": 2
+     }
+    ],
+    "rule": "Counted inside each setup (same flows, GPU and settings) with 2+ models: a win is 1st place there. Rivals beaten = the share of the other models it placed above, averaged over its setups."
+   }
+  },
+  {
+   "by": "efficiency",
+   "demo": false,
+   "out": {
+    "by": "efficiency",
+    "metric": "saw_eff_composite_100",
+    "bys": {
+     "saw": "saw_composite_100",
+     "efficiency": "saw_eff_composite_100",
+     "accuracy": "accuracy"
+    },
+    "include_demo": false,
+    "n_setups": 2,
+    "n_setups_single_model": 1,
+    "rows": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "wins": 1,
+      "setups": 2,
+      "win_rate": 0.5,
+      "rivals_beaten": 0.5,
+      "n_sessions": 4,
+      "few_data": false,
+      "rank": 1
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "wins": 1,
+      "setups": 2,
+      "win_rate": 0.5,
+      "rivals_beaten": 0.5,
+      "n_sessions": 4,
+      "few_data": false,
+      "rank": 2
+     }
+    ],
+    "rule": "Counted inside each setup (same flows, GPU and settings) with 2+ models: a win is 1st place there. Rivals beaten = the share of the other models it placed above, averaged over its setups."
+   }
+  },
+  {
+   "by": "efficiency",
+   "demo": true,
+   "out": {
+    "by": "efficiency",
+    "metric": "saw_eff_composite_100",
+    "bys": {
+     "saw": "saw_composite_100",
+     "efficiency": "saw_eff_composite_100",
+     "accuracy": "accuracy"
+    },
+    "include_demo": true,
+    "n_setups": 3,
+    "n_setups_single_model": 1,
+    "rows": [
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "wins": 2,
+      "setups": 3,
+      "win_rate": 0.6666666666666666,
+      "rivals_beaten": 0.6666666666666666,
+      "n_sessions": 5,
+      "few_data": false,
+      "rank": 1
+     },
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "wins": 1,
+      "setups": 3,
+      "win_rate": 0.3333333333333333,
+      "rivals_beaten": 0.3333333333333333,
+      "n_sessions": 5,
+      "few_data": false,
+      "rank": 2
+     }
+    ],
+    "rule": "Counted inside each setup (same flows, GPU and settings) with 2+ models: a win is 1st place there. Rivals beaten = the share of the other models it placed above, averaged over its setups."
+   }
+  },
+  {
+   "by": "accuracy",
+   "demo": false,
+   "out": {
+    "by": "accuracy",
+    "metric": "accuracy",
+    "bys": {
+     "saw": "saw_composite_100",
+     "efficiency": "saw_eff_composite_100",
+     "accuracy": "accuracy"
+    },
+    "include_demo": false,
+    "n_setups": 1,
+    "n_setups_single_model": 1,
+    "rows": [
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "wins": 1,
+      "setups": 1,
+      "win_rate": 1.0,
+      "rivals_beaten": 1.0,
+      "n_sessions": 3,
+      "few_data": true,
+      "rank": 1
+     },
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "wins": 0,
+      "setups": 1,
+      "win_rate": 0.0,
+      "rivals_beaten": 0.0,
+      "n_sessions": 3,
+      "few_data": true,
+      "rank": 2
+     }
+    ],
+    "rule": "Counted inside each setup (same flows, GPU and settings) with 2+ models: a win is 1st place there. Rivals beaten = the share of the other models it placed above, averaged over its setups."
+   }
+  },
+  {
+   "by": "accuracy",
+   "demo": true,
+   "out": {
+    "by": "accuracy",
+    "metric": "accuracy",
+    "bys": {
+     "saw": "saw_composite_100",
+     "efficiency": "saw_eff_composite_100",
+     "accuracy": "accuracy"
+    },
+    "include_demo": true,
+    "n_setups": 2,
+    "n_setups_single_model": 1,
+    "rows": [
+     {
+      "model": "microsoft/Phi-3-mini-4k-instruct",
+      "wins": 2,
+      "setups": 2,
+      "win_rate": 1.0,
+      "rivals_beaten": 1.0,
+      "n_sessions": 4,
+      "few_data": false,
+      "rank": 1
+     },
+     {
+      "model": "Qwen/Qwen2.5-7B-Instruct",
+      "wins": 0,
+      "setups": 2,
+      "win_rate": 0.0,
+      "rivals_beaten": 0.0,
+      "n_sessions": 4,
+      "few_data": false,
+      "rank": 2
+     }
+    ],
+    "rule": "Counted inside each setup (same flows, GPU and settings) with 2+ models: a win is 1st place there. Rivals beaten = the share of the other models it placed above, averaged over its setups."
+   }
+  }
+ ],
  "constraints": [
   {
    "session": "job_20261001_100000_11111111111111111111111111111111",
@@ -11251,15 +12126,13 @@
       "lower_is_better": false,
       "values": [
        47.58,
+       44.33,
        47.58,
-       47.58,
-       47.58
+       44.33
       ],
       "best_index": [
        0,
-       1,
-       2,
-       3
+       2
       ]
      },
      {
@@ -11270,9 +12143,9 @@
       "context_only": true,
       "values": [
        0.2,
+       0.22000000000000003,
        0.2,
-       0.2,
-       0.2
+       0.22599999999999998
       ],
       "best_index": []
      }
@@ -11332,8 +12205,8 @@
        "wh_per_flow": 0.049415,
        "wh_per_1k_flows": 48.415000000000006,
        "wh_per_flow_net_idle": 0.034499999999999996,
-       "saw_composite_100": 47.58,
-       "accuracy": 0.2
+       "saw_composite_100": 44.33,
+       "accuracy": 0.223
       }
      }
     ],
@@ -11701,18 +12574,13 @@
       "lower_is_better": false,
       "values": [
        47.58,
+       44.33,
        47.58,
+       44.33,
        47.58,
-       47.58,
-       47.58,
-       47.58
+       50.83
       ],
       "best_index": [
-       0,
-       1,
-       2,
-       3,
-       4,
        5
       ]
      },
@@ -11724,11 +12592,11 @@
       "context_only": true,
       "values": [
        0.2,
+       0.22000000000000003,
        0.2,
+       0.22599999999999998,
        0.2,
-       0.2,
-       0.2,
-       0.2
+       0.21800000000000003
       ],
       "best_index": []
      }
@@ -11790,8 +12658,8 @@
        "wh_per_flow": 0.045906666666666665,
        "wh_per_1k_flows": 44.906666666666666,
        "wh_per_flow_net_idle": 0.032,
-       "saw_composite_100": 47.58,
-       "accuracy": 0.2
+       "saw_composite_100": 46.49666666666666,
+       "accuracy": 0.22133333333333335
       }
      }
     ],
@@ -12159,19 +13027,14 @@
       "lower_is_better": false,
       "values": [
        47.58,
+       50.83,
        47.58,
+       44.33,
        47.58,
-       47.58,
-       47.58,
-       47.58
+       44.33
       ],
       "best_index": [
-       0,
-       1,
-       2,
-       3,
-       4,
-       5
+       1
       ]
      },
      {
@@ -12182,11 +13045,11 @@
       "context_only": true,
       "values": [
        0.2,
+       0.21800000000000003,
        0.2,
+       0.22599999999999998,
        0.2,
-       0.2,
-       0.2,
-       0.2
+       0.22000000000000003
       ],
       "best_index": []
      }
@@ -12248,8 +13111,8 @@
        "wh_per_flow": 0.045906666666666665,
        "wh_per_1k_flows": 44.906666666666666,
        "wh_per_flow_net_idle": 0.032,
-       "saw_composite_100": 47.58,
-       "accuracy": 0.2
+       "saw_composite_100": 46.49666666666666,
+       "accuracy": 0.22133333333333333
       }
      }
     ],
@@ -12605,15 +13468,13 @@
       "lower_is_better": false,
       "values": [
        47.58,
+       44.33,
        47.58,
-       47.58,
-       47.58
+       44.33
       ],
       "best_index": [
        0,
-       1,
-       2,
-       3
+       2
       ]
      },
      {
@@ -12624,9 +13485,9 @@
       "context_only": true,
       "values": [
        0.2,
+       0.22000000000000003,
        0.2,
-       0.2,
-       0.2
+       0.22000000000000003
       ],
       "best_index": []
      }
@@ -12686,8 +13547,8 @@
        "wh_per_flow": 0.0431,
        "wh_per_1k_flows": 42.1,
        "wh_per_flow_net_idle": 0.03,
-       "saw_composite_100": 47.58,
-       "accuracy": 0.2
+       "saw_composite_100": 44.33,
+       "accuracy": 0.22000000000000003
       }
      }
     ],

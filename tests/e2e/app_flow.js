@@ -301,7 +301,21 @@ async function frameOf(p) {
   await p.waitForFunction(() => { const t = document.querySelector('#lb-table-0 tbody td'); return t && /—/.test(t.textContent); });
   log(true, 'Leaderboard: sort by VRAM on mock data -> unranked (no VRAM reading)');
   await p.check('#lb-sort input[value="latency"]'); await p.waitForSelector('#lb-table-0');
+  const cmpHref = await p.getAttribute('.lb-group .lb-compare', 'href');
+  log(/^#\/compare\?sessions=job_[^,]+,job_/.test(cmpHref || ''), 'Leaderboard: a setup with 2 sessions links to Compare (' + cmpHref + ')');
   await p.screenshot({ path: S + '/11-leaderboard.png', fullPage: true });
+  await p.click('#lbtab-overall'); await p.waitForSelector('#lb-overall-empty');
+  log(await p.isHidden('#lb-setup-panel') && /two or more models/.test(await p.textContent('#lb-overall-empty')), 'Leaderboard Overall: demo sessions are left out by default');
+  await p.check('#lb-demo'); await p.waitForSelector('#lb-overall-table');
+  const ov = await p.$$eval('#lb-overall-table tbody tr', r => r.map(x => x.children[2].textContent));
+  log(ov.length === 2 && ov.some(w => Number(w) > 0), 'Leaderboard Overall (demo included): wins counted per model (' + ov + ')');
+  log(/Most often #1 by SAW score/.test(await p.textContent('#lb-overall-head')), 'Leaderboard Overall: names the model most often #1');
+  await p.check('#lb-by input[value="efficiency"]'); await p.waitForFunction(() => /efficiency score/.test((document.getElementById('lb-overall-head') || {}).textContent || ''));
+  log(true, 'Leaderboard Overall: count wins by efficiency score');
+  await p.screenshot({ path: S + '/11b-leaderboard-overall.png', fullPage: true });
+  await p.click('#lbtab-setup'); await p.waitForSelector('#lb-table-0');
+  await p.click('.lb-group .lb-compare'); await p.waitForSelector('#cmp-validity');
+  log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Open in Compare opens the merged view of that setup');
 
   // 10. Settings: theme toggle (persisted)
   await p.click('.iconbtn[aria-label="Settings"]'); await p.waitForSelector('#view-settings:not([hidden])');

@@ -4,7 +4,7 @@
 // CPU stays far below 10 ms): in D1 up to RESULTS_R2_THRESHOLD bytes, otherwise in R2.
 import { requireUser } from "./auth";
 import { mapJobStatus as STATUS_FROM_JOB, parseBody, verifyBackend } from "./backend";
-import { ConstraintError, Summary, compare, compareMany, comparable, evaluateFacts, leaderboard, LEADERBOARD_SORTS } from "./analytics";
+import { ConstraintError, Summary, compare, compareMany, comparable, evaluateFacts, leaderboard, leaderboardOverall, LEADERBOARD_SORTS, OVERALL_BY } from "./analytics";
 import { notifyFinal } from "./notify";
 import { Env, fail, intVar, json, nowIso } from "./util";
 
@@ -150,7 +150,7 @@ export async function compareMergedRoute(req: Request, env: Env): Promise<Respon
 async function withSaw(env: Env, ss: Summary[]): Promise<Summary[]> {
   for (const s of ss) {
     const rows = Object.values((s.metrics || {}) as Record<string, any>);
-    if (!rows.length || rows.every((r) => "saw_composite_100" in r)) continue;
+    if (!rows.length || rows.every((r) => "saw_eff_composite_100" in r)) continue;
     const r = await getRow(env, s.session_id, true).catch(() => null);
     let res: any = null;
     try {
@@ -158,9 +158,11 @@ async function withSaw(env: Env, ss: Summary[]): Promise<Summary[]> {
       else if (r?.results_r2_key) { const o = await env.R2.get(r.results_r2_key); if (o) res = await o.json(); }
     } catch { res = null; }
     const saw = new Map(((res?.per_model || []) as any[]).map((p) => [p.model, p.saw || {}]));
+    const eff = new Map(((res?.per_model || []) as any[]).map((p) => [p.model, p.saw_efficiency_only || {}]));
     for (const [m, row] of Object.entries(s.metrics as Record<string, any>)) {
       row.saw_composite_100 = saw.get(m)?.composite_100 ?? null;
       row.saw_tier = saw.get(m)?.tier ?? null;
+      row.saw_eff_composite_100 = eff.get(m)?.composite_100 ?? null;
     }
   }
   return ss;
@@ -168,10 +170,18 @@ async function withSaw(env: Env, ss: Summary[]): Promise<Summary[]> {
 
 export async function leaderboardRoute(req: Request, env: Env): Promise<Response> {
   await requireUser(req, env);
-  const sort = new URL(req.url).searchParams.get("sort") || "latency";
-  if (!(sort in LEADERBOARD_SORTS)) fail(400, "bad_request", `sort must be one of ${Object.keys(LEADERBOARD_SORTS).sort().join(", ")}`);
+  const q = new URL(req.url).searchParams;
+  const view = q.get("view") || "per_setup";
   // newest first — the same order the backend reference iterates its jobs in
-  return json(leaderboard(await summaries(env), sort));
+  if (view === "overall") {
+    const by = q.get("by") || "saw";
+    if (!(by in OVERALL_BY)) fail(400, "bad_request", `by must be one of ${Object.keys(OVERALL_BY).sort().join(", ")}`);
+    return json(leaderboardOverall(await withSaw(env, await summaries(env)), by, q.get("demo") === "1"));
+  }
+  if (view !== "per_setup") fail(400, "bad_request", "view must be per_setup or overall");
+  const sort = q.get("sort") || "latency";
+  if (!(sort in LEADERBOARD_SORTS)) fail(400, "bad_request", `sort must be one of ${Object.keys(LEADERBOARD_SORTS).sort().join(", ")}`);
+  return json(leaderboard(await withSaw(env, await summaries(env)), sort));
 }
 
 export async function constraintsRoute(req: Request, env: Env, id: string): Promise<Response> {

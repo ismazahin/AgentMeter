@@ -8,7 +8,8 @@ finished job's session_results.json (persistence moves to a control plane later)
   session_summary(job, result)   one row for Home / Sessions
   compare(a, b)                  side-by-side efficiency metrics + the like-for-like check
                                  (same prepared-set hash? same GPU? same settings?)
-  leaderboard(rows)              models ranked ONLY within a (prepared-set hash, GPU) group
+  leaderboard(rows)              models ranked ONLY within one setup (prepared-set hash, GPU, settings)
+  leaderboard_overall(rows)      which model is #1 most often across setups (a rank count, a view only)
 """
 from __future__ import annotations
 
@@ -40,8 +41,12 @@ METRICS = [
     ("wh_per_1k_flows", "Energy per 1,000 flows", "Wh", True),
     ("wh_per_flow_net_idle", "Energy per flow, net of idle", "Wh", True),
 ]
-LEADERBOARD_SORTS = {"latency": "mean_latency_s", "vram": "mean_peak_vram_mb", "total_vram": "total_peak_mb",
+LEADERBOARD_SORTS = {"saw": "saw_composite_100", "efficiency": "saw_eff_composite_100",
+                     "latency": "mean_latency_s", "vram": "mean_peak_vram_mb", "total_vram": "total_peak_mb",
                      "tokens": "mean_tokens_per_flow", "cost": "cost_per_1k_flows_usd", "energy": "wh_per_flow"}
+HIGHER_IS_BETTER = {"saw_composite_100", "saw_eff_composite_100", "accuracy"}
+# Overall view: what a "win" is counted on (accuracy only where the flows are labelled)
+OVERALL_BY = {"saw": "saw_composite_100", "efficiency": "saw_eff_composite_100", "accuracy": "accuracy"}
 
 
 def identity(job: dict[str, Any], res: Optional[dict[str, Any]]) -> dict[str, Any]:
@@ -97,7 +102,8 @@ def model_metrics(res: dict[str, Any]) -> dict[str, dict[str, Any]]:
                "accuracy": (pm.get("accuracy") or {}).get("accuracy") if pm.get("accuracy") else None,
                # the stored SAW score (fixed targets) and tier, copied for Compare — never recomputed
                "saw_composite_100": (pm.get("saw") or {}).get("composite_100"),
-               "saw_tier": (pm.get("saw") or {}).get("tier")}
+               "saw_tier": (pm.get("saw") or {}).get("tier"),
+               "saw_eff_composite_100": (pm.get("saw_efficiency_only") or {}).get("composite_100")}
         out[m] = row
     return out
 
@@ -314,21 +320,22 @@ def _wmean(pairs: list[tuple[Optional[float], int]]) -> Optional[float]:
     return acc / tot if tot else None
 
 
+def _demo(s: dict) -> bool:
+    return bool(s.get("demo")) or (s.get("identity") or {}).get("provider") == "mock"
+
+
 def leaderboard_s(summaries: list[dict], sort: str = "latency") -> dict[str, Any]:
-    """Rows are ranked only inside their (prepared-set hash, GPU) group; a group whose
-    sessions used different settings is flagged."""
+    """Rows are ranked only inside their setup (same prepared-set hash, GPU and settings — the
+    rule Compare uses); values are flow-weighted means over that setup's sessions."""
     key = LEADERBOARD_SORTS.get(sort, LEADERBOARD_SORTS["latency"])
+    higher = key in HIGHER_IS_BETTER
     groups: dict[tuple, dict] = {}
     for s in summaries:
-        ident = s.get("identity") or {}
-        gk = (ident.get("prepared_set_sha256") or f"unknown:{s['session_id']}", ident.get("gpu_label") or "?")
-        g = groups.setdefault(gk, {"prepared_set_sha256": gk[0], "gpu": gk[1], "sessions": [], "settings": [],
-                                   "input_type": s.get("input_type") or "",
-                                   "n_flows_per_session": s.get("n_flows"),
-                                   "demo": ident.get("provider") == "mock", "models": {}})
+        gk = setup_key(s)
+        if gk is None:
+            continue
+        g = groups.setdefault(gk, {**_setup(s), "sessions": [], "models": {}})
         g["sessions"].append(s["session_id"])
-        if ident.get("settings_fingerprint") not in g["settings"]:
-            g["settings"].append(ident.get("settings_fingerprint"))
         for m, row in (s.get("metrics") or {}).items():
             g["models"].setdefault(m, []).append((s["session_id"], row))
     out = []
@@ -340,24 +347,78 @@ def leaderboard_s(summaries: list[dict], sort: str = "latency") -> dict[str, Any
             rows.append({"model": m, "n_sessions": len(items), "n_flows": sum(n),
                          "sessions": [sid for sid, _ in items], **agg})
         ranked = [r for r in rows if r.get(key) is not None]
-        ranked.sort(key=lambda r: r[key])
+        ranked.sort(key=lambda r: -r[key] if higher else r[key])
         for i, r in enumerate(ranked, 1):
             r["rank"] = i
         rows = ranked + [dict(r, rank=None) for r in rows if r.get(key) is None]
-        out.append({"prepared_set_sha256": g["prepared_set_sha256"], "gpu": g["gpu"], "demo": g["demo"],
-                    "input_type": g["input_type"], "n_flows_per_session": g["n_flows_per_session"],
-                    "n_sessions": len(g["sessions"]), "mixed_settings": len(g["settings"]) > 1,
-                    "rows": rows})
+        out.append({k: g[k] for k in ("prepared_set_sha256", "gpu", "settings_fingerprint", "input_type", "labelled",
+                                      "demo")}
+                   | {"n_flows_per_session": g["n_flows"], "n_sessions": len(g["sessions"]),
+                      "sessions": g["sessions"], "rows": rows})
     out.sort(key=lambda g: (g["demo"], -g["n_sessions"]))
-    return {"sort": sort, "sort_metric": key, "sorts": LEADERBOARD_SORTS, "groups": out,
-            "rule": "Models are ranked only against others measured on the same prepared set (flows hash) "
-                    "and the same GPU; values are flow-weighted means over that group's sessions. Lower is "
-                    "better for every sort key."}
+    return {"sort": sort, "sort_metric": key, "higher_is_better": higher, "sorts": LEADERBOARD_SORTS, "groups": out,
+            "rule": "Models are ranked only against others on the same flows, GPU and settings. Values are "
+                    "flow-weighted means over that setup's sessions."}
+
+
+def leaderboard_overall_s(summaries: list[dict], by: str = "saw", include_demo: bool = False) -> dict[str, Any]:
+    """Which model is #1 most often. Inside every setup with at least two scored models, each
+    model is placed (1 + the number of models strictly better); a 1st place is a win. Across
+    setups: wins, win rate and the mean share of rivals it beat. A count of stored results —
+    no score is recomputed."""
+    key = OVERALL_BY.get(by, OVERALL_BY["saw"])
+    groups: dict[tuple, dict] = {}
+    for s in summaries:
+        gk = setup_key(s)
+        if gk is None or (_demo(s) and not include_demo) or (key == "accuracy" and not s.get("labelled")):
+            continue
+        g = groups.setdefault(gk, {})
+        for m, row in (s.get("metrics") or {}).items():
+            g.setdefault(m, {"sessions": [], "pairs": []})
+            g[m]["sessions"].append(s["session_id"])
+            g[m]["pairs"].append((row.get(key), row.get("n_flows") or 0))
+    stats: dict[str, dict] = {}
+    used, single = 0, 0
+    for g in groups.values():
+        vals = {m: _wmean(x["pairs"]) for m, x in g.items()}
+        vals = {m: v for m, v in vals.items() if v is not None}
+        if len(vals) < 2:
+            single += 1
+            continue
+        used += 1
+        for m, v in vals.items():
+            better = sum(1 for o in vals.values() if o > v)
+            worse = sum(1 for o in vals.values() if o < v)
+            st = stats.setdefault(m, {"model": m, "setups": 0, "wins": 0, "beaten": [], "sessions": []})
+            st["setups"] += 1
+            st["wins"] += 1 if better == 0 else 0
+            st["beaten"].append(worse / (len(vals) - 1))
+            st["sessions"] += [x for x in g[m]["sessions"] if x not in st["sessions"]]
+    rows = []
+    for st in stats.values():
+        acc = 0.0
+        for b in st["beaten"]:
+            acc += b
+        rows.append({"model": st["model"], "wins": st["wins"], "setups": st["setups"],
+                     "win_rate": st["wins"] / st["setups"], "rivals_beaten": acc / len(st["beaten"]),
+                     "n_sessions": len(st["sessions"]), "few_data": st["setups"] < 2})
+    rows.sort(key=lambda r: (-r["wins"], -r["win_rate"], -r["rivals_beaten"], r["model"]))
+    for i, r in enumerate(rows, 1):
+        r["rank"] = i
+    return {"by": by, "metric": key, "bys": OVERALL_BY, "include_demo": include_demo, "n_setups": used,
+            "n_setups_single_model": single, "rows": rows,
+            "rule": "Counted inside each setup (same flows, GPU and settings) with 2+ models: a win is 1st "
+                    "place there. Rivals beaten = the share of the other models it placed above, averaged "
+                    "over its setups."}
 
 
 def leaderboard(entries: list[tuple[dict, dict]], sort: str = "latency") -> dict[str, Any]:
     """entries: (job, result) of finished sessions."""
     return leaderboard_s([cp_summary(j, r) for j, r in entries], sort)
+
+
+def leaderboard_overall(entries: list[tuple[dict, dict]], by: str = "saw", include_demo: bool = False) -> dict[str, Any]:
+    return leaderboard_overall_s([cp_summary(j, r) for j, r in entries], by, include_demo)
 
 
 # ---------------------------------------------------------------------------
@@ -478,12 +539,15 @@ def register_sessions(app, get_manager) -> None:
     @app.route("/api/leaderboard", methods=["GET"])
     def sessions_leaderboard():
         mgr = get_manager()
+        view = request.args.get("view", "per_setup")
+        if view == "overall":
+            by = request.args.get("by", "saw")
+            if by not in OVERALL_BY:
+                return fail(JobError(f"by must be one of {sorted(OVERALL_BY)}", "bad_request", 400))
+            return jsonify(leaderboard_overall_s(_summaries(mgr), by, request.args.get("demo") == "1"))
+        if view != "per_setup":
+            return fail(JobError("view must be per_setup or overall", "bad_request", 400))
         sort = request.args.get("sort", "latency")
         if sort not in LEADERBOARD_SORTS:
             return fail(JobError(f"sort must be one of {sorted(LEADERBOARD_SORTS)}", "bad_request", 400))
-        entries = []
-        for j in _benchmark_jobs(mgr):
-            r = _result(mgr, j)
-            if r and "per_model" in r:
-                entries.append((j, r))
-        return jsonify(leaderboard(entries, sort))
+        return jsonify(leaderboard_s(_summaries(mgr), sort))

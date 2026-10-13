@@ -612,22 +612,43 @@
   <!-- LEADERBOARD -->
   <section id="view-leaderboard" class="view" hidden aria-labelledby="h-lb">
     <div class="page-head"><div><h1 id="h-lb">Leaderboard</h1>
-      <p>Models ranked across sessions — but only against models measured on the <b>same prepared set</b> and the
-        <b>same GPU</b>. Each group is its own ranking.</p></div></div>
-    <div class="card">
-      <fieldset style="border:0;padding:0;margin:0">
-        <legend class="small" style="font-weight:600;margin-bottom:6px">Sort by (lower is better)</legend>
-        <div class="seg-opts" id="lb-sort">
-          <label><input type="radio" name="lb-sort" value="latency" checked> Latency</label>
-          <label><input type="radio" name="lb-sort" value="vram"> Working VRAM</label>
-          <label><input type="radio" name="lb-sort" value="total_vram"> Total peak VRAM</label>
-          <label><input type="radio" name="lb-sort" value="tokens"> Tokens</label>
-          <label><input type="radio" name="lb-sort" value="cost"> Cost / 1k flows</label>
-          <label><input type="radio" name="lb-sort" value="energy"> Energy / flow</label>
-        </div>
-      </fieldset>
+      <p>Models are only ranked against others on the same flows, GPU and settings.</p></div></div>
+    <div class="tabs" role="tablist" aria-label="Leaderboard views" id="lb-tabs">
+      <button type="button" role="tab" id="lbtab-setup" data-lbtab="setup" aria-controls="lb-setup-panel" aria-selected="true">By setup</button>
+      <button type="button" role="tab" id="lbtab-overall" data-lbtab="overall" aria-controls="lb-overall-panel" aria-selected="false" tabindex="-1">Overall</button>
     </div>
-    <div id="lb-groups"></div>
+    <div id="lb-setup-panel" role="tabpanel" aria-labelledby="lbtab-setup">
+      <div class="card">
+        <fieldset style="border:0;padding:0;margin:0">
+          <legend class="small" style="font-weight:600;margin-bottom:6px">Rank by</legend>
+          <div class="seg-opts" id="lb-sort">
+            <label><input type="radio" name="lb-sort" value="saw" checked> SAW score</label>
+            <label><input type="radio" name="lb-sort" value="efficiency"> Efficiency score</label>
+            <label><input type="radio" name="lb-sort" value="latency"> Latency</label>
+            <label><input type="radio" name="lb-sort" value="vram"> Working VRAM</label>
+            <label><input type="radio" name="lb-sort" value="total_vram"> Total peak VRAM</label>
+            <label><input type="radio" name="lb-sort" value="tokens"> Tokens</label>
+            <label><input type="radio" name="lb-sort" value="cost"> Cost / 1k flows</label>
+            <label><input type="radio" name="lb-sort" value="energy"> Energy / flow</label>
+          </div>
+        </fieldset>
+      </div>
+      <div id="lb-groups"></div>
+    </div>
+    <div id="lb-overall-panel" role="tabpanel" aria-labelledby="lbtab-overall" hidden>
+      <div class="card">
+        <fieldset style="border:0;padding:0;margin:0">
+          <legend class="small" style="font-weight:600;margin-bottom:6px">Count wins by</legend>
+          <div class="seg-opts" id="lb-by">
+            <label><input type="radio" name="lb-by" value="saw" checked> SAW score</label>
+            <label><input type="radio" name="lb-by" value="efficiency"> Efficiency score</label>
+            <label><input type="radio" name="lb-by" value="accuracy"> Accuracy</label>
+          </div>
+        </fieldset>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="lb-demo"> Include demo sessions</label>
+      </div>
+      <div id="lb-overall"></div>
+    </div>
   </section>
 
   <!-- SETTINGS -->
@@ -2349,30 +2370,77 @@
   }
 
   // ---------- LEADERBOARD ----------
-  var LB_COLS = [["mean_latency_s", "Latency / flow", fmtTime], ["mean_peak_vram_mb", "Working VRAM (excludes model weights)", fmtMB], ["total_peak_mb", "Total peak VRAM", fmtMB], ["mean_tokens_per_flow", "Tokens / flow", function (v) { return fmtNum(v); }],
-                 ["cost_per_1k_flows_usd", "Cost / 1k flows", fmtUsd], ["wh_per_flow", "Energy / flow", fmtWh]];
-  function loadLeaderboard() {
-    var sort = (document.querySelector('input[name="lb-sort"]:checked') || {}).value || "latency";
+  var LB_COLS = [["saw_composite_100", "SAW score", function (v) { return fmtNum(v, 1); }], ["mean_latency_s", "Latency / flow", fmtTime], ["mean_peak_vram_mb", "Working VRAM", fmtMB], ["total_peak_mb", "Total peak VRAM", fmtMB],
+                 ["mean_tokens_per_flow", "Tokens / flow", function (v) { return fmtNum(v); }], ["cost_per_1k_flows_usd", "Cost / 1k flows", fmtUsd], ["wh_per_flow", "Energy / flow", fmtWh]];
+  var LB = { tab: "setup" };
+  function lbTab(t) {
+    LB.tab = t;
+    ["setup", "overall"].forEach(function (x) {
+      var b = $("lbtab-" + x);
+      b.setAttribute("aria-selected", String(x === t)); b.tabIndex = x === t ? 0 : -1;
+      $("lb-" + x + "-panel").hidden = x !== t;
+    });
+    loadLeaderboard();
+  }
+  function loadLeaderboard() { if (LB.tab === "overall") loadOverall(); else loadPerSetup(); }
+  function loadPerSetup() {
+    var sort = (document.querySelector('input[name="lb-sort"]:checked') || {}).value || "saw";
     $("lb-groups").innerHTML = '<p class="muted">Loading…</p>';
-    api("/api/leaderboard?sort=" + enc(sort)).then(function (r) {
+    api("/api/leaderboard?view=per_setup&sort=" + enc(sort)).then(function (r) {
       if (!r.ok) { $("lb-groups").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
       var gs = r.data.groups || [];
-      if (!gs.length) { $("lb-groups").innerHTML = '<div class="card empty"><p>No finished sessions yet — the leaderboard fills as you run benchmarks.</p><a class="btn primary" href="#/new">New benchmark</a></div>'; return; }
-      $("lb-groups").innerHTML = '<p class="muted small">' + esc(r.data.rule) + '</p>' + gs.map(function (g, gi) {
+      if (!gs.length) { $("lb-groups").innerHTML = '<div class="card empty"><p>No finished sessions yet.</p><a class="btn primary" href="#/new">New benchmark</a></div>'; return; }
+      $("lb-groups").innerHTML = '<p class="muted small">' + (r.data.higher_is_better ? "Higher is better." : "Lower is better.") + ' Sessions on one setup are combined.' + infoI(r.data.rule) + '</p>' + gs.map(function (g, gi) {
         return '<div class="card lb-group"><div class="row" style="margin-top:0;justify-content:space-between"><h2>' + esc(g.gpu) + ' · ' + esc(g.input_type || "") + ' · ' + fmtNum(g.n_flows_per_session) + ' flows</h2>' +
           '<span class="chips"><span class="chip mono" title="Prepared-set hash">set ' + esc(String(g.prepared_set_sha256).slice(0, 12)) + '</span><span class="chip">' + g.n_sessions + ' session' + (g.n_sessions === 1 ? "" : "s") + '</span>' +
-          (g.demo ? '<span class="chip warn">demo — not model measurements</span>' : "") + '</span></div>' +
-          (g.mixed_settings ? '<div class="notice warn small">Sessions in this group used different settings — rows are not strictly like-for-like.</div>' : "") +
+          (g.demo ? '<span class="chip warn">demo</span>' : "") + '</span></div>' +
           '<div class="table-wrap" style="margin-top:10px"><table class="lb-table" id="lb-table-' + gi + '"><thead><tr><th class="num">Rank</th><th>Model</th><th class="num">Sessions</th><th class="num">Flows</th>' +
           LB_COLS.map(function (c) { return '<th class="num">' + esc(c[1]) + '</th>'; }).join("") + '</tr></thead><tbody>' +
           g.rows.map(function (row) {
-            return '<tr><td class="num">' + (row.rank == null ? '<span class="muted" title="no value for this sort key">—</span>' : row.rank) + '</td><td class="mono">' + esc(row.model) + '</td><td class="num">' + row.n_sessions +
+            return '<tr><td class="num">' + (row.rank == null ? '<span class="muted" title="no value for this key">—</span>' : row.rank) + '</td><td class="mono">' + esc(row.model) + '</td><td class="num">' + row.n_sessions +
               '</td><td class="num">' + fmtNum(row.n_flows) + '</td>' + LB_COLS.map(function (c) { return '<td class="num">' + (row[c[0]] == null ? '<span class="muted">—</span>' : c[2](row[c[0]])) + '</td>'; }).join("") + '</tr>';
-          }).join("") + '</tbody></table></div></div>';
+          }).join("") + '</tbody></table></div>' +
+          (g.n_sessions > 1 ? '<p class="small" style="margin-bottom:0"><a class="lb-compare" href="#/compare?sessions=' + g.sessions.map(enc).join(",") + '">Open in Compare →</a></p>' : "") + '</div>';
       }).join("");
     });
   }
-  document.querySelectorAll('input[name="lb-sort"]').forEach(function (r) { r.addEventListener("change", loadLeaderboard); });
+  var LB_BY = { saw: "SAW score", efficiency: "efficiency score", accuracy: "accuracy" };
+  function loadOverall() {
+    var by = (document.querySelector('input[name="lb-by"]:checked') || {}).value || "saw";
+    $("lb-overall").innerHTML = '<p class="muted">Loading…</p>';
+    api("/api/leaderboard?view=overall&by=" + enc(by) + ($("lb-demo").checked ? "&demo=1" : "")).then(function (r) {
+      if (!r.ok) { $("lb-overall").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
+      var d = r.data, rows = d.rows || [];
+      if (!rows.length) {
+        $("lb-overall").innerHTML = '<div class="card empty" id="lb-overall-empty"><p>' + (by === "accuracy" ? "No labelled setup has two or more models yet." : "No setup has two or more models yet.") +
+          '</p><p class="muted small">Benchmark at least two models on the same flows.</p><a class="btn primary" href="#/new">New benchmark</a></div>';
+        return;
+      }
+      var top = rows.filter(function (x) { return x.wins === rows[0].wins && x.win_rate === rows[0].win_rate && x.rivals_beaten === rows[0].rivals_beaten; });
+      $("lb-overall").innerHTML =
+        '<div class="card" id="lb-overall-head"><p style="margin:0">Most often #1 by ' + esc(LB_BY[by]) + ': <b>' + top.map(function (x) { return esc(x.model); }).join(", ") + '</b> — ' +
+          rows[0].wins + ' of ' + rows[0].setups + ' setup' + (rows[0].setups === 1 ? "" : "s") + '.' + infoI(d.rule) + '</p>' +
+          '<p class="muted small" style="margin-bottom:0">Counted over ' + d.n_setups + ' setup' + (d.n_setups === 1 ? "" : "s") + ' with 2+ models' +
+          (d.n_setups_single_model ? ' (' + d.n_setups_single_model + ' with one model skipped)' : "") + '.' +
+          (by === "accuracy" ? ' Accuracy is context only.' : ' Measures efficiency, not threat detection.') + '</p></div>' +
+        '<div class="card"><div class="table-wrap"><table class="lb-table" id="lb-overall-table"><thead><tr><th class="num">Rank</th><th>Model</th><th class="num">Wins</th><th class="num">Win rate</th>' +
+          '<th class="num">Rivals beaten' + infoI("The share of other models it placed above, averaged over its setups.") + '</th><th class="num">Setups</th><th class="num">Sessions</th></tr></thead><tbody>' +
+          rows.map(function (x) {
+            return '<tr><td class="num">' + x.rank + '</td><td class="mono">' + esc(x.model) + (x.few_data ? ' <span class="chip warn" title="Measured on only one setup">few data</span>' : "") +
+              '</td><td class="num">' + x.wins + '</td><td class="num">' + fmtPct(x.win_rate) + '</td><td class="num">' + fmtPct(x.rivals_beaten) + '</td><td class="num">' + x.setups + '</td><td class="num">' + x.n_sessions + '</td></tr>';
+          }).join("") + '</tbody></table></div></div>';
+    });
+  }
+  document.querySelectorAll('input[name="lb-sort"]').forEach(function (r) { r.addEventListener("change", loadPerSetup); });
+  document.querySelectorAll('input[name="lb-by"]').forEach(function (r) { r.addEventListener("change", loadOverall); });
+  $("lb-demo").addEventListener("change", loadOverall);
+  document.querySelectorAll("#lb-tabs [data-lbtab]").forEach(function (b) {
+    b.addEventListener("click", function () { lbTab(b.getAttribute("data-lbtab")); });
+    b.addEventListener("keydown", function (ev) {
+      if (ev.key !== "ArrowLeft" && ev.key !== "ArrowRight") return;
+      var t = LB.tab === "setup" ? "overall" : "setup"; lbTab(t); $("lbtab-" + t).focus();
+    });
+  });
 
   // ---------- SETTINGS ----------
   var TZS = (function () { try { return Intl.supportedValuesOf("timeZone"); } catch (e) { return ["UTC", "Asia/Kuala_Lumpur", "Europe/London", "America/New_York"]; } })();

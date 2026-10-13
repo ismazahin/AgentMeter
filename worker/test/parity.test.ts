@@ -2,7 +2,7 @@
 // reference returns (fixtures: python scripts/export_parity_fixtures.py) — both as pure
 // functions and through the HTTP routes after the backend uploaded the summaries.
 import { describe, expect, it } from "vitest";
-import { compare, compareMany, comparable, evaluateFacts, leaderboard, ConstraintError, pyFormat } from "../src/analytics";
+import { compare, compareMany, comparable, evaluateFacts, leaderboard, leaderboardOverall, ConstraintError, pyFormat } from "../src/analytics";
 import FIX from "./fixtures/parity.json";
 import { api, backendCall, register, user } from "./helpers";
 
@@ -21,6 +21,10 @@ describe("parity with the Python reference (pure functions)", () => {
   it("leaderboard, every sort key", () => {
     const newest = [...F.summaries].reverse();
     for (const [sort, out] of Object.entries(F.leaderboard)) expect(leaderboard(newest, sort)).toEqual(out);
+  });
+  it("overall leaderboard (wins across setups)", () => {
+    const newest = [...F.summaries].reverse();
+    for (const c of F.leaderboard_overall) expect(leaderboardOverall(newest, c.by, c.demo)).toEqual(c.out);
   });
   it("decision helper, incl. its error messages", () => {
     for (const c of F.constraints) {
@@ -52,6 +56,8 @@ describe("parity through the HTTP routes", () => {
     }
     for (const [sort, out] of Object.entries(F.leaderboard))
       expect((await api(`/api/leaderboard?sort=${sort}`, { token: u.token })).data).toEqual(out);
+    for (const c of F.leaderboard_overall)
+      expect((await api(`/api/leaderboard?view=overall&by=${c.by}${c.demo ? "&demo=1" : ""}`, { token: u.token })).data).toEqual(c.out);
     for (const c of F.comparable.filter((x: any) => /^job_\d{8}_\d{6}_[0-9a-f]{32}$/.test(x.session)))
       expect((await api(`/api/compare/candidates?session=${c.session}`, { token: u.token })).data).toEqual(c.out);
     for (const c of F.merged) {

@@ -338,14 +338,16 @@ def test_new_blocks_never_touch_scored_keys(golden):
 # ---------------------------------------------------------------------------
 # Compare validity + Leaderboard grouping
 # ---------------------------------------------------------------------------
-def _entry(jid, sha, gpu, fp, lat, n=10, models=("m1", "m2"), provider="real", settings=None):
+def _entry(jid, sha, gpu, fp, lat, n=10, models=("m1", "m2"), provider="real", settings=None, saw=None):
     res = {"session": {"n_flows": n, "source_type": "csv", "accuracy_available": False},
            "environment": {"provider": provider, "gpu_name": gpu},
            "session_identity": {"prepared_set_sha256": sha, "gpu_label": gpu if provider == "real" else "Demo (mock, no GPU)",
                                 "provider": provider, "settings_fingerprint": fp, "settings": settings or {"k": fp}},
            "per_model": [{"model": m, "efficiency": {"n_flows": n, "end_to_end": {"mean_latency_s": lat * (i + 1),
                                                                                    "mean_peak_vram_mb": None,
-                                                                                   "mean_tokens_per_flow": 100.0}}}
+                                                                                   "mean_tokens_per_flow": 100.0}},
+                          **({"saw": {"composite_100": saw[i]}, "saw_efficiency_only": {"composite_100": saw[i]}}
+                             if saw else {})}
                          for i, m in enumerate(models)]}
     return {"job_id": jid, "status": "done", "models": list(models)}, res
 
@@ -372,7 +374,7 @@ def test_leaderboard_ranks_only_within_a_group():
     lb = sessions.leaderboard(e, "latency")
     assert len(lb["groups"]) == 3                                      # (s1,L4), (s2,L4), (s1,A100)
     g = next(g for g in lb["groups"] if g["prepared_set_sha256"] == "s1" and g["gpu"] == "NVIDIA L4")
-    assert g["n_sessions"] == 2 and not g["mixed_settings"]
+    assert g["n_sessions"] == 2 and g["settings_fingerprint"] == "f1"
     m1 = next(r for r in g["rows"] if r["model"] == "m1")
     assert m1["n_sessions"] == 2 and m1["n_flows"] == 40
     assert m1["mean_latency_s"] == pytest.approx((1.0 * 10 + 3.0 * 30) / 40)   # flow-weighted
@@ -382,7 +384,32 @@ def test_leaderboard_ranks_only_within_a_group():
     vr = sessions.leaderboard(e, "vram")
     assert all(r["rank"] is None for grp in vr["groups"] for r in grp["rows"])   # no value -> unranked
     mixed = sessions.leaderboard([_entry("A", "s1", "L4", "f1", 1.0), _entry("B", "s1", "L4", "f9", 1.0)])
-    assert mixed["groups"][0]["mixed_settings"] is True
+    assert len(mixed["groups"]) == 2                                   # other settings = another setup
+
+
+def test_leaderboard_saw_sort_is_higher_is_better():
+    lb = sessions.leaderboard([_entry("A", "s1", "L4", "f1", 1.0, saw=(40.0, 70.0))], "saw")
+    assert lb["higher_is_better"] and [(r["model"], r["rank"]) for r in lb["groups"][0]["rows"]] == [("m2", 1), ("m1", 2)]
+
+
+def test_overall_leaderboard_counts_wins_inside_setups():
+    e = [_entry("A", "s1", "L4", "f1", 1.0, saw=(80.0, 50.0)),
+         _entry("B", "s2", "L4", "f1", 1.0, saw=(60.0, 70.0)),
+         _entry("C", "s3", "L4", "f1", 1.0, models=("m1", "m2", "m3"), saw=(90.0, 10.0, 20.0)),
+         _entry("D", "s4", "L4", "f1", 1.0, models=("m3",), saw=(99.0,)),                 # alone: not counted
+         _entry("E", "s5", "L4", "f1", 1.0, provider="mock", saw=(1.0, 99.0))]            # demo: excluded
+    ov = sessions.leaderboard_overall(e)
+    assert ov["n_setups"] == 3 and ov["n_setups_single_model"] == 1
+    rows = {r["model"]: r for r in ov["rows"]}
+    assert [r["model"] for r in ov["rows"]] == ["m1", "m2", "m3"]
+    assert rows["m1"]["wins"] == 2 and rows["m1"]["setups"] == 3 and rows["m1"]["win_rate"] == pytest.approx(2 / 3)
+    assert rows["m1"]["rivals_beaten"] == pytest.approx((1 + 0 + 1) / 3)
+    assert rows["m3"]["setups"] == 1 and rows["m3"]["few_data"] and rows["m3"]["rivals_beaten"] == 0.5
+    with_demo = sessions.leaderboard_overall(e, include_demo=True)
+    assert with_demo["n_setups"] == 4 and {r["model"]: r["wins"] for r in with_demo["rows"]}["m2"] == 2
+    tie = sessions.leaderboard_overall([_entry("A", "s1", "L4", "f1", 1.0, saw=(50.0, 50.0))])
+    assert [r["wins"] for r in tie["rows"]] == [1, 1]                  # a tie for 1st is a win for both
+    assert sessions.leaderboard_overall(e, by="accuracy")["n_setups"] == 0   # unlabelled flows: no accuracy wins
 
 
 def test_identity_of_an_old_session_is_computed_from_its_run_dir(golden):
@@ -509,6 +536,10 @@ def test_leaderboard_api(app):
     assert csv["n_sessions"] == 2 and [r["rank"] for r in csv["rows"]] == [1, 2]
     assert all(r["n_sessions"] == 2 and r["n_flows"] == 20 for r in csv["rows"])
     assert app["c"].get("/api/leaderboard?sort=nope").status_code == 400
+    ov = app["c"].get("/api/leaderboard?view=overall&by=efficiency&demo=1").get_json()
+    assert ov["by"] == "efficiency" and ov["include_demo"] is True and "rows" in ov
+    assert app["c"].get("/api/leaderboard?view=overall&by=nope").status_code == 400
+    assert app["c"].get("/api/leaderboard?view=nope").status_code == 400
 
 
 def test_constraints_api_and_pdf(app):

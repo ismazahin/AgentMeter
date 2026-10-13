@@ -15,7 +15,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from agentmeter.server.sessions import (LEADERBOARD_SORTS, comparable_s, compare_many_s, compare_s,  # noqa: E402
-                                       cp_summary, leaderboard_s)
+                                       cp_summary, leaderboard_overall_s, leaderboard_s, OVERALL_BY)
 from agentmeter.session.constraints import ConstraintError, evaluate_facts, load_rules  # noqa: E402
 
 OUT = REPO / "worker" / "test" / "fixtures" / "parity.json"
@@ -44,6 +44,14 @@ def _variant(base: dict, ident: dict, scale: float, provider: str, drop: tuple =
                 e2e[k] = e2e[k] * (scale + 0.07 * i)
             if k in drop:
                 e2e[k] = None
+        # per-model stored scores vary by session, so the overall leaderboard has different winners
+        tilt = (1 if scale < 1 else -1) * i
+        pm["saw_efficiency_only"] = {**pm["saw_efficiency_only"],
+                                     "composite_100": round(pm["saw_efficiency_only"]["composite_100"] + 5.5 * tilt, 2)}
+        pm["saw"] = ({**pm["saw"], "composite_100": round(pm["saw"]["composite_100"] + 3.25 * tilt, 2)} if labelled
+                     else pm["saw_efficiency_only"])
+        if pm.get("accuracy"):
+            pm["accuracy"] = {**pm["accuracy"], "accuracy": pm["accuracy"]["accuracy"] * (1 + 0.1 * i * scale)}
         if e2e.get("mean_peak_vram_mb") is None and "mean_peak_vram_mb" not in drop:
             e2e["mean_peak_vram_mb"] = 900.0 * scale + 125 * i
     r["memory"] = {"per_model": [{"model": p["model"], "total_peak_mb": 5000.0 * scale + 333.3 * i,
@@ -93,6 +101,8 @@ def build() -> dict:
         "compare": [{"a": summaries[i]["session_id"], "b": summaries[j]["session_id"],
                      "out": compare_s(summaries[i], summaries[j])} for i, j in pairs],
         "leaderboard": {sort: leaderboard_s(newest_first, sort) for sort in LEADERBOARD_SORTS},
+        "leaderboard_overall": [{"by": by, "demo": d, "out": leaderboard_overall_s(newest_first, by, d)}
+                                for by in OVERALL_BY for d in (False, True)],
         "constraints": cons,
         "comparable": [{"session": x["session_id"], "out": comparable_s(x, newest_first)} for x in summaries],
         "merged": [{"sessions": [summaries[i]["session_id"] for i in ids], "out": compare_many_s([summaries[i] for i in ids])}

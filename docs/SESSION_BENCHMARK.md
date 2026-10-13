@@ -177,7 +177,8 @@ way a benchmark is computed does not change.
 | `GET /api/compare?a=<id>&b=<id>` | Side-by-side efficiency metrics plus the like-for-like check |
 | `GET /api/compare/candidates?session=<id>` | The finished sessions on the same setup (same flows hash, GPU, settings) |
 | `GET /api/compare/merged?sessions=<id>,<id>,…` | Every model of 2–20 same-setup sessions side by side, plus each model's flow-weighted mean; 400 `not_same_setup` otherwise |
-| `GET /api/leaderboard?sort=latency\|vram\|tokens\|cost\|energy` | Models ranked within (prepared-set hash, GPU) groups (needs a read token with a control plane; the app reads the Worker copy) |
+| `GET /api/leaderboard?view=per_setup&sort=saw\|efficiency\|latency\|vram\|total_vram\|tokens\|cost\|energy` | Models ranked within one setup (prepared-set hash, GPU, settings) (needs a read token with a control plane; the app reads the Worker copy) |
+| `GET /api/leaderboard?view=overall&by=saw\|efficiency\|accuracy[&demo=1]` | Which model is #1 most often across setups: wins, win rate, rivals beaten (demo sessions left out unless `demo=1`) |
 
 - **Status:** `queued → running → done | failed | interrupted | stopped`.
 - **Stop:** the Stop button (owner or admin) on a running session. No further model starts,
@@ -271,10 +272,21 @@ wizard.
   "Benchmark these flows again". Values are the stored ones (the SAW score is the stored score
   against fixed targets, never recomputed). Cross-session statistics (Cliff's delta, CIs) are
   not computed: the stored results hold per-model summaries, not every flow's values.
-- **Leaderboard:** models ranked across sessions, but only inside a (prepared-set hash,
-  GPU) group. Each row shows the sessions and flows behind it (flow-weighted means), and
-  can be sorted by latency, VRAM, tokens, cost per 1,000 flows or energy per flow. A
-  group whose sessions used different settings is flagged.
+- **Leaderboard**, two tabs. No GPU filter: the GPU is part of the setup.
+  - **By setup:** sessions on the same setup (same prepared-set hash, GPU and settings, the
+    rule Compare uses) are combined; each model's values are flow-weighted means over them.
+    Rank by the stored SAW score (default), the efficiency-only SAW score, latency, VRAM,
+    tokens, cost per 1,000 flows or energy per flow. A setup with 2+ sessions links to Compare.
+  - **Overall:** which model is #1 most often. Inside every setup with at least two scored
+    models, a model's place is 1 + the number of models strictly better (a tie for 1st is a
+    win for each). Across setups: wins, win rate (wins / setups), rivals beaten (the share of
+    the other models it placed above, averaged over its setups), setups and sessions. Rows
+    are ordered by wins, then win rate, then rivals beaten. A model measured on only one
+    setup is marked "few data". Count wins by SAW score, efficiency score or accuracy
+    (labelled setups only; context only). Demo sessions are left out unless "Include demo
+    sessions" is ticked; stopped and failed runs are never scored, so never counted. It is a
+    count of stored results: no score, SAW value or verdict is recomputed. It shows which
+    model was most often the most resource-efficient, not which detects threats best.
 - **Settings:** theme System / Dark / Light, kept in this browser. Accounts come later.
 - The **Validation baseline** (the locked study) is not in the navigation. It stays at
   `/baseline` by direct URL, and reproducing it is CLI-only (REPRODUCE_BASELINE.md).

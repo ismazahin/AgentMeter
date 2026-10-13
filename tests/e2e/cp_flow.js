@@ -258,7 +258,9 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
 
     // 8c. Stop a running benchmark (a slow mock run): never scored, never stored as a session
     await stopBackend(); startBackend({ AGENTMETER_MOCK_LATENCY_S: '0.4' });
-    log(await waitFor(async () => (await workerJson('/api/backend', (await loginApi('admin', 'admin-password-123')).access_token)).online, 30000), 'backend restarted (slow mock runs)');
+    const healthy2 = await waitFor(async () => { try { return (await fetch(`http://127.0.0.1:${BP}/health`)).ok; } catch (e) { return false; } }, 30000);
+    log(healthy2 && await waitFor(async () => (await workerJson('/api/backend', (await loginApi('admin', 'admin-password-123')).access_token)).online, 30000), 'backend restarted (slow mock runs)');
+    await sleep(4000);                               // the next heartbeat re-registers it
     const lbBefore = (await workerJson('/api/leaderboard', (await loginApi('admin', 'admin-password-123')).access_token));
     await p.goto(APP + '/#/'); await p.waitForTimeout(1500);
     const set3 = (await workerJson('/api/sessions/' + job3, offTok)).run_name;          // the restored set on this rental

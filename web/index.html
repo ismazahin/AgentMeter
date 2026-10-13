@@ -84,8 +84,7 @@
   h2 { font-size: 19px; line-height: 1.3; }
   h3 { font-size: 15px; line-height: 1.35; }
   p { margin: 8px 0; }
-  .wrap { width: 100%; max-width: 1600px; margin: 0 auto; padding: 0 16px; }
-  @media (min-width: 900px) { .wrap { padding: 0 28px; } }
+  .wrap { width: 100%; max-width: 1180px; margin: 0 auto; padding: 0 16px; }
   .muted { color: var(--muted); }
   .small { font-size: 13px; }
   .mono { font-family: var(--mono); font-size: .92em; overflow-wrap: anywhere; }
@@ -116,36 +115,10 @@
   .iconbtn:hover { color: var(--text); background: var(--surface-2); }
   .iconbtn[aria-current="page"] { border-color: var(--accent); color: var(--text); }
   .iconbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-  .navbtn { display: none; }
   @media (max-width: 720px) {
-    .top-right { margin-left: auto; }
-    .navbtn { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: var(--radius); border: 1px solid var(--border);
-      background: var(--surface); color: var(--text); font-size: 20px; cursor: pointer; }
-    .mainnav { display: none; order: 3; flex-basis: 100%; flex-direction: column; padding: 4px 0 8px; }
-    body.nav-open .mainnav { display: flex; }
-    .mainnav a { padding: 0 12px; }
-    .top-in .chip-gpu { display: none; }
-  }
-  /* wide screens: the menu is a side bar; the content uses the full width */
-  @media (min-width: 1100px) {
-    :root { --side: 216px; }
-    .top .wrap { max-width: none; }
-    .mainnav { position: fixed; left: 0; top: 61px; bottom: 0; width: var(--side); flex-direction: column; flex-wrap: nowrap; gap: 4px;
-      padding: 18px 12px; border-right: 1px solid var(--border); background: var(--bg); overflow-y: auto; }
-    .mainnav a { min-height: 42px; padding: 0 14px; }
-    .mainnav a[aria-current="page"] { box-shadow: inset 3px 0 0 var(--accent); }
-    body:not(.nav-off) main.wrap, body:not(.nav-off) footer .wrap { padding-left: calc(var(--side) + 32px); padding-right: 32px;
-      max-width: calc(1600px + var(--side)); margin-left: 0; }
-  }
-  /* readable line length for running text, even on wide pages */
-  .card p, .page-head p, .cta p, .empty p, .gtk-detail { max-width: 82ch; }
-  .card .table-wrap p, td p { max-width: none; }
-  /* page grids on wide screens */
-  @media (min-width: 1100px) {
-    .home-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-    .wiz-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
-    .cards-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-    .cards-2 > .wide { grid-column: 1 / -1; }
+    .top-right { margin-left: 0; order: 2; }
+    .mainnav { order: 3; flex-basis: 100%; }
+    .mainnav a { padding: 0 10px; }
   }
   .tip-pop { position: absolute; z-index: 60; max-width: min(360px, calc(100vw - 32px)); background: var(--surface); color: var(--text);
     border: 1px solid var(--border-2); border-radius: var(--radius); padding: 10px 12px; font-size: 13.5px; line-height: 1.5;
@@ -343,7 +316,6 @@
 <a class="sr-only" href="#main">Skip to content</a>
 <header class="top">
   <div class="wrap top-in">
-    <button type="button" class="navbtn" id="nav-toggle" aria-controls="main-nav" aria-expanded="false" aria-label="Menu">☰</button>
     <a class="logo" href="#/" aria-label="AgentMeter — Home">
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="0" y="12" width="4" height="4" fill="currentColor" opacity=".55"/><rect x="4" y="8" width="4" height="4" fill="currentColor" opacity=".55"/><rect x="8" y="4" width="4" height="4" fill="currentColor" opacity=".55"/><rect x="12" y="0" width="4" height="4" fill="#E8A33D"/></svg>
       AgentMeter
@@ -429,7 +401,6 @@
       <h1 id="h-home">Home</h1>
       <p>Compare two LLMs on your own network flows.</p>
     </div></div>
-    <div class="home-grid"><div>
     <div class="cta">
       <div><h2>Start a new benchmark</h2><p>Upload a CSV or PCAP, pick two models, run.</p></div>
       <a class="btn primary big" id="home-new" href="#/new">New benchmark</a>
@@ -440,12 +411,10 @@
       <a class="btn primary" href="#/new">New benchmark</a>
     </div>
     <div id="home-latest" class="card" hidden></div>
-    </div><div>
     <div id="home-recent" class="card" hidden>
       <div class="row" style="margin-top:0;justify-content:space-between"><h2>Recent sessions</h2><a href="#/sessions">All sessions</a></div>
       <div class="table-wrap" style="margin-top:10px" id="home-sessions"></div>
     </div>
-    </div></div>
   </section>
 
   <!-- NEW BENCHMARK: one wizard -->
@@ -528,7 +497,7 @@
     </div>
 
     <!-- step 2: models and settings (data prepares in the background) -->
-    <div id="wiz-step-models" class="wiz-grid" hidden>
+    <div id="wiz-step-models" hidden>
       <div class="card" id="wiz-data-card">
         <div class="row" style="margin-top:0;justify-content:space-between">
           <h2>Your data</h2><span id="wiz-data-chip" class="status Running">Preparing</span>
@@ -668,7 +637,6 @@
   <section id="view-settings" class="view" hidden aria-labelledby="h-settings">
     <div class="page-head"><div><h1 id="h-settings">Settings</h1>
       <p id="set-intro">Theme is saved in this browser.</p></div></div>
-    <div class="cards-2">
     <div class="card">
       <fieldset style="border:0;padding:0;margin:0">
         <legend><h2>Theme</h2></legend>
@@ -679,12 +647,7 @@
         </div>
       </fieldset>
     </div>
-    <div class="card">
-      <h2>Backend</h2>
-      <dl class="kv small" id="set-backend"></dl>
-      <p class="muted small" id="set-backend-note">Advanced<span class="info-i" tabindex="0" role="button" data-tip="A new backend address can be given once with ?api=<url> (remembered in this browser; ?api=reset forgets it).">i</span></p>
-    </div>
-    <form class="card wide" id="set-account" hidden novalidate>
+    <form class="card" id="set-account" hidden novalidate>
       <h2>Notifications</h2>
       <div class="row" style="margin-top:8px">
         <div class="field"><label for="set-tg">Telegram chat ID <span class="hint">(message the bot, then /getUpdates)</span></label>
@@ -712,6 +675,10 @@
       <div class="actions"><button type="submit" class="btn primary" id="set-save">Save settings</button>
         <span class="small muted" id="set-saved" role="status" aria-live="polite"></span></div>
     </form>
+    <div class="card">
+      <h2>Backend</h2>
+      <dl class="kv small" id="set-backend"></dl>
+      <p class="muted small" id="set-backend-note">Advanced<span class="info-i" tabindex="0" role="button" data-tip="A new backend address can be given once with ?api=<url> (remembered in this browser; ?api=reset forgets it).">i</span></p>
     </div>
   </section>
 
@@ -743,8 +710,7 @@
   <section id="view-admin" class="view" hidden aria-labelledby="h-admin">
     <div class="page-head"><div><h1 id="h-admin">Admin</h1>
       <p>Users, credentials and limits. Secrets are never shown.</p></div></div>
-    <div class="cards-2">
-    <div class="card wide">
+    <div class="card">
       <div class="row" style="margin-top:0;justify-content:space-between"><h2>Users</h2><span class="chip" id="adm-count"></span></div>
       <div class="table-wrap" style="margin-top:10px" id="adm-users"></div>
       <form class="row" id="adm-new" novalidate>
@@ -773,7 +739,6 @@
       <div id="lim-error" class="notice error" role="alert" hidden></div>
       <div class="actions"><button type="submit" class="btn primary" id="lim-save">Save limits</button><span class="small muted" id="lim-saved" role="status"></span></div>
     </form>
-    </div>
   </section>
 </main>
 
@@ -1072,11 +1037,6 @@
     else if ((ev.key === "Enter" || ev.key === " ") && el && el.classList && el.classList.contains("info-i")) { ev.preventDefault(); openTip(el); TIP._for = el; }
   });
   window.addEventListener("scroll", closeTip, { passive: true });
-  // phone: the menu opens from the ☰ button
-  $("nav-toggle").addEventListener("click", function () {
-    var open = document.body.classList.toggle("nav-open");
-    this.setAttribute("aria-expanded", open ? "true" : "false");
-  });
 
   // ---------- routing ----------
   var VIEWS = ["home", "new", "sessions", "session", "compare", "leaderboard", "settings", "profile", "admin", "login"];
@@ -1090,9 +1050,6 @@
     VIEWS.forEach(function (v) { $("view-" + v).hidden = v !== view; });
     $("view-offline").hidden = true;
     document.querySelector(".mainnav").hidden = view === "login";
-    document.body.classList.toggle("nav-off", view === "login");
-    document.body.classList.remove("nav-open"); $("nav-toggle").setAttribute("aria-expanded", "false");
-    $("nav-toggle").hidden = view === "login";
     var nav = view === "session" ? "sessions" : view;
     document.querySelectorAll("[data-nav]").forEach(function (a) {
       if (a.getAttribute("data-nav") === nav) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");

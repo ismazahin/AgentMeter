@@ -314,28 +314,10 @@ async function frameOf(p) {
     log(over <= 0, 'phone 375px: no horizontal page scroll on ' + hash + ' (' + over + ')');
   }
   await ph.goto(BASE + '/#/session/' + job1); await ph.waitForSelector('#session-body:not([hidden])');
-  log(await ph.isHidden('.mainnav') && await ph.isVisible('#nav-toggle'), 'phone: the menu sits behind a ☰ button');
-  await ph.click('#nav-toggle');
-  const navLinks = await ph.$$eval('.mainnav a', as => as.map(a => a.getBoundingClientRect().height));
-  log(navLinks.length === 5 && navLinks.every(h => h >= 44), 'phone: ☰ opens the menu (5 links, each ≥ 44px tall)');
-  await ph.click('.mainnav a[data-nav="sessions"]'); await ph.waitForSelector('#view-sessions:not([hidden])');
-  log(await ph.isHidden('.mainnav'), 'phone: choosing a page closes the menu');
+  const navH = await ph.evaluate(() => document.querySelector('.mainnav').getBoundingClientRect().height);
+  log(navH > 44, 'phone: header nav wraps (' + Math.round(navH) + 'px)');
   const small = await ph.$$eval('.mainnav a, .btn, .iconbtn', els => els.filter(e => e.offsetParent && e.getBoundingClientRect().height < 44).length);
   log(small === 0, 'phone: nav links and buttons are >= 44px tall');
-  // wide screen: side menu, content uses the width
-  const wide = await (await b.newContext({ viewport: { width: 1600, height: 1000 } })).newPage();
-  await wide.goto(BASE + '/#/sessions'); await wide.waitForSelector('#sessions-table');
-  const side = await wide.evaluate(() => { const n = document.querySelector('.mainnav').getBoundingClientRect(); return { x: n.left, w: n.width, h: n.height, pad: parseInt(getComputedStyle(document.querySelector('main')).paddingLeft, 10) }; });
-  log(side.x === 0 && side.w > 180 && side.h > 400 && side.pad >= side.w, 'wide screen: the menu is a side bar (' + Math.round(side.w) + 'px) and the page sits beside it');
-  const tw = await wide.evaluate(() => document.querySelector('#sessions-table').getBoundingClientRect().width);
-  log(tw > 1150, 'wide screen: the Sessions table uses the width (' + Math.round(tw) + 'px)');
-  await wide.goto(BASE + '/#/'); await wide.waitForSelector('#home-recent:not([hidden])');
-  const cols = await wide.evaluate(() => getComputedStyle(document.querySelector('.home-grid')).gridTemplateColumns.split(' ').length);
-  log(cols === 2, 'wide screen: Home in two columns');
-  await wide.screenshot({ path: S + '/12-wide-home.png' });
-  await wide.goto(BASE + '/#/settings'); await wide.waitForSelector('#view-settings:not([hidden])');
-  await wide.screenshot({ path: S + '/13-wide-settings.png', fullPage: true });
-  await wide.close();
   await ph.screenshot({ path: S + '/12-phone-session.png', fullPage: true });
   await ph.goto(BASE + '/'); await ph.waitForSelector('#home-latest:not([hidden])');
   await ph.screenshot({ path: S + '/13-phone-home.png', fullPage: true });

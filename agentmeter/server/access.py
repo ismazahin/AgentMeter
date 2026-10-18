@@ -53,7 +53,8 @@ from .jobs import _JOB_ID, strong_job_id
 
 JOB_CREATING = {("POST", "/api/prepare"), ("POST", "/api/prepared/import"), ("POST", "/api/jobs")}
 _WRITE = {"POST", "PUT", "PATCH", "DELETE"}
-_WRITE_KIND = {"/api/prepare": "prepare", "/api/prepared/import": "import", "/api/jobs": "benchmark"}
+_WRITE_KIND = {"/api/prepare": "prepare", "/api/prepared/import": "import", "/api/jobs": "benchmark",
+               "/api/models/verify": "verify"}
 _READ_EXACT = {"/api/jobs", "/api/sessions", "/api/compare", "/api/compare/candidates", "/api/compare/merged",
                "/api/leaderboard", "/api/models/catalog"}
 _JOB_SUB = re.compile(r"^/api/jobs/([^/]+)(?:/(result|report\.pdf|constraints|resume|stop))?$")
@@ -204,6 +205,8 @@ def install(app, *, mode: str, queue_depth: Callable[[], int]) -> dict:
             return deny("run_token_wrong_kind", f"this request needs a {kind!r} token, not {p['kind']!r}", 403)
         if kind in ("resume", "stop") and p.get("job_id") != need["job_id"]:
             return deny("run_token_mismatch", "the token was issued for another job", 403)
+        if kind == "verify" and not p.get("admin"):
+            return deny("forbidden", "only an admin can verify models", 403)
         if kind == "files" and p.get("set") != need["set"]:
             return deny("run_token_mismatch", "the token was issued for another prepared set", 403)
         if kind in runtoken.SINGLE_USE:

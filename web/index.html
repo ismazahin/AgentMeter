@@ -758,6 +758,18 @@
       <p class="muted small">Status only.<span class="info-i" tabindex="0" role="button" data-tip="Set on the GPU backend (Hugging Face token, Vast API key) or as a Worker secret (Telegram bot token).">i</span></p>
       <dl class="kv" id="adm-creds"></dl>
     </div>
+    <div class="card" id="adm-models-card">
+      <div class="row" style="margin-top:0;justify-content:space-between"><h2>Model catalog</h2><span class="chip" id="adm-models-mode"></span></div>
+      <p class="muted small">Extra models users may pick next to the 5 study models. Every model is quantized to 4-bit NF4 at load, like the study models. On the real GPU a model is offered only when it is suitable, enabled and verified.<span class="info-i" tabindex="0" role="button" data-tip="Suitable = passes the rules in configs/model_rules.yaml (original weights, fits this GPU at 4-bit, no remote code…). Verify = a test-load in 4-bit NF4 plus a short generation on the GPU; it downloads the model first if needed. Download at start-up = fetched with the study models when a rental starts.">i</span></p>
+      <div class="table-wrap" id="adm-models"></div>
+      <form class="row" id="adm-model-add" novalidate>
+        <div class="field"><label for="adm-model-id">Add a model <span class="hint">(Hugging Face id, original weights)</span></label><input type="text" id="adm-model-id" placeholder="owner/name" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+        <div class="field"><label for="adm-model-note">Note <span class="hint">(optional)</span></label><input type="text" id="adm-model-note" maxlength="200"></div>
+        <button type="submit" class="btn" id="adm-model-add-go" style="align-self:flex-end">Add model</button>
+      </form>
+      <div id="adm-models-error" class="notice error" role="alert" hidden></div>
+      <p class="small muted" id="adm-models-status" role="status"></p>
+    </div>
     <form class="card" id="adm-limits" novalidate>
       <h2>System limits</h2>
       <div class="row" style="margin-top:8px">
@@ -910,6 +922,7 @@
       if (p === "/api/prepare") return { kind: "prepare" };
       if (p === "/api/prepared/import") return { kind: "import" };
       if (p === "/api/jobs") return { kind: "benchmark" };
+      if (p === "/api/models/verify") return { kind: "verify" };
       if ((m = /^\/api\/jobs\/([^/]+)\/(resume|stop)$/.exec(p))) return { kind: m[2], job_id: decodeURIComponent(m[1]) };
       return null;
     }
@@ -937,6 +950,7 @@
     }
     var body = { kind: need.kind };
     if (need.kind === "resume" || need.kind === "stop") body.job_id = need.job_id;
+    if (need.kind === "verify") { try { body.model = JSON.parse(opts.body || "{}").model; } catch (e) { /* not JSON */ } }
     if (need.kind === "benchmark") {
       var b = {};
       try { b = JSON.parse(opts.body || "{}"); } catch (e) { b = {}; }
@@ -1497,7 +1511,7 @@
     box.innerHTML = avail.map(function (x, i) { return extraCard(x, i); }).join("") ||
       '<p class="muted small">No extra models are available on this server right now.</p>';
     $("svc-extra-note").textContent = others ? others + " more listed model" + (others === 1 ? " is" : "s are") + " not available here (" +
-      (cat.extra || []).filter(function (x) { return !x.available; }).map(function (x) { return x.status === "unknown" ? "model info unavailable" : "not suitable"; })
+      (cat.extra || []).filter(function (x) { return !x.available; }).map(function (x) { return x.unavailable_reason || (x.status === "unknown" ? "model info unavailable" : "not suitable"); })
         .filter(function (v, i, a) { return a.indexOf(v) === i; }).join(", ") + ")." : "";
     var defs = (SETTINGS && SETTINGS.default_models) || [];
     box.querySelectorAll("input").forEach(function (inp) {
@@ -2527,8 +2541,26 @@
 
   // ---------- SETTINGS ----------
   var TZS = (function () { try { return Intl.supportedValuesOf("timeZone"); } catch (e) { return ["UTC", "Asia/Kuala_Lumpur", "Europe/London", "America/New_York"]; } })();
+  // default models: study models + the extra models offered here; `chosen` stays ticked
+  function renderSetModels(chosen) {
+    var models = (CONFIG && CONFIG.canonical_models && CONFIG.canonical_models.length ? CONFIG.canonical_models : []).slice();
+    ((CATALOG && CATALOG.extra) || []).forEach(function (x) { if (x.available && models.indexOf(x.id) < 0) models.push(x.id); });
+    chosen.forEach(function (m) { if (models.indexOf(m) < 0) models.push(m); });
+    $("set-models").innerHTML = models.length ? models.map(function (m, i) {
+      return '<label class="model"><input type="checkbox" value="' + esc(m) + '" id="set-model-' + i + '"' + (chosen.indexOf(m) >= 0 ? " checked" : "") + '><span class="mono">' + esc(m) + '</span>' + extraTag(m) + '</label>';
+    }).join("") : '<p class="muted small">The model list comes from the GPU backend — it is offline now.</p>';
+    var sync = function () {
+      var on = $("set-models").querySelectorAll("input:checked").length;
+      $("set-models").querySelectorAll("input").forEach(function (x) { x.disabled = !x.checked && on >= 2; });
+    };
+    $("set-models").querySelectorAll("input").forEach(function (inp) { inp.addEventListener("change", sync); });
+    sync();
+  }
   function loadSettings() {
-    if (ONLINE && !CATALOG) loadCatalog().then(function (c) { if (c && !$("view-settings").hidden) loadSettings(); });
+    // the extra models arrive later: refresh ONLY the model list, keeping what is ticked (never the form)
+    if (ONLINE && !CATALOG) loadCatalog().then(function (c) {
+      if (c && !$("view-settings").hidden) renderSetModels(Array.prototype.map.call($("set-models").querySelectorAll("input:checked"), function (i) { return i.value; }));
+    });
     var t = (SETTINGS && SETTINGS.theme) || themePref();
     ($("set-theme-" + t) || $("set-theme-system")).checked = true;
     var h = HEALTH || {};
@@ -2544,16 +2576,7 @@
     $("set-tg").value = S.telegram_chat_id || ""; $("set-notify").value = S.notify_on || "none";
     $("set-flows").value = S.default_flows || 50; $("set-other").checked = !!S.default_other_attack; $("set-tz").value = S.timezone || "UTC";
     $("set-tz-list").innerHTML = TZS.map(function (z) { return '<option value="' + esc(z) + '">'; }).join("");
-    var models = (CONFIG && CONFIG.canonical_models && CONFIG.canonical_models.length ? CONFIG.canonical_models : []).slice();
-    ((CATALOG && CATALOG.extra) || []).forEach(function (x) { if (x.available && models.indexOf(x.id) < 0) models.push(x.id); });
-    (S.default_models || []).forEach(function (m) { if (models.indexOf(m) < 0) models.push(m); });
-    $("set-models").innerHTML = models.length ? models.map(function (m, i) {
-      return '<label class="model"><input type="checkbox" value="' + esc(m) + '" id="set-model-' + i + '"' + ((S.default_models || []).indexOf(m) >= 0 ? " checked" : "") + '><span class="mono">' + esc(m) + '</span>' + extraTag(m) + '</label>';
-    }).join("") : '<p class="muted small">The model list comes from the GPU backend — it is offline now.</p>';
-    $("set-models").querySelectorAll("input").forEach(function (inp) { inp.addEventListener("change", function () {
-      var on = $("set-models").querySelectorAll("input:checked").length;
-      $("set-models").querySelectorAll("input").forEach(function (x) { x.disabled = !x.checked && on >= 2; });
-    }); });
+    renderSetModels(S.default_models || []);
     renderPresets(S.weight_presets || []);
     $("set-saved").textContent = ""; $("set-error").hidden = true; $("set-tg-status").textContent = "";
   }
@@ -2618,7 +2641,104 @@
 
   // ---------- ADMIN ----------
   function isAdmin() { return !!(AUTH.user && AUTH.user.role === "admin"); }
+  // ---------- Admin: model catalog ----------
+  var VERIFYING = {};                       // model -> job id while a verification runs
+  function loadAdminModels() {
+    $("adm-models-error").hidden = true;
+    var state = api("/api/admin/models"), cat = ONLINE ? api("/api/models/catalog") : Promise.resolve(null);
+    Promise.all([state, cat]).then(function (rs) {
+      var st = rs[0], ct = rs[1];
+      if (!st.ok) { showError($("adm-models-error"), st.data); return; }
+      if (ct && ct.ok) CATALOG = ct.data;
+      renderAdminModels(st.data.state, ct && ct.ok ? ct.data : null);
+    });
+  }
+  function renderAdminModels(state, cat) {
+    var real = cat && cat.mode === "real";
+    $("adm-models-mode").textContent = !cat ? "GPU offline" : real ? "real GPU: verification required" : "demo: no verification";
+    var rows = (cat ? cat.extra.slice() : []), cfg = state.models || {};
+    (state.added || []).forEach(function (a) {             // added since the GPU's last heartbeat: listed now
+      if (!rows.some(function (x) { return x.id === a.id; })) rows.push({ id: a.id, source: "admin", pending: !!cat });
+    });
+    if (!cat) $("adm-models-status").textContent = "GPU offline: suitability and Verify need the GPU. You can still enable or disable models.";
+    $("adm-models").innerHTML = '<table id="adm-models-table"><thead><tr><th>Model</th><th>Suitability</th><th>4-bit verification</th><th>Offered to users</th><th>Enabled</th><th>Download at start-up</th><th></th></tr></thead><tbody>' +
+      rows.map(function (x) {
+        var c = cfg[x.id] || {}, v = x.verification || (c.verified ? c.verified : { status: "not_verified" });
+        // the control plane holds the admin's choices; the GPU's copy can be a heartbeat behind
+        var enabled = c.enabled != null ? c.enabled : x.enabled != null ? x.enabled : x.source !== "admin";
+        var dl = c.download_at_start != null ? c.download_at_start : !!x.download_at_start;
+        var suit = !x.status ? '<span class="muted">—</span>' :
+          '<span class="chip ' + ({ ok: "ok", warning: "warn", blocked: "bad", unknown: "" }[x.status] || "") + '">' + esc(x.status) + '</span>' +
+          (x.reasons || []).map(function (r) { return '<br><span class="small muted">' + esc(r.note) + '</span>'; }).join("");
+        var busy = !!VERIFYING[x.id];
+        var ver = (v.status === "ok" ? '<span class="chip ok">✓ verified</span><br><span class="small muted">' + esc(fmtDate(v.at || "")) + (v.gpu ? " · " + esc(v.gpu) : "") +
+                    (v.weights_mb != null ? " · weights " + fmtMB(v.weights_mb) : "") + (v.transformers ? " · transformers " + esc(v.transformers) : "") + '</span>'
+                  : v.status === "failed" ? '<span class="chip bad">✕ failed</span><br><span class="small muted">' + esc(v.error || "") + '</span>'
+                  : '<span class="muted small">not verified</span>') +
+          (real ? '<br><button type="button" class="btn small-btn" data-verify="' + esc(x.id) + '"' + (busy || x.suitable === false ? " disabled" : "") + '>' + (busy ? "Verifying…" : v.status === "ok" ? "Verify again" : "Verify") + '</button>' : "");
+        var offered = x.pending ? '<span class="small muted">the GPU picks it up within a minute</span>' : x.available == null ? '<span class="muted">—</span>' : x.available ? '<span class="chip ok">offered</span>' : '<span class="small muted">' + esc(x.unavailable_reason || "no") + '</span>';
+        return '<tr data-model="' + esc(x.id) + '"><td class="mono">' + esc(x.id) + (x.source === "admin" ? ' <span class="chip">added</span>' : "") +
+          (x.params_b != null ? '<br><span class="small muted">' + fmtNum(x.params_b, 1) + ' B · ~' + fmtNum(x.vram_4bit_gb, 1) + ' GB at 4-bit</span>' : "") + '</td><td>' + suit + '</td><td>' + ver + '</td><td>' + offered +
+          '</td><td><input type="checkbox" data-enable="' + esc(x.id) + '" aria-label="Enable ' + esc(x.id) + '"' + (enabled ? " checked" : "") + '></td>' +
+          '<td><input type="checkbox" data-dlstart="' + esc(x.id) + '" aria-label="Download ' + esc(x.id) + ' at start-up"' + (dl ? " checked" : "") + '></td>' +
+          '<td>' + (x.source === "admin" ? '<button type="button" class="btn small-btn danger" data-remove="' + esc(x.id) + '">Remove</button>' : "") + '</td></tr>';
+      }).join("") + '</tbody></table>';
+    var box = $("adm-models");
+    box.querySelectorAll("[data-enable]").forEach(function (i) { i.addEventListener("change", function () { saveModel(i.dataset.enable, { enabled: i.checked }); }); });
+    box.querySelectorAll("[data-dlstart]").forEach(function (i) { i.addEventListener("change", function () { saveModel(i.dataset.dlstart, { download_at_start: i.checked }); }); });
+    box.querySelectorAll("[data-remove]").forEach(function (b) { b.addEventListener("click", function () {
+      if (!confirm("Remove " + b.dataset.remove + " from the model list?")) return;
+      putModels({ remove: [b.dataset.remove] }, "Removed.");
+    }); });
+    box.querySelectorAll("[data-verify]").forEach(function (b) { b.addEventListener("click", function () { verifyModel(b.dataset.verify); }); });
+  }
+  function putModels(body, done) {
+    $("adm-models-error").hidden = true;
+    return api("/api/admin/models", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
+      if (!r.ok) { showError($("adm-models-error"), r.data); return r; }
+      $("adm-models-status").textContent = done + " The GPU picks it up at its next heartbeat (within a minute).";
+      CATALOG = null;
+      setTimeout(loadAdminModels, ONLINE ? 1500 : 0);
+      return r;
+    });
+  }
+  function saveModel(id, patch) { var set = {}; set[id] = patch; return putModels({ set: set }, "Saved."); }
+  function verifyModel(id) {
+    $("adm-models-error").hidden = true;
+    api("/api/models/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: id }) }).then(function (r) {
+      if (!r.ok) { showError($("adm-models-error"), r.data); return; }
+      VERIFYING[id] = r.data.job_id;
+      $("adm-models-status").textContent = "Verifying " + id + " on the GPU (downloads it first if needed; queued behind any running benchmark)…";
+      loadAdminModels();
+      (function poll() {
+        api("/api/jobs/" + enc(r.data.job_id)).then(function (j) {
+          var d = j.ok ? j.data : null;
+          if (d && (d.status === "queued" || d.status === "running")) {
+            var dl = d.model_download;
+            $("adm-models-status").textContent = "Verifying " + id + ": " + (dl && dl.phase === "downloading" && dl.total_bytes
+              ? "downloading " + fmtNum(dl.done_bytes / 1073741824, 1) + " / " + fmtNum(dl.total_bytes / 1073741824, 1) + " GB" : d.message || d.status) + "…";
+            setTimeout(poll, 2000); return;
+          }
+          delete VERIFYING[id];
+          var v = d && d.verification;
+          $("adm-models-status").textContent = v && v.status === "ok" ? id + " verified: it loads and generates in 4-bit NF4." : id + ": verification failed" + (v && v.error ? " — " + v.error : d && d.error ? " — " + d.error : "") + ".";
+          CATALOG = null;
+          setTimeout(loadAdminModels, 1500);     // the control plane has the result after its next delivery
+        });
+      })();
+    });
+  }
+  $("adm-model-add").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var id = $("adm-model-id").value.trim();
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]{1,96}$/.test(id)) { showError($("adm-models-error"), { error: "Enter a Hugging Face model id like owner/name.", code: "bad_model" }); return; }
+    putModels({ add: [{ id: id, note: $("adm-model-note").value.trim() }] }, "Added " + id + " (disabled until you enable it).").then(function (r) {
+      if (r && r.ok) { $("adm-model-id").value = ""; $("adm-model-note").value = ""; }
+    });
+  });
+
   function loadAdmin() {
+    loadAdminModels();
     $("adm-error").hidden = true; $("lim-error").hidden = true; $("lim-saved").textContent = "";
     api("/api/admin/users").then(function (r) {
       if (!r.ok) { showError($("adm-error"), r.data); return; }

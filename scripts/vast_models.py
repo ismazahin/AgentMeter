@@ -20,6 +20,7 @@ and unloads it. Exit code 0 = ready for `serve.py --provider real`.
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
 import sys
 import time
@@ -84,6 +85,20 @@ def verify(models: list[str]) -> None:
               flush=True)
 
 
+def _load_admin_state() -> None:
+    """The admin's model choices (enabled / download at start-up) live in the control plane;
+    fall back to configs/model_catalog.yaml when it cannot be reached."""
+    url, secret = os.environ.get("AGENTMETER_WORKER_URL"), os.environ.get("AGENTMETER_BACKEND_SECRET")
+    if not (url and secret):
+        return
+    from agentmeter.server.control_plane import Client, ControlPlaneError
+    try:
+        model_catalog.set_state(Client(url, secret, timeout=10).call("GET", "/api/backend/model-state").get("state"))
+        print("model choices: read from the control plane")
+    except ControlPlaneError as e:
+        print(f"model choices: control plane unreachable ({e}); using configs/model_catalog.yaml", file=sys.stderr)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true", help="only report which models are on disk")
@@ -92,6 +107,7 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     study = runtime.study_models()
+    _load_admin_state()
     extra = [m for m in model_catalog.start_up_ids() if m not in study]   # catalog: download_at_start
     models = study + extra
     cache = runtime._hub_cache()

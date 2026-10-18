@@ -165,8 +165,10 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
                            environment=lambda: runtime.environment(mode))
     service_api.register_service(app, get_job_manager)
     from agentmeter.server.model_catalog import register_models
-    register_models(app,                                        # extra models + 4-bit suitability
-                    gpu_vram_mb=lambda: runtime.gpu_info().get("vram_total_mb") if mode == "real" else None)
+    register_models(app,                                        # extra models: suitability, admin verify
+                    gpu_vram_mb=lambda: runtime.gpu_info().get("vram_total_mb") if mode == "real" else None,
+                    real=(mode == "real"), get_manager=get_job_manager,
+                    environment=lambda: runtime.environment(mode))
     from agentmeter.server.sessions import register_sessions
     register_sessions(app, get_job_manager)                     # Phase 46: sessions, compare, leaderboard
 

@@ -15,13 +15,14 @@ import { Env, fail, json, nowIso, nowS, readJson } from "./util";
 export const RUN_TTL_S = 300;
 export const RUN_KINDS = ["prepare", "import", "benchmark", "resume"];
 export const READ_KINDS = ["read", "files"];
-export const CONTROL_KINDS = ["stop"];                  // never counted against the hourly limit
+export const CONTROL_KINDS = ["stop", "verify"];        // never counted against the hourly limit
 const JOB_ID = /^job_\d{8}_\d{6}_([0-9a-f]{6}|[0-9a-f]{32})$/;
 const SET_ID = /^(csv_runs|pcap_runs)\/[A-Za-z0-9_.-]{1,80}$/;
+const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]{1,96}$/;
 
 export async function authorize(req: Request, env: Env): Promise<Response> {
   const a = await requireUser(req, env);
-  const b = await readJson<{ kind?: string; after_prepare?: string; prepare_jti?: string; run?: string; job_id?: string; set?: string }>(req);
+  const b = await readJson<{ kind?: string; after_prepare?: string; prepare_jti?: string; run?: string; job_id?: string; set?: string; model?: string }>(req);
   const kind = String(b.kind || "");
   const ALL = [...RUN_KINDS, ...READ_KINDS, ...CONTROL_KINDS];
   if (!ALL.includes(kind)) fail(400, "bad_kind", `kind: ${ALL.join(" | ")}`);
@@ -36,6 +37,13 @@ export async function authorize(req: Request, env: Env): Promise<Response> {
     return json({ token: await signToken(env.RUN_TOKEN_SECRET, { ...base, set: b.set }), expires_in: RUN_TTL_S, backend: be.url });
   }
 
+  if (kind === "verify") {
+    // admin only: a 4-bit test-load of one catalog model on the GPU (queued like a benchmark)
+    if (a.user.role !== "admin") fail(403, "forbidden", "admin only");
+    if (!MODEL_ID.test(String(b.model || ""))) fail(400, "bad_request", "model: owner/name");
+    return json({ token: await signToken(env.RUN_TOKEN_SECRET, { ...base, model: b.model, admin: true }),
+                  expires_in: RUN_TTL_S, backend: be.url });
+  }
   if (kind === "stop") {
     // the backend checks the job's owner (token sub) unless the token says admin
     if (!JOB_ID.test(String(b.job_id || ""))) fail(400, "bad_request", "job_id: the job to stop");

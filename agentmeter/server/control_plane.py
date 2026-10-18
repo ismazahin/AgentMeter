@@ -221,6 +221,9 @@ class ControlPlane:
         return [{"job_id": j["job_id"], "status": j["status"]} for j in self.get_manager().list_jobs(limit=200)]
 
     def _got_limits(self, r: dict) -> None:
+        if isinstance(r.get("model_state"), dict):          # the admin's model catalog choices
+            from . import model_catalog
+            model_catalog.set_state(r["model_state"])
         lim = r.get("limits")
         if isinstance(lim, dict):
             self.limits = lim
@@ -265,6 +268,9 @@ class ControlPlane:
             self.client.call("POST", f"/api/backend/jobs/{job['job_id']}/status", body)
             if job.get("status") == "done" and (job.get("kind") or "benchmark") == "benchmark":
                 self.upload(job["job_id"])
+            if job.get("kind") == "verify_model" and job.get("status") in ("done", "failed") and job.get("verification"):
+                self.client.call("POST", "/api/backend/models/verified",
+                                 {"model": job.get("model"), "result": job["verification"]})
 
     def upload(self, job_id: str, owner_username: Optional[str] = None, force: bool = False) -> bool:
         """Upload one finished session (idempotent). True when it is stored in the control plane."""

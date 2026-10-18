@@ -56,6 +56,38 @@ class CatalogError(ValueError):
 
 
 # ---------------------------------------------------------------------------
+# admin state (kept in the control plane's D1; delivered with every heartbeat)
+# ---------------------------------------------------------------------------
+_STATE: dict[str, Any] = {"models": {}, "added": []}
+_STATE_LOCK = __import__("threading").Lock()
+
+
+def set_state(state: Any) -> None:
+    """The admin's choices from the control plane: {models: {id: {enabled, download_at_start,
+    verified}}, added: [{id, note}]}. Malformed parts are ignored."""
+    if not isinstance(state, dict):
+        return
+    models = state.get("models") if isinstance(state.get("models"), dict) else {}
+    added = [a for a in (state.get("added") or []) if isinstance(a, dict) and isinstance(a.get("id"), str) and "/" in a["id"]]
+    with _STATE_LOCK:
+        _STATE["models"] = {k: dict(v) for k, v in models.items() if isinstance(v, dict)}
+        _STATE["added"] = [{"id": a["id"], "note": str(a.get("note") or "")[:200]} for a in added]
+
+
+def get_state() -> dict[str, Any]:
+    with _STATE_LOCK:
+        return {"models": {k: dict(v) for k, v in _STATE["models"].items()}, "added": list(_STATE["added"])}
+
+
+def record_verification(model_id: str, result: dict[str, Any]) -> None:
+    """A finished 4-bit verification, recorded locally at once (the control plane stores it too)."""
+    with _STATE_LOCK:
+        cur = dict(_STATE["models"].get(model_id) or {})
+        cur["verified"] = dict(result)
+        _STATE["models"][model_id] = cur
+
+
+# ---------------------------------------------------------------------------
 # files
 # ---------------------------------------------------------------------------
 def load_catalog(path: Optional[str | Path] = None) -> list[dict[str, Any]]:
@@ -291,7 +323,7 @@ def evaluate(model_id: str, facts: dict, rules: dict) -> dict[str, Any]:
 
 
 def assess(entry: dict, fetched: dict, env: dict, rules: dict, *, on_disk: bool = False,
-           native: Optional[Callable] = None) -> dict[str, Any]:
+           native: Optional[Callable] = None, real: Optional[bool] = None) -> dict[str, Any]:
     repo = fetched.get("repo")
     facts = derive(repo, env, rules["constants"], on_disk=on_disk, native=native)
     ev = evaluate(entry["id"], facts, rules)
@@ -307,7 +339,8 @@ def assess(entry: dict, fetched: dict, env: dict, rules: dict, *, on_disk: bool 
     return {
         "id": entry["id"], "family": entry.get("family"), "note": entry.get("note"),
         "download_at_start": bool(entry.get("download_at_start")),
-        "status": status, "available": status in ("ok", "warning"),
+        "status": status, "suitable": status in ("ok", "warning"),
+        "enabled": entry.get("enabled", True), "source": entry.get("source", "catalog"),
         "reasons": ev["reasons"] + ([{"rule": "metadata", "outcome": "warn",
                                       "note": "Hugging Face could not be reached: " + str(fetched.get("error"))}]
                                     if not repo else []),
@@ -317,23 +350,43 @@ def assess(entry: dict, fetched: dict, env: dict, rules: dict, *, on_disk: bool 
         "on_disk": on_disk, "gated": g("hf.gated"), "license": g("hf.license"), "downloads": g("hf.downloads"),
         "original_format": ("original weights" if g("derived.prequantized") is False else g("derived.quant_format")),
         "quantization": "4-bit NF4",
-        "verification": {"status": "not_verified",
-                         "note": "a 4-bit test-load by the admin comes in the next phase"},
+        "verification": _verification(entry.get("verified")),
         "source_url": g("hf.source_url") or f"https://huggingface.co/{entry['id']}",
         "metadata_status": fetched.get("status"), "fetched_at": fetched.get("fetched_at"),
         "audit": ev["audit"],
-    }
+    } | _availability(status, entry, real if real is not None else env.get("gpu_vram_gb") is not None)
+
+
+def _verification(v: Optional[dict]) -> dict[str, Any]:
+    if not v:
+        return {"status": "not_verified"}
+    return {k: v.get(k) for k in ("status", "at", "transformers", "gpu", "weights_mb", "seconds", "error", "by")}
+
+
+def _availability(status: str, entry: dict, real: bool) -> dict[str, Any]:
+    """Offered to users = suitable AND enabled AND (on a real GPU) verified at 4-bit."""
+    v = (entry.get("verified") or {}).get("status")
+    if status not in ("ok", "warning"):
+        why = "not suitable" if status == "blocked" else "model info unavailable"
+    elif not entry.get("enabled", True):
+        why = "disabled by the admin"
+    elif real and v != "ok":
+        why = "4-bit verification failed" if v == "failed" else "not yet verified at 4-bit"
+    else:
+        why = None
+    return {"available": why is None, "unavailable_reason": why, "needs_verification": bool(real)}
 
 
 def build_catalog(*, gpu_vram_mb: Optional[float] = None, fetcher: Optional[Callable] = None, cache: Any = None,
                   token: Optional[str] = None, enabled: Optional[bool] = None,
                   on_disk: Optional[Callable[[str], bool]] = None, native: Optional[Callable] = None,
-                  env: Optional[dict] = None, catalog_path=None, rules_path=None) -> dict[str, Any]:
+                  env: Optional[dict] = None, catalog_path=None, rules_path=None,
+                  real: Optional[bool] = None, state: Optional[dict] = None) -> dict[str, Any]:
     from . import runtime
     from ..session.benchmark import canonical_models
     from ..session.stage3 import METADATA_ENV
 
-    rules, entries = load_rules(rules_path), load_catalog(catalog_path)
+    rules, ents = load_rules(rules_path), entries(catalog_path, state)
     env = env if env is not None else server_env(gpu_vram_mb)
     if enabled is None:
         enabled = os.environ.get(METADATA_ENV, "on").strip().lower() not in ("off", "0", "false", "no")
@@ -343,10 +396,10 @@ def build_catalog(*, gpu_vram_mb: Optional[float] = None, fetcher: Optional[Call
     def one(e):
         f = (fetch_repo(e["id"], fetcher=fetch, cache=cache, token=token) if enabled else
              {"status": "unavailable", "repo": None, "error": f"disabled ({METADATA_ENV}=off)"})
-        return assess(e, f, env, rules, on_disk=disk(e["id"]), native=native)
+        return assess(e, f, env, rules, on_disk=disk(e["id"]), native=native, real=real)
 
     with ThreadPoolExecutor(max_workers=4) as pool:
-        extra = list(pool.map(one, entries))
+        extra = list(pool.map(one, ents))
     return {
         "framing": FRAMING, "quantization": QUANTIZATION, "rulebase": rules["source"],
         "server": {k: (round(v, 1) if isinstance(v, float) else v) for k, v in env.items()},
@@ -356,29 +409,59 @@ def build_catalog(*, gpu_vram_mb: Optional[float] = None, fetcher: Optional[Call
     }
 
 
-def start_up_ids(catalog_path=None) -> list[str]:
-    """Extra models marked download_at_start: fetched with the study models when a rental starts."""
-    return [m["id"] for m in load_catalog(catalog_path) if m["download_at_start"]]
+def entries(catalog_path=None, state: Optional[dict] = None) -> list[dict[str, Any]]:
+    """The YAML catalog + the models an admin added, with the admin's choices applied.
+    Defaults: YAML models enabled, admin-added models disabled until enabled."""
+    st = state if state is not None else get_state()
+    out = [{**m, "source": "catalog"} for m in load_catalog(catalog_path)]
+    seen = {m["id"] for m in out}
+    for a in st.get("added") or []:
+        if a["id"] in seen or any(a["id"].lower().endswith(x) for x in _QUANT_NAMES):
+            continue
+        seen.add(a["id"])
+        out.append({"id": a["id"], "family": "", "note": a.get("note") or "", "download_at_start": False, "source": "admin"})
+    for m in out:
+        cfg = (st.get("models") or {}).get(m["id"]) or {}
+        m["enabled"] = bool(cfg.get("enabled", m["source"] == "catalog"))
+        if isinstance(cfg.get("download_at_start"), bool):
+            m["download_at_start"] = cfg["download_at_start"]
+        m["verified"] = cfg.get("verified") if isinstance(cfg.get("verified"), dict) else None
+    return out
+
+
+def start_up_ids(catalog_path=None, state: Optional[dict] = None) -> list[str]:
+    """Enabled extra models marked download_at_start: fetched with the study models at start-up."""
+    return [m["id"] for m in entries(catalog_path, state) if m["download_at_start"] and m["enabled"]]
 
 
 # ---------------------------------------------------------------------------
 # which models a real benchmark may use
 # ---------------------------------------------------------------------------
 def offered_ids(catalog_path=None) -> set[str]:
-    """The study models + every model listed in the catalog (no arbitrary ids)."""
+    """The study models + every listed or admin-added model (no arbitrary ids)."""
     from ..session.benchmark import canonical_models
-    return set(canonical_models()) | {m["id"] for m in load_catalog(catalog_path)}
+    return set(canonical_models()) | {m["id"] for m in entries(catalog_path)}
 
 
-def job_model_problem(models: list, *, catalog_path=None) -> Optional[tuple[str, str, int]]:
+def job_model_problem(models: list, *, catalog_path=None, state: Optional[dict] = None) -> Optional[tuple[str, str, int]]:
     """(message, code, http status) when a REAL benchmark asks for a model it may not use.
-    Listed models not on disk yet are fine: they are downloaded on first use
-    (agentmeter/server/model_store.py) before the benchmark starts."""
-    offered = offered_ids(catalog_path)
+    Extra models must be enabled by the admin and verified at 4-bit on a GPU. A model that is
+    not on disk yet is fine: it is downloaded on first use (model_store.py)."""
+    from ..session.benchmark import canonical_models
+
+    study = set(canonical_models())
+    extra = {m["id"]: m for m in entries(catalog_path, state)}
     for m in models:
-        if not isinstance(m, str) or m not in offered:
+        if isinstance(m, str) and m in study:
+            continue
+        e = extra.get(m) if isinstance(m, str) else None
+        if e is None:
             return (f"{m!r} is not offered on this server: pick a study model or one from the model list",
                     "model_not_offered", 400)
+        if not e["enabled"]:
+            return (f"{m} is disabled by the admin", "model_disabled", 409)
+        if (e.get("verified") or {}).get("status") != "ok":
+            return (f"{m} has not passed the admin's 4-bit verification yet", "model_not_verified", 409)
     return None
 
 
@@ -403,19 +486,55 @@ class MemoryCache:
             self._d[key] = entry
 
 
-def register_models(app, gpu_vram_mb: Optional[Callable[[], Any]] = None) -> None:
-    """GET /api/models/catalog — study models + extra models with their suitability."""
-    from flask import jsonify
+def register_models(app, gpu_vram_mb: Optional[Callable[[], Any]] = None, *, real: bool = False,
+                    get_manager: Optional[Callable[[], Any]] = None,
+                    environment: Optional[Callable[[], dict]] = None) -> None:
+    """GET /api/models/catalog — study models + extra models with their suitability and availability.
+    POST /api/models/verify {model} — admin: queue a 4-bit test-load (real GPU only)."""
+    from flask import g, jsonify, request
 
     from .hf_metadata import token_from_env
 
     cache = MemoryCache()
 
+    def catalog():
+        return build_catalog(gpu_vram_mb=gpu_vram_mb() if gpu_vram_mb else None, cache=cache,
+                             token=token_from_env(), real=real)
+
     @app.route("/api/models/catalog", methods=["GET"])
     def models_catalog():
         try:
-            out = build_catalog(gpu_vram_mb=gpu_vram_mb() if gpu_vram_mb else None, cache=cache,
-                                token=token_from_env())
+            out = catalog()
         except CatalogError as e:
             return jsonify({"error": str(e), "code": "server_config"}), 500
-        return jsonify(out)
+        return jsonify({**out, "mode": "real" if real else "demo"})
+
+    @app.route("/api/models/verify", methods=["POST"])
+    def models_verify():
+        from . import runtoken
+        from .jobs import JobError
+
+        body = request.get_json(silent=True) or {}
+        model = body.get("model")
+        if not real:
+            return jsonify({"error": "demo mode: no GPU, nothing to verify — extra models are offered without it",
+                            "code": "not_needed"}), 409
+        tok = getattr(g, "run_token", None)
+        if tok is not None and tok.get("model") != model:
+            return jsonify({"error": "the token was issued for another model", "code": "run_token_mismatch"}), 403
+        try:
+            entry = next((x for x in catalog()["extra"] if x["id"] == model), None)
+        except CatalogError as e:
+            return jsonify({"error": str(e), "code": "server_config"}), 500
+        if entry is None:
+            return jsonify({"error": f"{model!r} is not in the model list", "code": "model_not_offered"}), 400
+        if not entry["suitable"]:
+            return jsonify({"error": f"{model} is not suitable: " + "; ".join(r["note"] for r in entry["reasons"]
+                                                                          if r["outcome"] == "block" or r["rule"] == "metadata"),
+                            "code": "model_not_suitable"}), 409
+        try:
+            job = get_manager().create_verify_job(model, environment=environment() if environment else None,
+                                                  meta=runtoken.job_meta())
+        except JobError as e:
+            return jsonify({"error": str(e), "code": e.code}), e.status
+        return jsonify({"job_id": job["job_id"], "status": job["status"], "status_url": f"/api/jobs/{job['job_id']}"}), 202

@@ -10,6 +10,7 @@ import {
 } from "./sessions";
 import { telegramTest } from "./notify";
 import { getLimits, getSettings, putLimits, putSettings } from "./settings";
+import { backendModelState, backendModelVerified, getAdminModels, putAdminModels } from "./models";
 import { Env, corsHeaders, fail, json } from "./util";
 
 type Handler = (req: Request, env: Env, ...params: string[]) => Promise<Response>;
@@ -33,6 +34,8 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["DELETE", /^\/api\/admin\/users\/([0-9a-f]{32})$/, deleteUser],
   ["GET", /^\/api\/admin\/credentials$/, credentials],
   ["GET", /^\/api\/admin\/limits$/, getLimits],
+  ["GET", /^\/api\/admin\/models$/, getAdminModels],
+  ["PUT", /^\/api\/admin\/models$/, putAdminModels],
   ["PUT", /^\/api\/admin\/limits$/, putLimits],
   // backend state + runs
   ["GET", /^\/api\/backend$/, getBackend],
@@ -50,6 +53,8 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/api\/leaderboard$/, leaderboardRoute],
   // GPU backend (HMAC-signed with BACKEND_SECRET; user tokens are not accepted here)
   ["POST", /^\/api\/backend\/register$/, register],
+  ["GET", /^\/api\/backend\/model-state$/, backendModelState],
+  ["POST", /^\/api\/backend\/models\/verified$/, backendModelVerified],
   ["POST", /^\/api\/backend\/heartbeat$/, heartbeat],
   ["POST", /^\/api\/backend\/jobs$/, jobCreated],
   ["POST", /^\/api\/backend\/jobs\/([^/]+)\/status$/, jobStatus],

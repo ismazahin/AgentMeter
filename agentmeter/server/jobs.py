@@ -125,6 +125,11 @@ def run_benchmark_job(job: dict[str, Any]) -> str:
     return str(Path(job["run_dir"]) / RESULTS_JSON)
 
 
+def _default_verify_runner(model: str) -> dict:
+    from .model_store import verify_model
+    return verify_model(model)
+
+
 def run_prepare_job(job: dict[str, Any], report: Callable[..., None]) -> str:
     """A prepare job's work: download (URL source) if not done yet, then the
     existing ingestion via prepare.prepare_file. Returns the prepared-set id."""
@@ -199,10 +204,12 @@ class JobManager:
                  autostart: bool = True,
                  stop_runner: Callable[[], None] = _default_stop_runner,
                  clear_stop: Callable[[], None] = _default_clear_stop,
-                 model_preparer: Optional[Callable[[dict, Callable], Any]] = None):
+                 model_preparer: Optional[Callable[[dict, Callable], Any]] = None,
+                 verify_runner: Optional[Callable[[str], dict]] = None):
         self.jobs_dir = Path(jobs_dir)
         # downloads extra models on first use (real GPU); None = model_store.ensure_job_models
         self.model_preparer = model_preparer
+        self.verify_runner = verify_runner                # 4-bit test-load; None = model_store.verify_model
         self.stop_runner = stop_runner
         self.clear_stop = clear_stop
         self._stopping: set[str] = set()            # running jobs a user asked to stop
@@ -444,6 +451,18 @@ class JobManager:
                             n_flows=v["n_flows"], evaluation_mode=v["evaluation_mode"],
                             class_scheme=v["class_scheme"])
 
+    def create_verify_job(self, model: str, *, environment: Optional[dict] = None,
+                          meta: Optional[dict] = None) -> dict[str, Any]:
+        """Admin: a 4-bit test-load of one catalog model on this GPU (downloads it first if needed).
+        Queued like a benchmark, so it never shares the GPU with one."""
+        if not self.gpu_available():
+            raise JobError("4-bit verification needs the GPU (this server has none)", "no_gpu", 503)
+        job = {"job_id": _new_job_id(), "kind": "verify_model", "status": "queued", "model": model,
+               "models": [model], "provider": "hf", "created_at": _now(), "created_ns": time.time_ns(),
+               "started_at": None, "finished_at": None, "attempts": 0, "message": "queued",
+               "error": None, "result_path": None, "environment": environment, **(meta or {})}
+        return self._created(job)
+
     def create_prepare_job(self, source: dict[str, Any], *, name: str, max_flows: int,
                            other_attack: bool, limits: dict[str, Any],
                            environment: Optional[dict[str, Any]] = None,
@@ -629,6 +648,9 @@ class JobManager:
         if prep:
             self._run_prepare(job)
             return
+        if job.get("kind") == "verify_model":
+            self._run_verify(job)
+            return
         self.clear_stop()
         try:
             if not job.get("run_dir") and job.get("after_prepare"):
@@ -675,6 +697,43 @@ class JobManager:
                                   if kw.get("phase") == "downloading" else
                                   f"running {len(job['models'])} model(s) sequentially"))
         prep(job, report)
+
+    def _run_verify(self, job: dict[str, Any]) -> None:
+        job_id, model = job["job_id"], job["model"]
+        self.clear_stop()
+        user = job.get("user") if isinstance(job.get("user"), dict) else {}
+        env = job.get("environment") or {}
+        base = {"transformers": env.get("transformers"), "gpu": env.get("gpu_name"), "by": user.get("uname")}
+        try:
+            self._prepare_models(job)                         # download first if needed (with progress)
+            self._update(job_id, message=f"loading {model} in 4-bit NF4")
+            res = (self.verify_runner or _default_verify_runner)(model)
+        except BaseException as e:                            # noqa: BLE001 — a job must never kill the worker
+            if job_id in self._stopping:
+                self._finish_stopped(job_id)
+                return
+            v = {**base, "status": "failed", "error": f"{type(e).__name__}: {e}"[:400]}
+            self._record_verification(model, v)
+            self._update(job_id, status="failed", finished_at=_now(), error=v["error"], verification=v,
+                         message="verification failed — see the error")
+            return
+        self._stopping.discard(job_id)
+        v = {**base, **{k: res.get(k) for k in ("status", "weights_mb", "seconds", "error")}}
+        if v.get("status") not in ("ok", "failed"):
+            v["status"] = "failed"
+        self._record_verification(model, v)
+        self._update(job_id, status="done", finished_at=_now(), verification=v,
+                     message=("verified: loads and generates in 4-bit NF4" if v["status"] == "ok"
+                              else "verification failed — " + str(v.get("error") or "")[:200]))
+
+    @staticmethod
+    def _record_verification(model: str, v: dict) -> None:
+        try:
+            from .model_catalog import record_verification
+            from datetime import datetime, timezone
+            record_verification(model, {**v, "at": datetime.now(timezone.utc).isoformat(timespec="seconds")})
+        except Exception:  # noqa: BLE001 — local bookkeeping only
+            pass
 
     def _run_prepare(self, job: dict[str, Any]) -> None:
         job_id = job["job_id"]

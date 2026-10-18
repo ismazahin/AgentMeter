@@ -187,7 +187,15 @@ models are tested at the same 4-bit setting. Pre-quantized copies (GPTQ, AWQ, GG
   `configs/run_full_l4.yaml`). The picker in New benchmark step 2 offers the `ok` and
   `warning` models; a real benchmark only accepts study models and listed models
   (`POST /api/jobs`); a listed model not yet on the server is downloaded on first use
-  (SESSION_BENCHMARK.md). Admin 4-bit verification follows in a later phase. Tests: `tests/test_model_catalog.py`, walk-through `tests/e2e/model_picker_flow.js`
+  (SESSION_BENCHMARK.md).
+- **Availability (phase 4):** a model is offered only when it is suitable (`ok` / `warning`),
+  enabled by the admin (YAML models start enabled, admin-added ones disabled) and — on a real
+  GPU — its admin **4-bit verification** passed (Admin › Model catalog › Verify: download, load
+  at 4-bit NF4, one short generation; recorded in the control plane). Otherwise the catalog
+  gives `unavailable_reason` (not suitable / model info unavailable / disabled by the admin /
+  4-bit verification failed / not yet verified at 4-bit) and `POST /api/jobs` refuses it
+  (`model_disabled` / `model_not_verified`, 409). Demo mode needs no verification.
+  Tests: `tests/test_model_catalog.py`, walk-through `tests/e2e/model_picker_flow.js`
   (with `AGENTMETER_TEST_MODEL_REPOS=tests/fixtures/model_repos.json`, a tests-only switch
   that reads repo records from a file instead of Hugging Face).
 

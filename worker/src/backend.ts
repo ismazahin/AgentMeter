@@ -3,6 +3,7 @@
 import { requireUser } from "./auth";
 import { hmacHex, sha256Hex, timingSafeEqual } from "./crypto";
 import { loadLimits } from "./settings";
+import { loadModelState } from "./models";
 import { Env, fail, intVar, json, nowIso, nowS } from "./util";
 
 export const HEARTBEAT_S = 60;
@@ -74,7 +75,7 @@ export async function register(req: Request, env: Env): Promise<Response> {
   ).bind(url, String(b.mode || "unknown").slice(0, 16), JSON.stringify(b.gpu ?? null), JSON.stringify(creds),
          String(b.version || "").slice(0, 64), nowIso(), nowIso()).run();
   await reconcile(env, b.jobs);
-  return json({ ok: true, url, heartbeat_s: HEARTBEAT_S, limits: await loadLimits(env) });
+  return json({ ok: true, url, heartbeat_s: HEARTBEAT_S, limits: await loadLimits(env), model_state: await loadModelState(env) });
 }
 
 export async function heartbeat(req: Request, env: Env): Promise<Response> {
@@ -84,7 +85,7 @@ export async function heartbeat(req: Request, env: Env): Promise<Response> {
   const url = b.url ? checkUrl(env, b.url) : row!.url;
   await env.DB.prepare("UPDATE backends SET last_heartbeat_at=?, url=? WHERE id='default'").bind(nowIso(), url).run();
   if (b.jobs) await reconcile(env, b.jobs);
-  return json({ ok: true, heartbeat_s: HEARTBEAT_S, limits: await loadLimits(env) });
+  return json({ ok: true, heartbeat_s: HEARTBEAT_S, limits: await loadLimits(env), model_state: await loadModelState(env) });
 }
 
 export async function backendState(env: Env) {

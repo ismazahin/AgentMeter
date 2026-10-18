@@ -18,7 +18,8 @@ Only the original weights a benchmark loads are fetched (safetensors + config/to
 DOWNLOAD_PATTERNS). AgentMeter quantizes them to 4-bit NF4 at load, like the study models.
 Download time is never part of any measurement: it happens before the benchmark starts.
 
-    python -m agentmeter.server.model_store download <model id>     (the child process)
+    python -m agentmeter.server.model_store download <model id>     (child process: download)
+    python -m agentmeter.server.model_store verify <model id>       (child process: 4-bit test-load)
 """
 from __future__ import annotations
 
@@ -198,15 +199,110 @@ def ensure_job_models(job: dict[str, Any], report: Callable[..., None], *,
 
 
 # ---------------------------------------------------------------------------
+# 4-bit verification (admin): load exactly as a benchmark does, generate a few tokens
+# ---------------------------------------------------------------------------
+VERIFY_TIMEOUT_S = 20 * 60
+_VERIFY_TAG = "AM_VERIFY "
+
+
+def _verify_in_process(model_id: str) -> dict[str, Any]:
+    """The child's work: HFProvider with the study config (uniform 4-bit NF4, double quant, fp16
+    compute), weights memory after load, one short generation, unload."""
+    import copy
+
+    from ..config import Config, load_config
+    from ..providers.hf import HFProvider
+    from . import runtime
+
+    base = load_config(runtime.REAL_BASE_CONFIG)
+    data = copy.deepcopy(base.data)
+    data["model"]["name"] = model_id
+    data["model"]["hf"]["max_new_tokens"] = 8
+    t = time.time()
+    p = HFProvider(Config(data, base.path))
+    p.load()
+    weights_mb = None
+    try:
+        import torch
+        if torch.cuda.is_available():
+            weights_mb = round(torch.cuda.memory_allocated() / 1024 ** 2, 1)
+    except Exception:  # noqa: BLE001
+        pass
+    out = p.generate("Reply with the single word: ready")
+    p.unload()
+    text = str(getattr(out, "text", out))
+    if not text.strip():
+        return {"status": "failed", "error": "the model loaded but generated no text", "weights_mb": weights_mb,
+                "seconds": round(time.time() - t, 1)}
+    return {"status": "ok", "weights_mb": weights_mb, "seconds": round(time.time() - t, 1), "sample": text[:40]}
+
+
+def _spawn_verify(model_id: str, log_path: Path) -> subprocess.Popen:
+    with open(log_path, "wb") as log:          # offline: verify runs after the download step
+        return subprocess.Popen([sys.executable, "-m", "agentmeter.server.model_store", "verify", model_id],
+                                stdout=log, stderr=subprocess.STDOUT)
+
+
+def verify_model(model_id: str, *, spawn: Callable[[str, Path], subprocess.Popen] = _spawn_verify,
+                 timeout_s: float = VERIFY_TIMEOUT_S) -> dict[str, Any]:
+    """Run the 4-bit test-load in a child process (Stop ends it; the OS frees its GPU memory)."""
+    import json as _json
+
+    from ..run import runner
+
+    if runner._STOP.is_set():
+        raise runner.Stopped("stopped by a user before verification started")
+    log_path = Path(tempfile.mkstemp(prefix="am_verify_", suffix=".log")[1])
+    proc = spawn(model_id, log_path)
+    with runner._PROC_LOCK:
+        runner._PROC = proc
+    try:
+        try:
+            rc = proc.wait(timeout=timeout_s)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            rc = None
+    finally:
+        with runner._PROC_LOCK:
+            runner._PROC = None
+    text = ""
+    try:
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+        log_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+    if runner._STOP.is_set():
+        raise runner.Stopped("stopped by a user during verification")
+    lines = [ln[len(_VERIFY_TAG):] for ln in text.splitlines() if ln.startswith(_VERIFY_TAG)]
+    if lines:
+        try:
+            return _json.loads(lines[-1])
+        except ValueError:
+            pass
+    if rc is None:
+        return {"status": "failed", "error": f"timed out after {timeout_s / 60:.0f} min"}
+    last = [ln for ln in text.strip().splitlines() if ln.strip()][-1:] or ["no output"]
+    return {"status": "failed", "error": f"exit {rc}: {last[0][:300]}"}
+
+
+# ---------------------------------------------------------------------------
 # the child process
 # ---------------------------------------------------------------------------
 def _main(argv: Optional[list[str]] = None) -> int:
     import argparse
 
-    ap = argparse.ArgumentParser(description="download one model's original weights (child process)")
-    ap.add_argument("cmd", choices=["download"])
+    ap = argparse.ArgumentParser(description="download or 4-bit-verify one model (child process)")
+    ap.add_argument("cmd", choices=["download", "verify"])
     ap.add_argument("model")
     a = ap.parse_args(argv)
+    if a.cmd == "verify":
+        import json as _json
+        try:
+            res = _verify_in_process(a.model)
+        except Exception as e:  # noqa: BLE001 — reported as a failed verification
+            res = {"status": "failed", "error": f"{type(e).__name__}: {e}"[:400]}
+        print(_VERIFY_TAG + _json.dumps(res), flush=True)
+        return 0
     try:
         snapshot(a.model, token())
     except Exception as e:  # noqa: BLE001 — reported to the parent through the exit code + log

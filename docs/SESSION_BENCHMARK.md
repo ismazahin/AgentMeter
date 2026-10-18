@@ -180,6 +180,8 @@ way a benchmark is computed does not change.
 | `GET /api/leaderboard?view=per_setup&sort=saw\|efficiency\|latency\|vram\|total_vram\|tokens\|cost\|energy` | Models ranked within one setup (prepared-set hash, GPU, settings) (needs a read token with a control plane; the app reads the Worker copy) |
 | `GET /api/leaderboard?view=overall&by=saw\|efficiency\|accuracy[&demo=1]` | Which model is #1 most often across setups: wins, win rate, rivals beaten (demo sessions left out unless `demo=1`) |
 | `GET /api/models/catalog` | The 5 study models plus the extra models of `configs/model_catalog.yaml` with their suitability (ok / warning / blocked / unknown, reasons, 4-bit VRAM estimate, download size) — see RULE_BASE.md, rule-base M (needs a read token with a control plane) |
+| `POST /api/models/verify` `{"model": "<id>"}` | Admin only (single-use `verify` run token, not counted against limits): queues a `verify_model` job that downloads the original weights, loads them at 4-bit NF4 and runs one short generation (timeout 20 min; GPU only — 503 `no_gpu`, 409 `not_needed` in demo mode). The result (ok/failed, weights MB, seconds, GPU, transformers version) is sent to the Worker and kept across rentals |
+| Worker `GET/PUT /api/admin/models` | Admin model catalog state in D1 (`system_settings` key `model_catalog_state`): enable/disable, download at start-up, add/remove extra models (original-weights repos only, max 20). Delivered to the backend with every register/heartbeat; `scripts/vast_models.py` reads it at start-up |
 
 - **Status:** `queued → running → done | failed | interrupted | stopped`.
 - **Stop:** the Stop button (owner or admin) on a running session. No further model starts,

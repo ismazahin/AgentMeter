@@ -27,7 +27,8 @@ function startBackend(extraEnv = {}) {
   const env = Object.assign({}, process.env, {
     AGENTMETER_RESULTS_DIR: RESULTS, AGENTMETER_RUN_TOKEN_SECRET: process.env.DEV_RUN_SECRET,
     AGENTMETER_BACKEND_SECRET: process.env.DEV_BACKEND_SECRET, AGENTMETER_WORKER_URL: WORKER,
-    AGENTMETER_PUBLIC_URL: `http://127.0.0.1:${BP}`, AGENTMETER_ALLOWED_ORIGINS: APP, AGENTMETER_HEARTBEAT_S: '3' }, extraEnv);
+    AGENTMETER_PUBLIC_URL: `http://127.0.0.1:${BP}`, AGENTMETER_ALLOWED_ORIGINS: APP, AGENTMETER_HEARTBEAT_S: '3',
+    AGENTMETER_TEST_MODEL_REPOS: path.join(REPO, 'tests', 'fixtures', 'model_repos.json'), AGENTMETER_HF_METADATA: 'on' }, extraEnv);
   backend = cp.spawn(process.env.PYTHON || 'python', ['scripts/serve.py', '--provider', 'mock', '--host', '127.0.0.1', '--port', String(BP),
                                                      '--results-dir', RESULTS], { cwd: REPO, env, stdio: ['ignore', fs.openSync(path.join(OUT, 'backend.log'), 'a'), fs.openSync(path.join(OUT, 'backend.log'), 'a')] });
 }
@@ -115,6 +116,37 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.fill('#lim-sph', '20'); await p.click('#lim-save');
     await p.waitForFunction(() => /Saved/.test(document.getElementById('lim-saved').textContent));
     log(true, 'admin saved the system limits');
+
+    // 2b. admin: model catalog (demo mode: no 4-bit verification needed)
+    await p.waitForSelector('#adm-models-table');
+    log((await p.$$('#adm-models-table tbody tr')).length === 7 && /demo/.test(await p.textContent('#adm-models-mode')),
+        'Admin: Model catalog lists the 7 extra models (demo: no verification)');
+    log(/unknown/.test(await p.textContent('tr[data-model="HuggingFaceTB/SmolLM2-1.7B-Instruct"]')), 'a model without Hugging Face info shows status unknown');
+    await p.uncheck('input[data-enable="Qwen/Qwen2.5-1.5B-Instruct"]');
+    await p.waitForFunction(() => /Saved/.test(document.getElementById('adm-models-status').textContent));
+    const admTok = (await loginApi('admin', 'admin-password-123')).access_token;
+    const mstate = await workerJson('/api/admin/models', admTok);
+    log(mstate.state.models['Qwen/Qwen2.5-1.5B-Instruct'].enabled === false, 'disabling a model is stored in the control plane');
+    const offered = async () => {
+      const rt = await (await fetch(WORKER + '/api/runs/authorize', { method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + admTok }, body: JSON.stringify({ kind: 'read' }) })).json();
+      const c = await (await fetch(`http://127.0.0.1:${BP}/api/models/catalog`, { headers: { Authorization: 'Bearer ' + rt.token } })).json();
+      return c.extra.find(x => x.id === 'Qwen/Qwen2.5-1.5B-Instruct');
+    };
+    log(await waitFor(async () => (await offered()).unavailable_reason === 'disabled by the admin', 15000), 'the GPU backend picks it up at the next heartbeat: no longer offered to users');
+    await p.check('input[data-enable="Qwen/Qwen2.5-1.5B-Instruct"]');
+    await p.waitForFunction(() => /Saved/.test(document.getElementById('adm-models-status').textContent));
+    await p.fill('#adm-model-id', 'ibm-granite/granite-3.3-8b-instruct'); await p.fill('#adm-model-note', 'newer Granite'); await p.click('#adm-model-add-go');
+    await p.waitForSelector('tr[data-model="ibm-granite/granite-3.3-8b-instruct"]', { timeout: 15000 });
+    log(/added/.test(await p.textContent('tr[data-model="ibm-granite/granite-3.3-8b-instruct"]')) &&
+        !(await p.isChecked('input[data-enable="ibm-granite/granite-3.3-8b-instruct"]')), 'admin adds a model: listed as "added", disabled until enabled');
+    await p.fill('#adm-model-id', 'TheBloke/Llama-2-7B-GPTQ'); await p.click('#adm-model-add-go');
+    await p.waitForSelector('#adm-models-error:not([hidden])');
+    log(/pre-quantized/.test(await p.textContent('#adm-models-error')), 'a pre-quantized repo cannot be added');
+    p.once('dialog', d => d.accept());
+    await p.click('button[data-remove="ibm-granite/granite-3.3-8b-instruct"]');
+    await p.waitForFunction(() => !document.querySelector('tr[data-model="ibm-granite/granite-3.3-8b-instruct"]'), null, { timeout: 15000 });
+    log(true, 'admin removes an added model');
+    await p.screenshot({ path: path.join(OUT, '02b-admin-models.png'), fullPage: true });
 
     // 3. alice logs in, forced password change
     await logout(p);

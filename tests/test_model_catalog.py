@@ -63,7 +63,7 @@ def test_a_pre_quantized_repo_cannot_be_listed(tmp_path):
 # ---------------------------------------------------------------------------
 def test_a_small_original_weights_model_is_ok():
     out = assess(repo("Qwen/Qwen2.5-3B-Instruct", 3.09))
-    assert out["status"] == "ok" and out["available"] and not out["reasons"]
+    assert out["status"] == "ok" and out["suitable"] and not out["reasons"]
     assert out["vram_4bit_gb"] == pytest.approx(3.09 * 0.55 + 1.5 + 1.0, abs=0.1) and out["fits_gpu"] is True
     assert out["download_gb"] == pytest.approx(6.0, abs=0.1)              # original/*.pth is not downloaded
     assert out["original_format"] == "original weights" and out["quantization"] == "4-bit NF4"
@@ -112,7 +112,7 @@ def test_warnings_gated_licence_download_disk():
     out = assess(repo("meta-llama/Llama-3.1-8B-Instruct", 8.0, gated="manual", license_="llama3.1",
                       files=[("model.safetensors", 16 * GB), ("x.safetensors", 14 * GB), ("config.json", 1)]),
                  env={**ENV24, "disk_free_gb": 20.0})
-    assert out["status"] == "warning" and out["available"]
+    assert out["status"] == "warning" and out["suitable"]
     assert {"gated", "custom_licence", "large_download", "low_disk"} <= fired(out)
     on_disk = assess(repo("x/m", 8.0, files=[("a.safetensors", 30 * GB)]), env={**ENV24, "disk_free_gb": 5.0}, on_disk=True)
     assert on_disk["download_gb"] == 0 and not {"large_download", "low_disk"} & fired(on_disk)
@@ -187,9 +187,14 @@ def test_real_jobs_only_take_study_or_listed_models(tmp_path):
     from agentmeter.session.benchmark import canonical_models
 
     study, extra = canonical_models()[0], mc.load_catalog()[0]["id"]
+    ok = {"models": {extra: {"verified": {"status": "ok"}}}, "added": []}
     assert mc.job_model_problem([study]) is None                                      # study models: as before
     assert mc.job_model_problem(["evil/anything"])[1] == "model_not_offered"           # no arbitrary ids
-    assert mc.job_model_problem([study, extra]) is None                               # listed: downloaded on first use
+    assert mc.job_model_problem([study, extra], state=ok) is None                     # verified: downloaded on first use
+    assert mc.job_model_problem([extra], state={"models": {}, "added": []})[1] == "model_not_verified"
+    off = {"models": {extra: {"enabled": False, "verified": {"status": "ok"}}}, "added": []}
+    assert mc.job_model_problem([extra], state=off)[1] == "model_disabled"
+    mc.set_state(ok)
 
     app_ = Flask("t")
     mgr = JobManager(jobs_dir=tmp_path / "jobs", results_root=tmp_path / "results", gpu_available=lambda: False)
@@ -199,7 +204,8 @@ def test_real_jobs_only_take_study_or_listed_models(tmp_path):
     assert r.status_code == 400 and r.get_json()["code"] == "model_not_offered"
     for models in ([study], [extra]):
         r = c.post("/api/jobs", json={"run": "csv_runs/x", "models": models})
-        assert r.get_json()["code"] != "model_not_offered"                            # passed the guard
+        assert r.get_json()["code"] not in ("model_not_offered", "model_not_verified")    # passed the guard
+    mc.set_state({"models": {}, "added": []})
 
 
 def test_test_repo_fixture_switch(tmp_path, monkeypatch):
@@ -220,3 +226,36 @@ def test_the_apps_study_model_list_matches_the_locked_config():
     html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
     m = re.search(r"var STUDY_MODELS = (\[[^\]]*\]);", html)
     assert m and json.loads(m.group(1)) == canonical_models()
+
+
+# ---------------------------------------------------------------------------
+# admin state: enabled / verified / added (phase 4)
+# ---------------------------------------------------------------------------
+def test_availability_needs_enabled_and_verified_on_a_real_gpu():
+    raw = repo("Qwen/Qwen2.5-3B-Instruct", 3.0)
+    base = {"id": raw["id"], "enabled": True, "verified": None}
+    f = {"status": "ok", "repo": mc.parse_repo(raw, raw["id"])}
+    real = mc.assess(base, f, ENV24, RULES, native=lambda t: True, real=True)
+    assert real["suitable"] and not real["available"] and real["unavailable_reason"] == "not yet verified at 4-bit"
+    demo = mc.assess(base, f, ENV24, RULES, native=lambda t: True, real=False)
+    assert demo["available"]                                              # demo mode: no verification needed
+    ver = mc.assess({**base, "verified": {"status": "ok", "transformers": "4.46.0"}}, f, ENV24, RULES, native=lambda t: True, real=True)
+    assert ver["available"] and ver["verification"]["status"] == "ok"
+    bad = mc.assess({**base, "verified": {"status": "failed", "error": "boom"}}, f, ENV24, RULES, native=lambda t: True, real=True)
+    assert not bad["available"] and bad["unavailable_reason"] == "4-bit verification failed"
+    off = mc.assess({**base, "enabled": False, "verified": {"status": "ok"}}, f, ENV24, RULES, native=lambda t: True, real=True)
+    assert off["unavailable_reason"] == "disabled by the admin"
+
+
+def test_entries_merge_the_admin_state():
+    st = {"models": {"Qwen/Qwen2.5-3B-Instruct": {"enabled": False, "download_at_start": True},
+                     "x/new-model": {"enabled": True}},
+          "added": [{"id": "x/new-model", "note": "added by admin"}, {"id": "x/bad-GPTQ"}]}
+    ents = {e["id"]: e for e in mc.entries(state=st)}
+    assert ents["Qwen/Qwen2.5-3B-Instruct"]["enabled"] is False and ents["Qwen/Qwen2.5-3B-Instruct"]["download_at_start"]
+    assert ents["Qwen/Qwen2.5-1.5B-Instruct"]["enabled"] is True                    # YAML default: enabled
+    assert ents["x/new-model"]["source"] == "admin" and ents["x/new-model"]["enabled"]
+    assert "x/bad-GPTQ" not in ents                                                  # pre-quantized names never listed
+    assert mc.start_up_ids(state=st) == []                                           # disabled models never pre-download
+    st["models"]["Qwen/Qwen2.5-3B-Instruct"]["enabled"] = True
+    assert mc.start_up_ids(state=st) == ["Qwen/Qwen2.5-3B-Instruct"]

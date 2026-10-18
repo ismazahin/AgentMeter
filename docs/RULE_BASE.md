@@ -184,8 +184,12 @@ models are tested at the same 4-bit setting. Pre-quantized copies (GPTQ, AWQ, GG
   a pass or a fail.
 - **Hard rules:** suitability says nothing about detection quality; the study models and
   the locked baseline are unchanged (they are listed separately, from
-  `configs/run_full_l4.yaml`). Admin 4-bit verification, the picker, and on-demand download
-  follow in later phases. Tests: `tests/test_model_catalog.py`.
+  `configs/run_full_l4.yaml`). The picker in New benchmark step 2 offers the `ok` and
+  `warning` models; a real benchmark only accepts study models and listed models
+  (`POST /api/jobs`). Admin 4-bit verification and on-demand download follow in later
+  phases. Tests: `tests/test_model_catalog.py`, walk-through `tests/e2e/model_picker_flow.js`
+  (with `AGENTMETER_TEST_MODEL_REPOS=tests/fixtures/model_repos.json`, a tests-only switch
+  that reads repo records from a file instead of Hugging Face).
 
 ## Viewing a session
 

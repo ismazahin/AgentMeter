@@ -259,7 +259,7 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
 
     # --- models ----------------------------------------------------------------------------------
     story.append(P("Models evaluated", "h"))
-    story.append(P("; ".join(f"{m['model']}" + ("" if m.get("canonical") else " (not in the 5-model study set)")
+    story.append(P("; ".join(f"{m['model']}" + ("" if m.get("canonical") else " (extra model, not in the validated baseline)")
                              for m in pm)
                    + f".  Provider {s.get('provider')}, hardware {s.get('hardware')}, quantisation {s.get('quant')}; "
                      "executed sequentially, one model at a time.", "p"))

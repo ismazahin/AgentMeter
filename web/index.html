@@ -286,7 +286,14 @@
   .model { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; font-weight: 500; cursor: pointer; min-height: 48px; background: var(--surface); }
   .model:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
   .model:has(input:disabled) { opacity: .5; cursor: not-allowed; }
-  .model input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .model input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+  .extra-models { margin-top: 10px; }
+  .extra-models > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; gap: 8px; }
+  .model.card-model { align-items: flex-start; flex-direction: row; }
+  .model.card-model .mm { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .model.card-model .mm .small { font-weight: 400; }
+  .model.locked { opacity: .65; cursor: not-allowed; }
+  .extra-tag { font-size: 11px; padding: 1px 7px; vertical-align: middle; }
   .card.narrow { max-width: 460px; }
   .small-btn { min-height: 36px; padding: 0 12px; font-size: 13px; }
   .preset { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; padding: 10px 0; border-bottom: 1px solid var(--border); }
@@ -510,7 +517,14 @@
       <div class="card">
         <h2>Models</h2>
         <p class="muted small" id="svc-mode-line">Pick 1 or 2 models.</p>
+        <p class="small" style="margin:8px 0 2px;font-weight:600">Study models <span class="muted" style="font-weight:400">(validated baseline)</span></p>
         <div class="models" id="svc-models" role="group" aria-describedby="svc-model-hint"></div>
+        <details class="extra-models" id="svc-extra" hidden>
+          <summary>More models to try <span class="muted small" id="svc-extra-count"></span></summary>
+          <p class="small muted" style="margin-top:0">Original weights, quantized by AgentMeter to 4-bit NF4 — the same as the study models. Not part of the validated baseline.</p>
+          <div class="models" id="svc-extra-models" role="group" aria-label="More models to try"></div>
+          <p class="small muted" id="svc-extra-note"></p>
+        </details>
         <p id="svc-model-hint" class="muted small" aria-live="polite">Select 1 or 2 models.</p>
         <hr class="sep">
         <h2>Settings</h2>
@@ -796,6 +810,11 @@
     return String(s).replace("T", " ").replace("+00:00", " UTC").replace(/Z$/, " UTC");
   }
   function short(m) { return String(m || "").split("/").pop(); }
+  // the 5 study models (validated baseline) — mirrors configs/run_full_l4.yaml (tests/test_model_catalog.py checks it)
+  var STUDY_MODELS = ["mistralai/Mistral-7B-Instruct-v0.3", "meta-llama/Meta-Llama-3-8B-Instruct", "Qwen/Qwen2.5-7B-Instruct",
+                      "microsoft/Phi-3-mini-4k-instruct", "google/gemma-2-9b-it"];
+  function isStudy(m) { return STUDY_MODELS.indexOf(m) >= 0; }
+  function extraTag(m) { return isStudy(m) ? "" : ' <span class="chip warn extra-tag" title="Extra model — not in the validated baseline. Quantized to 4-bit NF4 like the study models.">extra</span>'; }
   // 128-bit job ids are long: show the date part + the first random hex digits (full id on hover)
   function shortId(id) { id = String(id || ""); var m = /^(job_\d{8}_\d{6}_)([0-9a-f]{32})$/.exec(id); return m ? m[1] + m[2].slice(0, 8) + "…" : id; }
   var METRIC_FMT = { s: fmtTime, MB: fmtMB, tokens: function (v) { return fmtNum(v); }, share: fmtPct,
@@ -894,7 +913,7 @@
       if ((m = /^\/api\/jobs\/([^/]+)\/(resume|stop)$/.exec(p))) return { kind: m[2], job_id: decodeURIComponent(m[1]) };
       return null;
     }
-    if (/^\/api\/(jobs|sessions|compare|leaderboard)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
+    if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
     if ((m = /^\/api\/jobs\/([^/]+)(\/(result|report\.pdf|constraints))?$/.exec(p))) return m[2] || !STRONG_JOB.test(decodeURIComponent(m[1])) ? { kind: "read" } : null;
     if ((m = /^\/api\/prepared\/([^/]+)\/([^/]+)(\/[^/]+)?$/.exec(p)) && m[1] !== "import") return m[3] ? { kind: "files", set: decodeURIComponent(m[1]) + "/" + decodeURIComponent(m[2]) } : { kind: "read" };
     return null;
@@ -1434,7 +1453,7 @@
       }).join("") + '</div></div>';
   }
   function renderModels() {
-    var box = $("svc-models"), max = (CONFIG && CONFIG.max_models) || 2, models = (CONFIG && CONFIG.canonical_models) || [];
+    var box = $("svc-models"), models = (CONFIG && CONFIG.canonical_models && CONFIG.canonical_models.length) ? CONFIG.canonical_models : STUDY_MODELS;
     box.innerHTML = models.map(function (m, i) {
       return '<label class="model"><input type="checkbox" name="model" value="' + esc(m) + '" id="svc-model-' + i + '"><span class="mono">' + esc(m) + '</span></label>';
     }).join("");
@@ -1442,11 +1461,57 @@
     var defs = (SETTINGS && SETTINGS.default_models) || [];
     box.querySelectorAll("input").forEach(function (inp) { if (defs.indexOf(inp.value) >= 0) inp.checked = true; });
     syncRun();
+    loadCatalog().then(renderExtras);
   }
-  function picked() { return Array.prototype.map.call($("svc-models").querySelectorAll("input:checked"), function (i) { return i.value; }); }
+  // the extra models (GET /api/models/catalog): only ok / warning ones are offered
+  var CATALOG = null;
+  function loadCatalog() {
+    if (CATALOG) return Promise.resolve(CATALOG);
+    return api("/api/models/catalog").then(function (r) { if (r.ok) CATALOG = r.data; return r.ok ? r.data : null; });
+  }
+  function extraCard(x, i, real) {
+    var locked = real && !x.on_disk;
+    var line1 = [x.params_b != null ? fmtNum(x.params_b, 1) + " B params" : null,
+                 x.vram_4bit_gb != null ? "~" + fmtNum(x.vram_4bit_gb, 1) + " GB VRAM at 4-bit" : null,
+                 x.fits_gpu === true ? "✓ fits this GPU" : null].filter(Boolean).join(" · ");
+    var line2 = (x.original_format === "original weights" ? "original weights → 4-bit NF4" : "4-bit NF4") +
+                (x.license ? " · " + x.license : "") + (x.downloads != null ? " · " + fmtNum(x.downloads) + " downloads" : "");
+    var line3 = x.on_disk ? "On this server ✓" : x.download_gb != null ? "First use downloads ~" + fmtNum(x.download_gb, 1) + " GB (~" + fmtNum(Math.max(1, x.download_min), 0) + " min)" : "";
+    var warns = (x.reasons || []).filter(function (r) { return r.outcome === "warn" && r.rule !== "large_download"; });
+    return '<label class="model card-model' + (locked ? " locked" : "") + '"><input type="checkbox" name="model" value="' + esc(x.id) + '" id="svc-extra-' + i + '"' +
+      (locked ? ' data-locked="1" disabled' : "") + '><span class="mm"><span class="mono">' + esc(x.id) + '</span>' +
+      (line1 ? '<span class="small">' + esc(line1) + '</span>' : "") + '<span class="small muted">' + esc(line2) + '</span>' +
+      (line3 ? '<span class="small muted">' + esc(line3) + '</span>' : "") +
+      (x.note ? '<span class="small muted">' + esc(x.note) + '</span>' : "") +
+      warns.map(function (r) { return '<span class="small"><span class="chip warn">' + esc(r.rule.replace(/_/g, " ")) + '</span> ' + esc(r.note) + '</span>'; }).join("") +
+      (locked ? '<span class="small"><span class="chip">not on this server yet</span> Download on first use comes in the next update.</span>' : "") +
+      '</span></label>';
+  }
+  function renderExtras(cat) {
+    var det = $("svc-extra"), box = $("svc-extra-models");
+    if (!det) return;
+    if (!cat) { det.hidden = true; return; }
+    var real = cat.server && cat.server.gpu_vram_gb != null, avail = (cat.extra || []).filter(function (x) { return x.available; });
+    var others = (cat.extra || []).length - avail.length;
+    det.hidden = false;
+    $("svc-extra-count").textContent = "(" + avail.length + ")";
+    box.innerHTML = avail.map(function (x, i) { return extraCard(x, i, real); }).join("") ||
+      '<p class="muted small">No extra models are available on this server right now.</p>';
+    $("svc-extra-note").textContent = others ? others + " more listed model" + (others === 1 ? " is" : "s are") + " not available here (" +
+      (cat.extra || []).filter(function (x) { return !x.available; }).map(function (x) { return x.status === "unknown" ? "model info unavailable" : "not suitable"; })
+        .filter(function (v, i, a) { return a.indexOf(v) === i; }).join(", ") + ")." : "";
+    var defs = (SETTINGS && SETTINGS.default_models) || [];
+    box.querySelectorAll("input").forEach(function (inp) {
+      if (defs.indexOf(inp.value) >= 0 && !inp.dataset.locked && picked().length < ((CONFIG && CONFIG.max_models) || 2)) { inp.checked = true; det.open = true; }
+      inp.addEventListener("change", syncRun);
+    });
+    syncRun();
+  }
+  function modelInputs() { return document.querySelectorAll("#svc-models input, #svc-extra-models input"); }
+  function picked() { return Array.prototype.filter.call(modelInputs(), function (i) { return i.checked; }).map(function (i) { return i.value; }); }
   function syncRun() {
-    var box = $("svc-models"), max = (CONFIG && CONFIG.max_models) || 2, n = picked().length;
-    box.querySelectorAll("input").forEach(function (inp) { inp.disabled = !inp.checked && n >= max; });
+    var max = (CONFIG && CONFIG.max_models) || 2, n = picked().length;
+    modelInputs().forEach(function (inp) { inp.disabled = !!inp.dataset.locked || (!inp.checked && n >= max); });
     var failed = $("wiz-data-chip").textContent === "Failed", off = !!CP && !ONLINE;
     $("svc-run").disabled = n < 1 || n > max || failed || off;
     $("svc-run").textContent = off ? "GPU offline" : WIZ.set || failed ? "Run benchmark" : "Run when data is ready";
@@ -1700,7 +1765,7 @@
         w.hidden = false;
         w.innerHTML = '<div class="card" id="watch-card"><div class="row" style="margin-top:0;justify-content:space-between"><h2>' +
           (r.data.status === "Running" ? "Running on the GPU" : "Session " + esc(r.data.status).toLowerCase()) + '</h2>' + statusChip(r.data.status) + '</div>' +
-          '<p class="muted small">' + esc((r.data.models || []).join("  vs  ")) + (r.data.owner ? " · started by " + esc(r.data.owner) : "") + '</p>' +
+          '<p class="muted small">' + (r.data.models || []).map(function (m) { return esc(m) + extraTag(m); }).join("  vs  ") + (r.data.owner ? " · started by " + esc(r.data.owner) : "") + '</p>' +
           (ONLINE ? "" : '<div class="notice warn" id="watch-offline">GPU offline — live progress and Resume need the GPU backend. Stored sessions stay browsable.</div>') +
           (r.data.status === "Stopped" ? '<p class="muted small">Stopped before it finished — not scored.</p>' +
             (r.data.run_name ? '<div class="actions"><a class="btn" id="watch-again" href="#/new/models?set=' + enc(r.data.run_name) + '">Benchmark these flows again</a></div>' : "") : "") + '</div>';
@@ -1834,7 +1899,7 @@
       var r = presetRank(res, p);
       v.innerHTML = '<p class="small" id="svc-preset-weights"><b>This view uses preset “' + esc(p.name) + '”:</b> ' + esc(weightsText(r.weights)) + '</p>' +
         '<div class="table-wrap"><table id="svc-preset-table"><thead><tr><th class="num">View rank</th><th>Model</th><th class="num">Score with this preset</th></tr></thead><tbody>' +
-        r.rows.map(function (x, i) { return '<tr><td class="num">' + (i + 1) + '</td><td class="mono">' + esc(x.model) + '</td><td class="num">' + x.score.toFixed(2) + '</td></tr>'; }).join("") +
+        r.rows.map(function (x, i) { return '<tr><td class="num">' + (i + 1) + '</td><td class="mono">' + esc(x.model) + extraTag(x.model) + '</td><td class="num">' + x.score.toFixed(2) + '</td></tr>'; }).join("") +
         '</tbody></table></div>';
     });
   }
@@ -1910,7 +1975,7 @@
     var tip = function (t) { return '<span class="info-i" tabindex="0" title="' + esc(t) + '" aria-label="' + esc(t) + '">i</span>'; };
     var rows = pm.map(function (m) {
       var e = m.efficiency.end_to_end, c = ce[m.model] || {};
-      return '<tr><td class="mono">' + esc(m.model) + '</td><td class="num">' + fmtTime(e.mean_latency_s) + '</td><td class="num">' + fmtTime(e.p95_latency_s) +
+      return '<tr><td class="mono">' + esc(m.model) + extraTag(m.model) + '</td><td class="num">' + fmtTime(e.mean_latency_s) + '</td><td class="num">' + fmtTime(e.p95_latency_s) +
         '</td><td class="num">' + fmtNum(e.mean_tokens_per_flow) + '</td><td class="num">' + fmtMB(e.mean_peak_vram_mb) +
         '</td><td class="num">' + ((mm[m.model] || {}).total_peak_mb != null ? fmtMB(mm[m.model].total_peak_mb) : '<span class="muted">' + esc((mm[m.model] || {}).status || "—") + '</span>') +
         '</td><td class="num">' + (c.cost_per_1k_flows_usd != null ? fmtUsd(c.cost_per_1k_flows_usd) : '<span class="muted">' + esc(c.cost_status || "—") + '</span>') +
@@ -2070,7 +2135,7 @@
     var h = [];
     ag.per_model.forEach(function (m, mi) {
       var o = m.overhead || {};
-      h.push('<div class="card agents-model"><h2>' + esc(m.model) + '</h2><div class="table-wrap"><table class="agents-table" id="agents-table-' + mi + '"><thead><tr><th>Agent</th><th class="num">Latency</th><th>Share of flow time</th><th class="num">Tokens in</th><th class="num">Tokens out</th><th class="num">Token share</th><th class="num">Working VRAM<br><span class="small">(excludes model weights)</span></th><th>Failures</th></tr></thead><tbody>' +
+      h.push('<div class="card agents-model"><h2>' + esc(m.model) + extraTag(m.model) + '</h2><div class="table-wrap"><table class="agents-table" id="agents-table-' + mi + '"><thead><tr><th>Agent</th><th class="num">Latency</th><th>Share of flow time</th><th class="num">Tokens in</th><th class="num">Tokens out</th><th class="num">Token share</th><th class="num">Working VRAM<br><span class="small">(excludes model weights)</span></th><th>Failures</th></tr></thead><tbody>' +
         m.agents.map(function (a) {
           var f = a.failures || {}, fl = [];
           fl.push(f.empty_output + " empty");
@@ -2303,9 +2368,9 @@
   // the columns of the current mode: each run, or each model's flow-weighted mean (a view only)
   function cmpCols() {
     var d = CMP.data;
-    if (CMP.mode === "mean") return d.by_model.map(function (m) { return { head: short(m.model), sub: m.n_runs + " run" + (m.n_runs === 1 ? "" : "s") + " · mean", val: function (k) { return m.values[k]; } }; });
+    if (CMP.mode === "mean") return d.by_model.map(function (m) { return { head: short(m.model), model: m.model, sub: m.n_runs + " run" + (m.n_runs === 1 ? "" : "s") + " · mean", val: function (k) { return m.values[k]; } }; });
     return d.runs.map(function (run, i) {
-      return { head: short(run.model), sub: fmtDate(run.created_at).slice(0, 16) + (run.owner ? " · " + run.owner : ""), session: run.session,
+      return { head: short(run.model), model: run.model, sub: fmtDate(run.created_at).slice(0, 16) + (run.owner ? " · " + run.owner : ""), session: run.session,
                val: function (k) { var row = d.rows.filter(function (x) { return x.metric === k; })[0]; return row ? row.values[i] : null; } };
     });
   }
@@ -2320,7 +2385,7 @@
     var d = CMP.data, cols = cmpCols();
     var defs = keys.map(function (k) { return d.rows.filter(function (x) { return x.metric === k; })[0]; }).filter(Boolean);
     return '<div class="table-wrap"><table id="' + id + '"><thead><tr><th>Metric</th>' + cols.map(function (c) {
-      return '<th class="num">' + esc(c.head) + '<br><span class="small muted" style="font-weight:400">' + esc(c.sub) + '</span></th>';
+      return '<th class="num">' + esc(short(c.model)) + extraTag(c.model) + '<br><span class="small muted" style="font-weight:400">' + esc(c.sub) + '</span></th>';
     }).join("") + '</tr></thead><tbody>' + defs.map(function (row) {
       var f = row.unit === "score" ? function (x) { return fmtNum(x, 2); } : (METRIC_FMT[row.unit] || function (x) { return fmtNum(x, 2); });
       var vals = cols.map(function (c) { return c.val(row.metric); });
@@ -2397,7 +2462,7 @@
           '<div class="table-wrap" style="margin-top:10px"><table class="lb-table" id="lb-table-' + gi + '"><thead><tr><th class="num">Rank</th><th>Model</th><th class="num">Sessions</th><th class="num">Flows</th>' +
           LB_COLS.map(function (c) { return '<th class="num">' + esc(c[1]) + '</th>'; }).join("") + '</tr></thead><tbody>' +
           g.rows.map(function (row) {
-            return '<tr><td class="num">' + (row.rank == null ? '<span class="muted" title="no value for this key">—</span>' : row.rank) + '</td><td class="mono">' + esc(row.model) + '</td><td class="num">' + row.n_sessions +
+            return '<tr><td class="num">' + (row.rank == null ? '<span class="muted" title="no value for this key">—</span>' : row.rank) + '</td><td class="mono">' + esc(row.model) + extraTag(row.model) + '</td><td class="num">' + row.n_sessions +
               '</td><td class="num">' + fmtNum(row.n_flows) + '</td>' + LB_COLS.map(function (c) { return '<td class="num">' + (row[c[0]] == null ? '<span class="muted">—</span>' : c[2](row[c[0]])) + '</td>'; }).join("") + '</tr>';
           }).join("") + '</tbody></table></div>' +
           (g.n_sessions > 1 ? '<p class="small" style="margin-bottom:0"><a class="lb-compare" href="#/compare?sessions=' + g.sessions.map(enc).join(",") + '">Open in Compare →</a></p>' : "") + '</div>';
@@ -2426,7 +2491,7 @@
         '<div class="card"><div class="table-wrap"><table class="lb-table" id="lb-overall-table"><thead><tr><th class="num">Rank</th><th>Model</th><th class="num">Wins</th><th class="num">Win rate</th>' +
           '<th class="num">Rivals beaten' + infoI("The share of other models it placed above, averaged over its setups.") + '</th><th class="num">Setups</th><th class="num">Sessions</th></tr></thead><tbody>' +
           rows.map(function (x) {
-            return '<tr><td class="num">' + x.rank + '</td><td class="mono">' + esc(x.model) + (x.few_data ? ' <span class="chip warn" title="Measured on only one setup">few data</span>' : "") +
+            return '<tr><td class="num">' + x.rank + '</td><td class="mono">' + esc(x.model) + extraTag(x.model) + (x.few_data ? ' <span class="chip warn" title="Measured on only one setup">few data</span>' : "") +
               '</td><td class="num">' + x.wins + '</td><td class="num">' + fmtPct(x.win_rate) + '</td><td class="num">' + fmtPct(x.rivals_beaten) + '</td><td class="num">' + x.setups + '</td><td class="num">' + x.n_sessions + '</td></tr>';
           }).join("") + '</tbody></table></div></div>';
     });
@@ -2445,6 +2510,7 @@
   // ---------- SETTINGS ----------
   var TZS = (function () { try { return Intl.supportedValuesOf("timeZone"); } catch (e) { return ["UTC", "Asia/Kuala_Lumpur", "Europe/London", "America/New_York"]; } })();
   function loadSettings() {
+    if (ONLINE && !CATALOG) loadCatalog().then(function (c) { if (c && !$("view-settings").hidden) loadSettings(); });
     var t = (SETTINGS && SETTINGS.theme) || themePref();
     ($("set-theme-" + t) || $("set-theme-system")).checked = true;
     var h = HEALTH || {};
@@ -2461,9 +2527,10 @@
     $("set-flows").value = S.default_flows || 50; $("set-other").checked = !!S.default_other_attack; $("set-tz").value = S.timezone || "UTC";
     $("set-tz-list").innerHTML = TZS.map(function (z) { return '<option value="' + esc(z) + '">'; }).join("");
     var models = (CONFIG && CONFIG.canonical_models && CONFIG.canonical_models.length ? CONFIG.canonical_models : []).slice();
+    ((CATALOG && CATALOG.extra) || []).forEach(function (x) { if (x.available && models.indexOf(x.id) < 0) models.push(x.id); });
     (S.default_models || []).forEach(function (m) { if (models.indexOf(m) < 0) models.push(m); });
     $("set-models").innerHTML = models.length ? models.map(function (m, i) {
-      return '<label class="model"><input type="checkbox" value="' + esc(m) + '" id="set-model-' + i + '"' + ((S.default_models || []).indexOf(m) >= 0 ? " checked" : "") + '><span class="mono">' + esc(m) + '</span></label>';
+      return '<label class="model"><input type="checkbox" value="' + esc(m) + '" id="set-model-' + i + '"' + ((S.default_models || []).indexOf(m) >= 0 ? " checked" : "") + '><span class="mono">' + esc(m) + '</span>' + extraTag(m) + '</label>';
     }).join("") : '<p class="muted small">The model list comes from the GPU backend — it is offline now.</p>';
     $("set-models").querySelectorAll("input").forEach(function (inp) { inp.addEventListener("change", function () {
       var on = $("set-models").querySelectorAll("input:checked").length;

@@ -227,7 +227,21 @@ wizard.
      files), plus the flow count and the Other Attack opt-in.
   2. **Models and settings.** The data is prepared in the background while you choose.
      The data card shows its progress, then the summary (sampling, class table, rules)
-     and the prepared-set downloads.
+     and the prepared-set downloads. Pick 1 or 2 models from **Study models (validated
+     baseline)** — the 5 models of `configs/run_full_l4.yaml` — and/or **More models to
+     try**: the extra models of `configs/model_catalog.yaml` that the suitability rules
+     offer (`GET /api/models/catalog`, RULE_BASE.md rule-base M). Each card shows the
+     parameter count, the estimated VRAM at 4-bit, whether it fits this GPU, "original
+     weights → 4-bit NF4", licence, downloads, the first-download size and time (or "On
+     this server ✓") and any rule warning. Blocked models and models whose Hugging Face
+     info is unavailable are not offered (a note says how many). Every model, study or
+     extra, is quantized by AgentMeter to 4-bit NF4 at load. On a real GPU an extra model
+     must already be on the server for now — `POST /api/jobs` refuses anything else
+     (`model_not_offered` 400 for an id that is neither a study model nor listed,
+     `model_not_downloaded` 409 for a listed model not yet downloaded); download on first
+     use comes in a later update. Extra models carry an **extra** label on the session
+     page, Agent Analysis, Compare, the Leaderboard, Settings and in the PDF ("extra
+     model, not in the validated baseline").
   3. **Run.** The progress bar starts with "Preparing your data" when the run was queued
      before the data was ready (`after_prepare`), then shows benchmark progress. It
      opens the session when done.

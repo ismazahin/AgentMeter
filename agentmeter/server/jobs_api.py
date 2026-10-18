@@ -118,6 +118,11 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
                         f"this server runs provider {provider!r} only ({'real models on its GPU' if provider == 'hf' else 'mock demo'}); "
                         f"{asked!r} was requested", "provider_mismatch", 400))
                 asked = provider
+            if provider == "hf":                      # real GPU: study models + the model list only
+                from .model_catalog import job_model_problem
+                bad = job_model_problem(models)
+                if bad:
+                    raise JobError(*bad)
             check_benchmark_token(mgr, runtoken.current(), run, after)
             job = mgr.create_job(run, models, provider=asked,
                                  base_config=base_config if provider is not None and base_config

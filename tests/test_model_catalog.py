@@ -173,3 +173,53 @@ def test_catalog_endpoint_needs_a_read_token(app, monkeypatch):  # noqa: F811
     monkeypatch.setenv("AGENTMETER_HF_METADATA", "off")                    # disabled: listed, not offered
     off = c.get("/api/models/catalog", headers=auth(tok("read"))).get_json()
     assert {x["status"] for x in off["extra"]} == {"unknown"}
+
+
+# ---------------------------------------------------------------------------
+# which models a REAL benchmark may use
+# ---------------------------------------------------------------------------
+def test_real_jobs_only_take_study_or_listed_models(tmp_path, monkeypatch):
+    pytest.importorskip("flask")
+    from flask import Flask
+
+    from agentmeter.server import jobs_api
+    from agentmeter.server.jobs import JobManager
+    from agentmeter.session.benchmark import canonical_models
+
+    study, extra = canonical_models()[0], mc.load_catalog()[0]["id"]
+    assert mc.job_model_problem([study], on_disk=lambda m: False) is None             # study models: as before
+    assert mc.job_model_problem(["evil/anything"])[1] == "model_not_offered"           # no arbitrary ids
+    assert mc.job_model_problem([extra], on_disk=lambda m: False)[1:] == ("model_not_downloaded", 409)
+    assert mc.job_model_problem([study, extra], on_disk=lambda m: m == extra) is None   # already on this server
+
+    monkeypatch.setattr("agentmeter.server.runtime.model_on_disk", lambda m: False)
+    app_ = Flask("t")
+    mgr = JobManager(jobs_dir=tmp_path / "jobs", results_root=tmp_path / "results", gpu_available=lambda: False)
+    jobs_api.register_jobs(app_, lambda: mgr, provider="hf", base_config="configs/run_full_l4.yaml")
+    c = app_.test_client()
+    r = c.post("/api/jobs", json={"run": "csv_runs/x", "models": ["evil/anything"]})
+    assert r.status_code == 400 and r.get_json()["code"] == "model_not_offered"
+    r = c.post("/api/jobs", json={"run": "csv_runs/x", "models": [extra]})
+    assert r.status_code == 409 and r.get_json()["code"] == "model_not_downloaded"
+    r = c.post("/api/jobs", json={"run": "csv_runs/x", "models": [study]})
+    assert r.get_json()["code"] not in ("model_not_offered", "model_not_downloaded")      # passed the guard
+
+
+def test_test_repo_fixture_switch(tmp_path, monkeypatch):
+    import json
+    f = tmp_path / "repos.json"
+    f.write_text(json.dumps({m["id"]: repo(m["id"], 3.0) for m in mc.load_catalog()}))
+    monkeypatch.setenv(mc.TEST_REPOS_ENV, str(f))
+    out = mc.build_catalog(env=ENV24, on_disk=lambda m: False, native=lambda t: True, enabled=True)
+    assert {x["status"] for x in out["extra"]} == {"ok"}
+
+
+def test_the_apps_study_model_list_matches_the_locked_config():
+    import json
+    import re
+
+    from agentmeter.config import PROJECT_ROOT
+    from agentmeter.session.benchmark import canonical_models
+    html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    m = re.search(r"var STUDY_MODELS = (\[[^\]]*\]);", html)
+    assert m and json.loads(m.group(1)) == canonical_models()

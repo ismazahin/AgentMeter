@@ -115,6 +115,22 @@ def load_rules(path: Optional[str | Path] = None) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Hugging Face repo record
 # ---------------------------------------------------------------------------
+TEST_REPOS_ENV = "AGENTMETER_TEST_MODEL_REPOS"   # tests only: JSON file {model_id: repo record}
+
+
+def _test_fetcher(path: str) -> Callable[..., dict[str, Any]]:
+    import logging
+    logging.getLogger("agentmeter.model_catalog").warning(
+        "%s is set: model catalog reads repo records from %s, not Hugging Face (tests only)", TEST_REPOS_ENV, path)
+    records = json.loads(Path(path).read_text(encoding="utf-8"))
+
+    def fetch(model_id: str, token: Optional[str] = None, timeout: float = TIMEOUT_S) -> dict[str, Any]:
+        if model_id not in records:
+            raise LookupError(f"{model_id} not in {TEST_REPOS_ENV}")
+        return records[model_id]
+    return fetch
+
+
 def default_fetcher(model_id: str, token: Optional[str] = None, timeout: float = TIMEOUT_S) -> dict[str, Any]:
     req = urllib.request.Request(HF_REPO_API.format(id=model_id.strip("/")),
                                  headers={"User-Agent": "AgentMeter/model-catalog"})
@@ -320,9 +336,10 @@ def build_catalog(*, gpu_vram_mb: Optional[float] = None, fetcher: Optional[Call
     if enabled is None:
         enabled = os.environ.get(METADATA_ENV, "on").strip().lower() not in ("off", "0", "false", "no")
     disk = on_disk or runtime.model_on_disk
+    fetch = fetcher or (_test_fetcher(os.environ[TEST_REPOS_ENV]) if os.environ.get(TEST_REPOS_ENV) else None)
 
     def one(e):
-        f = (fetch_repo(e["id"], fetcher=fetcher, cache=cache, token=token) if enabled else
+        f = (fetch_repo(e["id"], fetcher=fetch, cache=cache, token=token) if enabled else
              {"status": "unavailable", "repo": None, "error": f"disabled ({METADATA_ENV}=off)"})
         return assess(e, f, env, rules, on_disk=disk(e["id"]), native=native)
 
@@ -335,6 +352,35 @@ def build_catalog(*, gpu_vram_mb: Optional[float] = None, fetcher: Optional[Call
         "extra": extra,
         "counts": {s: sum(1 for x in extra if x["status"] == s) for s in ("ok", "warning", "blocked", "unknown")},
     }
+
+
+# ---------------------------------------------------------------------------
+# which models a real benchmark may use
+# ---------------------------------------------------------------------------
+def offered_ids(catalog_path=None) -> set[str]:
+    """The study models + every model listed in the catalog (no arbitrary ids)."""
+    from ..session.benchmark import canonical_models
+    return set(canonical_models()) | {m["id"] for m in load_catalog(catalog_path)}
+
+
+def job_model_problem(models: list, *, on_disk: Optional[Callable[[str], bool]] = None,
+                      catalog_path=None) -> Optional[tuple[str, str, int]]:
+    """(message, code, http status) when a REAL benchmark asks for a model it may not use."""
+    from . import runtime
+    from ..session.benchmark import canonical_models
+
+    study, offered = set(canonical_models()), offered_ids(catalog_path)
+    for m in models:
+        if not isinstance(m, str) or m not in offered:
+            return (f"{m!r} is not offered on this server: pick a study model or one from the model list",
+                    "model_not_offered", 400)
+    disk = on_disk or runtime.model_on_disk
+    missing = [m for m in models if m not in study and not disk(m)]
+    if missing:
+        return (", ".join(missing) + " is not on this server yet. Extra models are downloaded on first use "
+                "in a later update; for now pick a study model or an extra model already on this server.",
+                "model_not_downloaded", 409)
+    return None
 
 
 # ---------------------------------------------------------------------------

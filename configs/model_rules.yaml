@@ -1,0 +1,120 @@
+# AgentMeter — model suitability rule-base (which extra models can be benchmarked).
+#
+# AgentMeter MEASURES LLM resource efficiency; it is not a threat-detection product.
+# These rules decide only whether a Hugging Face model can be benchmarked like the study
+# models — original weights, quantized by AgentMeter to 4-bit NF4 at load, on THIS GPU.
+# They say nothing about how well a model detects threats.
+#
+# Each rule describes a PROBLEM; when all its conditions hold it "fires":
+#   outcome block -> the model is not offered (status "blocked", with the note as reason)
+#   outcome warn  -> offered, with the note shown on the model card (status "warning")
+# A missing reading gives "no_data" (e.g. no GPU in demo mode): listed in the audit, never
+# treated as a pass or a fail. Operators are the stage-3 ones (agentmeter/session/stage3.py).
+#
+# Fields:
+#   hf.*       Hugging Face Hub API (params_b, gated, license, pipeline_tag, downloads …)
+#   derived.*  computed by agentmeter/server/model_catalog.py from the repo record
+#              (prequantized, quant_format, has_safetensors, needs_remote_code,
+#              native_support, vram_4bit_gb, vram_ratio, download_gb, download_min, disk_ratio)
+#   env.*      this server (gpu_vram_gb, disk_free_gb, transformers)
+
+version: 1
+
+constants:
+  # 4-bit NF4 weights ~0.5 byte/param, plus the embeddings / norms bitsandbytes keeps in fp16
+  gb_per_b_params_4bit: 0.55
+  overhead_gb: 1.5          # CUDA context + allocator reserve
+  working_gb: 1.0           # activations / KV cache for one flow (prompts ~1–2k tokens)
+  vram_tight_ratio: 0.85    # warn above 85 % of the GPU's memory
+  max_params_b: 34          # never offer anything larger, whatever the GPU
+  large_download_gb: 20
+  assumed_download_mb_s: 40 # for the "~N min" estimate only
+  custom_licence: "^(other|llama[0-9.]*|gemma|deepseek|qwen-research|tongyi-qianwen|cc-by-nc.*|(bigscience-|creativeml-|bigcode-)?openrail(-m|\\+\\+)?|bigscience-bloom-rail-1\\.0)$"
+
+rules:
+  # --- block: cannot be benchmarked like the study models --------------------------------
+  - id: already_quantized
+    outcome: block
+    description: The repo holds pre-quantized weights, not the original ones.
+    when:
+      - {field: derived.prequantized, op: eq, value: true}
+    note: "{model} is already quantized ({derived.quant_format}). AgentMeter needs the original weights to apply its own 4-bit NF4 — use the base model instead."
+
+  - id: no_safetensors
+    outcome: block
+    description: No safetensors weight files.
+    when:
+      - {field: derived.has_safetensors, op: eq, value: false}
+    note: "{model} has no safetensors weights (AgentMeter only loads safetensors)."
+
+  - id: remote_code
+    outcome: block
+    description: Loading would need trust_remote_code.
+    when:
+      - {field: derived.needs_remote_code, op: eq, value: true}
+    note: "{model} needs trust_remote_code — it would run the model author's own code on the server."
+
+  - id: unsupported_architecture
+    outcome: block
+    description: The installed transformers does not know this architecture.
+    when:
+      - {field: derived.native_support, op: eq, value: false}
+    note: "The installed transformers ({env.transformers}) does not support the '{derived.model_type}' architecture of {model}."
+
+  - id: not_text_generation
+    outcome: block
+    description: Not a text-generation (chat) model.
+    when:
+      - {field: hf.pipeline_tag, op: ne, value: text-generation}
+    note: "{model} is a '{hf.pipeline_tag}' model, not a text-generation model."
+
+  - id: too_large
+    outcome: block
+    description: Larger than AgentMeter offers on any GPU.
+    when:
+      - {field: hf.params_b, op: gt, value: $max_params_b}
+    note: "{model} has {hf.params_b:.1f} B parameters — above the {derived.max_params_b} B limit."
+
+  - id: exceeds_gpu
+    outcome: block
+    description: Does not fit this GPU even at 4-bit.
+    when:
+      - {field: derived.vram_ratio, op: gt, value: 1.0}
+    note: "Estimated {derived.vram_4bit_gb:.1f} GB at 4-bit — more than this GPU's {env.gpu_vram_gb:.0f} GB."
+
+  # --- warn: offered, with a note -------------------------------------------------------
+  - id: tight_gpu
+    outcome: warn
+    description: Fits, but close to the GPU's memory.
+    when:
+      - {field: derived.vram_ratio, op: gt, value: $vram_tight_ratio}
+      - {field: derived.vram_ratio, op: le, value: 1.0}
+    note: "Estimated {derived.vram_4bit_gb:.1f} GB at 4-bit of this GPU's {env.gpu_vram_gb:.0f} GB — tight."
+
+  - id: gated
+    outcome: warn
+    description: The licence must be accepted on Hugging Face.
+    when:
+      - {field: hf.gated, op: truthy}
+    note: "{model} is gated: accept its licence on huggingface.co with the account that owns the server's HF token."
+
+  - id: custom_licence
+    outcome: warn
+    description: Custom or restrictive licence.
+    when:
+      - {field: hf.license, op: matches, value: $custom_licence}
+    note: "{model} uses a custom/restrictive licence ({hf.license}) — check it before any deployment."
+
+  - id: large_download
+    outcome: warn
+    description: Large first download.
+    when:
+      - {field: derived.download_gb, op: gt, value: $large_download_gb}
+    note: "First use downloads ~{derived.download_gb:.0f} GB (~{derived.download_min:.0f} min)."
+
+  - id: low_disk
+    outcome: warn
+    description: Not enough free disk for the download.
+    when:
+      - {field: derived.disk_ratio, op: gt, value: 1.0}
+    note: "The download (~{derived.download_gb:.0f} GB) is larger than the free disk ({env.disk_free_gb:.0f} GB)."

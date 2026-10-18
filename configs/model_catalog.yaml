@@ -1,0 +1,41 @@
+# AgentMeter — extra models users may benchmark next to the 5 study models.
+#
+# AgentMeter MEASURES LLM resource efficiency; it is not a threat-detection product.
+#
+# Every model here is benchmarked exactly like the study models: AgentMeter downloads the
+# ORIGINAL weights (fp16/bf16/fp32 safetensors) and quantizes them itself at load time to
+# 4-bit NF4 (bitsandbytes, double quantization, fp16 compute — configs/run_full_l4.yaml).
+# So list the base repo, never a pre-quantized copy (-GPTQ, -AWQ, -GGUF, -EXL2, 2/3-bit):
+# configs/model_rules.yaml blocks those.
+#
+# The 5 study models (the validated baseline) are NOT listed here; they come from
+# configs/run_full_l4.yaml and never change. Models here are "extra — not in the validated
+# baseline". Users never type a model id: they pick from this list (after the suitability
+# rules and, later, the admin's 4-bit verification).
+#
+# Fields: id (Hugging Face repo, original weights), family, note (shown on the model card).
+
+version: 1
+
+models:
+  - id: Qwen/Qwen2.5-1.5B-Instruct
+    family: Qwen2.5
+    note: Very small; the low end of the Qwen2.5 size range.
+  - id: Qwen/Qwen2.5-3B-Instruct
+    family: Qwen2.5
+    note: Small Qwen2.5; compare with the 7B study model.
+  - id: Qwen/Qwen2.5-14B-Instruct
+    family: Qwen2.5
+    note: Large Qwen2.5; the high end of the size range on a 24 GB GPU.
+  - id: microsoft/Phi-3.5-mini-instruct
+    family: Phi-3.5
+    note: Newer version of the Phi-3-mini study model.
+  - id: HuggingFaceTB/SmolLM2-1.7B-Instruct
+    family: SmolLM2
+    note: Ultra-light model; a lower bound for resource use.
+  - id: ibm-granite/granite-3.1-8b-instruct
+    family: Granite 3.1
+    note: Enterprise-oriented 8B model, Apache-2.0.
+  - id: mistralai/Mistral-Nemo-Instruct-2407
+    family: Mistral NeMo
+    note: Mid-size (12B) Mistral model.

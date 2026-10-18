@@ -179,6 +179,7 @@ way a benchmark is computed does not change.
 | `GET /api/compare/merged?sessions=<id>,<id>,…` | Every model of 2–20 same-setup sessions side by side, plus each model's flow-weighted mean; 400 `not_same_setup` otherwise |
 | `GET /api/leaderboard?view=per_setup&sort=saw\|efficiency\|latency\|vram\|total_vram\|tokens\|cost\|energy` | Models ranked within one setup (prepared-set hash, GPU, settings) (needs a read token with a control plane; the app reads the Worker copy) |
 | `GET /api/leaderboard?view=overall&by=saw\|efficiency\|accuracy[&demo=1]` | Which model is #1 most often across setups: wins, win rate, rivals beaten (demo sessions left out unless `demo=1`) |
+| `GET /api/models/catalog` | The 5 study models plus the extra models of `configs/model_catalog.yaml` with their suitability (ok / warning / blocked / unknown, reasons, 4-bit VRAM estimate, download size) — see RULE_BASE.md, rule-base M (needs a read token with a control plane) |
 
 - **Status:** `queued → running → done | failed | interrupted | stopped`.
 - **Stop:** the Stop button (owner or admin) on a running session. No further model starts,

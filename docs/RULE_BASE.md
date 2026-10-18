@@ -12,6 +12,7 @@ no later stage can change an earlier stage's result.
 | 2 | Which model is more efficient? | `config.yaml` → `scoring:`, plus the fixed dominance rule | `agentmeter/session/scoring.py`, `agentmeter/session/relative.py`, `agentmeter/session/brief.py` | after the benchmark |
 | 2b | Does a measured model fit *my* limits? (fit scoring) | `configs/constraint_rules.yaml` | `agentmeter/session/constraints.py` | after the benchmark; re-evaluated on demand with the user's limits |
 | 3 | What should a user know about these models beyond what was measured? | `configs/recommendation_rules.yaml` | `agentmeter/session/stage3.py` | after stage 2, same job |
+| M | Which extra Hugging Face models can be benchmarked like the study models? | `configs/model_rules.yaml` (list: `configs/model_catalog.yaml`) | `agentmeter/server/model_catalog.py` | when the model list is shown (`GET /api/models/catalog`), before any session |
 
 ## Stage 1: flow selection (input layer)
 
@@ -140,6 +141,51 @@ no later stage can change an earlier stage's result.
   present, absent, altered and garbage. It asserts that every scored key
   (`per_model`, `comparison`, `relative_comparison`, `phase8`, `sensitivity`,
   `statistics`, `phase7`, `per_agent`, …) is identical in all four cases.
+
+## Model suitability: extra models (rule-base M)
+
+Users can benchmark curated extra models next to the 5 study models. They never type a
+model id: they pick from `configs/model_catalog.yaml`, a list of **original-weights**
+Hugging Face repos. AgentMeter quantizes every model itself, at load time, to **4-bit NF4**
+(bitsandbytes, double quantization, fp16 compute — the study models' settings), so all
+models are tested at the same 4-bit setting. Pre-quantized copies (GPTQ, AWQ, GGUF, EXL2,
+2/3-bit) are never used.
+
+- **Input** (external data): `GET https://huggingface.co/api/models/<id>?blobs=true` —
+  parameter count, file list and sizes, config (`model_type`, `auto_map`,
+  `quantization_config`), tags, gated, licence. Cached 24 h in memory (never in a results
+  DB). An unreachable Hub gives status `unknown`, never a crash.
+- **Derived facts:** pre-quantized? (config `quantization_config`, quantization tags, repo
+  name, `.gguf` files), safetensors present?, needs `trust_remote_code`? (custom code that
+  the installed transformers does not ship natively), architecture supported?, estimated
+  4-bit VRAM = params(B) × 0.55 + 1.5 GB overhead + 1.0 GB working memory, ratio to this
+  GPU's memory, download size (only the files a benchmark fetches) and time at ~40 MB/s,
+  ratio to free disk.
+- **Rules** (each describes a problem; `block` = not offered, `warn` = offered with a note):
+
+  | rule | outcome | fires when |
+  |---|---|---|
+  | already_quantized | block | the repo is pre-quantized |
+  | no_safetensors | block | no safetensors weights |
+  | remote_code | block | loading would need `trust_remote_code` |
+  | unsupported_architecture | block | the installed transformers does not know the architecture |
+  | not_text_generation | block | not a text-generation model |
+  | too_large | block | more than 34 B parameters |
+  | exceeds_gpu | block | estimated 4-bit VRAM > this GPU's memory |
+  | tight_gpu | warn | estimated 4-bit VRAM > 85 % of this GPU's memory |
+  | gated | warn | the licence must be accepted on Hugging Face |
+  | custom_licence | warn | custom or restrictive licence |
+  | large_download | warn | first download > 20 GB |
+  | low_disk | warn | download larger than the free disk |
+
+- **Output:** per model `status` (ok / warning / blocked / unknown), the fired notes, an
+  audit of every rule (`fired` / `not_fired` / `no_data`), the 4-bit VRAM estimate, download
+  size/time, on-disk flag. A missing reading (e.g. no GPU in demo mode) is `no_data`, never
+  a pass or a fail.
+- **Hard rules:** suitability says nothing about detection quality; the study models and
+  the locked baseline are unchanged (they are listed separately, from
+  `configs/run_full_l4.yaml`). Admin 4-bit verification, the picker, and on-demand download
+  follow in later phases. Tests: `tests/test_model_catalog.py`.
 
 ## Viewing a session
 

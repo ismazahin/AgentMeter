@@ -235,11 +235,19 @@ wizard.
      weights → 4-bit NF4", licence, downloads, the first-download size and time (or "On
      this server ✓") and any rule warning. Blocked models and models whose Hugging Face
      info is unavailable are not offered (a note says how many). Every model, study or
-     extra, is quantized by AgentMeter to 4-bit NF4 at load. On a real GPU an extra model
-     must already be on the server for now — `POST /api/jobs` refuses anything else
-     (`model_not_offered` 400 for an id that is neither a study model nor listed,
-     `model_not_downloaded` 409 for a listed model not yet downloaded); download on first
-     use comes in a later update. Extra models carry an **extra** label on the session
+     extra, is quantized by AgentMeter to 4-bit NF4 at load. On a real GPU,
+     `POST /api/jobs` only accepts study models and listed models (`model_not_offered` 400
+     otherwise). An extra model that is not on the server yet is **downloaded on first
+     use**: before the benchmark starts, the job checks the free disk (refused with
+     `low_disk` if the download would leave < 2 GB), downloads only the original weights +
+     config/tokenizer in a child process (`agentmeter/server/model_store.py`; the server
+     itself stays offline) and shows "Downloading model — x / y GB · %" on the progress page
+     (`job.model_download`). Stop ends the download; a failed download (e.g. a gated model
+     without access → `gated_no_access`) fails the job with the reason, and Resume continues
+     the partial download. Download time is never part of a measurement. Later sessions on
+     the same rental reuse the copy on disk; models marked `download_at_start: true` in the
+     catalog are fetched with the study models when a rental starts. On a real GPU the
+     settings panel shows "First run downloads ~x GB (~y min)" for the chosen models. Extra models carry an **extra** label on the session
      page, Agent Analysis, Compare, the Leaderboard, Settings and in the PDF ("extra
      model, not in the validated baseline").
   3. **Run.** The progress bar starts with "Preparing your data" when the run was queued

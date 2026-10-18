@@ -64,6 +64,22 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
       'import sys,pypdf;print(" ".join(p.extract_text() for p in pypdf.PdfReader(sys.argv[1]).pages))', pdf]).toString().replace(/\s+/g, ' ');
     log(/Qwen\/Qwen2\.5-3B-Instruct \(extra model, not in the validated baseline\)/.test(text), 'PDF: "extra model, not in the validated baseline"');
 
+    // 3b. the progress page during a first-use download (job JSON faked: demo mode never downloads)
+    const fake = 'job_20261018_120000_' + 'ab'.repeat(16);
+    await p.route('**/api/jobs/' + fake, r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({
+      job_id: fake, status: 'running', models: [EXTRA, 'Qwen/Qwen2.5-7B-Instruct'], run_name: 'csv_runs/x',
+      progress: { completed: 0, total: 10, per_model: {}, current_model: null, percent: 0 },
+      model_download: { model: EXTRA, index: 1, count: 1, phase: 'downloading', done_bytes: 2.5 * 1073741824, total_bytes: 6.2 * 1073741824 } }) }));
+    await p.goto(BASE + '/#/new/run/' + fake);
+    await p.waitForFunction(() => /Downloading model/.test((document.getElementById('svc-job-phase') || {}).textContent || ''), null, { timeout: 15000 });
+    const dtext = await p.textContent('#svc-progress-text');
+    log(/Downloading Qwen2\.5-3B-Instruct — 2\.5 \/ 6\.2 GB · 40%/.test(dtext) && /not measured/.test(dtext),
+        'Progress page: "Downloading model" with GB done / total and %, before the benchmark (' + dtext.slice(0, 70) + ')');
+    await p.waitForTimeout(700);                                       // the bar animates (.4 s)
+    log(await p.evaluate(() => document.getElementById('svc-progress-bar').style.width) === '40%', 'Progress bar shows the download %');
+    await p.screenshot({ path: S + '/03-downloading.png', fullPage: true });
+    await p.unroute('**/api/jobs/' + fake);
+
     // 4. Leaderboard and Settings
     await p.goto(BASE + '/#/leaderboard'); await p.waitForSelector('.lb-table');
     log((await p.$$('.lb-table .extra-tag')).length === 1, 'Leaderboard: the extra model is labelled');

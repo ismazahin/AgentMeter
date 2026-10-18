@@ -178,7 +178,7 @@ def test_catalog_endpoint_needs_a_read_token(app, monkeypatch):  # noqa: F811
 # ---------------------------------------------------------------------------
 # which models a REAL benchmark may use
 # ---------------------------------------------------------------------------
-def test_real_jobs_only_take_study_or_listed_models(tmp_path, monkeypatch):
+def test_real_jobs_only_take_study_or_listed_models(tmp_path):
     pytest.importorskip("flask")
     from flask import Flask
 
@@ -187,22 +187,19 @@ def test_real_jobs_only_take_study_or_listed_models(tmp_path, monkeypatch):
     from agentmeter.session.benchmark import canonical_models
 
     study, extra = canonical_models()[0], mc.load_catalog()[0]["id"]
-    assert mc.job_model_problem([study], on_disk=lambda m: False) is None             # study models: as before
+    assert mc.job_model_problem([study]) is None                                      # study models: as before
     assert mc.job_model_problem(["evil/anything"])[1] == "model_not_offered"           # no arbitrary ids
-    assert mc.job_model_problem([extra], on_disk=lambda m: False)[1:] == ("model_not_downloaded", 409)
-    assert mc.job_model_problem([study, extra], on_disk=lambda m: m == extra) is None   # already on this server
+    assert mc.job_model_problem([study, extra]) is None                               # listed: downloaded on first use
 
-    monkeypatch.setattr("agentmeter.server.runtime.model_on_disk", lambda m: False)
     app_ = Flask("t")
     mgr = JobManager(jobs_dir=tmp_path / "jobs", results_root=tmp_path / "results", gpu_available=lambda: False)
     jobs_api.register_jobs(app_, lambda: mgr, provider="hf", base_config="configs/run_full_l4.yaml")
     c = app_.test_client()
     r = c.post("/api/jobs", json={"run": "csv_runs/x", "models": ["evil/anything"]})
     assert r.status_code == 400 and r.get_json()["code"] == "model_not_offered"
-    r = c.post("/api/jobs", json={"run": "csv_runs/x", "models": [extra]})
-    assert r.status_code == 409 and r.get_json()["code"] == "model_not_downloaded"
-    r = c.post("/api/jobs", json={"run": "csv_runs/x", "models": [study]})
-    assert r.get_json()["code"] not in ("model_not_offered", "model_not_downloaded")      # passed the guard
+    for models in ([study], [extra]):
+        r = c.post("/api/jobs", json={"run": "csv_runs/x", "models": models})
+        assert r.get_json()["code"] != "model_not_offered"                            # passed the guard
 
 
 def test_test_repo_fixture_switch(tmp_path, monkeypatch):

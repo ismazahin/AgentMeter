@@ -13,7 +13,11 @@
 # baseline". Users never type a model id: they pick from this list (after the suitability
 # rules and, later, the admin's 4-bit verification).
 #
-# Fields: id (Hugging Face repo, original weights), family, note (shown on the model card).
+# Fields: id (Hugging Face repo, original weights), family, note (shown on the model card),
+#         download_at_start (default false): true = scripts/vast_models.py downloads it together
+#         with the study models when a rental starts, so the first benchmark with it has no wait.
+#         Otherwise it is downloaded the first time a benchmark uses it (a few minutes; shown
+#         as "Downloading model …" before the benchmark starts — never part of a measurement).
 
 version: 1
 

@@ -198,8 +198,11 @@ class JobManager:
                  gpu_available: Callable[[], bool] = default_gpu_available,
                  autostart: bool = True,
                  stop_runner: Callable[[], None] = _default_stop_runner,
-                 clear_stop: Callable[[], None] = _default_clear_stop):
+                 clear_stop: Callable[[], None] = _default_clear_stop,
+                 model_preparer: Optional[Callable[[dict, Callable], Any]] = None):
         self.jobs_dir = Path(jobs_dir)
+        # downloads extra models on first use (real GPU); None = model_store.ensure_job_models
+        self.model_preparer = model_preparer
         self.stop_runner = stop_runner
         self.clear_stop = clear_stop
         self._stopping: set[str] = set()            # running jobs a user asked to stop
@@ -632,6 +635,7 @@ class JobManager:
                 job = self._resolve_chained(job)
             if job_id in self._stopping:
                 raise JobStopped("stopped by a user")
+            self._prepare_models(job)
             result_path = self.runner(job)
         except BaseException as e:               # noqa: BLE001 — a job must never kill the worker
             if job_id in self._stopping:
@@ -648,6 +652,29 @@ class JobManager:
         done["status"] = "done"
         self._update(job_id, status="done", finished_at=_now(), result_path=str(result_path),
                      final_progress=self.progress_fn(done), message="done — results ready")
+
+    def _prepare_models(self, job: dict[str, Any]) -> None:
+        """Download-on-first-use for extra models (real GPU only). Progress goes to
+        job["model_download"]; a stop request ends the download (the runner kills it)."""
+        if job.get("provider") != "hf":
+            return
+        prep = self.model_preparer
+        if prep is None:
+            from .model_store import ensure_job_models as prep
+        job_id, last = job["job_id"], [0.0, None]
+
+        def report(**kw):
+            if job_id in self._stopping:
+                raise JobStopped("stopped by a user")
+            now = time.monotonic()
+            if kw.get("phase") == last[1] and now - last[0] < 0.5:
+                return
+            last[0], last[1] = now, kw.get("phase")
+            self._update(job_id, model_download={k: v for k, v in kw.items()},
+                         message=(f"downloading {kw.get('model')} ({kw.get('index')}/{kw.get('count')})"
+                                  if kw.get("phase") == "downloading" else
+                                  f"running {len(job['models'])} model(s) sequentially"))
+        prep(job, report)
 
     def _run_prepare(self, job: dict[str, Any]) -> None:
         job_id = job["job_id"]

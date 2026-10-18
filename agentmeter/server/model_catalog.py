@@ -75,7 +75,8 @@ def load_catalog(path: Optional[str | Path] = None) -> list[dict[str, Any]]:
         if any(mid.lower().endswith(s) for s in _QUANT_NAMES):
             raise CatalogError(f"{p}: {mid} looks pre-quantized — list the original-weights repo")
         seen.add(mid)
-        out.append({"id": mid, "family": str(m.get("family") or ""), "note": str(m.get("note") or "")})
+        out.append({"id": mid, "family": str(m.get("family") or ""), "note": str(m.get("note") or ""),
+                    "download_at_start": bool(m.get("download_at_start", False))})
     return out
 
 
@@ -305,6 +306,7 @@ def assess(entry: dict, fetched: dict, env: dict, rules: dict, *, on_disk: bool 
     g = lambda k: facts.get(k)  # noqa: E731
     return {
         "id": entry["id"], "family": entry.get("family"), "note": entry.get("note"),
+        "download_at_start": bool(entry.get("download_at_start")),
         "status": status, "available": status in ("ok", "warning"),
         "reasons": ev["reasons"] + ([{"rule": "metadata", "outcome": "warn",
                                       "note": "Hugging Face could not be reached: " + str(fetched.get("error"))}]
@@ -354,6 +356,11 @@ def build_catalog(*, gpu_vram_mb: Optional[float] = None, fetcher: Optional[Call
     }
 
 
+def start_up_ids(catalog_path=None) -> list[str]:
+    """Extra models marked download_at_start: fetched with the study models when a rental starts."""
+    return [m["id"] for m in load_catalog(catalog_path) if m["download_at_start"]]
+
+
 # ---------------------------------------------------------------------------
 # which models a real benchmark may use
 # ---------------------------------------------------------------------------
@@ -363,23 +370,15 @@ def offered_ids(catalog_path=None) -> set[str]:
     return set(canonical_models()) | {m["id"] for m in load_catalog(catalog_path)}
 
 
-def job_model_problem(models: list, *, on_disk: Optional[Callable[[str], bool]] = None,
-                      catalog_path=None) -> Optional[tuple[str, str, int]]:
-    """(message, code, http status) when a REAL benchmark asks for a model it may not use."""
-    from . import runtime
-    from ..session.benchmark import canonical_models
-
-    study, offered = set(canonical_models()), offered_ids(catalog_path)
+def job_model_problem(models: list, *, catalog_path=None) -> Optional[tuple[str, str, int]]:
+    """(message, code, http status) when a REAL benchmark asks for a model it may not use.
+    Listed models not on disk yet are fine: they are downloaded on first use
+    (agentmeter/server/model_store.py) before the benchmark starts."""
+    offered = offered_ids(catalog_path)
     for m in models:
         if not isinstance(m, str) or m not in offered:
             return (f"{m!r} is not offered on this server: pick a study model or one from the model list",
                     "model_not_offered", 400)
-    disk = on_disk or runtime.model_on_disk
-    missing = [m for m in models if m not in study and not disk(m)]
-    if missing:
-        return (", ".join(missing) + " is not on this server yet. Extra models are downloaded on first use "
-                "in a later update; for now pick a study model or an extra model already on this server.",
-                "model_not_downloaded", 409)
     return None
 
 

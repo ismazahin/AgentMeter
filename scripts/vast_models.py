@@ -20,7 +20,6 @@ and unloads it. Exit code 0 = ready for `serve.py --provider real`.
 from __future__ import annotations
 
 import argparse
-import os
 import shutil
 import sys
 import time
@@ -30,53 +29,36 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from agentmeter.config import load_config  # noqa: E402
-from agentmeter.server import runtime  # noqa: E402
+from agentmeter.server import model_catalog, model_store, runtime  # noqa: E402
 
-PATTERNS = ["*.json", "*.safetensors", "tokenizer*", "*.model", "*.tiktoken", "*.txt"]
-IGNORE = ["original/*", "*.pth", "*.bin", "*.gguf", "*.onnx", "*.msgpack", "*.h5"]
 APPROX_GB = {"mistralai/Mistral-7B-Instruct-v0.3": 14.5, "meta-llama/Meta-Llama-3-8B-Instruct": 16.1,
              "Qwen/Qwen2.5-7B-Instruct": 15.3, "microsoft/Phi-3-mini-4k-instruct": 7.7,
              "google/gemma-2-9b-it": 18.5}
 
 
 def _token() -> str | None:
-    return (os.environ.get("HF_TOKEN") or "").strip() or None
+    return model_store.token()
 
 
 def check_access(models: list[str], token: str | None) -> list[str]:
-    """One small download per model; returns the problems (empty = all reachable)."""
-    from huggingface_hub import hf_hub_download
-    from huggingface_hub.utils import GatedRepoError, HfHubHTTPError, RepositoryNotFoundError
+    return model_store.check_access(models, token)
 
-    problems = []
-    for m in models:
-        try:
-            hf_hub_download(m, "config.json", token=token)
-            print(f"  access ok    {m}")
-        except GatedRepoError:
-            problems.append(f"{m}: GATED and this token has no access. Open https://huggingface.co/{m}, "
-                            "accept the licence with the account that owns HF_TOKEN, wait for approval "
-                            "(Meta/Google usually approve within minutes), then re-run.")
-        except RepositoryNotFoundError:
-            problems.append(f"{m}: not found (or private) for this token" + ("" if token else
-                            " — HF_TOKEN is not set"))
-        except HfHubHTTPError as e:
-            problems.append(f"{m}: Hugging Face refused the download ({e}); check HF_TOKEN")
-        except Exception as e:  # noqa: BLE001 — network etc.
-            problems.append(f"{m}: cannot reach Hugging Face ({type(e).__name__}: {e})")
-    return problems
+
+def _approx_gb(m: str) -> float:
+    if m in APPROX_GB:
+        return APPROX_GB[m]
+    b = model_store.expected_bytes(m)
+    return b / 1024 ** 3 if b else 16.0
 
 
 def download(models: list[str], token: str | None) -> None:
-    from huggingface_hub import snapshot_download
-
     for m in models:
         if runtime.model_on_disk(m):
             print(f"  on disk      {m}")
             continue
         t = time.time()
-        print(f"  downloading  {m} (~{APPROX_GB.get(m, '?')} GB) ...", flush=True)
-        snapshot_download(m, token=token, allow_patterns=PATTERNS, ignore_patterns=IGNORE)
+        print(f"  downloading  {m} (~{_approx_gb(m):,.1f} GB) ...", flush=True)
+        model_store.snapshot(m, token)
         print(f"  done         {m} in {time.time() - t:,.0f} s", flush=True)
 
 
@@ -109,7 +91,9 @@ def main(argv=None) -> int:
                     help="model to load as a 4-bit smoke test after download: a model id, 'all' or 'none'")
     args = ap.parse_args(argv)
 
-    models = runtime.study_models()
+    study = runtime.study_models()
+    extra = [m for m in model_catalog.start_up_ids() if m not in study]   # catalog: download_at_start
+    models = study + extra
     cache = runtime._hub_cache()
     print(f"Hugging Face cache: {cache}")
     if args.check:
@@ -122,12 +106,13 @@ def main(argv=None) -> int:
     if not token:
         print("WARNING: HF_TOKEN is not set — the gated Llama-3 and gemma-2 downloads will fail.",
               file=sys.stderr)
-    print("1/3 checking access to all 5 models (before any large download) ...")
+    print(f"1/3 checking access to {len(models)} models (5 study"
+          + (f" + {len(extra)} extra marked download_at_start" if extra else "") + ") before any large download ...")
     problems = check_access(models, token)
     if problems:
-        print("\nERROR: cannot get every study model:\n  - " + "\n  - ".join(problems), file=sys.stderr)
+        print("\nERROR: cannot get every model:\n  - " + "\n  - ".join(problems), file=sys.stderr)
         return 3
-    need = sum(APPROX_GB.get(m, 16) for m in models if not runtime.model_on_disk(m))
+    need = sum(_approx_gb(m) for m in models if not runtime.model_on_disk(m))
     cache.mkdir(parents=True, exist_ok=True)
     free = shutil.disk_usage(cache).free / 1024 ** 3
     if need and free < need + 5:
@@ -144,7 +129,7 @@ def main(argv=None) -> int:
     if target:
         print("3/3 loading in uniform 4-bit NF4 (same settings as the benchmark) ...")
         verify(target)
-    print("\nREADY: all 5 study models are on disk.")
+    print("\nREADY: all 5 study models" + (f" and {len(extra)} extra model(s)" if extra else "") + " are on disk.")
     return 0
 
 

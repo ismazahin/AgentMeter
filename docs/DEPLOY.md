@@ -256,7 +256,7 @@ says either **Real GPU: <name>** or **DEMO (mock)**.
 |---|---|
 | GPU VRAM | **≥ 16 GB minimum, 24 GB recommended.** The largest model, gemma-2-9b, is about 6-7 GB in 4-bit NF4, plus KV cache and activations, one model at a time. |
 | Recommended GPUs | **NVIDIA L4 24 GB** (same as the locked study, so the most comparable numbers), RTX 4090 / 3090 24 GB, RTX A5000 24 GB, L40S / A6000 48 GB |
-| Disk | **≥ 150 GB.** The 5 models' safetensors are about 72 GB, plus Python/CUDA wheels about 10 GB, plus inputs (URL imports up to 10 GB each are kept under `results/uploads/`) |
+| Disk | **≥ 150 GB.** The 5 models' safetensors are about 72 GB, plus Python/CUDA wheels about 10 GB, plus inputs (URL imports up to 10 GB each are kept under `results/uploads/`). Extra models (`configs/model_catalog.yaml`) are downloaded on first use and need their own space: about 3 GB (1.5B) to 30 GB (14B) each; a download that would leave less than 2 GB free is refused with a clear message. |
 | Image | a Vast **PyTorch** template with CUDA ≥ 12.1 (e.g. `pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime`) |
 | Network | download ≥ 500 Mbps (72 GB of weights take about 20 min at that speed) |
 | Ports | none: the tunnel dials **out**, so no open or mapped port is needed |
@@ -358,7 +358,7 @@ still points the app straight at a backend.
 ### 6. What lives where, and what is lost
 | on the instance's disk (`/workspace`) | lost when the instance is **destroyed** |
 |---|---|
-| model weights `/workspace/hf` (about 72 GB) | yes: the next instance re-downloads (about 20 min) |
+| model weights `/workspace/hf` (about 72 GB) | yes: the next instance re-downloads (about 20 min). Extra models are fetched again on their first use, or at start-up when marked `download_at_start: true` in `configs/model_catalog.yaml` |
 | jobs `results/jobs/`, prepared sets `results/csv_runs|pcap_runs/`, uploads `results/uploads/`, session DBs | yes — but every finished session was already uploaded to the control plane (results, PDF, manifest, features without identification columns, labels) |
 | logs `/workspace/agentmeter-logs/` | yes |
 | accounts, settings, sessions, PDFs | no: D1 / R2 |

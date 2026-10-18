@@ -1469,8 +1469,8 @@
     if (CATALOG) return Promise.resolve(CATALOG);
     return api("/api/models/catalog").then(function (r) { if (r.ok) CATALOG = r.data; return r.ok ? r.data : null; });
   }
-  function extraCard(x, i, real) {
-    var locked = real && !x.on_disk;
+  function extraCard(x, i) {
+    var locked = false;
     var line1 = [x.params_b != null ? fmtNum(x.params_b, 1) + " B params" : null,
                  x.vram_4bit_gb != null ? "~" + fmtNum(x.vram_4bit_gb, 1) + " GB VRAM at 4-bit" : null,
                  x.fits_gpu === true ? "✓ fits this GPU" : null].filter(Boolean).join(" · ");
@@ -1484,18 +1484,17 @@
       (line3 ? '<span class="small muted">' + esc(line3) + '</span>' : "") +
       (x.note ? '<span class="small muted">' + esc(x.note) + '</span>' : "") +
       warns.map(function (r) { return '<span class="small"><span class="chip warn">' + esc(r.rule.replace(/_/g, " ")) + '</span> ' + esc(r.note) + '</span>'; }).join("") +
-      (locked ? '<span class="small"><span class="chip">not on this server yet</span> Download on first use comes in the next update.</span>' : "") +
       '</span></label>';
   }
   function renderExtras(cat) {
     var det = $("svc-extra"), box = $("svc-extra-models");
     if (!det) return;
     if (!cat) { det.hidden = true; return; }
-    var real = cat.server && cat.server.gpu_vram_gb != null, avail = (cat.extra || []).filter(function (x) { return x.available; });
+    var avail = (cat.extra || []).filter(function (x) { return x.available; });
     var others = (cat.extra || []).length - avail.length;
     det.hidden = false;
     $("svc-extra-count").textContent = "(" + avail.length + ")";
-    box.innerHTML = avail.map(function (x, i) { return extraCard(x, i, real); }).join("") ||
+    box.innerHTML = avail.map(function (x, i) { return extraCard(x, i); }).join("") ||
       '<p class="muted small">No extra models are available on this server right now.</p>';
     $("svc-extra-note").textContent = others ? others + " more listed model" + (others === 1 ? " is" : "s are") + " not available here (" +
       (cat.extra || []).filter(function (x) { return !x.available; }).map(function (x) { return x.status === "unknown" ? "model info unavailable" : "not suitable"; })
@@ -1512,11 +1511,20 @@
   function syncRun() {
     var max = (CONFIG && CONFIG.max_models) || 2, n = picked().length;
     modelInputs().forEach(function (inp) { inp.disabled = !!inp.dataset.locked || (!inp.checked && n >= max); });
+    if ($("wiz-settings")) renderSettings();
     var failed = $("wiz-data-chip").textContent === "Failed", off = !!CP && !ONLINE;
     $("svc-run").disabled = n < 1 || n > max || failed || off;
     $("svc-run").textContent = off ? "GPU offline" : WIZ.set || failed ? "Run benchmark" : "Run when data is ready";
     $("svc-model-hint").textContent = n >= max ? "Maximum of " + max + " models selected — deselect one to change."
       : n === 1 ? "1 model selected — add one more to compare head-to-head, or run it alone." : "Select 1 or 2 models.";
+  }
+  // extra models that are not on this server yet: downloaded before the benchmark starts
+  function downloadLine() {
+    if (!CATALOG || !(HEALTH && HEALTH.provider === "real")) return [];
+    var need = (CATALOG.extra || []).filter(function (x) { return picked().indexOf(x.id) >= 0 && !x.on_disk; });
+    if (!need.length) return [];
+    var gb = need.reduce(function (a, x) { return a + (x.download_gb || 0); }, 0), min = need.reduce(function (a, x) { return a + (x.download_min || 0); }, 0);
+    return [["First run", "downloads ~" + fmtNum(gb, 1) + " GB (~" + fmtNum(Math.max(1, min), 0) + " min) before the benchmark starts; later runs on this rental reuse it. Download time is not measured."]];
   }
   function renderSettings() {
     var s = WIZ.summary;
@@ -1525,7 +1533,7 @@
       ["Flows", s ? fmtNum(s.rows_selected) : "from step 1 (" + ($("svc-max-flows").value || 50) + " max)"],
       ["Evaluation", s ? (s.accuracy_available ? "efficiency + accuracy (context)" : "efficiency only") : "known when the data is ready"],
       ["Agents", "Perceive → Reason → Decide → Act (fixed)"]
-    ].map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("");
+    ].concat(downloadLine()).map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("");
   }
   $("svc-run").addEventListener("click", function () {
     var err = $("svc-run-error"), body = { models: picked(), provider: CONFIG.provider, base_config: CONFIG.base_config };
@@ -1556,12 +1564,22 @@
     } else {
       phase = j.status === "done" ? "Benchmark finished" : j.status === "queued" ? "Waiting for the GPU" : "Benchmarking";
       pct = p.total ? Math.round(100 * p.completed / p.total) : 0;
-      bar.classList.toggle("indet", j.status === "running" && !p.completed);
-      if (j.status === "queued") text = "Queued — " + (j.queue_position ? j.queue_position + " job(s) ahead" : "starting next") + ". One benchmark runs at a time.";
+      var dl = j.model_download, downloading = j.status === "running" && !!dl && dl.phase === "downloading";
+      if (downloading) {
+        phase = "Downloading model";
+        pct = dl.total_bytes ? Math.min(100, Math.round(100 * dl.done_bytes / dl.total_bytes)) : 0;
+        text = "Downloading " + short(dl.model) + (dl.count > 1 ? " (" + dl.index + " of " + dl.count + ")" : "") + " — " +
+          fmtNum((dl.done_bytes || 0) / 1073741824, 1) + (dl.total_bytes ? " / " + fmtNum(dl.total_bytes / 1073741824, 1) : "") + " GB" +
+          (dl.total_bytes ? " · " + pct + "%" : "") + ". First use on this server; the benchmark starts when it finishes (not measured).";
+        bar.classList.toggle("indet", !dl.total_bytes);
+      }
+      if (downloading) { /* text and bar set above */ }
+      else if (j.status === "queued") text = "Queued — " + (j.queue_position ? j.queue_position + " job(s) ahead" : "starting next") + ". One benchmark runs at a time.";
       else if (j.status === "running") text = (p.completed || 0) + " / " + (p.total || 0) + " flows · " + pct + "% · now running " + (p.current_model || "…");
       else if (j.status === "done") text = (p.completed || 0) + " / " + (p.total || 0) + " flows · done";
       else if (j.status === "stopped") text = "Stopped" + (j.stopped_by ? " by " + j.stopped_by : "") + " after " + (p.completed || 0) + " / " + (p.total || 0) + " flows — not scored.";
       else text = (p.completed || 0) + " / " + (p.total || 0) + " flows completed before it stopped.";
+      if (!downloading) bar.classList.toggle("indet", j.status === "running" && !p.completed);
     }
     if (j.status === "stopped") {
       phase = "Benchmark stopped";

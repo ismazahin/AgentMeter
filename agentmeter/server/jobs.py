@@ -718,7 +718,7 @@ class JobManager:
                          message="verification failed — see the error")
             return
         self._stopping.discard(job_id)
-        v = {**base, **{k: res.get(k) for k in ("status", "weights_mb", "seconds", "error")}}
+        v = {**base, **{k: res.get(k) for k in ("status", "weights_mb", "seconds", "share_4bit", "error")}}
         if v.get("status") not in ("ok", "failed"):
             v["status"] = "failed"
         self._record_verification(model, v)

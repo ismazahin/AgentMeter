@@ -161,7 +161,9 @@ models are tested at the same 4-bit setting. Pre-quantized copies (GPTQ, AWQ, GG
   4-bit VRAM = params(B) × 0.55 + 1.5 GB overhead + 1.0 GB working memory, ratio to this
   GPU's memory, download size (only the files a benchmark fetches) and time at ~40 MB/s,
   ratio to free disk.
-- **Rules** (each describes a problem; `block` = not offered, `warn` = offered with a note):
+- **Rules** (each describes a problem; `block` = cannot be benchmarked, `warn` = a technical
+  risk on this server, so status `warning` and **not offered**; `info` = a notice on the model
+  card that never changes the status). Users are offered only models whose status is `ok`:
 
   | rule | outcome | fires when |
   |---|---|---|
@@ -173,9 +175,9 @@ models are tested at the same 4-bit setting. Pre-quantized copies (GPTQ, AWQ, GG
   | too_large | block | more than 34 B parameters |
   | exceeds_gpu | block | estimated 4-bit VRAM > this GPU's memory |
   | tight_gpu | warn | estimated 4-bit VRAM > 85 % of this GPU's memory |
-  | gated | warn | the licence must be accepted on Hugging Face |
-  | custom_licence | warn | custom or restrictive licence |
-  | large_download | warn | first download > 20 GB |
+  | gated | info | the licence must be accepted on Hugging Face: the card says **"licence verification required"** |
+  | custom_licence | info | custom or restrictive licence |
+  | large_download | info | first download > 20 GB |
   | low_disk | warn | download larger than the free disk |
 
 - **Output:** per model `status` (ok / warning / blocked / unknown), the fired notes, an
@@ -184,20 +186,27 @@ models are tested at the same 4-bit setting. Pre-quantized copies (GPTQ, AWQ, GG
   a pass or a fail.
 - **Hard rules:** suitability says nothing about detection quality; the study models and
   the locked baseline are unchanged (they are listed separately, from
-  `configs/run_full_l4.yaml`). The picker in New benchmark step 2 offers the `ok` and
-  `warning` models; a real benchmark only accepts study models and listed models
+  `configs/run_full_l4.yaml`). The picker in New benchmark step 2 offers only `ok` models; a real benchmark only accepts study models and listed models
   (`POST /api/jobs`); a listed model not yet on the server is downloaded on first use
   (SESSION_BENCHMARK.md).
-- **Availability (phase 4):** a model is offered only when it is suitable (`ok` / `warning`),
+- **Availability (phase 4):** a model is offered only when its suitability is `ok`,
   enabled by the admin (YAML models start enabled, admin-added ones disabled) and — on a real
   GPU — its admin **4-bit verification** passed (Admin › Model catalog › Verify: download, load
-  at 4-bit NF4, one short generation; recorded in the control plane). Otherwise the catalog
-  gives `unavailable_reason` (not suitable / model info unavailable / disabled by the admin /
+  at 4-bit NF4, one short generation, and a check that ≥ 95 % of the weight matrices outside
+  the embeddings / lm_head really loaded as bitsandbytes 4-bit — the study models are ~100 %, so
+  a model whose layers bitsandbytes cannot convert, e.g. MoE experts stored as fused tensors,
+  fails instead of being benchmarked partly in fp16; recorded in the control plane). Otherwise the catalog
+  gives `unavailable_reason` (not suitable / suitability warning / model info unavailable / disabled by the admin /
   4-bit verification failed / not yet verified at 4-bit) and `POST /api/jobs` refuses it
   (`model_disabled` / `model_not_verified`, 409). Demo mode needs no verification.
   Tests: `tests/test_model_catalog.py`, walk-through `tests/e2e/model_picker_flow.js`
   (with `AGENTMETER_TEST_MODEL_REPOS=tests/fixtures/model_repos.json`, a tests-only switch
-  that reads repo records from a file instead of Hugging Face).
+  that reads repo records from a file instead of Hugging Face, and
+  `AGENTMETER_TEST_DISK_FREE_GB=200`, which fixes the free disk the rules see).
+- **Model types:** the catalog is not limited to the study models' families or to dense
+  transformers: it also lists other families (Llama 3.2, Gemma 2, Phi-4, Falcon3, OLMo 2, Yi,
+  Aya), a mixture-of-experts model (OLMoE) and a state-space model (Falcon3-Mamba). The card
+  shows each model's architecture (`type` in `configs/model_catalog.yaml`).
 
 ## Viewing a session
 

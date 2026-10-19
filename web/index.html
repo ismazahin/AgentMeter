@@ -760,7 +760,7 @@
     </div>
     <div class="card" id="adm-models-card">
       <div class="row" style="margin-top:0;justify-content:space-between"><h2>Model catalog</h2><span class="chip" id="adm-models-mode"></span></div>
-      <p class="muted small">Extra models users may pick next to the 5 study models. Every model is quantized to 4-bit NF4 at load, like the study models. On the real GPU a model is offered only when it is suitable, enabled and verified.<span class="info-i" tabindex="0" role="button" data-tip="Suitable = passes the rules in configs/model_rules.yaml (original weights, fits this GPU at 4-bit, no remote code…). Verify = a test-load in 4-bit NF4 plus a short generation on the GPU; it downloads the model first if needed. Download at start-up = fetched with the study models when a rental starts.">i</span></p>
+      <p class="muted small">Extra models users may pick next to the 5 study models. Every model is quantized to 4-bit NF4 at load, like the study models. A model is offered to users only when its suitability is <b>ok</b> and it is enabled — and, on the real GPU, verified. Licence and download notices (ℹ) do not change the suitability; gated models are labelled "licence verification required".<span class="info-i" tabindex="0" role="button" data-tip="Suitable = passes the rules in configs/model_rules.yaml (original weights, fits this GPU at 4-bit, no remote code…). A warning (tight GPU memory, not enough disk) means not offered. Verify = a test-load in 4-bit NF4 plus a short generation on the GPU, and a check that at least 95 % of the weights really are 4-bit; it downloads the model first if needed. Download at start-up = fetched with the study models when a rental starts.">i</span></p>
       <div class="table-wrap" id="adm-models"></div>
       <form class="row" id="adm-model-add" novalidate>
         <div class="field"><label for="adm-model-id">Add a model <span class="hint">(Hugging Face id, original weights)</span></label><input type="text" id="adm-model-id" placeholder="owner/name" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
@@ -1483,7 +1483,7 @@
     if (CATALOG) return Promise.resolve(CATALOG);
     return api("/api/models/catalog").then(function (r) { if (r.ok) CATALOG = r.data; return r.ok ? r.data : null; });
   }
-  function extraCard(x, i) {
+  function extraCard(x, i, real) {
     var locked = false;
     var line1 = [x.params_b != null ? fmtNum(x.params_b, 1) + " B params" : null,
                  x.vram_4bit_gb != null ? "~" + fmtNum(x.vram_4bit_gb, 1) + " GB VRAM at 4-bit" : null,
@@ -1491,13 +1491,19 @@
     var line2 = (x.original_format === "original weights" ? "original weights → 4-bit NF4" : "4-bit NF4") +
                 (x.license ? " · " + x.license : "") + (x.downloads != null ? " · " + fmtNum(x.downloads) + " downloads" : "");
     var line3 = x.on_disk ? "On this server ✓" : x.download_gb != null ? "First use downloads ~" + fmtNum(x.download_gb, 1) + " GB (~" + fmtNum(Math.max(1, x.download_min), 0) + " min)" : "";
-    var warns = (x.reasons || []).filter(function (r) { return r.outcome === "warn" && r.rule !== "large_download"; });
+    // offered models are suitability "ok": what remains to show are notices (licence; the download is line3)
+    var notes = (x.reasons || []).filter(function (r) { return r.outcome === "info" && r.rule !== "large_download" && r.rule !== "gated"; });
+    var lic = x.licence_verification ? '<span class="small"><span class="chip warn">licence verification required</span> ' +
+      (real && x.verification && x.verification.status === "ok"
+        ? "Gated on Hugging Face: the licence has been accepted for this server (the admin's 4-bit verification downloaded it)."
+        : "Gated on Hugging Face: the licence must be accepted with the server's Hugging Face account before it can be used.") + '</span>' : "";
     return '<label class="model card-model' + (locked ? " locked" : "") + '"><input type="checkbox" name="model" value="' + esc(x.id) + '" id="svc-extra-' + i + '"' +
       (locked ? ' data-locked="1" disabled' : "") + '><span class="mm"><span class="mono">' + esc(x.id) + '</span>' +
       (line1 ? '<span class="small">' + esc(line1) + '</span>' : "") + '<span class="small muted">' + esc(line2) + '</span>' +
       (line3 ? '<span class="small muted">' + esc(line3) + '</span>' : "") +
-      (x.note ? '<span class="small muted">' + esc(x.note) + '</span>' : "") +
-      warns.map(function (r) { return '<span class="small"><span class="chip warn">' + esc(r.rule.replace(/_/g, " ")) + '</span> ' + esc(r.note) + '</span>'; }).join("") +
+      (x.type ? '<span class="small muted">Architecture: ' + esc(x.type) + '</span>' : "") +
+      (x.note ? '<span class="small muted">' + esc(x.note) + '</span>' : "") + lic +
+      notes.map(function (r) { return '<span class="small"><span class="chip">' + esc(r.rule.replace(/_/g, " ")) + '</span> ' + esc(r.note) + '</span>'; }).join("") +
       '</span></label>';
   }
   function renderExtras(cat) {
@@ -1508,7 +1514,7 @@
     var others = (cat.extra || []).length - avail.length;
     det.hidden = false;
     $("svc-extra-count").textContent = "(" + avail.length + ")";
-    box.innerHTML = avail.map(function (x, i) { return extraCard(x, i); }).join("") ||
+    box.innerHTML = avail.map(function (x, i) { return extraCard(x, i, cat.mode === "real"); }).join("") ||
       '<p class="muted small">No extra models are available on this server right now.</p>';
     $("svc-extra-note").textContent = others ? others + " more listed model" + (others === 1 ? " is" : "s are") + " not available here (" +
       (cat.extra || []).filter(function (x) { return !x.available; }).map(function (x) { return x.unavailable_reason || (x.status === "unknown" ? "model info unavailable" : "not suitable"); })
@@ -2669,16 +2675,19 @@
         var dl = c.download_at_start != null ? c.download_at_start : !!x.download_at_start;
         var suit = !x.status ? '<span class="muted">—</span>' :
           '<span class="chip ' + ({ ok: "ok", warning: "warn", blocked: "bad", unknown: "" }[x.status] || "") + '">' + esc(x.status) + '</span>' +
-          (x.reasons || []).map(function (r) { return '<br><span class="small muted">' + esc(r.note) + '</span>'; }).join("");
+          (x.licence_verification ? '<br><span class="chip warn">licence verification required</span>' : "") +
+          (x.reasons || []).filter(function (r) { return r.rule !== "gated"; }).map(function (r) {
+            return '<br><span class="small' + (r.outcome === "info" ? " muted" : "") + '">' + (r.outcome === "info" ? "ℹ " : "") + esc(r.note) + '</span>'; }).join("");
         var busy = !!VERIFYING[x.id];
         var ver = (v.status === "ok" ? '<span class="chip ok">✓ verified</span><br><span class="small muted">' + esc(fmtDate(v.at || "")) + (v.gpu ? " · " + esc(v.gpu) : "") +
-                    (v.weights_mb != null ? " · weights " + fmtMB(v.weights_mb) : "") + (v.transformers ? " · transformers " + esc(v.transformers) : "") + '</span>'
+                    (v.weights_mb != null ? " · weights " + fmtMB(v.weights_mb) : "") + (v.share_4bit != null ? " · " + fmtNum(v.share_4bit * 100, 1) + " % 4-bit" : "") + (v.transformers ? " · transformers " + esc(v.transformers) : "") + '</span>'
                   : v.status === "failed" ? '<span class="chip bad">✕ failed</span><br><span class="small muted">' + esc(v.error || "") + '</span>'
                   : '<span class="muted small">not verified</span>') +
           (real ? '<br><button type="button" class="btn small-btn" data-verify="' + esc(x.id) + '"' + (busy || x.suitable === false ? " disabled" : "") + '>' + (busy ? "Verifying…" : v.status === "ok" ? "Verify again" : "Verify") + '</button>' : "");
         var offered = x.pending ? '<span class="small muted">the GPU picks it up within a minute</span>' : x.available == null ? '<span class="muted">—</span>' : x.available ? '<span class="chip ok">offered</span>' : '<span class="small muted">' + esc(x.unavailable_reason || "no") + '</span>';
         return '<tr data-model="' + esc(x.id) + '"><td class="mono">' + esc(x.id) + (x.source === "admin" ? ' <span class="chip">added</span>' : "") +
-          (x.params_b != null ? '<br><span class="small muted">' + fmtNum(x.params_b, 1) + ' B · ~' + fmtNum(x.vram_4bit_gb, 1) + ' GB at 4-bit</span>' : "") + '</td><td>' + suit + '</td><td>' + ver + '</td><td>' + offered +
+          (x.params_b != null ? '<br><span class="small muted">' + fmtNum(x.params_b, 1) + ' B · ~' + fmtNum(x.vram_4bit_gb, 1) + ' GB at 4-bit</span>' : "") +
+          (x.type ? '<br><span class="small muted">' + esc(x.type) + '</span>' : "") + '</td><td>' + suit + '</td><td>' + ver + '</td><td>' + offered +
           '</td><td><input type="checkbox" data-enable="' + esc(x.id) + '" aria-label="Enable ' + esc(x.id) + '"' + (enabled ? " checked" : "") + '></td>' +
           '<td><input type="checkbox" data-dlstart="' + esc(x.id) + '" aria-label="Download ' + esc(x.id) + ' at start-up"' + (dl ? " checked" : "") + '></td>' +
           '<td>' + (x.source === "admin" ? '<button type="button" class="btn small-btn danger" data-remove="' + esc(x.id) + '">Remove</button>' : "") + '</td></tr>';

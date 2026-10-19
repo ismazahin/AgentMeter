@@ -28,7 +28,7 @@ function startBackend(extraEnv = {}) {
     AGENTMETER_RESULTS_DIR: RESULTS, AGENTMETER_RUN_TOKEN_SECRET: process.env.DEV_RUN_SECRET,
     AGENTMETER_BACKEND_SECRET: process.env.DEV_BACKEND_SECRET, AGENTMETER_WORKER_URL: WORKER,
     AGENTMETER_PUBLIC_URL: `http://127.0.0.1:${BP}`, AGENTMETER_ALLOWED_ORIGINS: APP, AGENTMETER_HEARTBEAT_S: '3',
-    AGENTMETER_TEST_MODEL_REPOS: path.join(REPO, 'tests', 'fixtures', 'model_repos.json'), AGENTMETER_HF_METADATA: 'on' }, extraEnv);
+    AGENTMETER_TEST_MODEL_REPOS: path.join(REPO, 'tests', 'fixtures', 'model_repos.json'), AGENTMETER_HF_METADATA: 'on', AGENTMETER_TEST_DISK_FREE_GB: '200' }, extraEnv);
   backend = cp.spawn(process.env.PYTHON || 'python', ['scripts/serve.py', '--provider', 'mock', '--host', '127.0.0.1', '--port', String(BP),
                                                      '--results-dir', RESULTS], { cwd: REPO, env, stdio: ['ignore', fs.openSync(path.join(OUT, 'backend.log'), 'a'), fs.openSync(path.join(OUT, 'backend.log'), 'a')] });
 }
@@ -119,8 +119,9 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
 
     // 2b. admin: model catalog (demo mode: no 4-bit verification needed)
     await p.waitForSelector('#adm-models-table');
-    log((await p.$$('#adm-models-table tbody tr')).length === 7 && /demo/.test(await p.textContent('#adm-models-mode')),
-        'Admin: Model catalog lists the 7 extra models (demo: no verification)');
+    log((await p.$$('#adm-models-table tbody tr')).length === 16 && /demo/.test(await p.textContent('#adm-models-mode')),
+        'Admin: Model catalog lists the 16 extra models (demo: no verification)');
+    log(/licence verification required/.test(await p.textContent('tr[data-model="google/gemma-2-2b-it"]')), 'Admin: a gated model is labelled "licence verification required"');
     log(/unknown/.test(await p.textContent('tr[data-model="HuggingFaceTB/SmolLM2-1.7B-Instruct"]')), 'a model without Hugging Face info shows status unknown');
     await p.uncheck('input[data-enable="Qwen/Qwen2.5-1.5B-Instruct"]');
     await p.waitForFunction(() => /Saved/.test(document.getElementById('adm-models-status').textContent));

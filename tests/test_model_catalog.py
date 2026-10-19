@@ -98,6 +98,7 @@ def test_gpu_fit_uses_the_4bit_estimate():
     assert tight["status"] == "ok"
     tight16 = assess(repo("x/14b", 14.7), env={**ENV24, "gpu_vram_gb": 12.0})         # ~10.6 GB of 12
     assert tight16["status"] == "warning" and "tight_gpu" in fired(tight16)
+    assert not tight16["suitable"] and tight16["unavailable_reason"] == "suitability warning"   # only "ok" is offered
     over = assess(repo("x/14b", 14.7), env={**ENV24, "gpu_vram_gb": 8.0})
     assert over["status"] == "blocked" and over["fits_gpu"] is False
 
@@ -108,12 +109,18 @@ def test_no_gpu_means_no_data_not_a_verdict():
     assert next(a for a in out["audit"] if a["rule"] == "exceeds_gpu")["result"] == "no_data"
 
 
-def test_warnings_gated_licence_download_disk():
-    out = assess(repo("meta-llama/Llama-3.1-8B-Instruct", 8.0, gated="manual", license_="llama3.1",
-                      files=[("model.safetensors", 16 * GB), ("x.safetensors", 14 * GB), ("config.json", 1)]),
-                 env={**ENV24, "disk_free_gb": 20.0})
-    assert out["status"] == "warning" and out["suitable"]
-    assert {"gated", "custom_licence", "large_download", "low_disk"} <= fired(out)
+def test_licence_and_download_are_notices_disk_is_a_warning():
+    raw = repo("meta-llama/Llama-3.1-8B-Instruct", 8.0, gated="manual", license_="llama3.1",
+               files=[("model.safetensors", 16 * GB), ("x.safetensors", 14 * GB), ("config.json", 1)])
+    out = assess(raw)                                                    # 200 GB free
+    assert out["status"] == "ok" and out["suitable"] and out["unavailable_reason"] == "not yet verified at 4-bit"
+    assert fired(out) == {"gated", "custom_licence", "large_download"}
+    assert {r["outcome"] for r in out["reasons"]} == {"info"}            # notices never change the status
+    assert out["licence_verification"] is True                           # shown as "licence verification required"
+    assert "licence verification" in next(r["note"] for r in out["reasons"] if r["rule"] == "gated")
+    low = assess(raw, env={**ENV24, "disk_free_gb": 20.0})
+    assert low["status"] == "warning" and "low_disk" in fired(low) and not low["suitable"] and not low["available"]
+    assert assess(repo("x/open", 3.0))["licence_verification"] is False
     on_disk = assess(repo("x/m", 8.0, files=[("a.safetensors", 30 * GB)]), env={**ENV24, "disk_free_gb": 5.0}, on_disk=True)
     assert on_disk["download_gb"] == 0 and not {"large_download", "low_disk"} & fired(on_disk)
 
@@ -259,3 +266,88 @@ def test_entries_merge_the_admin_state():
     assert mc.start_up_ids(state=st) == []                                           # disabled models never pre-download
     st["models"]["Qwen/Qwen2.5-3B-Instruct"]["enabled"] = True
     assert mc.start_up_ids(state=st) == ["Qwen/Qwen2.5-3B-Instruct"]
+
+
+# ---------------------------------------------------------------------------
+# 4-bit verification: the weights really are 4-bit
+# ---------------------------------------------------------------------------
+class _P:
+    def __init__(self, *shape):
+        self.shape = shape
+
+    def dim(self):
+        return len(self.shape)
+
+    def numel(self):
+        n = 1
+        for x in self.shape:
+            n *= x
+        return n
+
+
+class Linear4bit:                                     # same class name as bitsandbytes.nn.Linear4bit
+    def __init__(self, i, o):
+        self.in_features, self.out_features, self.weight = i, o, _P(o * i // 2, 1)   # packed uint8
+
+    def parameters(self, recurse=False):
+        return [self.weight]
+
+
+class _Fused:                                         # an MoE expert block bitsandbytes cannot convert
+    def __init__(self, *shape):
+        self.weight = _P(*shape)
+
+    def parameters(self, recurse=False):
+        return [self.weight]
+
+
+class _Model:
+    def __init__(self, mods, extra=()):
+        self.mods, self.extra = mods, list(extra)
+
+    def named_modules(self):
+        return list(self.mods.items())
+
+    def named_parameters(self):
+        out = [(f"{n}.weight", m.weight) for n, m in self.mods.items()]
+        return out + self.extra
+
+
+def test_quantized_share_counts_4bit_weights():
+    from agentmeter.server.model_store import MIN_4BIT_SHARE, quantized_share
+    dense = _Model({"layers.0.q_proj": Linear4bit(1024, 1024), "layers.0.mlp": Linear4bit(1024, 4096)},
+                   extra=[("model.embed_tokens.weight", _P(32000, 1024)), ("lm_head.weight", _P(32000, 1024)),
+                          ("layers.0.norm.weight", _P(1024))])
+    d = quantized_share(dense)
+    assert d["share_4bit"] == 1.0 and d["params_4bit"] == 1024 * 1024 + 1024 * 4096   # embeddings/lm_head/norms excluded
+    moe = _Model({"layers.0.q_proj": Linear4bit(1024, 1024), "layers.0.experts": _Fused(64, 2048, 1024)})
+    m = quantized_share(moe)
+    assert m["share_4bit"] < MIN_4BIT_SHARE                               # verify fails: not uniformly 4-bit
+    assert quantized_share(_Model({}))["share_4bit"] is None
+
+
+def test_verify_fails_when_the_weights_are_not_4bit(monkeypatch):
+    from agentmeter.providers import hf
+    from agentmeter.server import model_store
+
+    class Fake:
+        model = None
+
+        def __init__(self, config):
+            pass
+
+        def load(self):
+            pass
+
+        def generate(self, prompt):
+            return type("R", (), {"text": "ready"})()
+
+        def unload(self):
+            pass
+    Fake.model = _Model({"q": Linear4bit(1024, 1024), "experts": _Fused(64, 2048, 1024)})
+    monkeypatch.setattr(hf, "HFProvider", Fake)
+    out = model_store._verify_in_process("allenai/OLMoE-1B-7B-0924-Instruct")
+    assert out["status"] == "failed" and "4-bit NF4" in out["error"] and out["share_4bit"] < 0.95
+    Fake.model = _Model({"q": Linear4bit(1024, 1024)})
+    ok = model_store._verify_in_process("Qwen/Qwen2.5-3B-Instruct")
+    assert ok["status"] == "ok" and ok["share_4bit"] == 1.0

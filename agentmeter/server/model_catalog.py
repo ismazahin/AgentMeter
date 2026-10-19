@@ -107,8 +107,8 @@ def load_catalog(path: Optional[str | Path] = None) -> list[dict[str, Any]]:
         if any(mid.lower().endswith(s) for s in _QUANT_NAMES):
             raise CatalogError(f"{p}: {mid} looks pre-quantized — list the original-weights repo")
         seen.add(mid)
-        out.append({"id": mid, "family": str(m.get("family") or ""), "note": str(m.get("note") or ""),
-                    "download_at_start": bool(m.get("download_at_start", False))})
+        out.append({"id": mid, "family": str(m.get("family") or ""), "type": str(m.get("type") or ""),
+                    "note": str(m.get("note") or ""), "download_at_start": bool(m.get("download_at_start", False))})
     return out
 
 
@@ -129,8 +129,8 @@ def load_rules(path: Optional[str | Path] = None) -> dict[str, Any]:
         if not rid or rid in seen:
             raise CatalogError(f"{p}: every rule needs a unique id (got {rid!r})")
         seen.add(rid)
-        if r.get("outcome") not in ("block", "warn"):
-            raise CatalogError(f"{p}: rule {rid}: outcome must be block or warn")
+        if r.get("outcome") not in ("block", "warn", "info"):
+            raise CatalogError(f"{p}: rule {rid}: outcome must be block, warn or info")
         if not r.get("note") or not isinstance(r.get("when"), list) or not r["when"]:
             raise CatalogError(f"{p}: rule {rid}: needs 'when' (list) and 'note'")
         for c in r["when"]:
@@ -149,6 +149,7 @@ def load_rules(path: Optional[str | Path] = None) -> dict[str, Any]:
 # Hugging Face repo record
 # ---------------------------------------------------------------------------
 TEST_REPOS_ENV = "AGENTMETER_TEST_MODEL_REPOS"   # tests only: JSON file {model_id: repo record}
+TEST_DISK_ENV = "AGENTMETER_TEST_DISK_FREE_GB"   # tests only: pretend this much free disk
 
 
 def _test_fetcher(path: str) -> Callable[..., dict[str, Any]]:
@@ -254,6 +255,8 @@ def server_env(gpu_vram_mb: Optional[float] = None, disk_path: Optional[Path] = 
         free_gb = shutil.disk_usage(path).free / 1024 ** 3
     except OSError:
         free_gb = None
+    if os.environ.get(TEST_DISK_ENV):                    # tests only: walk-throughs independent of the machine
+        free_gb = float(os.environ[TEST_DISK_ENV])
     return {"gpu_vram_gb": (gpu_vram_mb / 1024 if gpu_vram_mb else None), "disk_free_gb": free_gb,
             "transformers": runtime._version("transformers")}
 
@@ -331,15 +334,15 @@ def assess(entry: dict, fetched: dict, env: dict, rules: dict, *, on_disk: bool 
         status = "blocked"
     elif not repo:
         status = "unknown"
-    elif ev["reasons"]:
+    elif any(x["outcome"] == "warn" for x in ev["reasons"]):           # info notices never change it
         status = "warning"
     else:
         status = "ok"
     g = lambda k: facts.get(k)  # noqa: E731
     return {
-        "id": entry["id"], "family": entry.get("family"), "note": entry.get("note"),
+        "id": entry["id"], "family": entry.get("family"), "type": entry.get("type") or None, "note": entry.get("note"),
         "download_at_start": bool(entry.get("download_at_start")),
-        "status": status, "suitable": status in ("ok", "warning"),
+        "status": status, "suitable": status == "ok",                    # only "ok" models are offered
         "enabled": entry.get("enabled", True), "source": entry.get("source", "catalog"),
         "reasons": ev["reasons"] + ([{"rule": "metadata", "outcome": "warn",
                                       "note": "Hugging Face could not be reached: " + str(fetched.get("error"))}]
@@ -348,6 +351,7 @@ def assess(entry: dict, fetched: dict, env: dict, rules: dict, *, on_disk: bool 
         "fits_gpu": (None if g("derived.vram_ratio") is None else g("derived.vram_ratio") <= 1.0),
         "download_gb": g("derived.download_gb"), "download_min": g("derived.download_min"),
         "on_disk": on_disk, "gated": g("hf.gated"), "license": g("hf.license"), "downloads": g("hf.downloads"),
+        "licence_verification": bool(g("hf.gated")),                     # gated: licence must be accepted on HF
         "original_format": ("original weights" if g("derived.prequantized") is False else g("derived.quant_format")),
         "quantization": "4-bit NF4",
         "verification": _verification(entry.get("verified")),
@@ -360,14 +364,14 @@ def assess(entry: dict, fetched: dict, env: dict, rules: dict, *, on_disk: bool 
 def _verification(v: Optional[dict]) -> dict[str, Any]:
     if not v:
         return {"status": "not_verified"}
-    return {k: v.get(k) for k in ("status", "at", "transformers", "gpu", "weights_mb", "seconds", "error", "by")}
+    return {k: v.get(k) for k in ("status", "at", "transformers", "gpu", "weights_mb", "seconds", "share_4bit", "error", "by")}
 
 
 def _availability(status: str, entry: dict, real: bool) -> dict[str, Any]:
-    """Offered to users = suitable AND enabled AND (on a real GPU) verified at 4-bit."""
+    """Offered to users = suitability "ok" AND enabled AND (on a real GPU) verified at 4-bit."""
     v = (entry.get("verified") or {}).get("status")
-    if status not in ("ok", "warning"):
-        why = "not suitable" if status == "blocked" else "model info unavailable"
+    if status != "ok":
+        why = {"blocked": "not suitable", "warning": "suitability warning"}.get(status, "model info unavailable")
     elif not entry.get("enabled", True):
         why = "disabled by the admin"
     elif real and v != "ok":
@@ -530,7 +534,7 @@ def register_models(app, gpu_vram_mb: Optional[Callable[[], Any]] = None, *, rea
             return jsonify({"error": f"{model!r} is not in the model list", "code": "model_not_offered"}), 400
         if not entry["suitable"]:
             return jsonify({"error": f"{model} is not suitable: " + "; ".join(r["note"] for r in entry["reasons"]
-                                                                          if r["outcome"] == "block" or r["rule"] == "metadata"),
+                                                                          if r["outcome"] in ("block", "warn") or r["rule"] == "metadata"),
                             "code": "model_not_suitable"}), 409
         try:
             job = get_manager().create_verify_job(model, environment=environment() if environment else None,

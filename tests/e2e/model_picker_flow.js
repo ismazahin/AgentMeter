@@ -2,7 +2,7 @@
 // Step 2 of New benchmark lists the study models and "More models to try" (extra models of
 // configs/model_catalog.yaml with their suitability). Pick an extra + a study model, run, and
 // check the "extra" label on the session page, the PDF, the Leaderboard and Settings.
-//   AGENTMETER_TEST_MODEL_REPOS=tests/fixtures/model_repos.json AGENTMETER_RESULTS_DIR=$(mktemp -d) \
+//   AGENTMETER_TEST_MODEL_REPOS=tests/fixtures/model_repos.json AGENTMETER_TEST_DISK_FREE_GB=200 AGENTMETER_RESULTS_DIR=$(mktemp -d) \
 //     python scripts/serve.py --provider mock --port 8766
 //   node tests/e2e/model_picker_flow.js [base_url] [out_dir]
 const path = require('path'), os = require('os'), fs = require('fs'), cp = require('child_process');
@@ -31,14 +31,19 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     log((await p.$$('#svc-models input')).length === 5, 'Study models: the 5 validated models are listed');
     await p.waitForSelector('#svc-extra:not([hidden])', { timeout: 15000 });
     const count = await p.textContent('#svc-extra-count');
-    log(count === '(6)', 'More models to try: 6 offered (' + count + ')');
+    log(count === '(15)', 'More models to try: the 15 models with suitability "ok" are offered (' + count + ')');
     log(/1 more listed model is not available here \(model info unavailable\)/.test(await p.textContent('#svc-extra-note')),
         'A model whose Hugging Face info is unavailable is not offered, and the note says so');
     await p.click('#svc-extra > summary');
     const card = await p.textContent(`label:has(input[value="${EXTRA}"])`);
     log(/3\.1 B params/.test(card) && /GB VRAM at 4-bit/.test(card) && /original weights → 4-bit NF4/.test(card) && /First use downloads ~6\.2 GB/.test(card),
         'Model card: size, 4-bit VRAM estimate, original weights → 4-bit NF4, first download size');
-    log(/custom licence/.test(card), 'Model card: the rule warning (restrictive licence) is shown');
+    log(/custom licence/.test(card) && /Architecture: dense transformer/.test(card), 'Model card: the licence notice and the architecture are shown');
+    const gated = await p.textContent('label:has(input[value="meta-llama/Llama-3.2-3B-Instruct"])');
+    log(/licence verification required/.test(gated) && /must be accepted/.test(gated), 'A gated model says "licence verification required"');
+    log(!/licence verification required/.test(card), 'A model that is not gated has no licence-verification label');
+    const moe = await p.textContent('label:has(input[value="allenai/OLMoE-1B-7B-0924-Instruct"])');
+    log(/mixture of experts/.test(moe), 'Other architectures are offered too (mixture of experts)');
     await p.screenshot({ path: S + '/01-picker.png', fullPage: true });
 
     // 2. pick an extra + a study model; a third is disabled (max 2)

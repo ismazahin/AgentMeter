@@ -205,6 +205,29 @@ VERIFY_TIMEOUT_S = 20 * 60
 _VERIFY_TAG = "AM_VERIFY "
 
 
+MIN_4BIT_SHARE = 0.95      # of the weight matrices outside embeddings / lm_head (study models: ~100 %)
+_FP16_KEPT = ("embed", "lm_head", "wte", "wpe")   # kept in fp16 for every model, the study models too
+
+
+def quantized_share(model: Any) -> dict[str, Any]:
+    """How much of the model really is 4-bit: weight elements in bitsandbytes Linear4bit layers
+    against every other weight matrix (≥ 2-D; embeddings and lm_head excluded, as bitsandbytes
+    keeps those in fp16 for all models). Layers bitsandbytes cannot convert — e.g. MoE experts
+    stored as fused tensors instead of nn.Linear — stay fp16 and lower the share."""
+    q, skip = 0, set()
+    for _, m in model.named_modules():
+        if any(c.__name__ == "Linear4bit" for c in type(m).__mro__):     # bitsandbytes (and its subclasses)
+            q += int(m.in_features) * int(m.out_features)
+            skip.update(id(p) for p in m.parameters(recurse=False))
+    other = 0
+    for name, p in model.named_parameters():
+        if id(p) in skip or p.dim() < 2 or any(k in name.lower() for k in _FP16_KEPT):
+            continue
+        other += int(p.numel())
+    total = q + other
+    return {"share_4bit": round(q / total, 4) if total else None, "params_4bit": q, "params_other": other}
+
+
 def _verify_in_process(model_id: str) -> dict[str, Any]:
     """The child's work: HFProvider with the study config (uniform 4-bit NF4, double quant, fp16
     compute), weights memory after load, one short generation, unload."""
@@ -228,13 +251,19 @@ def _verify_in_process(model_id: str) -> dict[str, Any]:
             weights_mb = round(torch.cuda.memory_allocated() / 1024 ** 2, 1)
     except Exception:  # noqa: BLE001
         pass
+    share = quantized_share(p.model)
     out = p.generate("Reply with the single word: ready")
     p.unload()
     text = str(getattr(out, "text", out))
+    base = {"weights_mb": weights_mb, "seconds": round(time.time() - t, 1), "share_4bit": share["share_4bit"]}
+    if share["share_4bit"] is None or share["share_4bit"] < MIN_4BIT_SHARE:
+        pct = "no" if share["share_4bit"] is None else f"only {share['share_4bit'] * 100:.0f} %"
+        return {"status": "failed", **base,
+                "error": f"{pct} of the weights loaded as 4-bit NF4 (bitsandbytes cannot convert some layers) — "
+                         "it would not be benchmarked at the same 4-bit as the study models"}
     if not text.strip():
-        return {"status": "failed", "error": "the model loaded but generated no text", "weights_mb": weights_mb,
-                "seconds": round(time.time() - t, 1)}
-    return {"status": "ok", "weights_mb": weights_mb, "seconds": round(time.time() - t, 1), "sample": text[:40]}
+        return {"status": "failed", "error": "the model loaded but generated no text", **base}
+    return {"status": "ok", **base, "sample": text[:40]}
 
 
 def _spawn_verify(model_id: str, log_path: Path) -> subprocess.Popen:

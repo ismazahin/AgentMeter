@@ -208,5 +208,320 @@
     "size": 7000000
    }
   ]
+ },
+ "microsoft/Phi-4-mini-instruct": {
+  "id": "microsoft/Phi-4-mini-instruct",
+  "safetensors": {
+   "total": 3840000000
+  },
+  "downloads": 500000,
+  "likes": 40,
+  "gated": false,
+  "pipeline_tag": "text-generation",
+  "tags": [
+   "license:mit"
+  ],
+  "lastModified": "2026-01-01T00:00:00Z",
+  "config": {
+   "model_type": "phi3"
+  },
+  "siblings": [
+   {
+    "rfilename": "model-00001-of-00002.safetensors",
+    "size": 3840000000
+   },
+   {
+    "rfilename": "model-00002-of-00002.safetensors",
+    "size": 3840000000
+   },
+   {
+    "rfilename": "config.json",
+    "size": 700
+   },
+   {
+    "rfilename": "tokenizer.json",
+    "size": 7000000
+   }
+  ]
+ },
+ "meta-llama/Llama-3.2-3B-Instruct": {
+  "id": "meta-llama/Llama-3.2-3B-Instruct",
+  "safetensors": {
+   "total": 3210000000
+  },
+  "downloads": 500000,
+  "likes": 40,
+  "gated": "manual",
+  "pipeline_tag": "text-generation",
+  "tags": [
+   "license:llama3.2"
+  ],
+  "lastModified": "2026-01-01T00:00:00Z",
+  "config": {
+   "model_type": "llama"
+  },
+  "siblings": [
+   {
+    "rfilename": "model-00001-of-00002.safetensors",
+    "size": 3210000000
+   },
+   {
+    "rfilename": "model-00002-of-00002.safetensors",
+    "size": 3210000000
+   },
+   {
+    "rfilename": "config.json",
+    "size": 700
+   },
+   {
+    "rfilename": "tokenizer.json",
+    "size": 7000000
+   }
+  ]
+ },
+ "google/gemma-2-2b-it": {
+  "id": "google/gemma-2-2b-it",
+  "safetensors": {
+   "total": 2610000000
+  },
+  "downloads": 500000,
+  "likes": 40,
+  "gated": "manual",
+  "pipeline_tag": "text-generation",
+  "tags": [
+   "license:gemma"
+  ],
+  "lastModified": "2026-01-01T00:00:00Z",
+  "config": {
+   "model_type": "gemma2"
+  },
+  "siblings": [
+   {
+    "rfilename": "model-00001-of-00002.safetensors",
+    "size": 2610000000
+   },
+   {
+    "rfilename": "model-00002-of-00002.safetensors",
+    "size": 2610000000
+   },
+   {
+    "rfilename": "config.json",
+    "size": 700
+   },
+   {
+    "rfilename": "tokenizer.json",
+    "size": 7000000
+   }
+  ]
+ },
+ "tiiuae/Falcon3-7B-Instruct": {
+  "id": "tiiuae/Falcon3-7B-Instruct",
+  "safetensors": {
+   "total": 7460000000
+  },
+  "downloads": 500000,
+  "likes": 40,
+  "gated": false,
+  "pipeline_tag": "text-generation",
+  "tags": [
+   "license:other"
+  ],
+  "lastModified": "2026-01-01T00:00:00Z",
+  "config": {
+   "model_type": "llama"
+  },
+  "siblings": [
+   {
+    "rfilename": "model-00001-of-00002.safetensors",
+    "size": 7460000000
+   },
+   {
+    "rfilename": "model-00002-of-00002.safetensors",
+    "size": 7460000000
+   },
+   {
+    "rfilename": "config.json",
+    "size": 700
+   },
+   {
+    "rfilename": "tokenizer.json",
+    "size": 7000000
+   }
+  ]
+ },
+ "allenai/OLMo-2-1124-7B-Instruct": {
+  "id": "allenai/OLMo-2-1124-7B-Instruct",
+  "safetensors": {
+   "total": 7300000000
+  },
+  "downloads": 500000,
+  "likes": 40,
+  "gated": false,
+  "pipeline_tag": "text-generation",
+  "tags": [
+   "license:apache-2.0"
+  ],
+  "lastModified": "2026-01-01T00:00:00Z",
+  "config": {
+   "model_type": "olmo2"
+  },
+  "siblings": [
+   {
+    "rfilename": "model-00001-of-00002.safetensors",
+    "size": 7300000000
+   },
+   {
+    "rfilename": "model-00002-of-00002.safetensors",
+    "size": 7300000000
+   },
+   {
+    "rfilename": "config.json",
+    "size": 700
+   },
+   {
+    "rfilename": "tokenizer.json",
+    "size": 7000000
+   }
+  ]
+ },
+ "01-ai/Yi-1.5-9B-Chat": {
+  "id": "01-ai/Yi-1.5-9B-Chat",
+  "safetensors": {
+   "total": 8830000000
+  },
+  "downloads": 500000,
+  "likes": 40,
+  "gated": false,
+  "pipeline_tag": "text-generation",
+  "tags": [
+   "license:apache-2.0"
+  ],
+  "lastModified": "2026-01-01T00:00:00Z",
+  "config": {
+   "model_type": "llama"
+  },
+  "siblings": [
+   {
+    "rfilename": "model-00001-of-00002.safetensors",
+    "size": 8830000000
+   },
+   {
+    "rfilename": "model-00002-of-00002.safetensors",
+    "size": 8830000000
+   },
+   {
+    "rfilename": "config.json",
+    "size": 700
+   },
+   {
+    "rfilename": "tokenizer.json",
+    "size": 7000000
+   }
+  ]
+ },
+ "CohereForAI/aya-expanse-8b": {
+  "id": "CohereForAI/aya-expanse-8b",
+  "safetensors": {
+   "total": 8029999999
+  },
+  "downloads": 500000,
+  "likes": 40,
+  "gated": "auto",
+  "pipeline_tag": "text-generation",
+  "tags": [
+   "license:cc-by-nc-4.0"
+  ],
+  "lastModified": "2026-01-01T00:00:00Z",
+  "config": {
+   "model_type": "cohere"
+  },
+  "siblings": [
+   {
+    "rfilename": "model-00001-of-00002.safetensors",
+    "size": 8029999999
+   },
+   {
+    "rfilename": "model-00002-of-00002.safetensors",
+    "size": 8029999999
+   },
+   {
+    "rfilename": "config.json",
+    "size": 700
+   },
+   {
+    "rfilename": "tokenizer.json",
+    "size": 7000000
+   }
+  ]
+ },
+ "allenai/OLMoE-1B-7B-0924-Instruct": {
+  "id": "allenai/OLMoE-1B-7B-0924-Instruct",
+  "safetensors": {
+   "total": 6920000000
+  },
+  "downloads": 500000,
+  "likes": 40,
+  "gated": false,
+  "pipeline_tag": "text-generation",
+  "tags": [
+   "license:apache-2.0"
+  ],
+  "lastModified": "2026-01-01T00:00:00Z",
+  "config": {
+   "model_type": "olmoe"
+  },
+  "siblings": [
+   {
+    "rfilename": "model-00001-of-00002.safetensors",
+    "size": 6920000000
+   },
+   {
+    "rfilename": "model-00002-of-00002.safetensors",
+    "size": 6920000000
+   },
+   {
+    "rfilename": "config.json",
+    "size": 700
+   },
+   {
+    "rfilename": "tokenizer.json",
+    "size": 7000000
+   }
+  ]
+ },
+ "tiiuae/Falcon3-Mamba-7B-Instruct": {
+  "id": "tiiuae/Falcon3-Mamba-7B-Instruct",
+  "safetensors": {
+   "total": 7270000000
+  },
+  "downloads": 500000,
+  "likes": 40,
+  "gated": false,
+  "pipeline_tag": "text-generation",
+  "tags": [
+   "license:other"
+  ],
+  "lastModified": "2026-01-01T00:00:00Z",
+  "config": {
+   "model_type": "falcon_mamba"
+  },
+  "siblings": [
+   {
+    "rfilename": "model-00001-of-00002.safetensors",
+    "size": 7270000000
+   },
+   {
+    "rfilename": "model-00002-of-00002.safetensors",
+    "size": 7270000000
+   },
+   {
+    "rfilename": "config.json",
+    "size": 700
+   },
+   {
+    "rfilename": "tokenizer.json",
+    "size": 7000000
+   }
+  ]
  }
 }

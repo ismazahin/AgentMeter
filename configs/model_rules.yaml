@@ -6,8 +6,11 @@
 # They say nothing about how well a model detects threats.
 #
 # Each rule describes a PROBLEM; when all its conditions hold it "fires":
-#   outcome block -> the model is not offered (status "blocked", with the note as reason)
-#   outcome warn  -> offered, with the note shown on the model card (status "warning")
+#   outcome block -> cannot be benchmarked (status "blocked", with the note as reason)
+#   outcome warn  -> a technical risk on THIS server (status "warning"); NOT offered: users
+#                    only get models whose suitability is "ok"
+#   outcome info  -> a notice shown on the model card (licence, gated access, download size);
+#                    it never changes the status
 # A missing reading gives "no_data" (e.g. no GPU in demo mode): listed in the audit, never
 # treated as a pass or a fail. Operators are the stage-3 ones (agentmeter/session/stage3.py).
 #
@@ -82,7 +85,7 @@ rules:
       - {field: derived.vram_ratio, op: gt, value: 1.0}
     note: "Estimated {derived.vram_4bit_gb:.1f} GB at 4-bit — more than this GPU's {env.gpu_vram_gb:.0f} GB."
 
-  # --- warn: offered, with a note -------------------------------------------------------
+  # --- warn: a technical risk here -> status "warning", not offered -----------------------
   - id: tight_gpu
     outcome: warn
     description: Fits, but close to the GPU's memory.
@@ -91,30 +94,31 @@ rules:
       - {field: derived.vram_ratio, op: le, value: 1.0}
     note: "Estimated {derived.vram_4bit_gb:.1f} GB at 4-bit of this GPU's {env.gpu_vram_gb:.0f} GB — tight."
 
-  - id: gated
-    outcome: warn
-    description: The licence must be accepted on Hugging Face.
-    when:
-      - {field: hf.gated, op: truthy}
-    note: "{model} is gated: accept its licence on huggingface.co with the account that owns the server's HF token."
-
-  - id: custom_licence
-    outcome: warn
-    description: Custom or restrictive licence.
-    when:
-      - {field: hf.license, op: matches, value: $custom_licence}
-    note: "{model} uses a custom/restrictive licence ({hf.license}) — check it before any deployment."
-
-  - id: large_download
-    outcome: warn
-    description: Large first download.
-    when:
-      - {field: derived.download_gb, op: gt, value: $large_download_gb}
-    note: "First use downloads ~{derived.download_gb:.0f} GB (~{derived.download_min:.0f} min)."
-
   - id: low_disk
     outcome: warn
     description: Not enough free disk for the download.
     when:
       - {field: derived.disk_ratio, op: gt, value: 1.0}
     note: "The download (~{derived.download_gb:.0f} GB) is larger than the free disk ({env.disk_free_gb:.0f} GB)."
+
+  # --- info: shown to users, never changes the status ----------------------------------
+  - id: gated
+    outcome: info
+    description: Licence verification required (gated on Hugging Face).
+    when:
+      - {field: hf.gated, op: truthy}
+    note: "{model} is gated: its licence must be accepted on huggingface.co (licence verification) with the account that owns the server's HF token before it can be downloaded."
+
+  - id: custom_licence
+    outcome: info
+    description: Custom or restrictive licence.
+    when:
+      - {field: hf.license, op: matches, value: $custom_licence}
+    note: "{model} uses a custom/restrictive licence ({hf.license}) — check it before any deployment."
+
+  - id: large_download
+    outcome: info
+    description: Large first download.
+    when:
+      - {field: derived.download_gb, op: gt, value: $large_download_gb}
+    note: "First use downloads ~{derived.download_gb:.0f} GB (~{derived.download_min:.0f} min)."

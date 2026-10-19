@@ -16,7 +16,7 @@ const KEY = "model_catalog_state";
 const MAX_ADDED = 20;
 
 export type Verified = { status: "ok" | "failed"; at: string; transformers: string | null; gpu: string | null;
-                         weights_mb: number | null; seconds: number | null; error: string | null; by: string | null };
+                         weights_mb: number | null; seconds: number | null; share_4bit: number | null; error: string | null; by: string | null };
 export type ModelState = { models: Record<string, { enabled?: boolean; download_at_start?: boolean; verified?: Verified }>;
                            added: { id: string; note: string }[] };
 
@@ -100,7 +100,7 @@ export async function backendModelVerified(req: Request, env: Env): Promise<Resp
   const st = await loadModelState(env);
   st.models[id] = { ...(st.models[id] || {}), verified: {
     status: r.status, at: nowIso(), transformers: str(r.transformers, 32), gpu: str(r.gpu, 64),
-    weights_mb: num(r.weights_mb), seconds: num(r.seconds), error: str(r.error, 400), by: str(r.by, 32) } };
+    weights_mb: num(r.weights_mb), seconds: num(r.seconds), share_4bit: num(r.share_4bit), error: str(r.error, 400), by: str(r.by, 32) } };
   await saveModelState(env, st, "backend");
   return json({ ok: true });
 }

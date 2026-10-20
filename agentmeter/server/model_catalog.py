@@ -42,7 +42,9 @@ TTL_S = 24 * 3600
 TIMEOUT_S = 8.0
 # the files a benchmark downloads (same patterns as scripts/vast_models.py)
 DOWNLOAD_PATTERNS = ["*.json", "*.safetensors", "tokenizer*", "*.model", "*.tiktoken", "*.txt"]
-DOWNLOAD_IGNORE = ["original/*", "*.pth", "*.bin", "*.gguf", "*.onnx", "*.msgpack", "*.h5"]
+# consolidated*.safetensors: Mistral's own-format copy of the same weights (transformers loads
+# the model-*.safetensors shards), so downloading it would double the size for nothing
+DOWNLOAD_IGNORE = ["original/*", "consolidated*", "*.pth", "*.bin", "*.gguf", "*.onnx", "*.msgpack", "*.h5"]
 _QUANT_TAGS = ("gptq", "awq", "gguf", "exl2", "4-bit", "8-bit", "bitsandbytes", "hqq", "aqlm", "fp8")
 _QUANT_NAMES = ("-gptq", "-awq", "-gguf", "-exl2", "-4bit", "-8bit", "-int4", "-int8", "-fp8", "-bnb")
 QUANTIZATION = ("4-bit NF4 (bitsandbytes, double quantization, fp16 compute), applied by AgentMeter "

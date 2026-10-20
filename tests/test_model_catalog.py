@@ -351,3 +351,11 @@ def test_verify_fails_when_the_weights_are_not_4bit(monkeypatch):
     Fake.model = _Model({"q": Linear4bit(1024, 1024)})
     ok = model_store._verify_in_process("Qwen/Qwen2.5-3B-Instruct")
     assert ok["status"] == "ok" and ok["share_4bit"] == 1.0
+
+
+def test_mistral_consolidated_copy_is_not_downloaded():
+    raw = repo("mistralai/Mistral-Nemo-Instruct-2407", 12.2,
+               files=[("model-00001-of-00002.safetensors", 12 * GB), ("model-00002-of-00002.safetensors", 12 * GB),
+                      ("consolidated.safetensors", 24 * GB), ("config.json", 1)])
+    assert assess(raw)["download_gb"] == pytest.approx(24.0, abs=0.1)     # not 48: the duplicate is skipped
+    assert not mc._wanted("consolidated.safetensors") and mc._wanted("model-00001-of-00002.safetensors")

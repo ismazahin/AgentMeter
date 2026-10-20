@@ -1516,9 +1516,13 @@
     $("svc-extra-count").textContent = "(" + avail.length + ")";
     box.innerHTML = avail.map(function (x, i) { return extraCard(x, i, cat.mode === "real"); }).join("") ||
       '<p class="muted small">No extra models are available on this server right now.</p>';
-    $("svc-extra-note").textContent = others ? others + " more listed model" + (others === 1 ? " is" : "s are") + " not available here (" +
-      (cat.extra || []).filter(function (x) { return !x.available; }).map(function (x) { return x.unavailable_reason || (x.status === "unknown" ? "model info unavailable" : "not suitable"); })
-        .filter(function (v, i, a) { return a.indexOf(v) === i; }).join(", ") + ")." : "";
+    // name each model that is not offered, with its reason (and the rule's note for a suitability problem)
+    var why = (cat.extra || []).filter(function (x) { return !x.available; }).map(function (x) {
+      var r = x.unavailable_reason || (x.status === "unknown" ? "model info unavailable" : "not suitable");
+      var n = (x.reasons || []).filter(function (y) { return y.outcome === (x.status === "blocked" ? "block" : "warn"); })[0];
+      return x.id.split("/").pop() + ": " + r + (n && (x.status === "warning" || x.status === "blocked") ? " — " + n.note : "");
+    });
+    $("svc-extra-note").textContent = others ? others + " more listed model" + (others === 1 ? " is" : "s are") + " not available here: " + why.join("; ") + "." : "";
     var defs = (SETTINGS && SETTINGS.default_models) || [];
     box.querySelectorAll("input").forEach(function (inp) {
       if (defs.indexOf(inp.value) >= 0 && !inp.dataset.locked && picked().length < ((CONFIG && CONFIG.max_models) || 2)) { inp.checked = true; det.open = true; }

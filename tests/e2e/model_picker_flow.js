@@ -32,7 +32,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     await p.waitForSelector('#svc-extra:not([hidden])', { timeout: 15000 });
     const count = await p.textContent('#svc-extra-count');
     log(count === '(15)', 'More models to try: the 15 models with suitability "ok" are offered (' + count + ')');
-    log(/1 more listed model is not available here \(model info unavailable\)/.test(await p.textContent('#svc-extra-note')),
+    log(/1 more listed model is not available here: SmolLM2-1\.7B-Instruct: model info unavailable/.test(await p.textContent('#svc-extra-note')),
         'A model whose Hugging Face info is unavailable is not offered, and the note says so');
     await p.click('#svc-extra > summary');
     const card = await p.textContent(`label:has(input[value="${EXTRA}"])`);

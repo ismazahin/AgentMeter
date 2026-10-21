@@ -196,10 +196,8 @@ def preflight(base_config: Optional[Path] = None, *, require_control_plane: bool
     q = cfg.get("model.hf.quantization") or {}
     if not (q.get("load_in_4bit") and str(q.get("bnb_4bit_quant_type", "nf4")) == "nf4"):
         problems.append("base config is not uniform 4-bit NF4")
-    missing = [m for m, ok in models_local(study_models(base_config)).items() if not ok]
-    if missing:
-        problems.append("study models not on local disk (run scripts/vast_models.py with HF_TOKEN): "
-                        + ", ".join(missing))
+    # models need NOT be on disk: each one is downloaded the first time a benchmark uses it
+    # (model_store.ensure_job_models), unless the admin marked it "download at start-up"
     if require_control_plane:
         problems.extend(control_plane_problems())
     if problems:

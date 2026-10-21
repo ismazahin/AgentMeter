@@ -258,7 +258,7 @@ says either **Real GPU: <name>** or **DEMO (mock)**.
 | Recommended GPUs | **NVIDIA L4 24 GB** (same as the locked study, so the most comparable numbers), RTX 4090 / 3090 24 GB, RTX A5000 24 GB, L40S / A6000 48 GB |
 | Disk | **≥ 150 GB.** The 5 models' safetensors are about 72 GB, plus Python/CUDA wheels about 10 GB, plus inputs (URL imports up to 10 GB each are kept under `results/uploads/`). Extra models (`configs/model_catalog.yaml`) are downloaded on first use and need their own space: about 3 GB (1.5B) to 30 GB (14B) each; a download that would leave less than 2 GB free is refused with a clear message. |
 | Image | a Vast **PyTorch** template with CUDA ≥ 12.1 (e.g. `pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime`) |
-| Network | download ≥ 500 Mbps (72 GB of weights take about 20 min at that speed) |
+| Network | download ≥ 500 Mbps: each model downloads on its first use (a 7B model, ~15 GB, takes about 3–5 min) |
 | Ports | none: the tunnel dials **out**, so no open or mapped port is needed |
 | Reliability | ≥ 98 %, on-demand (not interruptible: a preempted box loses the running job) |
 
@@ -283,15 +283,20 @@ export AGENTMETER_ALLOWED_ORIGINS=https://<your-project>.pages.dev   # exact ori
 bash scripts/vast_up.sh                         # quick tunnel; see step 3 for a named one
 ```
 `vast_up.sh` checks the settings, installs dependencies, checks CUDA, then runs
-`scripts/vast_models.py`: it checks access to all 5 models **before** downloading,
-downloads them to `/workspace/hf`, and loads Phi-3 in 4-bit NF4 as a smoke test
-(`VERIFY=all` loads all five). It then starts **one** server process in **real** mode
+`scripts/vast_models.py`, which downloads **only the models the admin marked "Download at
+start-up"** (Admin › Model catalog; study models included) to `/workspace/hf`. Every other
+model, study models included, is downloaded the **first time a benchmark uses it** (the
+progress page shows "Downloading model …"; download time is never measured). So the server is
+up in about 5 minutes instead of waiting for ~70 GB. `PRELOAD_STUDY=1` (`vast_start.ps1
+-PreloadStudy`) downloads all 5 study models first, the old behaviour; `VERIFY=<model id>`
+loads one in 4-bit NF4 as a smoke test. Each step prints its elapsed time, and the last line
+says how long start-up took. It then starts **one** server process in **real** mode
 on 127.0.0.1:8000, opens the tunnel and hands its URL to the server, which registers it
 with the Worker (`grep "control plane" /workspace/agentmeter-logs/server.log`). The front-end
 needs no change.
 
 The server **refuses to start in real mode** (exit code 2, with a list of every
-problem) without a CUDA GPU, bitsandbytes, all 5 models on disk, or the three
+problem) without a CUDA GPU, bitsandbytes, or the three
 control-plane settings (`AGENTMETER_WORKER_URL` https, both secrets ≥ 16 characters). It
 never falls back to mock. A real server also refuses mock jobs (`provider_mismatch`)
 and always uses `configs/run_full_l4.yaml` (uniform 4-bit NF4). Logs:
@@ -358,7 +363,7 @@ still points the app straight at a backend.
 ### 6. What lives where, and what is lost
 | on the instance's disk (`/workspace`) | lost when the instance is **destroyed** |
 |---|---|
-| model weights `/workspace/hf` (about 72 GB) | yes: the next instance re-downloads (about 20 min). Extra models are fetched again on their first use, or at start-up when marked `download_at_start: true` in `configs/model_catalog.yaml` |
+| model weights `/workspace/hf` | yes: each model is fetched again on its first use on the next instance, or at start-up when marked "Download at start-up" in Admin › Model catalog |
 | jobs `results/jobs/`, prepared sets `results/csv_runs|pcap_runs/`, uploads `results/uploads/`, session DBs | yes — but every finished session was already uploaded to the control plane (results, PDF, manifest, features without identification columns, labels) |
 | logs `/workspace/agentmeter-logs/` | yes |
 | accounts, settings, sessions, PDFs | no: D1 / R2 |

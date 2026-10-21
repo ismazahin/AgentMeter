@@ -15,12 +15,14 @@
 #
 # Optional:  VAST_API_KEY=...  IDLE_MIN=45  -> destroy the instance after 45 idle minutes
 #            AGENTMETER_DATA_DIR=/workspace  (persistent disk: models, jobs, prepared sets)
-#            VERIFY=all  (load all 5 models in 4-bit as a smoke test; default: Phi-3 only)
+#            PRELOAD_STUDY=1  (download all 5 study models before starting, the old behaviour;
+#                             default: only the models marked "download at start-up" in Admin)
+#            VERIFY=<model id>|all  (load it in 4-bit as a smoke test; default: none)
 #            PORT=8000   SKIP_INSTALL=1
 #
-# Steps: check env -> install deps -> check CUDA/GPU -> download + verify the 5 models
-# (refuses on gated-access errors) -> start ONE server process in REAL mode (it refuses
-# to start without GPU/models/control-plane secrets — no mock fallback) -> start Cloudflare
+# Steps: check env -> install deps -> check CUDA/GPU -> download the models marked "download at
+# start-up" (the rest download on first use) -> start ONE server process in REAL mode (it refuses
+# to start without GPU/bitsandbytes/control-plane secrets — no mock fallback) -> start Cloudflare
 # Tunnel -> write its URL to $LOGS/public_url -> the backend registers it with the Worker.
 set -euo pipefail
 
@@ -33,7 +35,8 @@ mkdir -p "$LOGS"
 export HF_HOME="${HF_HOME:-$DATA/hf}"           # model weights on the persistent disk
 export PYTHONUNBUFFERED=1
 
-say()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
+T0=$SECONDS
+say()  { printf '\n\033[1m==> %s\033[0m  [+%dm%02ds]\n' "$*" $(( (SECONDS - T0) / 60 )) $(( (SECONDS - T0) % 60 )); }
 die()  { printf '\n\033[31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
 # --- 1. environment ------------------------------------------------------------------
@@ -79,8 +82,9 @@ sys.exit(0 if ok else 1)
 PY
 
 # --- 4. models ------------------------------------------------------------------------
-say "4/6 models: access check, download to $HF_HOME, 4-bit NF4 load test"
-python3 scripts/vast_models.py --verify "${VERIFY:-microsoft/Phi-3-mini-4k-instruct}" \
+say "4/6 models marked for start-up: access check, download to $HF_HOME (the rest download on first use)"
+PRE=(); [ "${PRELOAD_STUDY:-0}" = "1" ] && PRE=(--all-study)
+python3 scripts/vast_models.py --verify "${VERIFY:-none}" ${PRE[@]+"${PRE[@]}"} \
   || die "models are not ready (see the message above) — the server will not start in real mode."
 export HF_HUB_OFFLINE=1        # from here on nothing is fetched: a missing model fails loudly
 
@@ -152,6 +156,7 @@ cat <<EOF
 
 ============================================================================
  AgentMeter backend is UP — provider REAL on $(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1)
+   start-up took $(( (SECONDS - T0) / 60 )) min $(( (SECONDS - T0) % 60 )) s (models not marked for start-up download on first use)
    backend URL : $URL
    health      : $URL/health
    logs        : $LOGS/server.log   $LOGS/tunnel.log

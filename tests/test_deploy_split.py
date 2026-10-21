@@ -300,7 +300,8 @@ def test_real_mode_refuses_to_start_without_a_gpu(tmp_path):
                        env=env, capture_output=True, text=True, timeout=120)
     assert p.returncode == 2, p.stdout + p.stderr
     assert "refusing to start in REAL mode (no fallback to mock)" in p.stderr
-    assert "no CUDA GPU is visible" in p.stderr and "study models not on local disk" in p.stderr
+    assert "no CUDA GPU is visible" in p.stderr
+    assert "study models not on local disk" not in p.stderr        # models download on first use
 
 
 def test_preflight_lists_every_problem_and_passes_when_ready(tmp_path, monkeypatch):
@@ -311,16 +312,12 @@ def test_preflight_lists_every_problem_and_passes_when_ready(tmp_path, monkeypat
     with pytest.raises(runtime.RealModeError) as e:
         runtime.preflight()
     msg = str(e.value)
-    assert "no CUDA GPU" in msg and "AGENTMETER_RUN_TOKEN_SECRET is not set" in msg and "Phi-3" in msg
+    assert "no CUDA GPU" in msg and "AGENTMETER_RUN_TOKEN_SECRET is not set" in msg
+    assert "Phi-3" not in msg                                          # no model has to be on disk
     assert "AGENTMETER_WORKER_URL is not set" in msg and "AGENTMETER_BACKEND_SECRET is not set" in msg
     monkeypatch.setenv("AGENTMETER_WORKER_URL", "http://insecure.example")
     assert "must be an https:// URL" in _preflight_msg()
-    # now make everything present
-    for m in runtime.study_models():
-        snap = tmp_path / "hub" / ("models--" + m.replace("/", "--")) / "snapshots" / "abc"
-        snap.mkdir(parents=True)
-        (snap / "config.json").write_text("{}")
-        (snap / "model.safetensors").write_bytes(b"x")
+    # now make everything present — with NO model on disk: each downloads on first use
     monkeypatch.setattr(runtime, "gpu_info", lambda: {"cuda_available": True, "name": "NVIDIA L4",
                                                       "vram_total_mb": 23034})
     monkeypatch.setattr(runtime, "_version", lambda d: "1.0")

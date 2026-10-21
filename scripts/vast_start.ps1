@@ -21,7 +21,8 @@ param(
   [string]$AllowedOrigins = "https://agentmeter.pages.dev",
   [string]$Repo = "https://github.com/ismazahin/AgentMeter.git",
   [string]$Branch = "claude/cool-ride-mitmzl",
-  [int]$IdleMin = 10
+  [int]$IdleMin = 10,
+  [switch]$PreloadStudy          # also download all 5 study models before starting (slower start)
 )
 $ErrorActionPreference = "Stop"
 
@@ -55,6 +56,7 @@ set -a; . /root/backend.env; . /root/hf.env; set +a
 export AGENTMETER_WORKER_URL='$WorkerUrl'
 export AGENTMETER_ALLOWED_ORIGINS='$AllowedOrigins'
 export IDLE_MIN='$IdleMin'
+export PRELOAD_STUDY='$(if ($PreloadStudy) { "1" } else { "0" })'
 cd /workspace
 if [ -d AgentMeter/.git ]; then
   cd AgentMeter && git fetch -q origin '$Branch' && git checkout -q '$Branch' && git pull -q --ff-only origin '$Branch'
@@ -76,6 +78,6 @@ if ($LASTEXITCODE -ne 0) { Fail "copying .env failed." }
 if ($LASTEXITCODE -ne 0) { Fail "copying the start script failed." }
 Remove-Item $tmp -ErrorAction SilentlyContinue
 
-Write-Host "2/2 starting the backend in tmux session 'am' (about 15-20 min: installs + model download)..."
+Write-Host "2/2 starting the backend in tmux session 'am' (about 5 min; models download on first use, or now if marked "download at start-up")..."
 Write-Host "    Leave this window open. To detach without stopping it: Ctrl+B, then D."
 & ssh @opts -t -p $Port "root@$HostAddr" "tmux new-session -A -s am 'bash /root/am_start.sh; exec bash'"

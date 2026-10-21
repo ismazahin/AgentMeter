@@ -409,10 +409,29 @@ def build_catalog(*, gpu_vram_mb: Optional[float] = None, fetcher: Optional[Call
     return {
         "framing": FRAMING, "quantization": QUANTIZATION, "rulebase": rules["source"],
         "server": {k: (round(v, 1) if isinstance(v, float) else v) for k, v in env.items()},
-        "study": [{"id": m, "validated": True, "on_disk": disk(m)} for m in canonical_models()],
+        "study": [study_entry(m, fetch, cache, token, disk(m), rules["constants"], state, lookup=enabled)
+                  for m in canonical_models()],
         "extra": extra,
         "counts": {s: sum(1 for x in extra if x["status"] == s) for s in ("ok", "warning", "blocked", "unknown")},
     }
+
+
+def study_entry(model_id: str, fetch: Optional[Callable], cache: Any, token: Optional[str], on_disk: bool,
+                consts: dict, state: Optional[dict] = None, *, lookup: bool = True) -> dict[str, Any]:
+    """A study model in the catalog: on disk?, the first-use download size, download at start-up."""
+    st = state if state is not None else get_state()
+    out: dict[str, Any] = {"id": model_id, "validated": True, "on_disk": on_disk, "download_gb": None,
+                           "download_min": None,
+                           "download_at_start": bool(((st.get("models") or {}).get(model_id) or {}).get("download_at_start"))}
+    if on_disk or not lookup:
+        return out
+    repo = (fetch_repo(model_id, fetcher=fetch, cache=cache, token=token) or {}).get("repo") or {}
+    sizes = [x["size"] for x in repo.get("files") or [] if _wanted(x["name"])]
+    if sizes and all(v is not None for v in sizes):
+        gb = sum(sizes) / 1024 ** 3
+        out["download_gb"] = round(gb, 1)
+        out["download_min"] = round(gb * 1024 / consts["assumed_download_mb_s"] / 60, 1)
+    return out
 
 
 def entries(catalog_path=None, state: Optional[dict] = None) -> list[dict[str, Any]]:
@@ -436,8 +455,14 @@ def entries(catalog_path=None, state: Optional[dict] = None) -> list[dict[str, A
 
 
 def start_up_ids(catalog_path=None, state: Optional[dict] = None) -> list[str]:
-    """Enabled extra models marked download_at_start: fetched with the study models at start-up."""
-    return [m["id"] for m in entries(catalog_path, state) if m["download_at_start"] and m["enabled"]]
+    """The models the admin marked "download at start-up" (study models included; enabled extra
+    models only). Every other model is downloaded the first time a benchmark uses it."""
+    from ..session.benchmark import canonical_models
+
+    st = state if state is not None else get_state()
+    study = [m for m in canonical_models() if ((st.get("models") or {}).get(m) or {}).get("download_at_start")]
+    return study + [m["id"] for m in entries(catalog_path, state)
+                    if m["download_at_start"] and m["enabled"] and m["id"] not in study]
 
 
 # ---------------------------------------------------------------------------

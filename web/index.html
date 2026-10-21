@@ -1475,7 +1475,20 @@
     var defs = (SETTINGS && SETTINGS.default_models) || [];
     box.querySelectorAll("input").forEach(function (inp) { if (defs.indexOf(inp.value) >= 0) inp.checked = true; });
     syncRun();
-    loadCatalog().then(renderExtras);
+    loadCatalog().then(function (cat) { renderStudyNotes(cat); renderExtras(cat); });
+  }
+  // study models: on this server already, or downloaded the first time a benchmark uses them
+  function renderStudyNotes(cat) {
+    if (!cat || !(HEALTH && HEALTH.provider === "real")) return;
+    (cat.study || []).forEach(function (x) {
+      var inp = document.querySelector('#svc-models input[value="' + x.id + '"]');
+      if (!inp || inp.parentNode.querySelector(".study-note")) return;
+      var note = document.createElement("span");
+      note.className = "small muted study-note";
+      note.textContent = x.on_disk ? " · on this server ✓" : " · first use downloads " +
+        (x.download_gb != null ? "~" + fmtNum(x.download_gb, 1) + " GB (~" + fmtNum(Math.max(1, x.download_min), 0) + " min)" : "the model");
+      inp.parentNode.appendChild(note);
+    });
   }
   // the extra models (GET /api/models/catalog): only ok / warning ones are offered
   var CATALOG = null;
@@ -1542,10 +1555,10 @@
     $("svc-model-hint").textContent = n >= max ? "Maximum of " + max + " models selected — deselect one to change."
       : n === 1 ? "1 model selected — add one more to compare head-to-head, or run it alone." : "Select 1 or 2 models.";
   }
-  // extra models that are not on this server yet: downloaded before the benchmark starts
+  // picked models (study or extra) that are not on this server yet: downloaded before the benchmark starts
   function downloadLine() {
     if (!CATALOG || !(HEALTH && HEALTH.provider === "real")) return [];
-    var need = (CATALOG.extra || []).filter(function (x) { return picked().indexOf(x.id) >= 0 && !x.on_disk; });
+    var need = (CATALOG.study || []).concat(CATALOG.extra || []).filter(function (x) { return picked().indexOf(x.id) >= 0 && !x.on_disk; });
     if (!need.length) return [];
     var gb = need.reduce(function (a, x) { return a + (x.download_gb || 0); }, 0), min = need.reduce(function (a, x) { return a + (x.download_min || 0); }, 0);
     return [["First run", "downloads ~" + fmtNum(gb, 1) + " GB (~" + fmtNum(Math.max(1, min), 0) + " min) before the benchmark starts; later runs on this rental reuse it. Download time is not measured."]];
@@ -2671,7 +2684,17 @@
       if (!rows.some(function (x) { return x.id === a.id; })) rows.push({ id: a.id, source: "admin", pending: !!cat });
     });
     if (!cat) $("adm-models-status").textContent = "GPU offline: suitability and Verify need the GPU. You can still enable or disable models.";
-    $("adm-models").innerHTML = '<table id="adm-models-table"><thead><tr><th>Model</th><th>Suitability</th><th>4-bit verification</th><th>Offered to users</th><th>Enabled</th><th>Download at start-up</th><th></th></tr></thead><tbody>' +
+    var study = (cat && cat.study) || ((CONFIG && CONFIG.canonical_models) || STUDY_MODELS).map(function (m) { return { id: m }; });
+    var studyHtml = '<p class="small muted">Study models (validated baseline): no verification needed. They are downloaded the first time a benchmark uses them; tick to download one when a rental starts instead.</p>' +
+      '<table id="adm-study-table"><thead><tr><th>Study model</th><th>On this server</th><th>Download at start-up</th></tr></thead><tbody>' +
+      study.map(function (x) {
+        var dl = (cfg[x.id] || {}).download_at_start != null ? cfg[x.id].download_at_start : !!x.download_at_start;
+        return '<tr data-study="' + esc(x.id) + '"><td class="mono">' + esc(x.id) + '</td><td>' +
+          (x.on_disk == null ? '<span class="muted">—</span>' : x.on_disk ? '<span class="chip ok">on disk</span>'
+            : '<span class="small muted">first use downloads' + (x.download_gb != null ? " ~" + fmtNum(x.download_gb, 1) + " GB" : "") + '</span>') +
+          '</td><td><input type="checkbox" data-dlstart="' + esc(x.id) + '" aria-label="Download ' + esc(x.id) + ' at start-up"' + (dl ? " checked" : "") + '></td></tr>';
+      }).join("") + '</tbody></table><p class="small muted">Extra models:</p>';
+    $("adm-models").innerHTML = studyHtml + '<table id="adm-models-table"><thead><tr><th>Model</th><th>Suitability</th><th>4-bit verification</th><th>Offered to users</th><th>Enabled</th><th>Download at start-up</th><th></th></tr></thead><tbody>' +
       rows.map(function (x) {
         var c = cfg[x.id] || {}, v = x.verification || (c.verified ? c.verified : { status: "not_verified" });
         // the control plane holds the admin's choices; the GPU's copy can be a heartbeat behind

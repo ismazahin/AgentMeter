@@ -136,3 +136,41 @@ def test_a_stop_during_the_download_ends_the_job_stopped(root, hub):  # noqa: F8
     until(lambda: mgr.get(job["job_id"]).get("model_download"))
     mgr.stop(job["job_id"], by="alice")
     assert mgr.wait(job["job_id"], 30)["status"] == "stopped"
+
+
+def test_start_up_downloads_only_the_models_the_admin_marked(monkeypatch, tmp_path):
+    """The server starts without any model on disk; vast_models.py fetches only the marked ones."""
+    import importlib.util
+    from pathlib import Path
+
+    from agentmeter.server import model_catalog
+    from agentmeter.session.benchmark import canonical_models
+
+    study = canonical_models()
+    state = {"models": {study[3]: {"download_at_start": True}, "Qwen/Qwen2.5-3B-Instruct": {"download_at_start": True}},
+             "added": []}
+    assert model_catalog.start_up_ids(state=state) == [study[3], "Qwen/Qwen2.5-3B-Instruct"]
+    assert model_catalog.start_up_ids(state={"models": {}, "added": []}) == []
+
+    spec = importlib.util.spec_from_file_location("vast_models", Path(__file__).resolve().parents[1] / "scripts" / "vast_models.py")
+    vm = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(vm)
+    fetched = []
+    monkeypatch.setattr(vm, "_load_admin_state", lambda: model_catalog.set_state(state))
+    monkeypatch.setattr(vm, "check_access", lambda models, tok: [])
+    monkeypatch.setattr(vm, "download", lambda models, tok: fetched.extend(models))
+    monkeypatch.setattr(vm.runtime, "models_local", lambda models=None: {m: m in fetched for m in models or []})
+    monkeypatch.setattr(vm.runtime, "model_on_disk", lambda m: m in fetched)
+    monkeypatch.setattr(vm, "_approx_gb", lambda m: 1.0)                   # no Hub lookups in tests
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "hub"))
+    try:
+        assert vm.main([]) == 0
+        assert fetched == [study[3], "Qwen/Qwen2.5-3B-Instruct"]          # not all 5 study models
+        fetched.clear()
+        assert vm.main(["--all-study"]) == 0 and fetched[:5] == study      # the old behaviour, on request
+        fetched.clear()
+        model_catalog.set_state({"models": {}, "added": []})
+        monkeypatch.setattr(vm, "_load_admin_state", lambda: None)
+        assert vm.main([]) == 0 and fetched == []                          # nothing marked: nothing now
+    finally:
+        model_catalog.set_state({"models": {}, "added": []})

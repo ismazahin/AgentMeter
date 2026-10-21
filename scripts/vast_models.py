@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-"""Phase E — put the 5 study models on this GPU box's disk and prove they load.
+"""Phase E — download the models marked "download at start-up" (Admin › Model catalog) to this
+GPU box's disk. Every other model — study models included — is downloaded the first time a
+benchmark uses it, so the server starts in minutes instead of waiting for ~70 GB.
 
-    HF_TOKEN=hf_... python scripts/vast_models.py            # check access, download, verify Phi-3
+    HF_TOKEN=hf_... python scripts/vast_models.py            # the models marked for start-up
+    HF_TOKEN=hf_... python scripts/vast_models.py --all-study  # also all 5 study models (old behaviour)
     python scripts/vast_models.py --check                    # only report what is on disk
-    python scripts/vast_models.py --verify all               # load every model in 4-bit NF4
+    python scripts/vast_models.py --verify <id>|all          # also load in 4-bit NF4 as a smoke test
 
 Order matters: ACCESS for all five is checked first (one small file each), so a
 gated model you have not been granted (meta-llama/Meta-Llama-3-8B-Instruct and
@@ -102,14 +105,18 @@ def _load_admin_state() -> None:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true", help="only report which models are on disk")
-    ap.add_argument("--verify", default="microsoft/Phi-3-mini-4k-instruct",
+    ap.add_argument("--all-study", action="store_true",
+                    help="download all 5 study models now (default: only the models marked for start-up)")
+    ap.add_argument("--verify", default="none",
                     help="model to load as a 4-bit smoke test after download: a model id, 'all' or 'none'")
     args = ap.parse_args(argv)
 
     study = runtime.study_models()
     _load_admin_state()
-    extra = [m for m in model_catalog.start_up_ids() if m not in study]   # catalog: download_at_start
-    models = study + extra
+    marked = model_catalog.start_up_ids()                                  # admin: download at start-up
+    models = ([m for m in study if args.all_study or m in marked]
+              + [m for m in marked if m not in study])
+    extra = [m for m in models if m not in study]
     cache = runtime._hub_cache()
     print(f"Hugging Face cache: {cache}")
     if args.check:
@@ -122,8 +129,12 @@ def main(argv=None) -> int:
     if not token:
         print("WARNING: HF_TOKEN is not set — the gated Llama-3 and gemma-2 downloads will fail.",
               file=sys.stderr)
-    print(f"1/3 checking access to {len(models)} models (5 study"
-          + (f" + {len(extra)} extra marked download_at_start" if extra else "") + ") before any large download ...")
+    if not models:
+        print("No model is marked \"download at start-up\": nothing to download now. Each model is "
+              "downloaded the first time a benchmark uses it (Admin › Model catalog sets what is fetched here).")
+        return 0
+    n_study = len(models) - len(extra)
+    print(f"1/3 checking access to {len(models)} models ({n_study} study + {len(extra)} extra) before any large download ...")
     problems = check_access(models, token)
     if problems:
         print("\nERROR: cannot get every model:\n  - " + "\n  - ".join(problems), file=sys.stderr)
@@ -145,7 +156,8 @@ def main(argv=None) -> int:
     if target:
         print("3/3 loading in uniform 4-bit NF4 (same settings as the benchmark) ...")
         verify(target)
-    print("\nREADY: all 5 study models" + (f" and {len(extra)} extra model(s)" if extra else "") + " are on disk.")
+    print(f"\nREADY: {n_study} study model(s)" + (f" and {len(extra)} extra model(s)" if extra else "")
+          + " are on disk; the others download on first use.")
     return 0
 
 

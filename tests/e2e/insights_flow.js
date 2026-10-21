@@ -78,10 +78,22 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log((await p.$$('#svc-mixups .mix')).length === 2 && /answered as/.test(await p.textContent('#svc-mixups')) && /Unparseable answers: \d+ of 40/.test(await p.textContent('#svc-mixups')),
         'accuracy: most common mix-ups and unparseable answers per model');
 
+    // Phase 4 — Performance: latency histogram small multiples + effect-size charts
+    await tab(p, csv, 'performance/latency', '#stats-histogram');
+    log((await p.$$('#stats-histogram .histo-panel')).length === 2 && (await p.$$('#stats-histogram .histo-panel:first-child .pm')).length === 3,
+        'latency: one histogram per model with p50/p95/p99 lines');
+    log(/: \d+ flows?$/.test(await hoverText(p, '#stats-histogram .hb')), 'latency: hovering a bin shows its range and flow count');
+    await tab(p, csv, 'performance/statistics', '#stats-effect-chart');
+    log((await p.$$('#stats-effect-chart .ef-row')).length === 5 && /no VRAM readings/.test(await p.textContent('#stats-effect-chart')),
+        "statistics: Cliff's delta for 3 metrics (VRAM unavailable, said so) + a CI strip for the 2 measured");
+    log(/95% CI/.test(await hoverText(p, '#stats-effect-chart .ci ~ .dot')), 'statistics: hovering a CI dot shows the interval');
+    await tab(p, pcap, 'performance/statistics', '#stats-effects-card');
+    log(!(await p.$('#stats-effect-chart')), 'statistics (1 model): no effect chart');
+
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;
-    for (const t of ['overview', 'ranking/robustness', 'accuracy']) {
+    for (const t of ['overview', 'ranking/robustness', 'accuracy', 'performance/latency', 'performance/statistics']) {
       await tab(p, csv, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }

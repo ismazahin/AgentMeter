@@ -290,6 +290,30 @@
   .mix-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
   .mix h3 { margin: 0 0 6px; font-size: 14px; }
   table tr.total td { border-top: 2px solid var(--border-2); font-weight: 600; }
+  .histo { display: grid; gap: 10px; margin: 6px 0 14px; }
+  .histo-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin-bottom: 4px; }
+  .histo-head .pk { margin-left: 8px; white-space: nowrap; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--c); margin-right: 6px; vertical-align: -1px; }
+  .histo-plot { position: relative; display: flex; align-items: flex-end; gap: 2px; height: 90px; border-bottom: 1px solid var(--border-2); }
+  .histo-plot .hb { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+  .histo-plot .hb i { display: block; width: 100%; background: var(--c); border-radius: 4px 4px 0 0; }
+  .histo-plot .hb:hover i, .histo-plot .hb:focus i { opacity: .75; }
+  .histo-plot .pm { position: absolute; top: 0; bottom: 0; border-left: 2px solid var(--text); pointer-events: none; }
+  .histo-axis { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-top: -4px; }
+  .pk { font-variant-numeric: tabular-nums; }
+  .ef { margin: 4px 0 12px; }
+  .ef h3 { font-size: 14px; margin: 14px 0 4px; }
+  .ef-row, .ef-axis { display: grid; grid-template-columns: minmax(120px, 200px) 1fr 110px; gap: 12px; align-items: center; min-height: 30px; }
+  .ef-row .lbl { font-size: 13px; font-weight: 600; }
+  .ef-row .lbl small { display: block; font-weight: 400; color: var(--muted); }
+  .ef-row.na { grid-template-columns: minmax(120px, 200px) 1fr; }
+  .ef-axis > div { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
+  .ef-track { position: relative; height: 22px; margin: 0 6px; background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat; }
+  .ef-track .band { position: absolute; top: 2px; bottom: 2px; background: var(--surface-2); border-radius: 3px; }
+  .ef-track .zero { position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1px solid var(--muted); }
+  .ef-track .ci { position: absolute; top: 50%; height: 4px; margin-top: -2px; background: var(--muted-2); border-radius: 2px; }
+  .ef-track .dot { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
+  @media (max-width: 640px) { .ef-row, .ef-axis { grid-template-columns: 1fr; gap: 2px; } .ef-axis > span { display: none; } }
   .stab { display: grid; gap: 12px; }
   .stab-row, .stab-axis { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 12px; align-items: start; }
   .stab-row .lbl { font-size: 13.5px; font-weight: 600; padding-top: 2px; }
@@ -2517,15 +2541,13 @@
   function latencyCard(res) {
     var ld = res.latency_distribution, ef = res.effect_sizes;
     if (!ld) return '<div class="card"><p class="muted">This session predates the latency distribution.</p></div>';
-    var colors = ["var(--series-1)", "var(--series-2)"];
     return '<div class="card" id="stats-depth"><h2>Latency distribution</h2>' +
       (ld.small_sample_note || (ef && ef.small_sample_note) ? '<div class="notice warn" id="stats-small" role="note">' + esc(ld.small_sample_note || ef.small_sample_note) + '</div>' : "") +
-      '<div class="table-wrap"><table id="stats-percentiles"><thead><tr><th>Model</th><th class="num">Flows</th><th class="num">p50</th><th class="num">p95</th><th class="num">p99</th><th>Distribution</th><th>Warm-up check</th></tr></thead><tbody>' +
-      ld.per_model.map(function (r, i) {
-        var mx = Math.max.apply(null, (r.histogram || [0]).concat([1]));
+      histogramChart(res) +
+      '<div class="table-wrap"><table id="stats-percentiles"><thead><tr><th>Model</th><th class="num">Flows</th><th class="num">p50</th><th class="num">p95</th><th class="num">p99</th><th>Warm-up check</th></tr></thead><tbody>' +
+      ld.per_model.map(function (r) {
         return '<tr><td class="mono">' + esc(short(r.model)) + '</td><td class="num">' + fmtNum(r.n) + '</td><td class="num">' + fmtTime(r.p50) + '</td><td class="num">' + fmtTime(r.p95) +
-          '</td><td class="num">' + fmtTime(r.p99) + '</td><td style="min-width:140px"><div class="hist" style="--c:' + colors[i % 2] + '" role="img" aria-label="Latency histogram, ' + (r.histogram || []).length + ' bins">' +
-          (r.histogram || []).map(function (c) { return '<i style="height:' + (100 * c / mx) + '%"></i>'; }).join("") + '</div></td><td class="small">' + esc((r.warmup || {}).note || "—") + '</td></tr>';
+          '</td><td class="num">' + fmtTime(r.p99) + '</td><td class="small">' + esc((r.warmup || {}).note || "—") + '</td></tr>';
       }).join("") + '</tbody></table></div>' +
       '<details class="info"><summary>How to read this</summary><p class="muted small">Histogram bins span ' + fmtTime(ld.bin_edges_s[0]) + ' to ' + fmtTime(ld.bin_edges_s[ld.bin_edges_s.length - 1]) +
       ' (shared across models). ' + esc(ld.warmup_rule) + '.</p></details></div>';
@@ -2535,6 +2557,7 @@
     if (!ef) return '<div class="card"><p class="muted">This session predates the effect sizes.</p></div>';
     if (ef.skipped) return '<div class="card" id="stats-effects-card"><h2>Effect size and confidence</h2><p class="muted small">' + esc(ef.skipped) + '.</p></div>';
     return '<div class="card" id="stats-effects-card"><h2>Effect size and confidence <span class="muted small">A = ' + esc(short(ef.model_a)) + ', B = ' + esc(short(ef.model_b)) + '</span></h2>' +
+      effectChart(res) +
       '<div class="table-wrap" style="margin-top:8px"><table id="stats-effects"><thead><tr><th>Metric</th><th class="num">Cliff\'s delta</th><th>Magnitude</th><th class="num">Mean diff A − B</th><th class="num">95% CI (bootstrap)</th><th class="num">Kruskal-Wallis p</th></tr></thead><tbody>' +
       ef.metrics.map(function (m) {
         if (!m.available) return '<tr><td>' + esc(EF_LABEL[m.metric] || m.metric) + '</td><td colspan="5" class="muted">' + esc(m.reason) + '</td></tr>';
@@ -2544,6 +2567,48 @@
           '</td><td class="num">' + d(m.diff_mean_a_minus_b) + '</td><td class="num">[' + d(m.ci95_low) + ', ' + d(m.ci95_high) + ']' + (m.ci_excludes_zero ? "" : ' <span class="muted">includes 0</span>') +
           '</td><td class="num">' + (m.kruskal_wallis_p == null ? "—" : m.kruskal_wallis_p.toPrecision(3)) + '</td></tr>';
       }).join("") + '</tbody></table></div><details class="info"><summary>Method</summary><p class="muted small">' + esc(ef.method) + '</p></details></div>';
+  }
+  // histogram small multiples: shared bins and count scale; p50 / p95 / p99 as line styles
+  var PCT_STYLE = { p50: "solid", p95: "dashed", p99: "dotted" };
+  function histogramChart(res) {
+    var h = window.INSIGHTS && INSIGHTS.latencyHistogram(res);
+    if (!h || !h.ymax) return "";
+    var e = h.edges, mid = (e[0] + e[e.length - 1]) / 2;
+    return '<div class="histo" id="stats-histogram" role="group" aria-label="Latency histograms">' + h.models.map(function (m) {
+      return '<div class="histo-panel" data-model="' + esc(m.model) + '"><div class="histo-head"><span class="mono small"><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '</span>' +
+        '<span class="small muted">' + m.marks.map(function (k) { return '<span class="pk pk-' + k.key + '">' + k.key + ' ' + fmtTime(k.value) + '</span>'; }).join(" ") + '</span></div>' +
+        '<div class="histo-plot">' + m.bins.map(function (b) {
+          var t = short(m.model) + " · " + fmtTime(b.from) + "–" + fmtTime(b.to) + ": " + b.count + " flow" + (b.count === 1 ? "" : "s");
+          return '<span class="hb" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"><i style="height:' + (100 * b.count / h.ymax) + '%;--c:' + modelColor(m.model) + '"></i></span>';
+        }).join("") + m.marks.map(function (k) {
+          return k.pos == null ? "" : '<span class="pm" style="left:' + (100 * k.pos) + '%;border-left-style:' + PCT_STYLE[k.key] + '" aria-hidden="true"></span>';
+        }).join("") + '</div></div>';
+    }).join("") + '<div class="histo-axis"><span>' + fmtTime(e[0]) + '</span><span>' + fmtTime(mid) + '</span><span>' + fmtTime(e[e.length - 1]) + '</span></div>' +
+      '<p class="muted small">Bars: flows per latency bin (same bins and scale for every model). Lines: <span class="pk pk-p50">p50</span> solid, <span class="pk pk-p95">p95</span> dashed, <span class="pk pk-p99">p99</span> dotted.</p></div>';
+  }
+  // effect sizes: Cliff's delta on one unitless axis; each metric's CI on its own axis (units differ)
+  var EF_UNIT = { latency_s: fmtTime, peak_vram_mb: function (v) { return fmtNum(v, 1) + " MB"; }, tokens_per_flow: function (v) { return fmtNum(v, 1) + " tokens"; } };
+  function effectChart(res) {
+    var ef = window.INSIGHTS && INSIGHTS.effectSizes(res);
+    if (!ef) return "";
+    var a = short(ef.model_a), b = short(ef.model_b), signed = function (f, v) { return (v < 0 ? "−" : v > 0 ? "+" : "") + f(Math.abs(v)); };
+    var bands = '<span class="band" style="left:' + 50 * (1 - 0.147) + '%;width:' + 100 * 0.147 + '%"></span>';
+    var drows = ef.rows.map(function (r) {
+      var lbl = '<span class="lbl">' + esc(EF_LABEL[r.metric] || r.metric) + '</span>';
+      if (!r.available) return '<div class="ef-row na">' + lbl + '<span class="small muted">' + esc(r.reason) + '</span></div>';
+      var t = (EF_LABEL[r.metric] || r.metric) + ": Cliff's delta " + (r.delta >= 0 ? "+" : "") + r.delta.toFixed(2) + " (" + r.magnitude + ")";
+      return '<div class="ef-row">' + lbl + '<div class="ef-track">' + bands + '<span class="zero"></span><span class="dot" tabindex="0" style="left:' + 50 * (1 + r.delta) + '%" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span></div><span class="small">' + esc(r.magnitude) + '</span></div>';
+    }).join("");
+    var crows = ef.rows.filter(function (r) { return r.available; }).map(function (r) {
+      var f = EF_UNIT[r.metric] || function (v) { return fmtNum(v, 2); };
+      var t = (EF_LABEL[r.metric] || r.metric) + ": mean " + a + " − " + b + " = " + signed(f, r.diff) + ", 95% CI " + signed(f, r.low) + " to " + signed(f, r.high);
+      return '<div class="ef-row">' + '<span class="lbl">' + esc(EF_LABEL[r.metric] || r.metric) + '<small>±' + esc(f(r.half_range)) + ' axis</small></span><div class="ef-track"><span class="zero"></span>' +
+        '<span class="ci" style="left:' + 100 * r.pos.low + '%;width:' + Math.max(0.5, 100 * (r.pos.high - r.pos.low)) + '%"></span><span class="dot" tabindex="0" style="left:' + 100 * r.pos.diff + '%" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span></div>' +
+        '<span class="small">' + (r.excludes_zero ? "real difference" : '<span class="muted">could be 0</span>') + '</span></div>';
+    }).join("");
+    return '<div class="ef" id="stats-effect-chart"><h3>How big is the difference?</h3><p class="muted small">Cliff\'s delta: −1 = every ' + esc(a) + ' value is lower than every ' + esc(b) + ' value, +1 = every one is higher, 0 = no difference. The shaded band is "negligible" (|δ| &lt; 0.147).</p>' +
+      '<div class="ef-axis"><span></span><div><span>−1 · ' + esc(a) + ' lower</span><span>0</span><span>' + esc(a) + ' higher · +1</span></div><span></span></div>' + drows +
+      '<h3>Is it more than noise?</h3><p class="muted small">Mean of ' + esc(a) + ' minus ' + esc(b) + ' (dot) with its 95% bootstrap interval (bar). If the bar crosses the zero line, the difference could be zero. Each row has its own scale (the units differ).</p>' + crows + '</div>';
   }
   // The analysis page (charts, SAW ranking, robustness, …) embedded ONCE per session; each view
   // asks it (by message, no reload) to show only its sections.

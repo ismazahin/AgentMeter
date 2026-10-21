@@ -185,8 +185,40 @@
     return { available: models.length > 0, models: models };
   }
 
+  // ---- Performance -> Latency: histogram small multiples (shared bins, shared count scale) ----
+  function latencyHistogram(res) {
+    var ld = res.latency_distribution;
+    if (!ld || !(ld.bin_edges_s || []).length) return null;
+    var e = ld.bin_edges_s, lo = e[0], span = (e[e.length - 1] - lo) || 1;
+    var pos = function (v) { return v == null ? null : Math.max(0, Math.min(1, (v - lo) / span)); };
+    var ymax = 0;
+    var models = (ld.per_model || []).map(function (r) {
+      var bins = (r.histogram || []).map(function (c, i) { ymax = Math.max(ymax, c); return { from: e[i], to: e[i + 1], count: c }; });
+      return { model: bare(r.model), n: r.n, bins: bins, small_sample: !!r.small_sample,
+               marks: ["p50", "p95", "p99"].map(function (k) { return { key: k, value: r[k], pos: pos(r[k]) }; }) };
+    });
+    return { edges: e, ymax: ymax, models: models, metric: ld.metric };
+  }
+
+  // ---- Performance -> Statistics: effect sizes (Cliff's delta, unitless) + per-metric CI ----
+  var MAGNITUDE = [["negligible", 0.147], ["small", 0.33], ["medium", 0.474], ["large", 1]];   // Romano et al.
+  function effectSizes(res) {
+    var ef = res.effect_sizes;
+    if (!ef || ef.skipped || !ef.metrics) return null;
+    return { model_a: bare(ef.model_a), model_b: bare(ef.model_b), bands: MAGNITUDE,
+      rows: ef.metrics.map(function (m) {
+        if (!m.available) return { metric: m.metric, available: false, reason: m.reason };
+        var half = Math.max(Math.abs(m.ci95_low), Math.abs(m.ci95_high), Math.abs(m.diff_mean_a_minus_b)) * 1.15 || 1;
+        return { metric: m.metric, available: true, delta: m.cliffs_delta, magnitude: m.magnitude, diff: m.diff_mean_a_minus_b,
+                 low: m.ci95_low, high: m.ci95_high, excludes_zero: !!m.ci_excludes_zero, p: m.kruskal_wallis_p,
+                 // symmetric axis around 0 for the CI strip; positions are fractions of it
+                 half_range: half, pos: { low: (m.ci95_low + half) / (2 * half), high: (m.ci95_high + half) / (2 * half), diff: (m.diff_mean_a_minus_b + half) / (2 * half) } };
+      }) };
+  }
+
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
-              weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics };
+              weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
+              latencyHistogram: latencyHistogram, effectSizes: effectSizes };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

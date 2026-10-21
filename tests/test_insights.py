@@ -170,3 +170,30 @@ def test_class_metrics_from_the_confusion_matrix():
     assert m["mixups"][0] == {"truth": "Scan", "predicted": "Benign", "count": 4, "share": 1}
     assert [(x["truth"], x["predicted"]) for x in m["mixups"]] == [("Scan", "Benign"), ("Benign", "DoS"), ("DoS", "Benign")]
     assert call("classMetrics", {"session": {"accuracy_available": False}})["available"] is False
+
+
+def test_latency_histogram_shares_bins_and_scale():
+    s = {"latency_distribution": {"bin_edges_s": [1.0, 2.0, 3.0, 5.0], "per_model": [
+        {"model": "mock:" + A, "n": 6, "histogram": [1, 4, 1], "p50": 2.0, "p95": 3.0, "p99": 5.0},
+        {"model": B, "n": 3, "histogram": [3, 0, 0], "p50": 1.5, "p95": None, "p99": 9.0}]}}
+    h = call("latencyHistogram", s)
+    assert h["ymax"] == 4 and [m["model"] for m in h["models"]] == [A, B]
+    assert h["models"][0]["bins"][2] == {"from": 3.0, "to": 5.0, "count": 1}
+    marks = {m["key"]: m["pos"] for m in h["models"][0]["marks"]}
+    assert marks == {"p50": 0.25, "p95": 0.5, "p99": 1}
+    b = {m["key"]: m["pos"] for m in h["models"][1]["marks"]}
+    assert b["p95"] is None and b["p99"] == 1          # clamped to the axis
+    assert call("latencyHistogram", {}) is None
+
+
+def test_effect_sizes_positions_on_a_symmetric_axis():
+    s = {"effect_sizes": {"model_a": A, "model_b": B, "metrics": [
+        {"metric": "latency_s", "available": True, "cliffs_delta": -0.5, "magnitude": "large", "diff_mean_a_minus_b": -1.0,
+         "ci95_low": -2.0, "ci95_high": -0.5, "ci_excludes_zero": True, "kruskal_wallis_p": 0.001},
+        {"metric": "peak_vram_mb", "available": False, "reason": "no VRAM readings"}]}}
+    e = call("effectSizes", s)
+    r = e["rows"][0]
+    assert r["half_range"] == 2.0 * 1.15 and r["excludes_zero"] is True
+    assert abs(r["pos"]["low"] - (-2.0 + 2.3) / 4.6) < 1e-12 and abs(r["pos"]["diff"] - 1.3 / 4.6) < 1e-12
+    assert e["rows"][1] == {"metric": "peak_vram_mb", "available": False, "reason": "no VRAM readings"}
+    assert call("effectSizes", {"effect_sizes": {"skipped": "needs two models"}}) is None

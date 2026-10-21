@@ -124,10 +124,39 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log(/no data — /.test(await hoverText(p, '#fit-table tr[data-profile="gpu8"] [data-result]')), 'recommendations: hovering a "no data" cell says why');
     log(!!(await p.$('#dh-form')), 'recommendations: "Your limits" form still below the matrix');
 
+    // Phase 8 — new measurements: latency over the run, GPU timeline, repeatability, load scaling
+    await tab(p, csv, 'performance/latency', '#stats-trend');
+    log((await p.$$('#stats-trend .trend-panel')).length === 2 && (await texts(p, '#stats-trend .trend-note')).every(t => /over the run|Too few flows/.test(t)),
+        'latency over the run: one panel per model with its drift verdict');
+    const tb = await p.locator('#trend-0 svg').boundingBox();
+    await p.mouse.move(tb.x + tb.width * 0.5, tb.y + tb.height * 0.5);
+    log(/flow \d+: .*rolling median/.test(await p.textContent('.tip-pop').catch(() => '')), 'latency over the run: crosshair shows the flow, its time and the rolling median');
+    await tab(p, csv, 'cost', '#gpu-timeline');
+    log(/Not sampled: mock\/CPU run/.test(await p.textContent('#gpu-timeline')), 'GPU over the run (mock): says it was not sampled and why');
+    await tab(p, csv, 'performance/gpu', '#load-card');
+    log(/Not measured in this session/.test(await p.textContent('#load-card')), 'load scaling: not measured unless asked for');
+    await tab(p, csv, 'performance/statistics', '#svc-repeat');
+    log(/No other session ran on these flows/.test(await p.textContent('#svc-repeat')), 'repeatability: no other run yet, offers to benchmark the flows again');
+    // run the same flows again, this time with load scaling
+    await p.click('#svc-repeat a.btn[href^="#/new/models?set="]');
+    await p.waitForFunction(() => /Ready/.test(document.querySelector('#wiz-data-chip').textContent), null, { timeout: 60000 });
+    for (const i of [0, 3]) await p.locator('#svc-models input').nth(i).check();
+    await p.check('#svc-load-test'); await p.click('#svc-run');
+    await p.waitForFunction(() => /^#\/session\//.test(location.hash), null, { timeout: 180000 });
+    const again = decodeURIComponent(p.url().split('#/session/')[1].split('/')[0]);
+    await tab(p, again, 'performance/gpu', '#load-table');
+    log((await p.$$('#load-table tbody tr')).length === 6 && (await p.$$('#load-card .lc')).length === 2, 'load scaling: 2 models x 3 levels, throughput and p95 charts');
+    await tab(p, csv, 'performance/statistics', '#svc-repeat .rep-row');
+    log(/2 sessions on this setup/.test(await p.textContent('#svc-repeat')) && (await p.$$('#svc-repeat .dot.cur')).length > 0,
+        'repeatability: the first session now sees the re-run, ringed dot marks itself');
+    const r1 = await (await fetch(ORIGIN + '/api/jobs/' + encodeURIComponent(csv) + '/result')).json();
+    const r2 = await (await fetch(ORIGIN + '/api/jobs/' + encodeURIComponent(again) + '/result')).json();
+    log(r1.session.run_id !== r2.session.run_id, 'each session keeps its own results after a re-run on the same flows');
+
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;
-    for (const t of ['overview', 'ranking/robustness', 'accuracy', 'performance/latency', 'performance/statistics', 'agents', 'cost', 'recommendations/limits']) {
+    for (const t of ['overview', 'ranking/robustness', 'accuracy', 'performance/latency', 'performance/statistics', 'agents', 'cost', 'recommendations/limits', 'performance/gpu']) {
       await tab(p, csv, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }

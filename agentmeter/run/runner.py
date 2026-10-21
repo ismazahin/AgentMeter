@@ -84,6 +84,7 @@ def _spawn_model_worker(
     n: Optional[int],
     baseline_vram_mb: Optional[float] = None,
     vram_out: Optional[str] = None,
+    load_test: bool = False,
 ) -> int:
     """Spawn ONE per-model worker (sqlite mode) and BLOCK until it exits.
 
@@ -107,6 +108,8 @@ def _spawn_model_worker(
         cmd += ["--baseline-vram-mb", repr(float(baseline_vram_mb))]
     if vram_out is not None:
         cmd += ["--vram-out", vram_out]
+    if load_test:
+        cmd += ["--load-test"]
     global _PROC
     if _STOP.is_set():
         raise Stopped("stopped by a user before the next model started")
@@ -256,10 +259,13 @@ def run_full(
     auto_analyze: Optional[bool] = None,
     model_vram_path: Optional[str] = None,
     before_model=None,
+    load_test: bool = False,
 ) -> RunFullResult:
     """`before_model(model_label)`: optional hook called right before each model's worker
     is spawned, while the GPU is idle (Phase 46 follow-up: idle board-power sampling for
-    the energy analysis). It runs outside every measured process and timing."""
+    the energy analysis). It runs outside every measured process and timing.
+    `load_test`: each worker also runs the opt-in load-scaling step (run/load_test.py)
+    after its measured flows; it is not part of the config fingerprint."""
     cfg = load_config(config_path)
     _gpu_guard(cfg)
 
@@ -329,7 +335,7 @@ def run_full(
             print(f"[{mi+1}/{len(models)}] {label}: spawning worker (running {len(remaining)}/{n_scn} scenario(s))")
             rc = _spawn_model_worker(
                 worker_config, model_name, run_id, n,
-                baseline_vram_mb=baseline_vram_mb, vram_out=vram_sidecar,
+                baseline_vram_mb=baseline_vram_mb, vram_out=vram_sidecar, load_test=load_test,
             )
             if rc != 0:
                 # A crashed/killed worker leaves this model incomplete; the run row

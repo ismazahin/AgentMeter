@@ -29,6 +29,10 @@ class HFProvider(ModelProvider):
 
         self._torch = torch
         self.config = config
+        # The fast tokenizer is not safe to share across threads ("Already borrowed"): the
+        # opt-in load-scaling step (run/load_test.py) calls generate() concurrently. Uncontended
+        # in the measured, one-flow-at-a-time run.
+        self._tok_lock = threading.Lock()
         self.name: str = config.get("model.name")
         hf = config.get("model.hf", {}) or {}
         self.token_env: str = hf.get("token_env", "HF_TOKEN")
@@ -210,13 +214,14 @@ class HFProvider(ModelProvider):
         messages.append({"role": "user", "content": prompt})
 
         enc = None
-        if getattr(tok, "chat_template", None):
-            enc = self._apply_chat_template(messages)
-        if enc is None:
-            # No template, or it rejected the messages (e.g. a 'system' role) —
-            # fold system into the user turn and tokenize plainly.
-            merged = (f"{system}\n\n" if system else "") + prompt
-            enc = tok(merged, return_tensors="pt")
+        with self._tok_lock:
+            if getattr(tok, "chat_template", None):
+                enc = self._apply_chat_template(messages)
+            if enc is None:
+                # No template, or it rejected the messages (e.g. a 'system' role) —
+                # fold system into the user turn and tokenize plainly.
+                merged = (f"{system}\n\n" if system else "") + prompt
+                enc = tok(merged, return_tensors="pt")
 
         # Normalize a bare tensor into a dict.
         if hasattr(enc, "shape") and not hasattr(enc, "items"):
@@ -289,7 +294,8 @@ class HFProvider(ModelProvider):
         if out is not None:
             output_tokens = int(out.shape[-1]) - input_len
         else:
-            output_tokens = len(self.tokenizer(text, add_special_tokens=False).input_ids)
+            with self._tok_lock:
+                output_tokens = len(self.tokenizer(text, add_special_tokens=False).input_ids)
 
         return GenerationResult(
             text=text,

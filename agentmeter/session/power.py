@@ -5,8 +5,9 @@ worker subprocesses do the measured work, so it never touches the measured proce
 no CUDA calls, no extra Python work inside the timed agent calls. One NVML power
 read is a few microseconds on a separate CPU thread.
 
-  method "nvml"        pynvml.nvmlDeviceGetPowerUsage (mW) + device memory used, every `interval_s`
-  method "nvidia-smi"  one long-running `nvidia-smi --query-gpu=power.draw -lms N`
+  method "nvml"        pynvml.nvmlDeviceGetPowerUsage (mW) + device memory used + GPU utilisation,
+                       every `interval_s`
+  method "nvidia-smi"  one long-running `nvidia-smi --query-gpu=power.draw,memory.used,utilization.gpu -lms N`
                        process (no process spawn per sample)
   no GPU / mock        nothing is sampled; the session reports energy "not measured"
 
@@ -31,6 +32,7 @@ class PowerSampler:
         self.gpu_index = int(gpu_index)
         self.samples: list[tuple[float, float]] = []
         self.mem_samples: list[tuple[float, float]] = []      # (unix_s, device used MB) — NVML view
+        self.util_samples: list[tuple[float, float]] = []     # (unix_s, GPU utilisation %)
         self.idle: dict[str, dict[str, float]] = {}            # model -> {"t0", "t1"} idle windows
         self.method: Optional[str] = None
         self.error: Optional[str] = None
@@ -51,23 +53,29 @@ class PowerSampler:
                 mem = pynvml.nvmlDeviceGetMemoryInfo(h).used / (1024 * 1024)
             except Exception:  # noqa: BLE001 — memory is a bonus; power is what matters
                 mem = None
-            return w, mem
+            try:
+                util = float(pynvml.nvmlDeviceGetUtilizationRates(h).gpu)
+            except Exception:  # noqa: BLE001 — utilisation is a bonus too
+                util = None
+            return w, mem, util
         return read
 
     def _loop_nvml(self, read) -> None:
         while not self._stop.is_set():
             try:
                 t = time.time()
-                w, mem = read()
+                w, mem, util = read()
                 self.samples.append((t, float(w)))
                 if mem is not None:
                     self.mem_samples.append((t, float(mem)))
+                if util is not None:
+                    self.util_samples.append((t, util))
             except Exception as e:  # noqa: BLE001 — a failed read is recorded, never raised
                 self.error = f"NVML read failed: {e}"
             self._stop.wait(self.interval_s)
 
     def _loop_smi(self) -> None:
-        cmd = ["nvidia-smi", f"--id={self.gpu_index}", "--query-gpu=power.draw,memory.used",
+        cmd = ["nvidia-smi", f"--id={self.gpu_index}", "--query-gpu=power.draw,memory.used,utilization.gpu",
                "--format=csv,noheader,nounits", f"-lms={max(50, int(self.interval_s * 1000))}"]
         self._proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
         for line in self._proc.stdout:                    # type: ignore[union-attr]
@@ -81,6 +89,10 @@ class PowerSampler:
                 continue                                  # "[N/A]" etc.
             try:
                 self.mem_samples.append((t, float(parts[1])))
+            except (ValueError, IndexError):
+                pass
+            try:
+                self.util_samples.append((t, float(parts[2])))
             except (ValueError, IndexError):
                 pass
 
@@ -126,4 +138,5 @@ class PowerSampler:
     def result(self) -> dict[str, Any]:
         return {"method": self.method, "interval_s": self.interval_s, "gpu_index": self.gpu_index,
                 "n_samples": len(self.samples), "samples": list(self.samples),
-                "mem_samples": list(self.mem_samples), "idle": dict(self.idle), "error": self.error}
+                "mem_samples": list(self.mem_samples), "util_samples": list(self.util_samples),
+                "idle": dict(self.idle), "error": self.error}

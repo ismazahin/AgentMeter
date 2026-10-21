@@ -341,10 +341,104 @@
     return { profiles: PROFILES, models: models };
   }
 
+  // ---- Performance -> Latency: latency over the run (stored latency_trend), shared y range ----
+  function latencyTrend(res) {
+    var lt = res.latency_trend;
+    if (!lt || !(lt.per_model || []).length) return null;
+    var ymax = 0;
+    var models = lt.per_model.map(function (m) {
+      (m.points || []).forEach(function (p) { ymax = Math.max(ymax, p[1] || 0, p[2] || 0); });
+      return { model: bare(m.model), n: m.n, window: m.window, thinned: !!m.thinned, drift: m.drift || {},
+               points: (m.points || []).map(function (p) { return { flow: p[0], latency_s: p[1], median_s: p[2] }; }) };
+    });
+    return { ymax: ymax, method: lt.method, models: models };
+  }
+
+  // ---- Cost & Energy: the GPU over the session (stored gpu_timeline) -----------------------
+  function gpuTimeline(res) {
+    var g = res.gpu_timeline;
+    if (!g) return null;
+    if (!g.sampled) return { sampled: false, reason: g.reason };
+    var pts = (g.points || []).map(function (p) { return { t: p[0], power_w: p[1], util_pct: p[2], mem_mb: p[3] }; });
+    var max = function (k) { return pts.reduce(function (m, p) { return p[k] != null && p[k] > m ? p[k] : m; }, 0); };
+    return { sampled: true, method: g.method, interval_s: g.interval_s, n_samples: g.n_samples, has_util: !!g.has_util, has_mem: !!g.has_mem,
+             t_max: pts.length ? pts[pts.length - 1].t : 0, power_max: max("power_w"), mem_max: max("mem_mb"), points: pts,
+             windows: (g.windows || []).map(function (w) { return { model: bare(w.model), from_s: w.from_s, to_s: w.to_s }; }),
+             idle: (g.idle || []).map(function (w) { return { model: bare(w.model), from_s: w.from_s, to_s: w.to_s }; }),
+             per_model: (g.per_model || []).map(function (m) { var o = {}; Object.keys(m).forEach(function (k) { o[k] = m[k]; }); o.model = bare(m.model); return o; }) };
+  }
+
+  // ---- Repeatability: the same models on the same flows, GPU and settings, across sessions ----
+  // Input: the /api/compare/merged answer (runs + rows of stored values, one column per run).
+  // Spread per model and metric (sample SD, coefficient of variation, min-max range) and how
+  // often the faster model of this session was also the faster one in the other sessions.
+  var REPEAT_METRICS = [["mean_latency_s", "Mean latency per flow", "s"], ["p95_latency_s", "p95 latency", "s"],
+    ["mean_tokens_per_flow", "Tokens per flow", "tokens"], ["total_peak_mb", "Total peak VRAM", "MB"],
+    ["wh_per_flow", "Energy per flow", "Wh"], ["accuracy", "Accuracy (context)", "share"], ["saw_composite_100", "SAW score", "points"]];
+  function repeatability(merged, sessionId) {
+    var runs = (merged && merged.runs) || [], rows = {};
+    ((merged && merged.rows) || []).forEach(function (r) { rows[r.metric] = r.values || []; });
+    var models = [];
+    runs.forEach(function (r) { if (models.indexOf(r.model) < 0) models.push(r.model); });
+    var sessions = [];
+    runs.forEach(function (r) { if (sessions.indexOf(r.session) < 0) sessions.push(r.session); });
+    var mine = runs.filter(function (r) { return r.session === sessionId; }).map(function (r) { return r.model; });
+    var out = models.filter(function (m) { return mine.indexOf(m) >= 0; }).map(function (m) {
+      var idx = []; runs.forEach(function (r, i) { if (r.model === m) idx.push(i); });
+      var metrics = REPEAT_METRICS.filter(function (d) { return rows[d[0]]; }).map(function (d) {
+        var vals = idx.map(function (i) { return { session: runs[i].session, value: num(rows[d[0]][i]), current: runs[i].session === sessionId }; })
+          .filter(function (v) { return v.value != null; });
+        if (!vals.length) return null;
+        var xs = vals.map(function (v) { return v.value; }), n = xs.length, mean = xs.reduce(function (a, b) { return a + b; }, 0) / n;
+        var sd = n > 1 ? Math.sqrt(xs.reduce(function (a, x) { return a + (x - mean) * (x - mean); }, 0) / (n - 1)) : null;
+        var lo = Math.min.apply(null, xs), hi = Math.max.apply(null, xs);
+        return { metric: d[0], label: d[1], unit: d[2], n: n, values: vals, mean: mean, sd: sd, min: lo, max: hi,
+                 cov: sd != null && mean ? sd / Math.abs(mean) : null, range_pct: mean ? (hi - lo) / Math.abs(mean) : null };
+      }).filter(Boolean);
+      return { model: bare(m), n_runs: idx.length, metrics: metrics };
+    });
+    // the faster model (mean latency) in every session that ran both of this session's models
+    var leader = null;
+    if (mine.length === 2 && rows.mean_latency_s) {
+      var lead = function (sid) {
+        var v = mine.map(function (m) { var i = -1; runs.forEach(function (r, j) { if (r.session === sid && r.model === m) i = j; }); return i < 0 ? null : num(rows.mean_latency_s[i]); });
+        if (v[0] == null || v[1] == null) return undefined;
+        return v[0] === v[1] ? null : bare(v[0] < v[1] ? mine[0] : mine[1]);
+      };
+      var cur = lead(sessionId), both = sessions.filter(function (sid) { return lead(sid) !== undefined; });
+      leader = { metric: "mean_latency_s", current: cur, sessions: both.length,
+                 agree: both.filter(function (sid) { return lead(sid) === cur; }).length };
+    }
+    return { n_sessions: sessions.length, models: out, leader: leader };
+  }
+
+  // ---- Performance -> GPU & Throughput: the opt-in load-scaling step (stored load_scaling) ----
+  function loadScaling(res) {
+    var ls = res.load_scaling;
+    if (!ls) return null;
+    if (!ls.measured) return { measured: false, reason: ls.reason };
+    var levels = [], tp = 0, p95 = 0;
+    var models = (ls.per_model || []).map(function (m) {
+      var lv = (m.levels || []).map(function (l) {
+        if (levels.indexOf(l.concurrency) < 0) levels.push(l.concurrency);
+        if (!l.error) { tp = Math.max(tp, l.throughput_flows_per_s || 0); p95 = Math.max(p95, l.p95_latency_s || 0); }
+        return l;
+      });
+      var ok = lv.filter(function (l) { return !l.error; }), top = ok[ok.length - 1];
+      return { model: bare(m.model), levels: lv, failed_at: (lv.filter(function (l) { return l.error; })[0] || {}).concurrency || null,
+               error: (lv.filter(function (l) { return l.error; })[0] || {}).error || null,
+               best_speedup: top ? top.speedup_vs_1 : null, best_concurrency: top ? top.concurrency : null };
+    });
+    levels.sort(function (a, b) { return a - b; });
+    return { measured: true, levels: levels, max_throughput: tp, max_p95: p95, models: models, method: ls.method, note: ls.note };
+  }
+
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
-              workloadProjection: workloadProjection, costPerCorrect: costPerCorrect, deploymentFit: deploymentFit };
+              workloadProjection: workloadProjection, costPerCorrect: costPerCorrect, deploymentFit: deploymentFit,
+              latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, repeatability: repeatability,
+              loadScaling: loadScaling };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

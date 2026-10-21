@@ -283,7 +283,7 @@
   .dot-row, .dot-axis { display: grid; grid-template-columns: minmax(110px, 170px) 1fr; gap: 12px; align-items: center; }
   .dot-row .lbl { font-size: 13.5px; font-weight: 600; }
   .dot-row .lbl small { display: block; font-weight: 400; color: var(--muted); }
-  .dot-row:last-child { border-top: 1px solid var(--border); padding-top: 6px; }
+  #svc-class-metrics .dot-row:last-child { border-top: 1px solid var(--border); padding-top: 6px; }
   .dot-axis > div { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
   .dot-track { position: relative; height: 30px; margin: 0 6px; background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat; }
   .dot-track .dot { position: absolute; top: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px var(--surface); }
@@ -341,6 +341,25 @@
   #fit-table td.fit-cell { white-space: nowrap; }
   #fit-table .fit-v { margin-left: 8px; }
   #fit-table tr.fit-group th { padding-top: 14px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); border-bottom: 1px solid var(--border); }
+  .lc svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .lc .lc-grid { stroke: var(--border); stroke-width: 1; }
+  .lc .lc-tick { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .lc .lc-line { fill: none; stroke-width: 2; stroke-linejoin: round; }
+  .lc .lc-dot { opacity: .55; }
+  .lc .lc-dot.big { opacity: 1; stroke: var(--surface); stroke-width: 2; }
+  .lc .lc-band.win { opacity: .14; }
+  .lc .lc-band.idle { fill: var(--muted); opacity: .18; }
+  .lc .lc-band-l { font-size: 11px; fill: var(--muted-2); }
+  .lc .lc-cross { stroke: var(--text); stroke-width: 1; stroke-dasharray: 3 3; }
+  .lc .lc-hit { fill: transparent; }
+  .lc-h { font-size: 13px; margin: 12px 0 2px; color: var(--muted-2); }
+  .trend-panel { margin: 10px 0 6px; }
+  .load-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 10px; }
+  .trend-note { margin: 2px 0 0; }
+  .dot-track .dot.cur { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); z-index: 1; }
+  .rep-row { align-items: start; }
+  .rep-spread { margin: 0 6px 4px; }
+  .finding-line { margin: 4px 0 10px; }
   .stab { display: grid; gap: 12px; }
   .stab-row, .stab-axis { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 12px; align-items: start; }
   .stab-row .lbl { font-size: 13.5px; font-weight: 600; padding-top: 2px; }
@@ -824,6 +843,8 @@
         <h2>Settings</h2>
         <p class="small" id="svc-run-mode"></p>
         <dl class="kv small" id="wiz-settings"></dl>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="svc-load-test">
+          <span>Also measure load scaling (1, 2 and 4 flows at once)</span></label><span class="info-i" tabindex="0" role="button" data-tip="After the measured flows, each model runs a few extra flows with 1, 2 and 4 in flight at once, to show whether throughput grows with concurrency. Adds time; it is reported separately and never changes a score, rank or verdict.">i</span>
         <div class="row">
           <a class="btn" id="wiz-back" href="#/new">Back</a>
           <button type="button" class="btn primary" id="svc-run" disabled>Run benchmark</button>
@@ -1923,6 +1944,7 @@
     // The wizard's own preparation: always after_prepare (one session, counted once; the
     // server uses the prepared set directly when it is already done). Reused sets: run.
     if (WIZ.prep) body.after_prepare = WIZ.prep; else body.run = WIZ.set;
+    if ($("svc-load-test").checked) body.load_test = true;
     $("svc-run").disabled = true;
     api("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
       if (!r.ok) { showError(err, r.data); syncRun(); return; }
@@ -2244,17 +2266,18 @@
     acc.title = s.accuracy_available ? "" : "No labels in this data — efficiency only";
     var base = "#/session/" + enc(job.job_id) + "/";
     if (window.INSIGHTS) setModelSlots(res);
+    LC = {};                                         // line charts of this session (wired after render)
     $("spanel-overview").innerHTML = pane("main", overviewTab(res));
     $("spanel-ranking").innerHTML = pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
         'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", stabilityCard(res)) + pane("pareto", "") + pane("guide", "");
     $("spanel-accuracy").innerHTML = pane("main", classMetricsCard(res));
-    $("spanel-performance").innerHTML = pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res)) + pane("gpu", memoryCard(res)) + pane("statistics", effectsCard(res));
+    $("spanel-performance").innerHTML = pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + '<div id="svc-repeat-host"></div>');
     $("spanel-agents").innerHTML = pane("main", agentsTab(res));
-    $("spanel-cost").innerHTML = pane("main", costCard(res) + projectionCard(res) + correctCard(res));
+    $("spanel-cost").innerHTML = pane("main", costCard(res) + gpuTimelineCard(res) + projectionCard(res) + correctCard(res));
     $("spanel-recommendations").innerHTML = pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
     $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
     resetEmbed();
-    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res);
+    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); wireRepeat(res, job);
   }
 
   function setDl(a, path, name) {
@@ -2549,6 +2572,177 @@
       }).join("") + '</tbody></table></div>' +
       '<details class="info"><summary>How this is calculated</summary><p class="muted small" id="svc-energy-method"><b>Method.</b> ' + esc(((cen.per_model || [])[0] || {}).cost_reason || "") + ' ' + esc((cen.notes || {}).cost || "") + ' ' +
       esc((cen.notes || {}).energy || "") + ' ' + esc((cen.notes || {}).energy_net || "") + '</p></details></div>';
+  }
+  // ---- a small SVG line chart with a crosshair: series of [x, y]; one y axis; optional bands ----
+  // spec: { id, w, h, xMax, yMax, xFmt, yFmt, yLabel, bands: [{from, to, cls, color, label}],
+  //         series: [{name, color, points, kind: "line" | "dots"}], rows: [{x, text}] (crosshair text, by x) }
+  var LC = {};
+  function niceMax(v) { if (!(v > 0)) return 1; var e = Math.pow(10, Math.floor(Math.log10(v))), f = v / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }
+  function lineChart(spec) {
+    var W = spec.w || 720, H = spec.h || 150, L = 56, R = 10, T = 10, B = 24, pw = W - L - R, ph = H - T - B;
+    var ym = niceMax(spec.yMax), x0 = spec.xMin || 0, xm = spec.xMax || 1;
+    var X = function (x) { return L + pw * (x - x0) / ((xm - x0) || 1); }, Y = function (y) { return T + ph * (1 - y / ym); };
+    LC[spec.id] = { spec: spec, X: X, L: L, pw: pw, x0: x0, xm: xm };
+    var grid = [0, 0.5, 1].map(function (f) {
+      return '<line class="lc-grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(ym * f) + '" y2="' + Y(ym * f) + '"/><text class="lc-tick" x="' + (L - 6) + '" y="' + (Y(ym * f) + 4) + '" text-anchor="end">' + esc(spec.yFmt(ym * f)) + '</text>';
+    }).join("");
+    var xt = [0, 0.5, 1].map(function (f) { var v = x0 + (xm - x0) * f; return '<text class="lc-tick" x="' + X(v) + '" y="' + (H - 6) + '" text-anchor="' + (f === 0 ? "start" : f === 1 ? "end" : "middle") + '">' + esc(spec.xFmt(v)) + '</text>'; }).join("");
+    var bands = (spec.bands || []).map(function (b) {
+      return '<rect class="lc-band ' + (b.cls || "") + '" x="' + X(b.from) + '" y="' + T + '" width="' + Math.max(1, X(b.to) - X(b.from)) + '" height="' + ph + '"' + (b.color ? ' style="fill:' + b.color + '"' : "") + '/>' +
+        (b.label ? '<text class="lc-band-l" x="' + (X(b.from) + 4) + '" y="' + (T + 12) + '">' + esc(b.label) + '</text>' : "");
+    }).join("");
+    var series = spec.series.map(function (sr) {
+      var pts = sr.points.filter(function (p) { return p[1] != null; });
+      if (sr.kind === "dots") return pts.map(function (p) { return '<circle class="lc-dot' + (sr.r ? " big" : "") + '" cx="' + X(p[0]).toFixed(1) + '" cy="' + Y(p[1]).toFixed(1) + '" r="' + (sr.r || 2.2) + '" style="fill:' + sr.color + '"/>'; }).join("");
+      return '<polyline class="lc-line" style="stroke:' + sr.color + '" points="' + pts.map(function (p) { return X(p[0]).toFixed(1) + "," + Y(p[1]).toFixed(1); }).join(" ") + '"/>';
+    }).join("");
+    return '<div class="lc" id="' + spec.id + '"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(spec.label || "") + '">' + bands + grid + xt +
+      (spec.yLabel ? '<text class="lc-tick" x="4" y="' + (T + 4) + '">' + esc(spec.yLabel) + '</text>' : "") + series +
+      '<line class="lc-cross" x1="0" x2="0" y1="' + T + '" y2="' + (T + ph) + '" visibility="hidden"/><rect class="lc-hit" x="' + L + '" y="' + T + '" width="' + pw + '" height="' + ph + '"/></svg></div>';
+  }
+  function wireLineCharts() {
+    Object.keys(LC).forEach(function (id) {
+      var el = $(id), c = LC[id];
+      if (!el || el._wired) return;
+      el._wired = true;
+      var svg = el.querySelector("svg"), cross = el.querySelector(".lc-cross"), rows = c.spec.rows || [];
+      function at(clientX) {
+        var r = svg.getBoundingClientRect(), x = c.x0 + ((clientX - r.left) * svg.viewBox.baseVal.width / r.width - c.L) / c.pw * (c.xm - c.x0);
+        var best = null;
+        rows.forEach(function (row) { if (!best || Math.abs(row.x - x) < Math.abs(best.x - x)) best = row; });
+        if (!best) return;
+        cross.setAttribute("x1", c.X(best.x)); cross.setAttribute("x2", c.X(best.x)); cross.setAttribute("visibility", "visible");
+        openTip(el, best.text); if (TIP) { TIP._for = el; TIP._hover = true; TIP.style.top = (window.scrollY + r.bottom - 18) + "px"; TIP.style.left = Math.max(8, Math.min(clientX + window.scrollX + 12, window.scrollX + document.documentElement.clientWidth - TIP.offsetWidth - 8)) + "px"; }
+      }
+      el.addEventListener("mousemove", function (ev) { at(ev.clientX); });
+      el.addEventListener("mouseleave", function () { cross.setAttribute("visibility", "hidden"); closeTip(); });
+    });
+  }
+  // Performance -> Latency: latency over the run, per model (shared y scale)
+  function trendCard(res) {
+    var tr = window.INSIGHTS && INSIGHTS.latencyTrend(res);
+    if (!tr) return "";
+    var xMax = Math.max.apply(null, tr.models.map(function (m) { return m.n || 1; }));
+    var panels = tr.models.map(function (m, i) {
+      var d = m.drift, chip = d.tested ? (d.verdict === "stable" ? '<span class="chip ok">stable</span>' : '<span class="chip bad">' + (d.verdict === "slows_down" ? "slows down" : "speeds up") + '</span>') : '<span class="chip">not tested</span>';
+      var chart = lineChart({ id: "trend-" + i, h: 140, xMin: 1, xMax: xMax, yMax: tr.ymax, xFmt: function (v) { return "flow " + Math.round(v); }, yFmt: fmtTime,
+        label: "Latency per flow over the run for " + short(m.model),
+        series: [{ name: "flows", kind: "dots", color: modelColor(m.model), points: m.points.map(function (p) { return [p.flow, p.latency_s]; }) },
+                 { name: "rolling median", kind: "line", color: "var(--text)", points: m.points.map(function (p) { return [p.flow, p.median_s]; }) }],
+        rows: m.points.map(function (p) { return { x: p.flow, text: short(m.model) + " · flow " + p.flow + ": " + fmtTime(p.latency_s) + " (rolling median " + fmtTime(p.median_s) + ")" }; }) });
+      return '<div class="trend-panel" data-model="' + esc(m.model) + '"><div class="histo-head"><span class="mono small"><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '</span>' + chip + '</div>' + chart +
+        '<p class="small trend-note">' + esc(d.note || "") + (m.thinned ? ' <span class="muted">(' + fmtNum(m.n) + ' flows; chart thinned, the test uses every flow)</span>' : "") + '</p></div>';
+    }).join("");
+    return '<div class="card" id="stats-trend"><h2>Latency over the run</h2><p class="muted small" style="margin-top:0">Each dot is one flow in the order it ran; the line is the rolling median over ' + (tr.models[0] ? tr.models[0].window : 3) + ' flows. A slow-down over the run points to heat, memory build-up or contention, not the model alone.</p>' +
+      '<div class="ilegend"><span><i style="--c:var(--muted-2)"></i>one flow</span><span><i style="--c:var(--text);height:2px"></i>rolling median</span></div>' + panels +
+      '<details class="info"><summary>Method</summary><p class="muted small">' + esc(tr.method || "") + '</p></details></div>';
+  }
+  // Cost & Energy: board power, utilisation and memory over the session, model windows shaded
+  function gpuTimelineCard(res) {
+    var g = window.INSIGHTS && INSIGHTS.gpuTimeline(res);
+    if (!g) return "";
+    if (!g.sampled) return '<div class="card" id="gpu-timeline"><h2>GPU over the run</h2><p class="muted">Not sampled: ' + esc(g.reason) + '.</p></div>';
+    var bands = g.windows.map(function (w) { return { from: w.from_s, to: w.to_s, color: modelColor(w.model), cls: "win", label: short(w.model) }; })
+      .concat(g.idle.map(function (w) { return { from: w.from_s, to: w.to_s, cls: "idle" }; }));
+    var rows = g.points.map(function (p) {
+      var inw = g.windows.filter(function (w) { return p.t >= w.from_s && p.t <= w.to_s; })[0];
+      return { x: p.t, text: fmtNum(p.t, 1) + " s" + (inw ? " · " + short(inw.model) : "") + ": " + fmtNum(p.power_w, 0) + " W" + (p.util_pct != null ? " · " + fmtNum(p.util_pct, 0) + "% busy" : "") + (p.mem_mb != null ? " · " + fmtMB(p.mem_mb) : "") };
+    });
+    var sec = function (v) { return fmtNum(v, 0) + " s"; };
+    var plain = bands.map(function (b) { return { from: b.from, to: b.to, color: b.color, cls: b.cls }; });   // names on the first chart only
+    var mk = function (id, key, yMax, yFmt, label, first) {
+      return lineChart({ id: id, h: 130, xMax: g.t_max || 1, yMax: yMax, xFmt: sec, yFmt: yFmt, bands: first ? bands : plain, label: label, rows: rows,
+        series: [{ name: key, kind: "line", color: "var(--text)", points: g.points.map(function (p) { return [p.t, p[key]]; }) }] });
+    };
+    return '<div class="card" id="gpu-timeline"><h2>GPU over the run</h2><p class="muted small" style="margin-top:0">Sampled every ' + esc(g.interval_s) + ' s (' + esc(g.method) + ', ' + fmtNum(g.n_samples) + ' samples) from outside the measured process. Shaded in the model\'s colour: its measured window; grey: its idle baseline (sampled just before it loads).</p>' +
+      legendHtml(g.windows.map(function (w) { return w.model; })) +
+      '<h3 class="lc-h">Board power (W)</h3>' + mk("gpu-power", "power_w", g.power_max, function (v) { return fmtNum(v, 0) + " W"; }, "GPU board power over the session", true) +
+      (g.has_util ? '<h3 class="lc-h">GPU utilisation (%)</h3>' + mk("gpu-util", "util_pct", 100, function (v) { return fmtNum(v, 0) + "%"; }, "GPU utilisation over the session") : "") +
+      (g.has_mem ? '<h3 class="lc-h">Device memory used</h3>' + mk("gpu-mem", "mem_mb", g.mem_max, function (v) { return fmtNum(v / 1024, 1) + " GB"; }, "Device memory over the session") : "") +
+      '<div class="table-wrap"><table id="gpu-timeline-table"><thead><tr><th>Model</th><th class="num">Samples</th><th class="num">Mean power</th><th class="num">Peak power</th><th class="num">Mean utilisation</th><th class="num">Peak memory</th></tr></thead><tbody>' +
+      g.per_model.map(function (m) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtNum(m.n_samples) + '</td><td class="num">' + (m.mean_power_w == null ? "—" : fmtNum(m.mean_power_w, 1) + " W") + '</td><td class="num">' + (m.peak_power_w == null ? "—" : fmtNum(m.peak_power_w, 0) + " W") +
+        '</td><td class="num">' + (m.mean_util_pct == null ? "—" : fmtNum(m.mean_util_pct, 0) + "%") + '</td><td class="num">' + (m.peak_mem_mb == null ? "—" : fmtMB(m.peak_mem_mb)) + '</td></tr>'; }).join("") + '</tbody></table></div></div>';
+  }
+  // Performance -> Statistics: repeatability across sessions on the same flows, GPU and settings
+  var REP_FMT = { s: fmtTime, tokens: function (v) { return fmtNum(v, 1); }, MB: fmtMB, Wh: fmtWh, share: fmtPct, points: function (v) { return fmtNum(v, 1); } };
+  function wireRepeat(res, job) {
+    var host = $("svc-repeat-host"), id = job.job_id;
+    if (!host || !window.INSIGHTS) return;
+    var again = '<a class="btn" href="#/new/models?set=' + enc(job.run_name || "") + (CP && job.stored ? "&from=" + enc(id) : "") + '">Benchmark these flows again</a>';
+    var head = '<h2>Repeatability across runs</h2><p class="muted small" style="margin-top:0">The same models on the same flows, GPU and settings in other sessions: how much do the numbers move from run to run?</p>';
+    api("/api/compare/candidates?session=" + enc(id)).then(function (r) {
+      if (SESSION.id !== id) return;
+      var others = r.ok ? (r.data.sessions || []).slice(0, 19) : [];
+      if (!r.ok || !others.length) {
+        host.innerHTML = '<div class="card" id="svc-repeat">' + head + '<p>' + (r.ok ? "No other session ran on these flows, GPU and settings yet." : "Could not look for other sessions: " + esc((r.data || {}).error || "")) +
+          ' Run the same models again to see how stable these numbers are.</p><div class="actions">' + again + '</div></div>';
+        return;
+      }
+      api("/api/compare/merged?sessions=" + [id].concat(others.map(function (x) { return x.session_id; })).map(enc).join(",")).then(function (m) {
+        if (SESSION.id !== id) return;
+        if (!m.ok) { host.innerHTML = '<div class="card" id="svc-repeat">' + head + '<p class="muted">' + esc((m.data || {}).error || "Comparison unavailable") + '</p></div>'; return; }
+        host.innerHTML = repeatCard(INSIGHTS.repeatability(m.data, id), head, again, id);
+      });
+    });
+  }
+  function repeatCard(rp, head, again, id) {
+    var lead = rp.leader ? '<p class="finding-line">' + (rp.leader.current ? "Faster model in this session, <b>" + esc(short(rp.leader.current)) + "</b>, was also faster in " + rp.leader.agree + " of " + rp.leader.sessions + " sessions."
+      : "The two models tie on mean latency in this session.") + '</p>' : "";
+    var metrics = (rp.models[0] || { metrics: [] }).metrics.map(function (d) { return d.metric; });
+    var rows = metrics.map(function (k) {
+      var per = rp.models.map(function (m) { return { model: m.model, d: m.metrics.filter(function (x) { return x.metric === k; })[0] }; }).filter(function (x) { return x.d; });
+      if (!per.length) return "";
+      var f = REP_FMT[per[0].d.unit] || function (v) { return fmtNum(v, 2); };
+      var lo = Math.min.apply(null, per.map(function (x) { return x.d.min; })), hi = Math.max.apply(null, per.map(function (x) { return x.d.max; }));
+      var pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.05 || 1, a = lo - pad, b = hi + pad;
+      var dots = per.map(function (x) {
+        var lane = per.length > 1 ? (MODEL_SLOT[x.model] ? 7 : -7) : 0;
+        return x.d.values.map(function (v) {
+          var t = short(x.model) + " · " + per[0].d.label + ": " + f(v.value) + (v.current ? " (this session)" : " (" + shortId(v.session) + ")");
+          return '<span class="dot' + (v.current ? " cur" : "") + '" tabindex="0" style="left:' + (100 * (v.value - a) / (b - a)) + '%;margin-top:' + (lane - 6) + 'px;--c:' + modelColor(x.model) + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span>';
+        }).join("");
+      }).join("");
+      var spread = per.map(function (x) { return esc(short(x.model)) + ": " + (x.d.cov == null ? "one run" : "±" + fmtPct(x.d.cov) + " run to run"); }).join(" · ");
+      return '<div class="dot-row rep-row" data-metric="' + k + '"><span class="lbl">' + esc(per[0].d.label) + '<small>' + esc(f(a)) + ' – ' + esc(f(b)) + '</small></span><div><div class="dot-track">' + dots + '</div><p class="small muted rep-spread">' + spread + '</p></div></div>';
+    }).join("");
+    return '<div class="card" id="svc-repeat">' + head + '<p class="small">' + rp.n_sessions + ' sessions on this setup. Ringed dot: this session. "±" is the coefficient of variation (standard deviation ÷ mean) across runs.</p>' +
+      lead + legendHtml(rp.models.map(function (m) { return m.model; })) + '<div class="dots">' + rows + '</div>' +
+      '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-repeat-table"><thead><tr><th>Model</th><th>Metric</th><th class="num">Runs</th><th class="num">Mean</th><th class="num">SD</th><th class="num">CoV</th><th class="num">Min – max</th></tr></thead><tbody>' +
+      rp.models.map(function (m) { return m.metrics.map(function (d) { var f = REP_FMT[d.unit] || function (v) { return fmtNum(v, 2); };
+        return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(d.label) + '</td><td class="num">' + d.n + '</td><td class="num">' + f(d.mean) + '</td><td class="num">' + (d.sd == null ? "—" : f(d.sd)) + '</td><td class="num">' + (d.cov == null ? "—" : fmtPct(d.cov)) + '</td><td class="num">' + f(d.min) + ' – ' + f(d.max) + '</td></tr>'; }).join(""); }).join("") +
+      '</tbody></table></div></details><div class="actions"><a class="btn" href="#/compare?a=' + enc(id) + '">Open in Compare</a>' + again + '</div></div>';
+  }
+  // Performance -> GPU & Throughput: throughput and p95 latency with 1, 2, 4 flows in flight (opt-in step)
+  function loadCard(res) {
+    var ls = window.INSIGHTS && INSIGHTS.loadScaling(res);
+    if (!ls) return "";
+    var head = '<h2>Load scaling</h2>';
+    if (!ls.measured) return '<div class="card" id="load-card">' + head + '<p class="muted">Not measured in this session: ' + esc(ls.reason) + '. Tick "Also measure load scaling" when you start a benchmark.</p></div>';
+    var pos = function (c) { return ls.levels.indexOf(c); }, xFmt = function (v) { var c = ls.levels[Math.round(v)]; return c == null ? "" : c + " at once"; };
+    var rows = ls.levels.map(function (c) {
+      return { x: pos(c), text: c + " in flight — " + ls.models.map(function (m) {
+        var l = m.levels.filter(function (x) { return x.concurrency === c; })[0];
+        return short(m.model) + ": " + (!l ? "not run" : l.error ? "failed" : fmtNum(l.throughput_flows_per_s, 2) + " flows/s, p95 " + fmtTime(l.p95_latency_s));
+      }).join(" · ") };
+    });
+    var series = function (key) {
+      return [].concat.apply([], ls.models.map(function (m) {
+        var pts = m.levels.filter(function (l) { return !l.error; }).map(function (l) { return [pos(l.concurrency), l[key]]; });
+        return [{ kind: "line", color: modelColor(m.model), points: pts }, { kind: "dots", r: 5, color: modelColor(m.model), points: pts }];
+      }));
+    };
+    var chart = function (id, key, yMax, yFmt, label) {
+      return lineChart({ id: id, w: 440, h: 170, xMin: 0, xMax: Math.max(1, ls.levels.length - 1), yMax: yMax, xFmt: xFmt, yFmt: yFmt, label: label, rows: rows, series: series(key) });
+    };
+    return '<div class="card" id="load-card">' + head + '<p class="muted small" style="margin-top:0">' + esc(ls.note || "") + '</p>' + legendHtml(ls.models.map(function (m) { return m.model; })) +
+      '<div class="load-grid"><div><h3 class="lc-h">Throughput (flows per second, higher is better)</h3>' + chart("load-tp", "throughput_flows_per_s", ls.max_throughput, function (v) { return fmtNum(v, 2); }, "Throughput by concurrency") + '</div>' +
+      '<div><h3 class="lc-h">p95 latency per flow (lower is better)</h3>' + chart("load-p95", "p95_latency_s", ls.max_p95, fmtTime, "p95 latency by concurrency") + '</div></div>' +
+      ls.models.filter(function (m) { return m.error; }).map(function (m) { return '<div class="notice warn" role="note">' + esc(short(m.model)) + ' failed with ' + m.failed_at + ' in flight: ' + esc(m.error) + '</div>'; }).join("") +
+      '<div class="table-wrap"><table id="load-table"><thead><tr><th>Model</th><th class="num">In flight</th><th class="num">Flows</th><th class="num">Throughput</th><th class="num">Speed-up vs 1</th><th class="num">Scaling efficiency</th><th class="num">p50</th><th class="num">p95</th></tr></thead><tbody>' +
+      ls.models.map(function (m) { return m.levels.map(function (l) {
+        return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + l.concurrency + '</td><td class="num">' + l.n + '</td>' + (l.error ? '<td colspan="5" class="muted">failed: ' + esc(l.error) + '</td>' :
+          '<td class="num">' + fmtNum(l.throughput_flows_per_s, 2) + ' /s</td><td class="num">' + fmtNum(l.speedup_vs_1, 2) + '×</td><td class="num">' + fmtPct(l.efficiency) + '</td><td class="num">' + fmtTime(l.p50_latency_s) + '</td><td class="num">' + fmtTime(l.p95_latency_s) + '</td>') + '</tr>';
+      }).join(""); }).join("") + '</tbody></table></div><details class="info"><summary>Method</summary><p class="muted small">' + esc(ls.method || "") + ' Scaling efficiency = speed-up ÷ flows in flight (100% = perfect scaling).</p></details></div>';
   }
   // Cost & Energy: project the measured per-flow numbers onto a daily workload
   function projectionCard(res) {

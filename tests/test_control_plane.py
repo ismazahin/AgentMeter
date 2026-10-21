@@ -433,7 +433,7 @@ def test_pbkdf2_iterations_are_documented():
 # ---------------------------------------------------------------------------
 def test_pages_ships_the_analysis_page_and_its_scripts():
     for a, b in (("web/analysis.html", "dashboard/index.html"), ("web/saw.js", "dashboard/saw.js"),
-                 ("web/report.js", "dashboard/report.js")):
+                 ("web/report.js", "dashboard/report.js"), ("web/insights.js", "dashboard/insights.js")):
         assert (PROJECT_ROOT / a).read_bytes() == (PROJECT_ROOT / b).read_bytes(), f"cp {b} {a}"
     cfg = json.loads((PROJECT_ROOT / "web" / "config.json").read_text())
     # empty (development) or your deployed Worker — always https, never a secret

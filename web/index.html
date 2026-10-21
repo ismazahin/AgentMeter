@@ -49,7 +49,7 @@
     --danger: #B42323; --danger-soft: #F7E3E0;
     --info-soft: #E7ECFA;
     --series-1: #2455D6; --series-2: #C65C34;
-    --ag-perceive: #3569BE; --ag-reason: #8266B4; --ag-decide: #C65C34; --ag-act: #418B7B;
+    --ag-perceive: #2a78d6; --ag-reason: #eb6834; --ag-decide: #1baf7a; --ag-act: #eda100;
     --radius: 3px; --radius-lg: 4px; --side: 232px;
     color-scheme: light;
   }
@@ -62,8 +62,8 @@
     --success: #6CC3A0; --success-soft: #14291F;
     --danger: #FF8A8A; --danger-soft: #3A1717;
     --info-soft: #1C2540;
-    --series-1: #7D9CF5; --series-2: #E58A62;
-    --ag-perceive: #7FA8F0; --ag-reason: #B79CF2; --ag-decide: #E58A62; --ag-act: #7FD3C7;
+    --series-1: #5b8ae8; --series-2: #d9714a;
+    --ag-perceive: #3987e5; --ag-reason: #d95926; --ag-decide: #199e70; --ag-act: #c98500;
     color-scheme: dark;
   } }
   :root[data-theme="dark"] {
@@ -75,8 +75,8 @@
     --success: #6CC3A0; --success-soft: #14291F;
     --danger: #FF8A8A; --danger-soft: #3A1717;
     --info-soft: #1C2540;
-    --series-1: #7D9CF5; --series-2: #E58A62;
-    --ag-perceive: #7FA8F0; --ag-reason: #B79CF2; --ag-decide: #E58A62; --ag-act: #7FD3C7;
+    --series-1: #5b8ae8; --series-2: #d9714a;
+    --ag-perceive: #3987e5; --ag-reason: #d95926; --ag-decide: #199e70; --ag-act: #c98500;
     color-scheme: dark;
   }
 
@@ -259,6 +259,26 @@
 
   /* charts */
   .hbars { display: grid; gap: 10px; }
+  /* session insight charts (data from INSIGHTS / insights.js; palette validated with the dataviz checker) */
+  .findings { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .findings li { position: relative; padding: 8px 12px 8px 30px; background: var(--surface-2); border-radius: var(--radius); font-size: 14px; line-height: 1.45; }
+  .findings li::before { content: ""; position: absolute; left: 12px; top: 15px; width: 8px; height: 8px; border-radius: 2px; background: var(--accent); }
+  .ilegend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0 12px; font-size: 12.5px; color: var(--muted-2); }
+  .ilegend span { display: inline-flex; align-items: center; gap: 6px; }
+  .ilegend i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
+  .prof { display: grid; gap: 14px; }
+  .prof-row { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 12px; align-items: center; }
+  .prof-row .lbl { font-size: 13.5px; font-weight: 600; }
+  .prof-row .lbl small { display: block; font-weight: 400; color: var(--muted); }
+  .prof-bars { display: grid; gap: 2px; }
+  .ibar { display: grid; grid-template-columns: 1fr 56px; gap: 8px; align-items: center; font-size: 12.5px; }
+  .ibar .track { position: relative; height: 12px; background: var(--surface-2); border-radius: 0 4px 4px 0; }
+  .ibar .fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--c); min-width: 2px; }
+  .ibar .tgt { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 1px dashed var(--muted); }
+  .ibar .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted-2); }
+  .ibar.na .val { font-style: italic; }
+  .ibar.na .fill { display: none; }
+  [data-hover] { cursor: default; }
   .hbar { display: grid; grid-template-columns: minmax(110px, 200px) 1fr minmax(84px, auto); gap: 10px; align-items: center; font-size: 13.5px; }
   .hbar .lbl { overflow-wrap: anywhere; font-weight: 600; }
   .hbar .track { height: 18px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
@@ -990,6 +1010,7 @@
 <footer><div class="wrap">AgentMeter measures how efficiently LLMs run: speed, memory, tokens, cost, energy. Accuracy is context only; it isn't a threat detector.</div></footer>
 
 <script src="report.js"></script>
+<script src="insights.js"></script>
 <script>
 (function () {
   "use strict";
@@ -1299,9 +1320,9 @@
   }
   var TIP = null;
   function closeTip() { if (TIP) { TIP.remove(); TIP = null; } }
-  function openTip(el) {
+  function openTip(el, text) {
     closeTip();
-    var text = el.getAttribute("data-tip") || el.getAttribute("title") || el.getAttribute("aria-label");
+    text = text || el.getAttribute("data-tip") || el.getAttribute("title") || el.getAttribute("aria-label");
     if (!text) return;
     TIP = document.createElement("div");
     TIP.className = "tip-pop"; TIP.setAttribute("role", "tooltip"); TIP.textContent = text;
@@ -1321,6 +1342,17 @@
     else if ((ev.key === "Enter" || ev.key === " ") && el && el.classList && el.classList.contains("info-i")) { ev.preventDefault(); openTip(el); TIP._for = el; }
   });
   window.addEventListener("scroll", closeTip, { passive: true });
+  // chart marks: hover / focus shows their value (data-hover), the same popover as ⓘ
+  document.addEventListener("mouseover", function (ev) {
+    var el = ev.target.closest && ev.target.closest("[data-hover]");
+    if (el && (!TIP || TIP._for !== el)) hoverTip(el);
+    else if (!el && TIP && TIP._hover) closeTip();
+  });
+  document.addEventListener("focusin", function (ev) {
+    var el = ev.target.closest && ev.target.closest("[data-hover]");
+    if (el) hoverTip(el);
+  });
+  function hoverTip(el) { openTip(el, el.getAttribute("data-hover")); if (TIP) { TIP._for = el; TIP._hover = true; } }
 
   // ---------- routing ----------
   var VIEWS = ["home", "new", "sessions", "session", "compare", "leaderboard", "settings", "profile", "admin", "login"];
@@ -2262,6 +2294,7 @@
         (real ? 'GPU ' + esc(env.gpu_name || "unknown") + ' · NVIDIA driver ' + esc(env.driver_version || "—") + ' · CUDA ' + esc(env.cuda_runtime_version || "—") + ' · 4-bit NF4, one model at a time.'
           : 'MOCK provider: a deterministic heuristic, not a language model. It shows the flow; the numbers are not model measurements.') + '</p>' +
         (rel && cmp ? '<p class="small muted" id="svc-absolute"><b>Absolute SAW</b> (against fixed L4-study targets): ' + esc(cmp.statement) + '</p>' : "") + '</details></div>');
+    h.push(findingsCard(res), profileCard(res));
     var tip = function (t) { return '<span class="info-i" tabindex="0" title="' + esc(t) + '" aria-label="' + esc(t) + '">i</span>'; };
     var rows = pm.map(function (m) {
       var e = m.efficiency.end_to_end, c = ce[m.model] || {};
@@ -2284,6 +2317,38 @@
       '</div><p class="gtk-detail" id="svc-cav-detail" hidden></p><template id="svc-cav-texts">' +
       items.map(function (x) { return '<p>' + esc(x.text) + '</p>'; }).join("") + '</template></div>');
     return h.join("");
+  }
+  // Overview: key findings and the per-criterion profile (INSIGHTS, insights.js)
+  var CRIT_LABEL = { accuracy: "Accuracy", latency: "Latency", vram: "VRAM", tokens: "Tokens" };
+  function modelColor(i) { return "var(--series-" + (i % 2 + 1) + ")"; }
+  function legendHtml(names) {
+    return names.length < 2 ? "" : '<div class="ilegend">' + names.map(function (n, i) { return '<span><i style="--c:' + modelColor(i) + '"></i>' + esc(short(n)) + '</span>'; }).join("") + '</div>';
+  }
+  function findingsCard(res) {
+    var f = window.INSIGHTS ? INSIGHTS.keyFindings(res) : [];
+    if (!f.length) return "";
+    return '<div class="card" id="svc-findings"><h2>Key findings</h2><ul class="findings">' +
+      f.map(function (x) { return '<li data-finding="' + esc(x.key) + '">' + esc(x.text) + '</li>'; }).join("") +
+      '</ul><p class="muted small">Each line restates one stored number of this session; nothing is re-measured.</p></div>';
+  }
+  function profileCard(res) {
+    if (!window.INSIGHTS) return "";
+    var pr = INSIGHTS.criteriaProfile(res), names = pr.rows.map(function (r) { return r.model; });
+    if (!pr.rows.length) return "";
+    var body = pr.criteria.map(function (k) {
+      return '<div class="prof-row" data-crit="' + k + '"><span class="lbl">' + CRIT_LABEL[k] + (pr.missing[k] ? '<small>' + (k === "accuracy" ? "no labels" : "no readings") + '</small>' : "") + '</span><div class="prof-bars">' +
+        pr.rows.map(function (r, i) {
+          var v = r.scores[k], na = pr.missing[k] || v == null;
+          var txt = short(r.model) + " · " + CRIT_LABEL[k] + ": " + (na ? "not measured" : v.toFixed(2) + " of 1.00 (target)");
+          return '<div class="ibar' + (na ? " na" : "") + '" tabindex="0" data-hover="' + esc(txt) + '" aria-label="' + esc(txt) + '"><span class="track"><span class="fill" style="--c:' + modelColor(i) + ';width:' + (na ? 0 : Math.min(100, 100 * v)) + '%"></span><span class="tgt" style="left:100%"></span></span><span class="val">' + (na ? "n/a" : v.toFixed(2)) + '</span></div>';
+        }).join("") + '</div></div>';
+    }).join("");
+    return '<div class="card" id="svc-profile"><h2>Criteria profile</h2><p class="muted small" style="margin-top:0">Each criterion scored against the study target: 1.00 (dashed line) meets the target. These are the four inputs of the SAW score.</p>' +
+      legendHtml(names) + '<div class="prof" role="group" aria-label="Criteria profile">' + body + '</div>' +
+      '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-profile-table"><thead><tr><th>Model</th>' +
+      pr.criteria.map(function (k) { return '<th class="num">' + CRIT_LABEL[k] + '</th>'; }).join("") + '</tr></thead><tbody>' +
+      pr.rows.map(function (r) { return '<tr><td class="mono">' + esc(r.model) + '</td>' + pr.criteria.map(function (k) { return '<td class="num">' + (pr.missing[k] || r.scores[k] == null ? "—" : r.scores[k].toFixed(3)) + '</td>'; }).join("") + '</tr>'; }).join("") +
+      '</tbody></table></div></details></div>';
   }
   function wireOverview(res) {
     var box = $("svc-caveats"), det = $("svc-cav-detail"), texts = $("svc-cav-texts");

@@ -1599,6 +1599,7 @@
     $("svc-summary").innerHTML = ""; $("wiz-data-error").hidden = true; $("svc-run-error").hidden = true;
     renderModels();
     renderSettings();
+    setDataState("preparing", "Checking your data…", null);    // never show the previous data set's Ready/Failed
     if (WIZ.set) dataReady(WIZ.set);
     else if (WIZ.prep) pollPrepare(WIZ.prep, ++pollToken);
     else location.replace("#/new");

@@ -268,9 +268,48 @@
     return { agents: order, classes: classes, max_total: ymax, per_model: per_model };
   }
 
+  // ---- Cost & Energy: project the measured per-flow numbers onto a daily workload -----------
+  // Same basis as the stored cost (mean latency x GPU price, flows one at a time on one GPU):
+  // GPU-hours/day = N x latency / 3600; one GPU handles 86,400 / latency flows a day.
+  function workloadProjection(res, opts) {
+    var n = Math.max(0, +((opts || {}).flows_per_day) || 0), price = num((opts || {}).usd_per_hour);
+    var ce = {};
+    ((res.cost_energy || {}).per_model || []).forEach(function (r) { ce[bare(r.model)] = r; });
+    var stored = num((((res.cost_energy || {}).price) || {}).usd_per_hour);
+    var real = ((res.environment || {}).provider) === "real";
+    return { flows_per_day: n, usd_per_hour: price != null ? price : stored, price_source: price != null ? "yours" : stored != null ? "stored" : null, real: real,
+      models: (res.per_model || []).map(function (m) {
+        var lat = num((((m.efficiency || {}).end_to_end) || {}).mean_latency_s), c = ce[bare(m.model)] || {};
+        var gpuH = lat != null ? n * lat / 3600 : null, cap = lat ? 86400 / lat : null, p = price != null ? price : stored;
+        var whK = num(c.wh_per_1k_flows);
+        return { model: bare(m.model), mean_latency_s: lat, gpu_hours_per_day: gpuH, capacity_per_gpu_day: cap,
+                 utilisation: cap ? n / cap : null, gpus_needed: cap ? Math.max(1, Math.ceil(n / cap - 1e-9)) : null,
+                 cost_per_day: gpuH != null && p != null ? gpuH * p : null,
+                 cost_per_month: gpuH != null && p != null ? gpuH * p * 30 : null,
+                 kwh_per_day: whK != null ? n / 1000 * whK / 1000 : null };
+      }) };
+  }
+
+  // ---- Cost & Energy: what one correct answer costs (labelled runs; accuracy as context) ------
+  function costPerCorrect(res) {
+    if (!(res.session || {}).accuracy_available) return null;
+    var ce = {};
+    ((res.cost_energy || {}).per_model || []).forEach(function (r) { ce[bare(r.model)] = r; });
+    return (res.per_model || []).map(function (m) {
+      var a = num((m.accuracy || {}).accuracy), lat = num((((m.efficiency || {}).end_to_end) || {}).mean_latency_s), c = ce[bare(m.model)] || {};
+      var ok = a != null && a > 0;
+      return { model: bare(m.model), accuracy: a,
+               gpu_s_per_correct: ok && lat != null ? lat / a : null,
+               usd_per_1k_correct: ok && c.cost_per_1k_flows_usd != null ? c.cost_per_1k_flows_usd / a : null,
+               wh_per_correct: ok && c.wh_per_flow != null ? c.wh_per_flow / a : null,
+               flows_per_correct: ok ? 1 / a : null };
+    });
+  }
+
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
-              latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime };
+              latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
+              workloadProjection: workloadProjection, costPerCorrect: costPerCorrect };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

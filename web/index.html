@@ -334,6 +334,10 @@
   .cat-bar { display: flex; gap: 2px; height: 100%; min-width: 4px; }
   .cat-bar span { display: block; height: 100%; background: var(--c); min-width: 1px; }
   .cat-bar span:last-child { border-radius: 0 4px 4px 0; }
+  .proj-bar { height: 100%; background: var(--c); border-radius: 0 4px 4px 0; min-width: 2px; }
+  .cat-track { position: relative; }
+  .proj-one { position: absolute; top: -4px; bottom: -4px; border-left: 2px dashed var(--text); }
+  #proj-out .notice { margin: 8px 0 12px; }
   .stab { display: grid; gap: 12px; }
   .stab-row, .stab-axis { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 12px; align-items: start; }
   .stab-row .lbl { font-size: 13.5px; font-weight: 600; padding-top: 2px; }
@@ -2243,11 +2247,11 @@
     $("spanel-accuracy").innerHTML = pane("main", classMetricsCard(res));
     $("spanel-performance").innerHTML = pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res)) + pane("gpu", memoryCard(res)) + pane("statistics", effectsCard(res));
     $("spanel-agents").innerHTML = pane("main", agentsTab(res));
-    $("spanel-cost").innerHTML = pane("main", costCard(res));
+    $("spanel-cost").innerHTML = pane("main", costCard(res) + projectionCard(res) + correctCard(res));
     $("spanel-recommendations").innerHTML = pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
     $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
     resetEmbed();
-    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res);
+    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res);
   }
 
   function setDl(a, path, name) {
@@ -2542,6 +2546,55 @@
       }).join("") + '</tbody></table></div>' +
       '<details class="info"><summary>How this is calculated</summary><p class="muted small" id="svc-energy-method"><b>Method.</b> ' + esc(((cen.per_model || [])[0] || {}).cost_reason || "") + ' ' + esc((cen.notes || {}).cost || "") + ' ' +
       esc((cen.notes || {}).energy || "") + ' ' + esc((cen.notes || {}).energy_net || "") + '</p></details></div>';
+  }
+  // Cost & Energy: project the measured per-flow numbers onto a daily workload
+  function projectionCard(res) {
+    if (!window.INSIGHTS || !(res.per_model || []).length) return "";
+    var pr = ((res.cost_energy || {}).price || {}).usd_per_hour;
+    return '<form class="card" id="proj-card" novalidate><h2>Project to your workload</h2><p class="muted small" style="margin-top:0">Scales this session\'s measured time, cost and energy per flow to a daily volume — flows one at a time on one GPU, as measured. An estimate, not a quote.</p>' +
+      '<div class="row"><div class="field"><label for="proj-flows">Flows per day</label><input type="number" id="proj-flows" min="0" step="1000" value="10000"></div>' +
+      '<div class="field"><label for="proj-price">GPU price <span class="hint">(USD per hour)</span></label><input type="number" id="proj-price" min="0" step="0.01" placeholder="' + (pr != null ? "stored: " + pr : "e.g. 0.35") + '"></div></div>' +
+      '<div id="proj-out" aria-live="polite"></div></form>';
+  }
+  function wireProjection(res) {
+    var f = $("proj-card");
+    if (!f) return;
+    function draw() {
+      var pv = $("proj-price").value, pj = INSIGHTS.workloadProjection(res, { flows_per_day: $("proj-flows").value, usd_per_hour: pv === "" ? null : pv });
+      var maxU = Math.max.apply(null, pj.models.map(function (m) { return m.utilisation || 0; }).concat([1]));
+      $("proj-out").innerHTML = (pj.real ? "" : '<div class="notice warn" role="note">Demo (mock) run: the per-flow time is not a model measurement, so these figures only show the method.</div>') +
+        '<div class="proj-load">' + pj.models.map(function (m) {
+          var t = short(m.model) + ": " + fmtNum(m.gpu_hours_per_day, 2) + " GPU-hours a day = " + (m.utilisation == null ? "—" : fmtPct(m.utilisation)) + " of one GPU's day";
+          return '<div class="cat-row"><span class="lbl">' + esc(short(m.model)) + '<small>' + (m.gpus_needed == null ? "—" : m.gpus_needed + " GPU" + (m.gpus_needed > 1 ? "s" : "")) + ' needed</small></span><div class="cat-track"><div class="proj-bar" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '" style="width:' + Math.min(100, 100 * (m.utilisation || 0) / maxU) + '%;--c:' + modelColor(m.model) + '"></div>' +
+            (maxU > 1 ? '<span class="proj-one" style="left:' + (100 / maxU) + '%" title="one GPU\'s full day"></span>' : "") + '</div><span class="val">' + (m.utilisation == null ? "—" : fmtPct(m.utilisation)) + '</span></div>';
+        }).join("") + '</div><p class="muted small">Bar: share of one GPU\'s 24 hours this volume takes' + (maxU > 1 ? "; the line marks one full GPU" : "") + '.</p>' +
+        '<div class="table-wrap"><table id="proj-table"><thead><tr><th>Model</th><th class="num">GPU-hours / day</th><th class="num">Max flows / GPU / day</th><th class="num">GPUs needed</th><th class="num">Cost / day</th><th class="num">Cost / 30 days</th><th class="num">Energy / day</th></tr></thead><tbody>' +
+        pj.models.map(function (m) {
+          return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtNum(m.gpu_hours_per_day, 2) + '</td><td class="num">' + fmtNum(m.capacity_per_gpu_day) + '</td><td class="num">' + (m.gpus_needed == null ? "—" : m.gpus_needed) +
+            '</td><td class="num">' + (m.cost_per_day == null ? '<span class="muted">enter a GPU price</span>' : "$" + fmtNum(m.cost_per_day, 2)) + '</td><td class="num">' + (m.cost_per_month == null ? "—" : "$" + fmtNum(m.cost_per_month, 2)) +
+            '</td><td class="num">' + (m.kwh_per_day == null ? '<span class="muted">not measured</span>' : fmtNum(m.kwh_per_day, 2) + " kWh") + '</td></tr>';
+        }).join("") + '</tbody></table></div><p class="muted small">Price: ' + (pj.price_source === "yours" ? "your figure, $" + pj.usd_per_hour + "/h" : pj.price_source === "stored" ? "the session\'s stored GPU price, $" + pj.usd_per_hour + "/h" : "none — enter one above") +
+        '. Energy uses the measured Wh per 1,000 flows (whole board).</p>';
+    }
+    f.addEventListener("input", draw);
+    f.addEventListener("submit", function (ev) { ev.preventDefault(); });
+    draw();
+  }
+  // Cost & Energy: what one correct answer costs (accuracy as context)
+  function correctCard(res) {
+    var rows = window.INSIGHTS && INSIGHTS.costPerCorrect(res);
+    if (!rows || !rows.length) return "";
+    var mx = Math.max.apply(null, rows.map(function (r) { return r.gpu_s_per_correct || 0; })) || 1;
+    return '<div class="card" id="cost-correct"><h2>Cost per correct answer</h2><p class="muted small" style="margin-top:0">A cheap model that is often wrong can cost more per useful answer. GPU time per correct answer = time per flow ÷ accuracy (lower is better). Accuracy is context; this re-reads the stored numbers.</p>' +
+      rows.map(function (r) {
+        var t = short(r.model) + ": " + (r.gpu_s_per_correct == null ? "no correct answers" : fmtTime(r.gpu_s_per_correct) + " of GPU time per correct answer (" + fmtNum(r.flows_per_correct, 1) + " flows per correct one)");
+        return '<div class="cat-row"><span class="lbl">' + esc(short(r.model)) + '<small>accuracy ' + fmtPct(r.accuracy) + '</small></span><div class="cat-track"><div class="proj-bar" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '" style="width:' + (r.gpu_s_per_correct == null ? 0 : 100 * r.gpu_s_per_correct / mx) + '%;--c:' + modelColor(r.model) + '"></div></div><span class="val">' + (r.gpu_s_per_correct == null ? "—" : fmtTime(r.gpu_s_per_correct)) + '</span></div>';
+      }).join("") +
+      '<div class="table-wrap" style="margin-top:10px"><table id="cost-correct-table"><thead><tr><th>Model</th><th class="num">Accuracy</th><th class="num">Flows per correct answer</th><th class="num">GPU time / correct</th><th class="num">Cost / 1,000 correct</th><th class="num">Energy / correct</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        return '<tr><td class="mono">' + esc(short(r.model)) + '</td><td class="num">' + fmtPct(r.accuracy) + '</td><td class="num">' + fmtNum(r.flows_per_correct, 2) + '</td><td class="num">' + fmtTime(r.gpu_s_per_correct) +
+          '</td><td class="num">' + (r.usd_per_1k_correct == null ? '<span class="muted">not measured</span>' : fmtUsd(r.usd_per_1k_correct)) + '</td><td class="num">' + (r.wh_per_correct == null ? '<span class="muted">not measured</span>' : fmtWh(r.wh_per_correct)) + '</td></tr>';
+      }).join("") + '</tbody></table></div></div>';
   }
   function memoryCard(res) {
     var mem = res.memory;

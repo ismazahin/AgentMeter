@@ -102,10 +102,22 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
         'agents: time per agent for each of the 5 classes, per model');
     log(/ms \(\d/.test(await hoverText(p, '#agents-by-class .cat-bar span')), 'agents: hovering a segment shows step time and share');
 
+    // Phase 6 — Cost & Energy: workload projection + cost per correct answer
+    await tab(p, csv, 'cost', '#proj-table');
+    log(/Demo \(mock\)/.test(await p.textContent('#proj-out')) && /enter a GPU price/.test(await p.textContent('#proj-table')),
+        'cost: projection says it is a demo and asks for a GPU price when none is stored');
+    await p.fill('#proj-price', '2'); await p.fill('#proj-flows', '86400');
+    const pr = await p.$$eval('#proj-table tbody tr', rs => rs.map(r => [...r.cells].map(c => c.textContent.trim())));
+    log(pr.length === 2 && pr.every(r => /^\$\d/.test(r[4]) && /^\$\d/.test(r[5])) && /your figure, \$2\/h/.test(await p.textContent('#proj-out')),
+        'cost: entering flows and a price fills cost per day and per 30 days ' + JSON.stringify(pr[0]));
+    log((await p.$$('#cost-correct .cat-row')).length === 2 && (await p.$$('#cost-correct-table tbody tr')).length === 2, 'cost: GPU time per correct answer per model');
+    await tab(p, pcap, 'cost', '#proj-table');
+    log(!(await p.$('#cost-correct')), 'cost (PCAP, no labels): no cost-per-correct card');
+
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;
-    for (const t of ['overview', 'ranking/robustness', 'accuracy', 'performance/latency', 'performance/statistics', 'agents']) {
+    for (const t of ['overview', 'ranking/robustness', 'accuracy', 'performance/latency', 'performance/statistics', 'agents', 'cost']) {
       await tab(p, csv, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }

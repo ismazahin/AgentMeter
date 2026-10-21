@@ -227,3 +227,39 @@ def test_class_agent_time_stacks_steps_per_class():
     assert dos["total"] == 5.0 and dos["slowest_agent"] == "decide" and dos["n"] == 5
     assert [p["share"] for p in dos["parts"]] == [0.1, 0.1, 0.6, 0.2]
     assert call("classAgentTime", {"per_class": {"per_agent": []}}) is None
+
+
+def _costed():
+    return {"session": {"accuracy_available": True}, "environment": {"provider": "real"},
+            "cost_energy": {"price": {"usd_per_hour": 0.8}, "per_model": [
+                {"model": A, "cost_per_1k_flows_usd": 12.8 * 1000 / 3600 * 0.8, "wh_per_flow": 0.21, "wh_per_1k_flows": 210.0},
+                {"model": B, "cost_per_1k_flows_usd": None, "wh_per_flow": None, "wh_per_1k_flows": None}]},
+            "per_model": [{"model": A, "accuracy": {"accuracy": 0.25}, "efficiency": {"end_to_end": {"mean_latency_s": 12.8}}},
+                          {"model": B, "accuracy": {"accuracy": 0.0}, "efficiency": {"end_to_end": {"mean_latency_s": 20.9}}}]}
+
+
+def test_workload_projection_matches_the_stored_cost_basis():
+    pj = call("workloadProjection", _costed(), {"flows_per_day": 20000})
+    a, b = pj["models"]
+    assert pj["price_source"] == "stored" and pj["usd_per_hour"] == 0.8
+    assert abs(a["gpu_hours_per_day"] - 20000 * 12.8 / 3600) < 1e-9
+    # same basis as the stored cost: 20 x the stored cost per 1,000 flows
+    assert abs(a["cost_per_day"] - 20 * _costed()["cost_energy"]["per_model"][0]["cost_per_1k_flows_usd"]) < 1e-9
+    assert abs(a["cost_per_month"] - 30 * a["cost_per_day"]) < 1e-9
+    assert abs(a["kwh_per_day"] - 4.2) < 1e-12 and b["kwh_per_day"] is None
+    assert abs(a["capacity_per_gpu_day"] - 6750) < 1e-9 and a["gpus_needed"] == 3 and abs(a["utilisation"] - 20000 / 6750) < 1e-12
+    # your own price wins over the stored one; no price at all -> no cost
+    assert call("workloadProjection", _costed(), {"flows_per_day": 1000, "usd_per_hour": "2"})["models"][1]["cost_per_day"] == 1000 * 20.9 / 3600 * 2
+    s = _costed(); s["cost_energy"]["price"] = {}
+    assert call("workloadProjection", s, {"flows_per_day": 1000})["models"][0]["cost_per_day"] is None
+    # exactly one GPU's day is one GPU, not two
+    assert call("workloadProjection", _costed(), {"flows_per_day": 6750})["models"][0]["gpus_needed"] == 1
+
+
+def test_cost_per_correct_answer():
+    a, b = call("costPerCorrect", _costed())
+    assert abs(a["gpu_s_per_correct"] - 12.8 / 0.25) < 1e-12 and a["flows_per_correct"] == 4
+    assert abs(a["usd_per_1k_correct"] - 4 * 12.8 * 1000 / 3600 * 0.8) < 1e-9 and abs(a["wh_per_correct"] - 0.84) < 1e-12
+    assert b["gpu_s_per_correct"] is None and b["usd_per_1k_correct"] is None          # no correct answers
+    s = _costed(); s["session"]["accuracy_available"] = False
+    assert call("costPerCorrect", s) is None

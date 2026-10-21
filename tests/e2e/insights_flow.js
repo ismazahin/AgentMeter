@@ -29,7 +29,7 @@ async function tab(p, id, t, sel) {
   await p.goto(ORIGIN + '/#/session/' + encodeURIComponent(id) + '/' + t);
   await p.waitForSelector(sel, { timeout: 30000 });
 }
-async function hoverText(p, sel) {        // scroll first: a scroll closes the popover, as it should
+async function hoverText(p, sel) {        // the hover value of a chart mark (data-hover)
   await p.locator(sel).first().scrollIntoViewIfNeeded(); await p.waitForTimeout(150);
   await p.locator(sel).first().hover(); await p.waitForSelector('.tip-pop', { timeout: 3000 });
   return p.textContent('.tip-pop');
@@ -90,10 +90,22 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     await tab(p, pcap, 'performance/statistics', '#stats-effects-card');
     log(!(await p.$('#stats-effect-chart')), 'statistics (1 model): no effect chart');
 
+    // Phase 5 — Agent Analysis: hand-off diagram + time per agent by class
+    await tab(p, csv, 'agents', '#agents-handoffs');
+    const ho = await p.$$eval('#agents-handoffs .ho', hs => hs.map(h => [h.querySelectorAll('.node').length, h.querySelectorAll('.edge').length]));
+    log(ho.length === 2 && ho.every(x => x[0] === 4 && x[1] >= 3), 'agents: hand-off diagram per model (4 steps, arrows) ' + JSON.stringify(ho));
+    const resent = await p.$$eval('#agents-handoffs .ho h3 .muted', e => e.map(x => x.textContent));
+    log(resent.every(t => /tokens re-sent per flow/.test(t)), 'agents: tokens re-sent per flow stated per model');
+    log(/re-sent per flow/.test(await hoverText(p, '#agents-handoffs .edge:has(line)')), 'agents: hovering an arrow shows its tokens');
+    const cat = await p.$$eval('#agents-by-class .cat-group', gs => gs.map(g => g.querySelectorAll('.cat-row').length));
+    log(cat.length === 2 && cat.every(n => n === 5),
+        'agents: time per agent for each of the 5 classes, per model');
+    log(/ms \(\d/.test(await hoverText(p, '#agents-by-class .cat-bar span')), 'agents: hovering a segment shows step time and share');
+
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;
-    for (const t of ['overview', 'ranking/robustness', 'accuracy', 'performance/latency', 'performance/statistics']) {
+    for (const t of ['overview', 'ranking/robustness', 'accuracy', 'performance/latency', 'performance/statistics', 'agents']) {
       await tab(p, csv, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }

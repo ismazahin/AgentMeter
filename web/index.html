@@ -314,6 +314,26 @@
   .ef-track .ci { position: absolute; top: 50%; height: 4px; margin-top: -2px; background: var(--muted-2); border-radius: 2px; }
   .ef-track .dot { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
   @media (max-width: 640px) { .ef-row, .ef-axis { grid-template-columns: 1fr; gap: 2px; } .ef-axis > span { display: none; } }
+  .ho h3, .cat-group h3 { font-size: 14px; margin: 12px 0 4px; }
+  .ho-scroll { overflow-x: auto; }
+  .ho svg { display: block; width: 100%; min-width: 620px; height: auto; font-family: inherit; }
+  .ho .node rect:first-of-type { fill: var(--surface-2); stroke: var(--border-2); }
+  .ho .nt { font-size: 15px; font-weight: 600; fill: var(--text); }
+  .ho .ns { font-size: 13px; fill: var(--muted-2); font-variant-numeric: tabular-nums; }
+  .ho .edge line, .ho .edge path { stroke: var(--muted-2); fill: none; }
+  .ho .edge text { font-size: 12.5px; fill: var(--muted-2); }
+  .ho .edge:hover line, .ho .edge:hover path, .ho .edge:focus line, .ho .edge:focus path { stroke: var(--text); }
+  .ho .ah { fill: var(--muted-2); }
+  .ho .node:focus, .ho .edge:focus { outline: none; }
+  .ho .node:focus rect:first-of-type { stroke: var(--text); stroke-width: 2; }
+  .cat-row { display: grid; grid-template-columns: minmax(110px, 170px) 1fr 76px; gap: 12px; align-items: center; margin: 4px 0; }
+  .cat-row .lbl { font-size: 13px; font-weight: 600; }
+  .cat-row .lbl small { display: block; font-weight: 400; color: var(--muted); }
+  .cat-row .val { text-align: right; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--muted-2); }
+  .cat-track { height: 16px; }
+  .cat-bar { display: flex; gap: 2px; height: 100%; min-width: 4px; }
+  .cat-bar span { display: block; height: 100%; background: var(--c); min-width: 1px; }
+  .cat-bar span:last-child { border-radius: 0 4px 4px 0; }
   .stab { display: grid; gap: 12px; }
   .stab-row, .stab-axis { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 12px; align-items: start; }
   .stab-row .lbl { font-size: 13.5px; font-weight: 600; padding-top: 2px; }
@@ -1373,6 +1393,9 @@
     TIP = document.createElement("div");
     TIP.className = "tip-pop"; TIP.setAttribute("role", "tooltip"); TIP.textContent = text;
     document.body.appendChild(TIP);
+    placeTip(el);
+  }
+  function placeTip(el) {
     var r = el.getBoundingClientRect(), w = TIP.offsetWidth;
     TIP.style.top = (window.scrollY + r.bottom + 6) + "px";
     TIP.style.left = Math.max(8, Math.min(window.scrollX + r.left - 12, window.scrollX + document.documentElement.clientWidth - w - 8)) + "px";
@@ -1387,7 +1410,8 @@
     if (ev.key === "Escape") closeTip();
     else if ((ev.key === "Enter" || ev.key === " ") && el && el.classList && el.classList.contains("info-i")) { ev.preventDefault(); openTip(el); TIP._for = el; }
   });
-  window.addEventListener("scroll", closeTip, { passive: true });
+  // a scroll closes an ⓘ popover; a chart mark's hover value follows its mark
+  window.addEventListener("scroll", function () { if (TIP && TIP._hover && TIP._for && TIP._for.isConnected) placeTip(TIP._for); else closeTip(); }, { passive: true });
   // chart marks: hover / focus shows their value (data-hover), the same popover as ⓘ
   document.addEventListener("mouseover", function (ev) {
     var el = ev.target.closest && ev.target.closest("[data-hover]");
@@ -2675,9 +2699,64 @@
       flows.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join("") + '</select></div></div><div id="agents-gantt" class="gantt" style="margin-top:14px"></div>' +
       '<div class="legend">' + ag.agent_order.map(function (a) { return '<span style="--c:' + (AG_COLOR[a] || "var(--muted)") + '">' + esc(a) + '</span>'; }).join("") + '</div>' +
       '<p class="muted small">' + esc(ag.notes.timeline) + '</p></div>');
+    h.push(handoffCard(res), classAgentCard(res));
     h.push('<div class="card flat"><h2>How these are measured</h2><ul class="list">' +
       ["latency", "vram", "overhead", "failures"].map(function (k) { return '<li>' + esc(ag.notes[k]) + '</li>'; }).join("") + '</ul></div>');
     return h.join("");
+  }
+  // hand-off diagram: which step's output each later prompt re-sends, and how many tokens
+  function handoffCard(res) {
+    var g = window.INSIGHTS && INSIGHTS.handoffGraph(res);
+    if (!g || !g.per_model.length) return "";
+    var X = function (i) { return 10 + i * 200; }, W = 130, Y = 92, H = 58;
+    var maxTok = Math.max.apply(null, g.per_model.map(function (m) { return Math.max.apply(null, m.edges.map(function (e) { return e.tokens || 0; }).concat([1])); }));
+    var diagrams = g.per_model.map(function (m, mi) {
+      var idx = {}; g.agents.forEach(function (a, i) { idx[a] = i; });
+      var edges = m.edges.map(function (e, ei) {
+        var a = idx[e.from], b = idx[e.to], sw = 1.5 + 4 * (e.tokens || 0) / maxTok, lbl = e.tokens == null ? "—" : fmtNum(e.tokens, e.tokens < 10 ? 1 : 0) + " tok";
+        var t = e.from + " → " + e.to + ": " + lbl + " re-sent per flow";
+        if (b === a + 1) {
+          var x1 = X(a) + W, x2 = X(b) - 8, y = Y + H / 2;
+          return '<g class="edge" tabindex="0" data-hover="' + esc(t) + '"><line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke-width="' + sw.toFixed(1) + '" marker-end="url(#ho-arrow-' + mi + ')"/>' +
+            '<text x="' + (x1 + x2) / 2 + '" y="' + (y - 8) + '" text-anchor="middle">' + esc(lbl) + '</text></g>';
+        }
+        var xa = X(a) + W / 2, xb = X(b) + W / 2, lift = 26 + 22 * (b - a - 1) + (a % 2) * 8;
+        return '<g class="edge" tabindex="0" data-hover="' + esc(t) + '"><path d="M' + xa + ' ' + Y + ' C ' + xa + ' ' + (Y - lift - 20) + ', ' + xb + ' ' + (Y - lift - 20) + ', ' + xb + ' ' + (Y - 6) + '" stroke-width="' + sw.toFixed(1) + '" marker-end="url(#ho-arrow-' + mi + ')"/>' +
+          '<text x="' + (xa + xb) / 2 + '" y="' + (Y - lift - 12) + '" text-anchor="middle">' + esc(lbl) + '</text></g>';
+      }).join("");
+      var nodes = m.nodes.map(function (n, i) {
+        var t = n.agent + ": " + fmtTime(n.latency_s) + " per flow (" + fmtPct(n.share) + " of flow time), " + fmtNum(n.in_tokens) + " tokens in, " + fmtNum(n.out_tokens) + " out";
+        return '<g class="node" tabindex="0" data-hover="' + esc(t) + '"><rect x="' + X(i) + '" y="' + Y + '" width="' + W + '" height="' + H + '" rx="6"/><rect x="' + X(i) + '" y="' + Y + '" width="5" height="' + H + '" rx="2" style="fill:' + AG_COLOR[n.agent] + '"/>' +
+          '<text x="' + (X(i) + 16) + '" y="' + (Y + 24) + '" class="nt">' + esc(n.agent) + '</text><text x="' + (X(i) + 16) + '" y="' + (Y + 44) + '" class="ns">' + esc(fmtTime(n.latency_s) + " · " + fmtPct(n.share)) + '</text></g>';
+      }).join("");
+      return '<div class="ho" data-model="' + esc(m.model) + '"><h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + ' <span class="muted small">' + fmtNum(m.resent_tokens, 1) + ' tokens re-sent per flow</span></h3>' +
+        '<div class="ho-scroll"><svg viewBox="0 0 790 168" role="img" aria-label="' + esc("Hand-offs for " + short(m.model) + ": " + m.edges.map(function (e) { return e.from + " to " + e.to; }).join(", ")) + '">' +
+        '<defs><marker id="ho-arrow-' + mi + '" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="ah"/></marker></defs>' + edges + nodes + '</svg></div></div>';
+    }).join("");
+    return '<div class="card" id="agents-handoffs"><h2>Hand-offs between agents</h2><p class="muted small" style="margin-top:0">Each arrow is one step\'s answer re-sent inside a later step\'s prompt; its label and thickness are the tokens it carries per flow (the sender\'s mean output). This is where the agentic overhead comes from.</p>' + diagrams +
+      '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="agents-handoff-table"><thead><tr><th>Model</th><th>From</th><th>To</th><th class="num">Tokens re-sent / flow</th></tr></thead><tbody>' +
+      g.per_model.map(function (m) { return m.edges.map(function (e) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(e.from) + '</td><td>' + esc(e.to) + '</td><td class="num">' + fmtNum(e.tokens, 1) + '</td></tr>'; }).join(""); }).join("") +
+      '</tbody></table></div></details></div>';
+  }
+  // time per agent by attack class (stacked: perceive, reason, decide, act)
+  function classAgentCard(res) {
+    var c = window.INSIGHTS && INSIGHTS.classAgentTime(res);
+    if (!c) return "";
+    var legend = '<div class="ilegend">' + c.agents.map(function (a) { return '<span><i style="--c:' + AG_COLOR[a] + '"></i>' + esc(a) + '</span>'; }).join("") + '</div>';
+    c.per_model.sort(function (a, b) { return (MODEL_SLOT[a.model] || 0) - (MODEL_SLOT[b.model] || 0); });
+    var groups = c.per_model.map(function (m) {
+      return '<div class="cat-group" data-model="' + esc(m.model) + '"><h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '</h3>' + m.rows.map(function (r) {
+        return '<div class="cat-row"><span class="lbl">' + esc(r.cls) + (r.n != null ? '<small>' + r.n + ' flows</small>' : "") + '</span><div class="cat-track"><div class="cat-bar" style="width:' + (c.max_total ? 100 * r.total / c.max_total : 0) + '%">' +
+          r.parts.map(function (p) {
+            var t = short(m.model) + " · " + r.cls + " · " + p.agent + ": " + fmtTime(p.s) + " (" + fmtPct(p.share) + ")";
+            return p.s ? '<span tabindex="0" style="flex:' + (100 * p.share).toFixed(3) + ' 1 0;--c:' + AG_COLOR[p.agent] + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span>' : "";
+          }).join("") + '</div></div><span class="val">' + fmtTime(r.total) + '</span></div>';
+      }).join("") + '</div>';
+    }).join("");
+    return '<div class="card" id="agents-by-class"><h2>Time per agent by attack class</h2><p class="muted small" style="margin-top:0">Mean time each step takes for flows of each class (bar length = the class\'s total per flow, same scale for every model). A resource breakdown, not a detection score.</p>' +
+      legend + groups + '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="agents-by-class-table"><thead><tr><th>Model</th><th>Class</th>' + c.agents.map(function (a) { return '<th class="num">' + esc(a) + '</th>'; }).join("") + '<th class="num">Total</th><th>Slowest step</th></tr></thead><tbody>' +
+      c.per_model.map(function (m) { return m.rows.map(function (r) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(r.cls) + '</td>' + r.parts.map(function (p) { return '<td class="num">' + fmtTime(p.s) + '</td>'; }).join("") + '<td class="num"><b>' + fmtTime(r.total) + '</b></td><td>' + esc(r.slowest_agent || "—") + '</td></tr>'; }).join(""); }).join("") +
+      '</tbody></table></div></details></div>';
   }
   function wireAgents(res) {
     var sel = $("agents-flow");

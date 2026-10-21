@@ -216,9 +216,61 @@
       }) };
   }
 
+  // ---- Agent Analysis: the hand-off graph ----------------------------------------------
+  // agents.handoffs[x] lists the agents whose output x's prompt re-sends; an edge carries the
+  // sender's mean output tokens per flow (the basis of the stored overhead estimate).
+  function handoffGraph(res) {
+    var ag = res.agents;
+    if (!ag || !ag.handoffs) return null;
+    var order = ag.agent_order || ["perceive", "reason", "decide", "act"];
+    return { agents: order, per_model: (ag.per_model || []).map(function (m) {
+      var by = {};
+      (m.agents || []).forEach(function (a) { by[a.agent] = a; });
+      var edges = [];
+      order.forEach(function (to) {
+        (ag.handoffs[to] || []).forEach(function (from) {
+          edges.push({ from: from, to: to, tokens: num((by[from] || {}).mean_output_tokens) });
+        });
+      });
+      var nodes = order.map(function (a) {
+        var x = by[a] || {};
+        return { agent: a, latency_s: num(x.mean_latency_s), share: num(x.latency_share), in_tokens: num(x.mean_input_tokens), out_tokens: num(x.mean_output_tokens) };
+      });
+      var resent = edges.reduce(function (t, e) { return t + (e.tokens || 0); }, 0);
+      return { model: bare(m.model), nodes: nodes, edges: edges, resent_tokens: resent };
+    }) };
+  }
+
+  // ---- Agent Analysis: time per agent by attack class ---------------------------------------
+  function classAgentTime(res) {
+    var rows = ((res.per_class || {}).per_agent || []);
+    if (!rows.length) return null;
+    var order = ((res.agents || {}).agent_order) || ["perceive", "reason", "decide", "act"];
+    var models = [], classes = [], cell = {};
+    rows.forEach(function (r) {
+      var m = bare(r.model);
+      if (models.indexOf(m) < 0) models.push(m);
+      if (classes.indexOf(r["class"]) < 0) classes.push(r["class"]);
+      cell[m + "\u0000" + r["class"] + "\u0000" + r.agent_name] = r;
+    });
+    var ymax = 0;
+    var per_model = models.map(function (m) {
+      return { model: m, rows: classes.map(function (c) {
+        var parts = order.map(function (a) { var r = cell[m + "\u0000" + c + "\u0000" + a]; return { agent: a, s: r ? num(r.mean_wall_s) : null }; });
+        var total = parts.reduce(function (t, p) { return t + (p.s || 0); }, 0), n = null;
+        order.forEach(function (a) { var r = cell[m + "\u0000" + c + "\u0000" + a]; if (r && n == null) n = r.n; });
+        parts.forEach(function (p) { p.share = total ? (p.s || 0) / total : null; });
+        ymax = Math.max(ymax, total);
+        var top = parts.slice().sort(function (x, y) { return (y.s || 0) - (x.s || 0); })[0];
+        return { cls: c, n: n, total: total, parts: parts, slowest_agent: top && top.s ? top.agent : null };
+      }) };
+    });
+    return { agents: order, classes: classes, max_total: ymax, per_model: per_model };
+  }
+
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
-              latencyHistogram: latencyHistogram, effectSizes: effectSizes };
+              latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

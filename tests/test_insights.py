@@ -197,3 +197,33 @@ def test_effect_sizes_positions_on_a_symmetric_axis():
     assert abs(r["pos"]["low"] - (-2.0 + 2.3) / 4.6) < 1e-12 and abs(r["pos"]["diff"] - 1.3 / 4.6) < 1e-12
     assert e["rows"][1] == {"metric": "peak_vram_mb", "available": False, "reason": "no VRAM readings"}
     assert call("effectSizes", {"effect_sizes": {"skipped": "needs two models"}}) is None
+
+
+def test_handoff_graph_edges_carry_the_senders_output_tokens():
+    ag = {"agent_order": ["perceive", "reason", "decide", "act"],
+          "handoffs": {"perceive": [], "reason": ["perceive"], "decide": ["reason", "perceive"], "act": ["reason"]},
+          "per_model": [{"model": "mock:" + A, "overhead": {"handoff_tokens_per_flow": 16 + 14 + 16 + 14},
+                         "agents": [{"agent": "perceive", "mean_output_tokens": 16, "mean_latency_s": 1.0, "latency_share": 0.5},
+                                    {"agent": "reason", "mean_output_tokens": 14},
+                                    {"agent": "decide", "mean_output_tokens": 2}, {"agent": "act", "mean_output_tokens": 18}]}]}
+    g = call("handoffGraph", {"agents": ag})
+    m = g["per_model"][0]
+    assert m["model"] == A
+    assert [(e["from"], e["to"], e["tokens"]) for e in m["edges"]] == [
+        ("perceive", "reason", 16), ("reason", "decide", 14), ("perceive", "decide", 16), ("reason", "act", 14)]
+    # the edges add up to the stored overhead estimate (same basis)
+    assert m["resent_tokens"] == ag["per_model"][0]["overhead"]["handoff_tokens_per_flow"]
+    assert m["nodes"][0] == {"agent": "perceive", "latency_s": 1.0, "share": 0.5, "in_tokens": None, "out_tokens": 16}
+    assert call("handoffGraph", {}) is None
+
+
+def test_class_agent_time_stacks_steps_per_class():
+    rows = [{"model": "mock:" + A, "class": c, "agent_name": a, "mean_wall_s": t, "n": 5}
+            for c, ts in (("Benign", (1.0, 2.0, 1.0, 0.0)), ("DoS", (0.5, 0.5, 3.0, 1.0)))
+            for a, t in zip(("perceive", "reason", "decide", "act"), ts)]
+    c = call("classAgentTime", {"per_class": {"per_agent": rows}})
+    assert c["classes"] == ["Benign", "DoS"] and c["max_total"] == 5.0
+    dos = c["per_model"][0]["rows"][1]
+    assert dos["total"] == 5.0 and dos["slowest_agent"] == "decide" and dos["n"] == 5
+    assert [p["share"] for p in dos["parts"]] == [0.1, 0.1, 0.6, 0.2]
+    assert call("classAgentTime", {"per_class": {"per_agent": []}}) is None

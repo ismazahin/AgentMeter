@@ -326,7 +326,7 @@ async function frameOf(p) {
   const bgLight = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
   await p.check('#set-theme-dark');
   const bgDark = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  log(bgLight === 'rgb(246, 247, 249)' && bgDark === 'rgb(18, 22, 28)', 'Settings: tokens switch (' + bgLight + ' -> ' + bgDark + ')');
+  log(bgLight === 'rgb(244, 242, 236)' && bgDark === 'rgb(16, 20, 24)', 'Settings: tokens switch (' + bgLight + ' -> ' + bgDark + ')');
   await p.check('#set-theme-system');
   log(await p.evaluate(() => !document.documentElement.hasAttribute('data-theme')), 'Settings: System follows the OS');
 

@@ -318,7 +318,7 @@ async function frameOf(p) {
   log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Open in Compare opens the merged view of that setup');
 
   // 10. Settings: theme toggle (persisted)
-  await p.click('.iconbtn[aria-label="Settings"]'); await p.waitForSelector('#view-settings:not([hidden])');
+  await p.click('.sidenav-account a[data-nav="settings"]'); await p.waitForSelector('#view-settings:not([hidden])');   // the sidebar's Account group
   await p.check('#set-theme-light');
   log(await p.evaluate(() => document.documentElement.getAttribute('data-theme')) === 'light', 'Settings: Light applies');
   await p.reload(); await p.waitForSelector('#view-settings:not([hidden])');

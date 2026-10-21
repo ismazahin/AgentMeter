@@ -114,10 +114,20 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     await tab(p, pcap, 'cost', '#proj-table');
     log(!(await p.$('#cost-correct')), 'cost (PCAP, no labels): no cost-per-correct card');
 
+    // Phase 7 — Recommendations: deployment fit at a glance
+    await tab(p, csv, 'recommendations/limits', '#fit-table');
+    const fit = await p.$$eval('#fit-table tbody tr[data-profile]', rs => rs.map(r => [...r.querySelectorAll('[data-result]')].map(c => c.getAttribute('data-result'))));
+    log(fit.length === 10 && fit.every(r => r.length === 2), 'recommendations: 10 profiles x 2 models');
+    const fr = Object.fromEntries((await p.$$eval('#fit-table tbody tr[data-profile]', rs => rs.map(r => r.getAttribute('data-profile')))).map((id, i) => [id, fit[i]]));
+    log(fr.gpu8.every(x => x === 'no_data') && fr.usd1.every(x => x === 'no_data') && fr.rt2.every(x => x === 'pass'),
+        'recommendations (mock): memory and budget have no data, response time fits');
+    log(/no data — /.test(await hoverText(p, '#fit-table tr[data-profile="gpu8"] [data-result]')), 'recommendations: hovering a "no data" cell says why');
+    log(!!(await p.$('#dh-form')), 'recommendations: "Your limits" form still below the matrix');
+
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;
-    for (const t of ['overview', 'ranking/robustness', 'accuracy', 'performance/latency', 'performance/statistics', 'agents', 'cost']) {
+    for (const t of ['overview', 'ranking/robustness', 'accuracy', 'performance/latency', 'performance/statistics', 'agents', 'cost', 'recommendations/limits']) {
       await tab(p, csv, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }

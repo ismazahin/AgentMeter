@@ -338,6 +338,9 @@
   .cat-track { position: relative; }
   .proj-one { position: absolute; top: -4px; bottom: -4px; border-left: 2px dashed var(--text); }
   #proj-out .notice { margin: 8px 0 12px; }
+  #fit-table td.fit-cell { white-space: nowrap; }
+  #fit-table .fit-v { margin-left: 8px; }
+  #fit-table tr.fit-group th { padding-top: 14px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); border-bottom: 1px solid var(--border); }
   .stab { display: grid; gap: 12px; }
   .stab-row, .stab-axis { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 12px; align-items: start; }
   .stab-row .lbl { font-size: 13.5px; font-weight: 600; padding-top: 2px; }
@@ -2837,6 +2840,7 @@
     var hint = window.REPORT ? window.REPORT.optimisationHint(res, ((res.per_model || [])[0] || {}).db_label) : { text: "" };
     h.push('<div class="card"><h2>Measured verdict</h2><p class="verdict">' + esc(rel ? rel.verdict : (res.comparison || {}).statement || "Single-model run — no head-to-head comparison.") + '</p>' +
       (hint.text ? '<p class="small">' + esc(hint.text) + '</p>' : "") + '<p class="muted small">Decision support, not a deployment sign-off.</p></div>');
+    h.push(fitCard(res));
     if (dh) {
       h.push('<form class="card" id="dh-form" novalidate><h2>Does a model fit your limits?</h2><p class="muted small">' + esc(dh.framing) +
         ' Rule set: <span class="mono">' + esc(dh.rulebase) + '</span>.</p><div class="row">' +
@@ -2847,6 +2851,27 @@
         '<div id="dh-error" class="notice error" role="alert" hidden></div><div id="dh-result" style="margin-top:14px"></div></form>');
     }
     return h.join("");
+  }
+  // Recommendations: each model against common deployment profiles (fixed thresholds, view only)
+  var FIT_MARK = { pass: ["✓", "fits", "ok"], fail: ["✗", "does not fit", "bad"], no_data: ["–", "no data", ""] };
+  function fitCard(res) {
+    var fit = window.INSIGHTS && INSIGHTS.deploymentFit(res);
+    if (!fit || !fit.models.length) return "";
+    var fmtV = function (p, v) { return p.unit === "MB" ? fmtMB(v) : p.unit === "s" ? fmtTime(v) : p.unit === "USD" ? fmtUsd(v) : fmtNum(v) + " flows/day"; };
+    var group = null;
+    var rows = fit.profiles.map(function (p, i) {
+      var head = p.group !== group ? '<tr class="fit-group"><th colspan="' + (fit.models.length + 1) + '">' + esc(p.group) + '</th></tr>' : "";
+      group = p.group;
+      return head + '<tr data-profile="' + p.id + '"><td>' + esc(p.label) + '</td>' + fit.models.map(function (m) {
+        var c = m.cells[i], k = FIT_MARK[c.result];
+        var t = short(m.model) + " · " + p.label + ": " + k[1] + (c.value != null ? " (" + fmtV(p, c.value) + ")" : " — " + c.reason);
+        return '<td class="fit-cell"><span class="chip ' + k[2] + '" tabindex="0" data-result="' + c.result + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"><b aria-hidden="true">' + k[0] + '</b> ' + k[1] + '</span>' +
+          (c.value != null ? '<span class="muted small fit-v">' + esc(fmtV(p, c.value)) + '</span>' : "") + '</td>';
+      }).join("") + '</tr>';
+    }).join("");
+    return '<div class="card" id="fit-card"><h2>Deployment fit at a glance</h2><p class="muted small" style="margin-top:0">Each model against common deployment profiles, using this session\'s measured numbers (total peak VRAM, p95 / mean time per flow, flows one GPU can do in a day, cost per 1,000 flows). Fixed thresholds; set your own below.</p>' +
+      '<div class="table-wrap"><table id="fit-table"><thead><tr><th>Profile</th>' + fit.models.map(function (m) { return '<th><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '<br><span class="muted small">' + m.passes + ' of ' + fit.profiles.length + ' fit</span></th>'; }).join("") + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<p class="muted small">"no data": not measured in this run (e.g. no GPU memory or price on a CPU/mock run). A fit is not a sign-off: the run\'s flows, GPU and settings apply.</p></div>';
   }
   function recContextTab(res) {
     var s3 = res.recommendation_stage3, h = [];

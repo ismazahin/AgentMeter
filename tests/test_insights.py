@@ -263,3 +263,21 @@ def test_cost_per_correct_answer():
     assert b["gpu_s_per_correct"] is None and b["usd_per_1k_correct"] is None          # no correct answers
     s = _costed(); s["session"]["accuracy_available"] = False
     assert call("costPerCorrect", s) is None
+
+
+def test_deployment_fit_cells():
+    s = {"per_model": [{"model": A, "efficiency": {"end_to_end": {"mean_latency_s": 1.4, "p95_latency_s": 2.0}}},
+                       {"model": B, "efficiency": {"end_to_end": {"mean_latency_s": 8.0, "p95_latency_s": 12.5}}}],
+         "memory": {"per_model": [{"model": A, "total_peak_mb": 8192}, {"model": B, "total_peak_mb": None, "reason": "no VRAM readings"}]},
+         "cost_energy": {"per_model": [{"model": A, "cost_per_1k_flows_usd": 0.31}, {"model": B, "cost_per_1k_flows_usd": None, "cost_reason": "mock run"}]}}
+    fit = call("deploymentFit", s)
+    ids = [p["id"] for p in fit["profiles"]]
+    a = dict(zip(ids, fit["models"][0]["cells"]))
+    b = dict(zip(ids, fit["models"][1]["cells"]))
+    assert a["gpu8"]["result"] == "pass"                       # at the limit counts as fitting
+    assert a["rt2"]["result"] == "pass" and b["rt10"]["result"] == "fail" and b["rt60"]["result"] == "pass"
+    assert abs(a["vol10k"]["value"] - 86400 / 1.4) < 1e-9 and a["vol100k"]["result"] == "fail"
+    assert b["gpu8"] == {"id": "gpu8", "result": "no_data", "value": None, "reason": "no VRAM readings"}
+    assert b["usd1"]["reason"] == "mock run"
+    # B: batch (8 s) and 10,000 a day (86,400 / 8 = 10,800) only
+    assert fit["models"][0]["passes"] == 9 and fit["models"][1]["passes"] == 2

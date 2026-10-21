@@ -306,10 +306,45 @@
     });
   }
 
+  // ---- Recommendations: fit against common deployment profiles ------------------------------
+  // Fixed, documented thresholds (view only; "Your limits" checks your own). Each cell is
+  // pass / fail / no_data against one stored number of the model.
+  var PROFILES = [
+    { id: "gpu8", group: "GPU memory", label: "Fits an 8 GB GPU", metric: "total_peak_mb", max: 8192, unit: "MB" },
+    { id: "gpu16", group: "GPU memory", label: "Fits a 16 GB GPU", metric: "total_peak_mb", max: 16384, unit: "MB" },
+    { id: "gpu24", group: "GPU memory", label: "Fits a 24 GB GPU", metric: "total_peak_mb", max: 24576, unit: "MB" },
+    { id: "rt2", group: "Response time", label: "Interactive: p95 ≤ 2 s", metric: "p95_latency_s", max: 2, unit: "s" },
+    { id: "rt10", group: "Response time", label: "Near real-time: p95 ≤ 10 s", metric: "p95_latency_s", max: 10, unit: "s" },
+    { id: "rt60", group: "Response time", label: "Batch: mean ≤ 60 s", metric: "mean_latency_s", max: 60, unit: "s" },
+    { id: "vol10k", group: "Volume on one GPU", label: "10,000 flows a day", metric: "capacity_per_day", min: 10000, unit: "flows" },
+    { id: "vol100k", group: "Volume on one GPU", label: "100,000 flows a day", metric: "capacity_per_day", min: 100000, unit: "flows" },
+    { id: "usd1", group: "Budget", label: "≤ $1 per 1,000 flows", metric: "cost_per_1k_flows_usd", max: 1, unit: "USD" },
+    { id: "usd10", group: "Budget", label: "≤ $10 per 1,000 flows", metric: "cost_per_1k_flows_usd", max: 10, unit: "USD" }
+  ];
+  function deploymentFit(res) {
+    var mem = {}, ce = {};
+    ((res.memory || {}).per_model || []).forEach(function (r) { mem[bare(r.model)] = r; });
+    ((res.cost_energy || {}).per_model || []).forEach(function (r) { ce[bare(r.model)] = r; });
+    var models = (res.per_model || []).map(function (m) {
+      var e = ((m.efficiency || {}).end_to_end) || {}, k = bare(m.model), mm = mem[k] || {}, cc = ce[k] || {};
+      var v = { total_peak_mb: num(mm.total_peak_mb), p95_latency_s: num(e.p95_latency_s), mean_latency_s: num(e.mean_latency_s),
+                capacity_per_day: num(e.mean_latency_s) ? 86400 / e.mean_latency_s : null, cost_per_1k_flows_usd: num(cc.cost_per_1k_flows_usd) };
+      var why = { total_peak_mb: mm.reason || mm.status || "not measured", cost_per_1k_flows_usd: cc.cost_reason || cc.cost_status || "not measured" };
+      var cells = PROFILES.map(function (p) {
+        var x = v[p.metric];
+        if (x == null) return { id: p.id, result: "no_data", value: null, reason: why[p.metric] || "not measured" };
+        var ok = p.max != null ? x <= p.max : x >= p.min;
+        return { id: p.id, result: ok ? "pass" : "fail", value: x };
+      });
+      return { model: k, values: v, cells: cells, passes: cells.filter(function (c) { return c.result === "pass"; }).length };
+    });
+    return { profiles: PROFILES, models: models };
+  }
+
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
-              workloadProjection: workloadProjection, costPerCorrect: costPerCorrect };
+              workloadProjection: workloadProjection, costPerCorrect: costPerCorrect, deploymentFit: deploymentFit };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

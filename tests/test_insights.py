@@ -109,3 +109,42 @@ def test_key_findings_skip_accuracy_when_unlabelled_and_handle_one_model():
     s["per_model"] = s["per_model"][:1]
     keys = [x["key"] for x in call("keyFindings", s)]
     assert "accuracy" not in keys and "gap" not in keys and "tail" in keys
+
+
+def _two(a, b, lab=True):
+    return {"session": {"accuracy_available": lab},
+            "phase8": {"normalised": [dict(a, model="mock:" + A), dict(b, model="mock:" + B)],
+                       "weights": {"accuracy": 0.4, "latency": 0.25, "vram": 0.2, "tokens": 0.15}}}
+
+
+def test_weight_stability_finds_the_crossing():
+    # accuracy weight t, the rest in stored ratio (0.25 : 0.2 : 0.15):
+    #   A(t) = 0.2t + (1-t)*0.5417, B(t) = 0.6t + (1-t)*0.3333  ->  cross at t = 0.2083/0.6083 = 0.342
+    s = _two({"accuracy": 0.2, "latency": 1.0, "vram": 0.0, "tokens": 0.5},
+             {"accuracy": 0.6, "latency": 0.5, "vram": 0.0, "tokens": 0.5})
+    st = call("weightStability", s)
+    acc = next(r for r in st["rows"] if r["criterion"] == "accuracy")
+    assert acc["leader"] == B and acc["changes"] is True
+    assert [sg["leader"] for sg in acc["segments"]] == [A, B]
+    assert abs(acc["stable"][0] - 0.342) < 0.002 and acc["stable"][1] == 1
+    assert call("stabilitySentence", acc) == "model-b stays first while this weight is between 0.34 and 1.00 (stored 0.40)."
+    vram = next(r for r in st["rows"] if r["criterion"] == "vram")
+    assert vram["no_data"] is True
+    assert call("stabilitySentence", vram) == "No readings for this criterion in the run: its weight changes nothing."
+
+
+def test_weight_stability_ties_point_ties_and_unlabelled():
+    same = {"accuracy": 0.3, "latency": 1.0, "vram": 0.0, "tokens": 0.8}
+    st = call("weightStability", _two(same, dict(same)))
+    assert all(r["leader"] is None for r in st["rows"])
+    assert call("stabilitySentence", st["rows"][0]) == "At the stored weight (0.40) the top place is a tie."
+    # both models score 1.0 on VRAM: weight exactly 1 ties them; that single point is folded away
+    st = call("weightStability", _two({"accuracy": 0.5, "latency": 1.0, "vram": 1.0, "tokens": 0.8},
+                                      {"accuracy": 0.2, "latency": 0.9, "vram": 1.0, "tokens": 0.6}))
+    vram = next(r for r in st["rows"] if r["criterion"] == "vram")
+    assert vram["changes"] is False and vram["point_tie"] == 1
+    assert call("stabilitySentence", vram) == "model-a stays first for any weight from 0 to 1 (at exactly 1.00 every model ties)."
+    # unlabelled: accuracy is not a criterion; the stored weights renormalise over the other three
+    st = call("weightStability", _two(same, {"accuracy": 0, "latency": 0.5, "vram": 0, "tokens": 0.9}, lab=False))
+    assert [r["criterion"] for r in st["rows"]] == ["latency", "vram", "tokens"]
+    assert abs(st["weights"]["latency"] - 0.25 / 0.6) < 1e-9 and st["weights"]["accuracy"] == 0

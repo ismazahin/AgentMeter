@@ -59,10 +59,20 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log(!(await texts(p, '#svc-findings li')).some(t => /Accuracy/.test(t)) && /no labels/.test(await p.textContent('#svc-profile .prof-row[data-crit="accuracy"]')),
         'overview (PCAP): no accuracy finding; profile says "no labels"');
 
+    // Phase 2 — Ranking -> Robustness: weight range in which #1 stays first
+    await tab(p, csv, 'ranking/robustness', '#svc-stability');
+    log((await p.$$('#svc-stability .stab-row')).length === 4 && (await p.$$('#svc-stability .stab-mark')).length === 4,
+        'robustness: one strip per criterion, each with the stored-weight marker');
+    const stab = await texts(p, '#svc-stability .stab-text');
+    log(/no readings/i.test(stab[2]) && stab.every(t => /tie|stays first|no readings/i.test(t)), 'robustness: every strip says who stays first, a tie, or no readings');
+    log((await p.$$('#svc-stability-table tbody tr')).length === 4, 'robustness: table view');
+    await tab(p, pcap, 'ranking/robustness', '#svc-stability');
+    log(/Single-model run/.test(await p.textContent('#svc-stability')), 'robustness (1 model): says there is no ranking to change');
+
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;
-    for (const t of ['overview']) {
+    for (const t of ['overview', 'ranking/robustness']) {
       await tab(p, csv, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }

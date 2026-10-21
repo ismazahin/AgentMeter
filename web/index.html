@@ -279,6 +279,17 @@
   .ibar.na .val { font-style: italic; }
   .ibar.na .fill { display: none; }
   [data-hover] { cursor: default; }
+  .stab { display: grid; gap: 12px; }
+  .stab-row, .stab-axis { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 12px; align-items: start; }
+  .stab-row .lbl { font-size: 13.5px; font-weight: 600; padding-top: 2px; }
+  .stab-row .lbl small { display: block; font-weight: 400; color: var(--muted); }
+  .stab-axis > div { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
+  .stab-track { position: relative; height: 16px; margin: 4px 0; background: var(--surface-2); border-radius: 4px; }
+  .stab-track .seg { position: absolute; top: 0; bottom: 0; background: var(--c); box-shadow: inset -2px 0 0 var(--surface); }
+  .stab-track .seg.tie { background: repeating-linear-gradient(45deg, var(--border-2) 0 3px, transparent 3px 6px); }
+  .stab-mark { position: absolute; top: -5px; bottom: -5px; width: 4px; margin-left: -2px; background: var(--text); box-shadow: 0 0 0 2px var(--surface); border-radius: 2px; }
+  .stab-axis > div span:last-child { transform: translateX(2px); }
+  .stab-text { margin: 4px 0 0; }
   .hbar { display: grid; grid-template-columns: minmax(110px, 200px) 1fr minmax(84px, auto); gap: 10px; align-items: center; font-size: 13.5px; }
   .hbar .lbl { overflow-wrap: anywhere; font-weight: 600; }
   .hbar .track { height: 18px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
@@ -2165,9 +2176,10 @@
     acc.setAttribute("aria-disabled", s.accuracy_available ? "false" : "true");
     acc.title = s.accuracy_available ? "" : "No labels in this data — efficiency only";
     var base = "#/session/" + enc(job.job_id) + "/";
+    if (window.INSIGHTS) setModelSlots(res);
     $("spanel-overview").innerHTML = pane("main", overviewTab(res));
     $("spanel-ranking").innerHTML = pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
-        'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", "") + pane("pareto", "") + pane("guide", "");
+        'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", stabilityCard(res)) + pane("pareto", "") + pane("guide", "");
     $("spanel-accuracy").innerHTML = pane("main", "");
     $("spanel-performance").innerHTML = pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res)) + pane("gpu", memoryCard(res)) + pane("statistics", effectsCard(res));
     $("spanel-agents").innerHTML = pane("main", agentsTab(res));
@@ -2320,9 +2332,12 @@
   }
   // Overview: key findings and the per-criterion profile (INSIGHTS, insights.js)
   var CRIT_LABEL = { accuracy: "Accuracy", latency: "Latency", vram: "VRAM", tokens: "Tokens" };
-  function modelColor(i) { return "var(--series-" + (i % 2 + 1) + ")"; }
+  // a model keeps one colour on every chart of a session (session model order, never rank)
+  var MODEL_SLOT = {};
+  function setModelSlots(res) { MODEL_SLOT = {}; (res.per_model || []).forEach(function (m, i) { MODEL_SLOT[INSIGHTS.bare(m.model)] = i; }); }
+  function modelColor(m) { var i = MODEL_SLOT[window.INSIGHTS ? INSIGHTS.bare(m) : m]; return "var(--series-" + ((i == null ? 0 : i) % 2 + 1) + ")"; }
   function legendHtml(names) {
-    return names.length < 2 ? "" : '<div class="ilegend">' + names.map(function (n, i) { return '<span><i style="--c:' + modelColor(i) + '"></i>' + esc(short(n)) + '</span>'; }).join("") + '</div>';
+    return names.length < 2 ? "" : '<div class="ilegend">' + names.map(function (n) { return '<span><i style="--c:' + modelColor(n) + '"></i>' + esc(short(n)) + '</span>'; }).join("") + '</div>';
   }
   function findingsCard(res) {
     var f = window.INSIGHTS ? INSIGHTS.keyFindings(res) : [];
@@ -2340,7 +2355,7 @@
         pr.rows.map(function (r, i) {
           var v = r.scores[k], na = pr.missing[k] || v == null;
           var txt = short(r.model) + " · " + CRIT_LABEL[k] + ": " + (na ? "not measured" : v.toFixed(2) + " of 1.00 (target)");
-          return '<div class="ibar' + (na ? " na" : "") + '" tabindex="0" data-hover="' + esc(txt) + '" aria-label="' + esc(txt) + '"><span class="track"><span class="fill" style="--c:' + modelColor(i) + ';width:' + (na ? 0 : Math.min(100, 100 * v)) + '%"></span><span class="tgt" style="left:100%"></span></span><span class="val">' + (na ? "n/a" : v.toFixed(2)) + '</span></div>';
+          return '<div class="ibar' + (na ? " na" : "") + '" tabindex="0" data-hover="' + esc(txt) + '" aria-label="' + esc(txt) + '"><span class="track"><span class="fill" style="--c:' + modelColor(r.model) + ';width:' + (na ? 0 : Math.min(100, 100 * v)) + '%"></span><span class="tgt" style="left:100%"></span></span><span class="val">' + (na ? "n/a" : v.toFixed(2)) + '</span></div>';
         }).join("") + '</div></div>';
     }).join("");
     return '<div class="card" id="svc-profile"><h2>Criteria profile</h2><p class="muted small" style="margin-top:0">Each criterion scored against the study target: 1.00 (dashed line) meets the target. These are the four inputs of the SAW score.</p>' +
@@ -2349,6 +2364,32 @@
       pr.criteria.map(function (k) { return '<th class="num">' + CRIT_LABEL[k] + '</th>'; }).join("") + '</tr></thead><tbody>' +
       pr.rows.map(function (r) { return '<tr><td class="mono">' + esc(r.model) + '</td>' + pr.criteria.map(function (k) { return '<td class="num">' + (pr.missing[k] || r.scores[k] == null ? "—" : r.scores[k].toFixed(3)) + '</td>'; }).join("") + '</tr>'; }).join("") +
       '</tbody></table></div></details></div>';
+  }
+  // Ranking -> Robustness: the weight range in which the top model stays first
+  function stabilityCard(res) {
+    if (!window.INSIGHTS || !res.phase8) return "";
+    var st = INSIGHTS.weightStability(res);
+    if (st.models.length < 2) return '<div class="card" id="svc-stability"><h2>How far can the weights move?</h2><p class="muted">Single-model run: there is no ranking to change.</p></div>';
+    var r2 = function (v) { return v.toFixed(2); };
+    var rows = st.rows.map(function (row) {
+      var segs = row.segments.map(function (sg) {
+        var lbl = (sg.leader ? short(sg.leader) + " first" : "tie") + " for weight " + r2(sg.from) + "–" + r2(sg.to);
+        return '<span class="seg' + (sg.leader ? "" : " tie") + '" data-hover="' + esc(CRIT_LABEL[row.criterion] + ": " + lbl) + '" style="left:' + (100 * sg.from) + '%;width:' + Math.max(0.4, 100 * (sg.to - sg.from)) + '%;' +
+          (sg.leader ? "--c:" + modelColor(sg.leader) : "") + '"></span>';
+      }).join("");
+      return '<div class="stab-row" data-crit="' + row.criterion + '"><span class="lbl">' + CRIT_LABEL[row.criterion] + '<small>stored ' + r2(row.stored) + '</small></span>' +
+        '<div><div class="stab-track" role="img" aria-label="' + esc(INSIGHTS.stabilitySentence(row)) + '">' + segs +
+        '<span class="stab-mark" style="left:' + (100 * row.stored) + '%" title="stored weight ' + r2(row.stored) + '"></span></div>' +
+        '<p class="small stab-text">' + esc(INSIGHTS.stabilitySentence(row)) + '</p></div></div>';
+    }).join("");
+    return '<div class="card" id="svc-stability"><h2>How far can the weights move?</h2><p class="muted small" style="margin-top:0">Each strip runs one weight from 0 to 1 while the other three keep their stored proportions; ' +
+      'the colour shows which model would rank first. The marker is the stored weight.</p>' + legendHtml(st.models) +
+      '<div class="stab-axis"><span></span><div><span>0</span><span>0.5</span><span>1</span></div></div><div class="stab">' + rows + '</div>' +
+      '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-stability-table"><thead><tr><th>Criterion</th><th class="num">Stored weight</th><th>First at stored weight</th><th>Stays first for weights</th></tr></thead><tbody>' +
+      st.rows.map(function (row) {
+        return '<tr><td>' + CRIT_LABEL[row.criterion] + '</td><td class="num">' + r2(row.stored) + '</td><td class="mono">' + esc(row.leader ? short(row.leader) : "tie") + '</td><td class="num">' +
+          (row.no_data ? "any (no readings)" : row.stable ? r2(row.stable[0]) + " – " + r2(row.stable[1]) : "—") + '</td></tr>';
+      }).join("") + '</tbody></table></div></details></div>';
   }
   function wireOverview(res) {
     var box = $("svc-caveats"), det = $("svc-cav-detail"), texts = $("svc-cav-texts");

@@ -97,7 +97,61 @@
     return out;
   }
 
-  var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings };
+  // ---- Ranking -> Robustness: how far can one weight move before #1 changes? ---------
+  // For each criterion k its weight t runs 0..1 while the other weights keep their stored
+  // ratios (w_j * (1 - t) / (1 - w_k)); each model's composite is linear in t, so the
+  // leader only changes where two lines cross. Returns, per criterion, the segments of
+  // t with their leader, and the stable interval around the stored weight.
+  var EPS = 1e-9;
+  function weightStability(res, weights) {
+    var p8 = res.phase8 || {}, lab = !!(res.session || {}).accuracy_available;
+    var w0 = {}, tot = 0;
+    CRIT.forEach(function (k) { w0[k] = (k === "accuracy" && !lab) ? 0 : Math.max(0, +((weights || p8.weights || {})[k]) || 0); tot += w0[k]; });
+    CRIT.forEach(function (k) { w0[k] = tot ? w0[k] / tot : 0.25; });
+    var models = (p8.normalised || []).map(function (n) { var s = {}; CRIT.forEach(function (k) { s[k] = num(n[k]) || 0; }); return { model: bare(n.model), s: s }; });
+    function leaderAt(k, t) {
+      var rest = 1 - w0[k], best = null, bestV = -Infinity, tie = false;
+      models.forEach(function (m) {
+        var v = t * m.s[k];
+        CRIT.forEach(function (j) { if (j !== k) v += (rest > EPS ? w0[j] * (1 - t) / rest : (1 - t) / 3) * m.s[j]; });
+        if (v > bestV + EPS) { best = m.model; bestV = v; tie = false; } else if (Math.abs(v - bestV) <= EPS) tie = true;
+      });
+      return tie ? null : best;          // null: the top place is a tie at this weight
+    }
+    var crits = CRIT.filter(function (k) { return lab || k !== "accuracy"; });
+    var rows = crits.map(function (k) {
+      var noData = models.every(function (m) { return !m.s[k]; }), STEPS = 1000, segs = [];
+      for (var i = 0; i <= STEPS; i++) {
+        var t = i / STEPS, l = leaderAt(k, t), last = segs[segs.length - 1];
+        if (last && last.leader === l) last.to = t; else segs.push({ from: t, to: t, leader: l });
+      }
+      // a tie at a single point (e.g. weight 1 on a criterion where every model scores the same)
+      // is not a range: fold it into its neighbour and say so
+      var pointTie = null;
+      segs = segs.filter(function (sg, i) {
+        var drop = sg.leader === null && sg.from === sg.to && segs.length > 1;
+        if (drop) { pointTie = sg.from; if (i > 0) segs[i - 1].to = sg.to; else segs[1].from = sg.from; }
+        return !drop;
+      });
+      var here = leaderAt(k, w0[k]), stable = null;
+      segs.forEach(function (sg) { if (sg.leader === here && w0[k] >= sg.from - 0.0005 && w0[k] <= sg.to + 0.0005) stable = [sg.from, sg.to]; });
+      return { criterion: k, stored: w0[k], leader: here, no_data: noData, segments: segs, stable: stable,
+               changes: segs.length > 1, point_tie: pointTie };
+    });
+    return { models: models.map(function (m) { return m.model; }), weights: w0, rows: rows };
+  }
+  function stabilitySentence(row) {
+    var r2 = function (v) { return v.toFixed(2); };
+    if (row.no_data) return "No readings for this criterion in the run: its weight changes nothing.";
+    if (!row.leader) return "At the stored weight (" + r2(row.stored) + ") the top place is a tie.";
+    if (!row.changes) return short(row.leader) + " stays first for any weight from 0 to 1" +
+      (row.point_tie != null ? " (at exactly " + r2(row.point_tie) + " every model ties)" : "") + ".";
+    var s = row.stable;
+    return short(row.leader) + " stays first while this weight is between " + r2(s[0]) + " and " + r2(s[1]) + " (stored " + r2(row.stored) + ").";
+  }
+
+  var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
+              weightStability: weightStability, stabilitySentence: stabilitySentence };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

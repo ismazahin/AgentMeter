@@ -148,3 +148,25 @@ def test_weight_stability_ties_point_ties_and_unlabelled():
     st = call("weightStability", _two(same, {"accuracy": 0, "latency": 0.5, "vram": 0, "tokens": 0.9}, lab=False))
     assert [r["criterion"] for r in st["rows"]] == ["latency", "vram", "tokens"]
     assert abs(st["weights"]["latency"] - 0.25 / 0.6) < 1e-9 and st["weights"]["accuracy"] == 0
+
+
+def test_class_metrics_from_the_confusion_matrix():
+    # rows = truth, columns = predicted (+ Unparseable)
+    cm = {"Benign": {"Benign": 6, "DoS": 2, "Scan": 0, "Unparseable": 0},
+          "DoS": {"Benign": 1, "DoS": 3, "Scan": 0, "Unparseable": 1},
+          "Scan": {"Benign": 4, "DoS": 0, "Scan": 0, "Unparseable": 0}}
+    s = {"session": {"accuracy_available": True}, "per_model": [{"model": A, "accuracy": {"confusion": cm}}]}
+    m = call("classMetrics", s)["models"][0]
+    by = {c["cls"]: c for c in m["classes"]}
+    # Benign: tp 6, fp 1+4, support 8 -> P 6/11, R 6/8
+    assert by["Benign"]["tp"] == 6 and by["Benign"]["fp"] == 5 and by["Benign"]["support"] == 8
+    assert abs(by["Benign"]["precision"] - 6 / 11) < 1e-12 and by["Benign"]["recall"] == 0.75
+    # DoS: the unparseable answer is a miss (fn), not a false positive of any class
+    assert by["DoS"]["fp"] == 2 and by["DoS"]["fn"] == 2 and by["DoS"]["recall"] == 0.6
+    # Scan never predicted: precision undefined, F1 0, counted as 0 in the macro average
+    assert by["Scan"]["precision"] is None and by["Scan"]["f1"] == 0
+    assert abs(m["macro"]["precision"] - (6 / 11 + 3 / 5 + 0) / 3) < 1e-12
+    assert m["unparseable"] == 1 and m["n"] == 17
+    assert m["mixups"][0] == {"truth": "Scan", "predicted": "Benign", "count": 4, "share": 1}
+    assert [(x["truth"], x["predicted"]) for x in m["mixups"]] == [("Scan", "Benign"), ("Benign", "DoS"), ("DoS", "Benign")]
+    assert call("classMetrics", {"session": {"accuracy_available": False}})["available"] is False

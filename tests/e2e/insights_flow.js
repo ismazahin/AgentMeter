@@ -69,10 +69,19 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     await tab(p, pcap, 'ranking/robustness', '#svc-stability');
     log(/Single-model run/.test(await p.textContent('#svc-stability')), 'robustness (1 model): says there is no ranking to change');
 
+    // Phase 3 — Accuracy: precision / recall / F1 per class + mix-ups
+    await tab(p, csv, 'accuracy', '#svc-class-metrics');
+    log((await p.$$('#svc-class-metrics .dot-row')).length === 6 && (await p.$$('#svc-class-metrics .dot-row:first-child .dot')).length === 2,
+        'accuracy: F1 per class (5 classes + macro) with one dot per model');
+    log(/F1 \d\.\d\d \(precision/.test(await hoverText(p, '#svc-class-metrics .dot')), 'accuracy: hovering a dot shows F1, precision and recall');
+    log((await p.$$('#svc-class-metrics-table tbody tr')).length === 6, 'accuracy: table view with macro average');
+    log((await p.$$('#svc-mixups .mix')).length === 2 && /answered as/.test(await p.textContent('#svc-mixups')) && /Unparseable answers: \d+ of 40/.test(await p.textContent('#svc-mixups')),
+        'accuracy: most common mix-ups and unparseable answers per model');
+
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;
-    for (const t of ['overview', 'ranking/robustness']) {
+    for (const t of ['overview', 'ranking/robustness', 'accuracy']) {
       await tab(p, csv, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }

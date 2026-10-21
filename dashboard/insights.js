@@ -150,8 +150,43 @@
     return short(row.leader) + " stays first while this weight is between " + r2(s[0]) + " and " + r2(s[1]) + " (stored " + r2(row.stored) + ").";
   }
 
+  // ---- Accuracy: precision / recall / F1 per class, from the stored confusion matrices ----
+  // rows = true label, columns = predicted. "Unparseable" is a column only: a miss for the
+  // true class (lowers recall), never a false positive of a class.
+  var UNPARSEABLE = "Unparseable";
+  function classMetrics(res) {
+    if (!(res.session || {}).accuracy_available) return { available: false, models: [] };
+    var models = (res.per_model || []).map(function (m) {
+      var cm = (m.accuracy || {}).confusion || {}, classes = Object.keys(cm).filter(function (c) { return c !== UNPARSEABLE; });
+      var rows = classes.map(function (c) {
+        var tp = +(cm[c] || {})[c] || 0, support = 0, fp = 0;
+        Object.keys(cm[c] || {}).forEach(function (p) { support += +cm[c][p] || 0; });
+        classes.forEach(function (t) { if (t !== c) fp += +((cm[t] || {})[c]) || 0; });
+        var fn = support - tp, prec = tp + fp ? tp / (tp + fp) : null, rec = support ? tp / support : null;
+        var f1 = prec != null && rec != null && prec + rec > 0 ? 2 * prec * rec / (prec + rec) : (prec == null && rec == null ? null : 0);
+        return { cls: c, support: support, tp: tp, fp: fp, fn: fn, precision: prec, recall: rec, f1: f1 };
+      });
+      // macro average over the classes present in the data; an undefined precision (class never
+      // predicted) counts as 0, as scikit-learn's zero_division=0 does
+      function macro(k) { var v = rows.filter(function (r) { return r.support > 0; }); return v.length ? v.reduce(function (a, r) { return a + (r[k] || 0); }, 0) / v.length : null; }
+      var mix = [], unp = 0, n = 0;
+      classes.forEach(function (t) {
+        Object.keys(cm[t] || {}).forEach(function (p) {
+          var c = +cm[t][p] || 0; n += c;
+          if (p === UNPARSEABLE) unp += c;
+          else if (p !== t && c > 0) mix.push({ truth: t, predicted: p, count: c, share: null });
+        });
+      });
+      mix.forEach(function (x) { var sup = rows.filter(function (r) { return r.cls === x.truth; })[0].support; x.share = sup ? x.count / sup : null; });
+      mix.sort(function (a, b) { return b.count - a.count || (a.truth < b.truth ? -1 : 1); });
+      return { model: bare(m.model), classes: rows, macro: { precision: macro("precision"), recall: macro("recall"), f1: macro("f1") },
+               mixups: mix.slice(0, 5), unparseable: unp, n: n };
+    }).filter(function (m) { return m.classes.length; });
+    return { available: models.length > 0, models: models };
+  }
+
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
-              weightStability: weightStability, stabilitySentence: stabilitySentence };
+              weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

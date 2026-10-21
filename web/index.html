@@ -279,6 +279,17 @@
   .ibar.na .val { font-style: italic; }
   .ibar.na .fill { display: none; }
   [data-hover] { cursor: default; }
+  .dots { display: grid; gap: 6px; }
+  .dot-row, .dot-axis { display: grid; grid-template-columns: minmax(110px, 170px) 1fr; gap: 12px; align-items: center; }
+  .dot-row .lbl { font-size: 13.5px; font-weight: 600; }
+  .dot-row .lbl small { display: block; font-weight: 400; color: var(--muted); }
+  .dot-row:last-child { border-top: 1px solid var(--border); padding-top: 6px; }
+  .dot-axis > div { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
+  .dot-track { position: relative; height: 30px; margin: 0 6px; background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat; }
+  .dot-track .dot { position: absolute; top: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px var(--surface); }
+  .mix-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .mix h3 { margin: 0 0 6px; font-size: 14px; }
+  table tr.total td { border-top: 2px solid var(--border-2); font-weight: 600; }
   .stab { display: grid; gap: 12px; }
   .stab-row, .stab-axis { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 12px; align-items: start; }
   .stab-row .lbl { font-size: 13.5px; font-weight: 600; padding-top: 2px; }
@@ -1385,6 +1396,7 @@
   }
   function route() {
     pollToken++;                                    // stops every running poll loop
+    closeTip();                                     // a popover never outlives its view
     var r = parseHash(), p = r.parts, v = p[0] || "home";
     // links from before Phase 46
     if (v === "prepare" || v === "upload") { location.replace("#/new"); return; }
@@ -2180,7 +2192,7 @@
     $("spanel-overview").innerHTML = pane("main", overviewTab(res));
     $("spanel-ranking").innerHTML = pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
         'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", stabilityCard(res)) + pane("pareto", "") + pane("guide", "");
-    $("spanel-accuracy").innerHTML = pane("main", "");
+    $("spanel-accuracy").innerHTML = pane("main", classMetricsCard(res));
     $("spanel-performance").innerHTML = pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res)) + pane("gpu", memoryCard(res)) + pane("statistics", effectsCard(res));
     $("spanel-agents").innerHTML = pane("main", agentsTab(res));
     $("spanel-cost").innerHTML = pane("main", costCard(res));
@@ -2390,6 +2402,52 @@
         return '<tr><td>' + CRIT_LABEL[row.criterion] + '</td><td class="num">' + r2(row.stored) + '</td><td class="mono">' + esc(row.leader ? short(row.leader) : "tie") + '</td><td class="num">' +
           (row.no_data ? "any (no readings)" : row.stable ? r2(row.stable[0]) + " – " + r2(row.stable[1]) : "—") + '</td></tr>';
       }).join("") + '</tbody></table></div></details></div>';
+  }
+  // Accuracy: precision / recall / F1 per class and the most common mix-ups (from the confusion matrices)
+  function classMetricsCard(res) {
+    if (!window.INSIGHTS) return "";
+    var cm = INSIGHTS.classMetrics(res);
+    if (!cm.available) return "";
+    var f2 = function (v) { return v == null ? "—" : v.toFixed(2); };
+    var classes = cm.models[0].classes.map(function (c) { return c.cls; }), names = cm.models.map(function (m) { return m.model; });
+    var by = function (m, c) { return m.classes.filter(function (x) { return x.cls === c; })[0] || {}; };
+    var dotRow = function (label, sub, vals) {
+      return '<div class="dot-row"><span class="lbl">' + esc(label) + (sub ? '<small>' + esc(sub) + '</small>' : "") + '</span><div class="dot-track">' +
+        vals.map(function (v) {
+          // one lane per model (session slot), so equal values never hide a dot
+          var lane = vals.length > 1 ? (MODEL_SLOT[v.model] ? 7 : -7) : 0;
+          return v.value == null ? "" : '<span class="dot" tabindex="0" style="left:' + (100 * v.value) + '%;margin-top:' + (lane - 6) + 'px;--c:' + modelColor(v.model) + '" data-hover="' + esc(v.text) + '" aria-label="' + esc(v.text) + '"></span>';
+        }).join("") + '</div></div>';
+    };
+    var rows = classes.map(function (c) {
+      return dotRow(c, by(cm.models[0], c).support + " flows", cm.models.map(function (m) {
+        var x = by(m, c);
+        return { model: m.model, value: x.f1, text: short(m.model) + " · " + c + ": F1 " + f2(x.f1) + " (precision " + (x.precision == null ? "never predicted" : f2(x.precision)) + ", recall " + f2(x.recall) + ")" };
+      }));
+    }).join("") + dotRow("Macro average", "all classes", cm.models.map(function (m) {
+      return { model: m.model, value: m.macro.f1, text: short(m.model) + " · macro F1 " + f2(m.macro.f1) + " (precision " + f2(m.macro.precision) + ", recall " + f2(m.macro.recall) + ")" };
+    }));
+    var head = '<tr><th rowspan="2">Class</th><th class="num" rowspan="2">Flows</th>' + cm.models.map(function (m) { return '<th colspan="3" class="num">' + esc(short(m.model)) + '</th>'; }).join("") + '</tr><tr>' +
+      cm.models.map(function () { return '<th class="num">Precision</th><th class="num">Recall</th><th class="num">F1</th>'; }).join("") + '</tr>';
+    var body = classes.map(function (c) {
+      return '<tr><td>' + esc(c) + '</td><td class="num">' + by(cm.models[0], c).support + '</td>' + cm.models.map(function (m) {
+        var x = by(m, c);
+        return '<td class="num">' + (x.precision == null ? '<span class="muted" title="never predicted">—</span>' : f2(x.precision)) + '</td><td class="num">' + f2(x.recall) + '</td><td class="num"><b>' + f2(x.f1) + '</b></td>';
+      }).join("") + '</tr>';
+    }).join("") + '<tr class="total"><td>Macro average</td><td></td>' + cm.models.map(function (m) {
+      return '<td class="num">' + f2(m.macro.precision) + '</td><td class="num">' + f2(m.macro.recall) + '</td><td class="num"><b>' + f2(m.macro.f1) + '</b></td>';
+    }).join("") + '</tr>';
+    var mix = cm.models.map(function (m) {
+      return '<div class="mix"><h3>' + esc(short(m.model)) + '</h3>' + (m.mixups.length ? '<ol class="list">' + m.mixups.map(function (x) {
+        return '<li><b>' + esc(x.truth) + '</b> answered as <b>' + esc(x.predicted) + '</b>: ' + x.count + ' of ' + Math.round(x.count / x.share) + ' (' + fmtPct(x.share) + ')</li>';
+      }).join("") + '</ol>' : '<p class="muted small">No mix-ups.</p>') +
+        '<p class="small muted">Unparseable answers: ' + m.unparseable + ' of ' + m.n + (m.unparseable ? ' (' + fmtPct(m.unparseable / m.n) + ') — counted as misses' : "") + '</p></div>';
+    }).join("");
+    return '<div class="card" id="svc-class-metrics"><h2>Precision, recall and F1 by class</h2><p class="muted small" style="margin-top:0">F1 balances how often a label is right when given (precision) against how many flows of that class are found (recall). Context only: AgentMeter measures efficiency, not detection quality.</p>' +
+      legendHtml(names) + '<div class="dot-axis"><span></span><div><span>0</span><span>0.5</span><span>1</span></div></div><div class="dots">' + rows + '</div>' +
+      '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-class-metrics-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>' +
+      '<p class="muted small">"—": the model never gave this label, so precision is undefined (counted as 0 in the macro average).</p></details></div>' +
+      '<div class="card" id="svc-mixups"><h2>Most common mix-ups</h2><p class="muted small" style="margin-top:0">The true class and the label the model gave instead, largest first (up to 5).</p><div class="mix-grid">' + mix + '</div></div>';
   }
   function wireOverview(res) {
     var box = $("svc-caveats"), det = $("svc-cav-detail"), texts = $("svc-cav-texts");

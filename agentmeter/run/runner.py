@@ -260,12 +260,14 @@ def run_full(
     model_vram_path: Optional[str] = None,
     before_model=None,
     load_test: bool = False,
+    run_id: Optional[str] = None,
 ) -> RunFullResult:
     """`before_model(model_label)`: optional hook called right before each model's worker
     is spawned, while the GPU is idle (Phase 46 follow-up: idle board-power sampling for
     the energy analysis). It runs outside every measured process and timing.
     `load_test`: each worker also runs the opt-in load-scaling step (run/load_test.py)
-    after its measured flows; it is not part of the config fingerprint."""
+    after its measured flows; it is not part of the config fingerprint.
+    `run_id`: the run this caller owns (see _select_run): created, or resumed, by id."""
     cfg = load_config(config_path)
     _gpu_guard(cfg)
 
@@ -287,7 +289,7 @@ def run_full(
     try:
         run_id, resumed = _select_run(
             store, fingerprint, fresh,
-            quant=quant_setting(cfg), hardware=hardware_label(),
+            quant=quant_setting(cfg), hardware=hardware_label(), run_id=run_id,
         )
         done = store.completed_pairs(run_id) if resumed else set()
 
@@ -420,13 +422,30 @@ def _maybe_auto_analyze(cfg, config_path, db_path, auto_analyze, model_vram_path
 
 
 def _select_run(
-    store: Storage, fingerprint: str, fresh: bool, quant: str, hardware: str
+    store: Storage, fingerprint: str, fresh: bool, quant: str, hardware: str,
+    run_id: Optional[str] = None,
 ) -> tuple[str, bool]:
     """Decide whether to resume an existing run or create a new one.
 
     Returns (run_id, resumed). Raises ConfigMismatchError if a --fresh was NOT
     requested but the incomplete run's fingerprint differs from the current one.
+
+    `run_id`: the caller OWNS this run (a benchmark session: several sessions share one
+    prepared set's DB). It is created on first use and resumed afterwards — never another
+    caller's incomplete run, whatever its fingerprint, and nothing else is abandoned.
     """
+    if run_id is not None:
+        own = store.get_run(run_id)
+        if own is None:
+            store.create_run(run_id, fingerprint, quant, hardware, notes="owned")
+            return run_id, False
+        if own["status"] == "abandoned":
+            raise ConfigMismatchError(f"run {run_id} was abandoned; it cannot be resumed")
+        if own["config_fingerprint"] != fingerprint or own["hardware_label"] != hardware:
+            raise ConfigMismatchError(
+                f"REFUSING TO RESUME run {run_id}: its config fingerprint or hardware changed "
+                f"({own['config_fingerprint']} on {own['hardware_label']!r} vs {fingerprint} on {hardware!r}).")
+        return run_id, True
     if fresh:
         abandoned = store.abandon_incomplete_runs()
         if abandoned:

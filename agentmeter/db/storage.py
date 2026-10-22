@@ -135,6 +135,10 @@ class Storage:
                 (run_id, config_fingerprint, quant_setting, hardware_label, _now(), notes),
             )
 
+    def get_run(self, run_id: str) -> Optional[dict[str, Any]]:
+        row = self.conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+        return dict(row) if row else None
+
     def find_incomplete_run(self) -> Optional[dict[str, Any]]:
         """Most recent run still marked 'running' (a candidate to resume)."""
         row = self.conn.execute(

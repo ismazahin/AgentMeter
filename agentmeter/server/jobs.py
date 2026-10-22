@@ -123,7 +123,7 @@ def run_benchmark_job(job: dict[str, Any]) -> str:
 
     run_session(job["run_dir"], job["models"], base_config=job.get("base_config"),
                 provider=job.get("provider"), fresh=False, environment=job.get("environment"),
-                load_test=bool(job.get("load_test")))
+                load_test=bool(job.get("load_test")), run_id=job.get("run_id"))
     # Sessions on one prepared set share its folder, and run_session always writes
     # <run_dir>/session_results.json: keep this session's own copy, so a later run on the same
     # flows never replaces these results (they are what this job reports, uploads and prints).
@@ -178,8 +178,10 @@ def session_progress(job: dict[str, Any]) -> dict[str, Any]:
         try:
             con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=2)
             try:
-                row = con.execute("SELECT run_id FROM runs ORDER BY started_at DESC, rowid DESC "
-                                  "LIMIT 1").fetchone()
+                # this job's own run; jobs from before runs were owned: the latest run
+                row = ((job["run_id"],) if job.get("run_id") else
+                       con.execute("SELECT run_id FROM runs ORDER BY started_at DESC, rowid DESC "
+                                   "LIMIT 1").fetchone())
                 if row:
                     for model, n in con.execute(
                             "SELECT model, COUNT(*) FROM scenario_results WHERE run_id=? AND "
@@ -406,6 +408,10 @@ class JobManager:
         return self._created(job)
 
     def _created(self, job: dict[str, Any]) -> dict[str, Any]:
+        if job.get("kind", "benchmark") == "benchmark":
+            # Sessions on one prepared set share its session.db: each owns its run, so a later
+            # session never resumes (or is blocked by) an earlier session's unfinished run.
+            job.setdefault("run_id", "run_" + job["job_id"][len("job_"):])
         with self._lock:
             self._save(job)
             self._enqueue(job["job_id"])
@@ -421,7 +427,7 @@ class JobManager:
         if prep["status"] == "done" and prep.get("prepared"):
             return self.create_job(prep["prepared"], models, provider, base_config, environment, meta=meta,
                                    load_test=load_test)
-        if prep["status"] in ("failed", "interrupted"):
+        if prep["status"] in ("failed", "interrupted", "stopped"):
             raise JobError(f"the data preparation {prep['status']}: {prep.get('error') or prep.get('message')}",
                            "prepare_failed", 409)
         from ..session.benchmark import SessionError, validate_models
@@ -539,6 +545,9 @@ class JobManager:
             prep_id = job.get("after_prepare") if not job.get("run_dir") else None
             if prep_id:
                 prep = self._load(prep_id)
+                if prep["status"] == "stopped":     # stopping is final: nothing to resume behind
+                    raise JobError(f"job {job_id} waited for a data preparation that was stopped; "
+                                   "prepare the data again and start a new benchmark", "not_resumable", 409)
                 if prep["status"] in RESUMABLE:
                     self._update(prep_id, status="queued", error=None, finished_at=None,
                                  message="queued to retry the prepare step")

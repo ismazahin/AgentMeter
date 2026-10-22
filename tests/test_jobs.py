@@ -317,3 +317,58 @@ def test_a_rerun_on_the_same_prepared_set_keeps_each_sessions_results(root):
     assert second["session"]["run_id"] != first["session"]["run_id"]
     assert mgr.result(a["job_id"]) == first                      # unchanged by the later run
     assert mgr.get(a["job_id"])["result_path"] != mgr.get(b["job_id"])["result_path"]
+
+
+def test_each_session_owns_its_run_on_a_shared_prepared_set(root, monkeypatch):
+    """Sessions on one prepared set share its session.db. A crashed session must neither block a
+    later one with other models nor be taken over by a later one with the same models; its own
+    Resume still continues its own run."""
+    import sqlite3
+    mgr = manager(root)
+    monkeypatch.setenv("AGENTMETER_WORKER_CRASH_AFTER_SCENARIOS", "2")
+    a = mgr.create_job(RUN, ["mock-a", "mock-b"], provider="mock")
+    assert mgr.wait(a["job_id"])["status"] == "failed"
+    monkeypatch.delenv("AGENTMETER_WORKER_CRASH_AFTER_SCENARIOS")
+    b = mgr.create_job(RUN, ["mock-a", "mock-c"], provider="mock")       # other models: not blocked
+    assert mgr.wait(b["job_id"])["status"] == "done"
+    c = mgr.create_job(RUN, ["mock-a", "mock-b"], provider="mock")       # same models: its own run
+    assert mgr.wait(c["job_id"])["status"] == "done"
+    rc = mgr.result(c["job_id"])
+    assert rc["session"]["run_id"] == mgr.get(c["job_id"])["run_id"] != mgr.get(a["job_id"])["run_id"]
+    db = Path(mgr.get(a["job_id"])["run_dir"]) / "session.db"
+    con = sqlite3.connect(db)
+    n = lambda rid: con.execute("SELECT COUNT(*) FROM scenario_results WHERE run_id=? AND status='complete'", (rid,)).fetchone()[0]  # noqa: E731
+    assert n(a["job_id"].replace("job_", "run_", 1)) == 2               # A's crashed run is untouched
+    assert mgr.get(c["job_id"])["progress"]["completed"] == FLOWS * 2
+    mgr.resume(a["job_id"])
+    assert mgr.wait(a["job_id"])["status"] == "done"
+    assert mgr.result(a["job_id"])["session"]["run_id"] == mgr.get(a["job_id"])["run_id"]
+    assert n(mgr.get(a["job_id"])["run_id"]) == FLOWS * 2               # resumed: 2 kept + the rest
+    con.close()
+
+
+def test_a_queued_session_does_not_show_the_previous_sessions_progress(root):
+    mgr = manager(root)
+    a = mgr.create_job(RUN, ["mock-a"], provider="mock")
+    assert mgr.wait(a["job_id"])["status"] == "done"
+    idle = manager(root, autostart=False)
+    q = idle.create_job(RUN, ["mock-a"], provider="mock")
+    assert idle.get(q["job_id"])["progress"]["completed"] == 0
+
+
+def test_a_stopped_data_preparation_is_not_waited_for(root):
+    mgr = manager(root, autostart=False)
+    prep = {"job_id": "job_20260101_000000_" + "0" * 32, "kind": "prepare", "status": "stopped",
+            "message": "stopped by a user", "created_ns": 1, "run_name": "x"}
+    mgr._save(prep)
+    with pytest.raises(JobError) as e:                 # cannot queue behind it
+        mgr.create_job(None, ["mock-a"], provider="mock", after_prepare=prep["job_id"])
+    assert e.value.code == "prepare_failed" and "stopped" in str(e.value)
+    # a benchmark already queued behind it (before the stop) fails; Resume says why instead of looping
+    prep["status"] = "running"; mgr._save(prep)
+    b = mgr.create_job(None, ["mock-a"], provider="mock", after_prepare=prep["job_id"])
+    prep["status"] = "stopped"; mgr._save(prep)
+    mgr._update(b["job_id"], status="failed", error="JobError: the data preparation stopped")
+    with pytest.raises(JobError) as e:
+        mgr.resume(b["job_id"])
+    assert e.value.code == "not_resumable" and "prepare the data again" in str(e.value)

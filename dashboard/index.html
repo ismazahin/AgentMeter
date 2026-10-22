@@ -369,7 +369,11 @@
   .wval { font: 12px/1.35 var(--mono); text-align: right; color: var(--muted); }
   .wval b { color: var(--ink); font-weight: 600; }
   /* Live weights: what the sliders change (rank moves + per-factor contribution bars) */
-  :root { --crit-accuracy: var(--brand); --crit-latency: var(--series-a); --crit-vram: var(--series-b); --crit-tokens: var(--v-microsoft); }
+  /* own colours, not theme tokens: embedded in the app, --brand and --series-a are the same blue.
+     Reference palette slots 1-4 in this order (validated as adjacent pairs, light and dark). */
+  :root { --crit-accuracy: #2a78d6; --crit-latency: #eb6834; --crit-vram: #1baf7a; --crit-tokens: #eda100; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --crit-accuracy: #3987e5; --crit-latency: #d95926; --crit-vram: #199e70; --crit-tokens: #c98500; } }
+  :root[data-theme="dark"] { --crit-accuracy: #3987e5; --crit-latency: #d95926; --crit-vram: #199e70; --crit-tokens: #c98500; }
   .wimpact { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
   .wimpact-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
   .wimpact-head h3 { margin: 0; font-size: 15px; }

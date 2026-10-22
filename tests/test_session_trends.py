@@ -202,3 +202,26 @@ def test_load_scaling_is_opt_in_per_job(tmp_path):
     # the measured flows are the same with or without the extra step (6 flows, none from the load step)
     assert b["per_model"][0]["efficiency"]["n_flows"] == a["per_model"][0]["efficiency"]["n_flows"] == 6
     assert b["session_identity"]["settings_fingerprint"] == a["session_identity"]["settings_fingerprint"]
+
+
+def test_decide_failure_rate_counts_each_failing_flow_once():
+    # flows 1-2: Decide replied nothing, so the label is also Unparseable; flow 3 is fine
+    sr = [{"model": "m", "scenario_id": f"s{i}", "predicted_label": "Unparseable" if i < 3 else "Benign",
+           "scenario_total_time_s": 1.0, "completed_at": None} for i in (1, 2, 3)]
+    am = [{"model": "m", "scenario_id": f"s{i}", "agent_name": ag, "wall_time_s": 0.25, "input_tokens": 10,
+           "output_tokens": 0 if (ag == "decide" and i < 3) else 5, "vram_delta_mb": None, "ttft_s": None}
+          for i in (1, 2, 3) for ag in ("perceive", "reason", "decide", "act")]
+    ag = analyses.agents_block(sr, am, {"M": "m"}, {})
+    dec = next(a for a in ag["per_model"][0]["agents"] if a["agent"] == "decide")
+    assert dec["failures"]["empty_output"] == 2 and dec["failures"]["unparseable_label"] == 2
+    assert dec["failure_rate"] == pytest.approx(2 / 3)          # not (2 + 2) / 3
+
+
+def test_drift_direction_and_wording_never_disagree():
+    # rises through the run (rho > 0, p small), but the last quarter's MEDIAN is 12% below the first's:
+    # no lasting slow-down — it must not say "12% above"
+    last = [0.88 if i % 2 == 0 else 9.0 for i in range(25)]
+    xs = [1.0] * 5 + [1.0] * 25 + [2.0 + 3.0 * i / 49 for i in range(50)] + last
+    d = drift_test(xs)
+    assert d["spearman_rho"] > 0 and d["p_value"] < 0.05 and d["ratio"] < 1
+    assert d["verdict"] == "stable" and d["note"].startswith("No lasting drift") and "above" not in d["note"]

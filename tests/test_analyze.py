@@ -217,3 +217,16 @@ def test_model_vram_missing_model_refused(tmp_path):
     with pytest.raises(ValueError, match="missing weight_footprint"):
         analyze.run_analysis(config_path=str(cfg), db_path=str(db), out_dir=str(tmp_path / "o"),
                              model_vram_path=mvp)
+
+
+def test_run_analysis_refuses_a_scenario_measured_in_two_complete_runs(tmp_path):
+    db = tmp_path / "res.db"
+    _make_db(str(db))
+    conn = sqlite3.connect(db)          # a second COMPLETE run that re-measured one of A's scenarios
+    conn.execute("INSERT INTO runs VALUES('r3','fp','4bit-nf4','L4','t2','t3','complete','')")
+    conn.execute("INSERT INTO scenario_results VALUES('r3','A','row_0000','Benign','Benign',1,1,1,'complete','t')")
+    conn.commit(); conn.close()
+    cfg = tmp_path / "cfg.yaml"
+    _make_cfg(cfg, db)
+    with pytest.raises(ValueError, match="more than one complete run"):
+        analyze.run_analysis(config_path=str(cfg), db_path=str(db), out_dir=str(tmp_path / "a"))

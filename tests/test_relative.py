@@ -95,3 +95,9 @@ def test_only_for_two_models():
 def test_hardware_caveat(hw, flagged):
     r = rel(pm(1, 1), pm(1, 1), hardware=hw)
     assert any("not comparable with the locked study" in c for c in r["caveats"]) is flagged
+
+
+def test_an_untestable_p_value_never_declares_a_winner():
+    r = rel(pm(2.0, 1000, vram=1000), pm(2.0, 1000, vram=1300), p_values={"mean_peak_vram_mb": float("nan")})
+    v = metric(r, "mean_peak_vram_mb")
+    assert v["winner"] == "tie" and v["p_value"] is None and "could not be tested" in v["note"]

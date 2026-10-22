@@ -432,6 +432,16 @@ def run_analysis(
     finally:
         conn.close()
 
+    # The complete runs are combined. A (model, scenario) measured in two of them would be
+    # counted twice (accuracy) and its tokens summed across runs: refuse instead of blending.
+    dup = sr.groupby(["model", "scenario_id"])["run_id"].nunique()
+    dup = dup[dup > 1]
+    if len(dup):
+        (m, sid), n = next(iter(dup.items()))
+        raise ValueError(f"{len(dup)} (model, scenario) pair(s) appear in more than one complete run "
+                         f"(e.g. {m} / {sid} in {n} runs). Combining them would double-count; mark the "
+                         "superseded run(s) as abandoned (UPDATE runs SET status='abandoned' ...) first.")
+
     # keep agent rows only for scenarios that have a complete scenario_result
     keep = set(zip(sr["model"], sr["scenario_id"]))
     am = am[[(mm, ss) in keep for mm, ss in zip(am["model"], am["scenario_id"])]].copy()

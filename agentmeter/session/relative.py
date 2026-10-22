@@ -52,6 +52,12 @@ def _cost_metric(key: str, label: str, phrase: str, unit: str,
     if worse == 0 or (worse - better) / worse < REL_TIE:
         return {**out, "available": True, "winner": "tie", "pct_better": None, "ratio": None,
                 "note": f"within {REL_TIE:.0%}"}
+    if p_value is not None and p_value != p_value:
+        # NaN: the test could not be computed (e.g. a flow without a reading) — claim nothing
+        return {**out, "available": True, "winner": "tie", "pct_better": None, "ratio": None,
+                "p_value": None,
+                "note": f"{(worse - better) / worse:.0%} apart, but significance could not be tested "
+                        "(some flows have no reading)"}
     if p_value is not None and p_value >= ALPHA:
         # Large-looking gap, but per-flow values overlap too much to call it (noise).
         return {**out, "available": True, "winner": "tie", "pct_better": None, "ratio": None,

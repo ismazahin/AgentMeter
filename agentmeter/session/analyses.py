@@ -28,6 +28,7 @@ back into any score, SAW value, rank or verdict (tests/test_scored_keys_golden.p
 """
 from __future__ import annotations
 
+import bisect
 import hashlib
 import json
 import math
@@ -108,14 +109,20 @@ def integrate_energy_wh(samples: list[tuple[float, float]], t0: float, t1: float
     if t1 <= t0 or len(pts) < 2 or pts[0][0] > t0 + edge_tol_s or pts[-1][0] < t1 - edge_tol_s:
         return None
 
-    def at(t: float) -> float:
-        for (ta, wa), (tb, wb) in zip(pts, pts[1:]):
-            if ta <= t <= tb:
-                return wa if tb == ta else wa + (wb - wa) * (t - ta) / (tb - ta)
-        return pts[0][1] if t < pts[0][0] else pts[-1][1]
+    ts = [t for t, _ in pts]
 
-    xs = [t0] + [t for t, _ in pts if t0 < t < t1] + [t1]
-    ys = [at(t) for t in xs]
+    def at(t: float) -> float:                     # the window edges: interpolate (binary search)
+        if t <= ts[0]:
+            return pts[0][1]
+        if t >= ts[-1]:
+            return pts[-1][1]
+        i = bisect.bisect_left(ts, t)
+        (ta, wa), (tb, wb) = pts[i - 1], pts[i]
+        return wb if t == tb else wa if tb == ta else wa + (wb - wa) * (t - ta) / (tb - ta)
+
+    inner = [(t, w) for t, w in pts if t0 < t < t1]   # samples inside: their own reading
+    xs = [t0] + [t for t, _ in inner] + [t1]
+    ys = [at(t0)] + [w for _, w in inner] + [at(t1)]
     joules = sum((xs[i + 1] - xs[i]) * (ys[i] + ys[i + 1]) / 2 for i in range(len(xs) - 1))
     return joules / 3600.0
 
@@ -194,7 +201,11 @@ def agents_block(sr: list[dict], am: list[dict], label_of: dict[str, str],
                                       if ag == decide_agent else None),
                 "timeouts": None, "retries": 0,
             }
-            fails = fail["empty_output"] + (fail["unparseable_label"] or 0)
+            # failing FLOWS, each counted once: an empty Decide reply is also an Unparseable label
+            bad = {r["scenario_id"] for r in g if (r["output_tokens"] or 0) == 0}
+            if ag == decide_agent:
+                bad |= {f["scenario_id"] for f in flows if f["predicted_label"] == "Unparseable"}
+            fails = len(bad)
             agents.append({
                 "agent": ag, "n": len(g),
                 "mean_latency_s": float(np.mean(wall)),
@@ -317,15 +328,25 @@ def drift_test(xs: list[float], skip: int = WARMUP_N) -> dict[str, Any]:
     else:
         r = spearmanr(np.arange(len(ys)), ys)
         rho, p = float(r.statistic), float(r.pvalue)
-    sig = p < TREND_ALPHA and ratio is not None and abs(ratio - 1) > TREND_RATIO - 1
-    verdict = ("slows_down" if rho > 0 else "speeds_up") if sig else "stable"
+    # a trend needs the rank test AND the quarter medians to agree on its direction and size
+    up = p < TREND_ALPHA and rho > 0 and ratio is not None and ratio > TREND_RATIO
+    down = p < TREND_ALPHA and rho < 0 and ratio is not None and ratio < 2 - TREND_RATIO
+    verdict = "slows_down" if up else "speeds_up" if down else "stable"
     pct = abs(ratio - 1) * 100 if ratio is not None else None
-    note = {"slows_down": f"Slows down over the run: the last quarter's median is {pct:.0f}% above the first's "
-                          f"(Spearman rho {rho:.2f}, p = {p:.2g}).",
-            "speeds_up": f"Speeds up over the run: the last quarter's median is {pct:.0f}% below the first's "
-                         f"(Spearman rho {rho:.2f}, p = {p:.2g}).",
-            "stable": f"Stable over the run: no significant trend (Spearman rho {rho:.2f}, p = {p:.2g}; "
-                      f"last/first quarter medians {ratio:.2f}x)." if ratio is not None else "Stable over the run."}[verdict]
+    tail = f" (Spearman rho {rho:.2f}, p = {p:.2g})."
+    if verdict == "slows_down":
+        note = f"Slows down over the run: the last quarter's median is {pct:.0f}% above the first's" + tail
+    elif verdict == "speeds_up":
+        note = f"Speeds up over the run: the last quarter's median is {pct:.0f}% below the first's" + tail
+    elif ratio is None:
+        note = "Stable over the run."
+    elif p < TREND_ALPHA:
+        note = (f"No lasting drift: latency follows a rank trend over the run (Spearman rho {rho:.2f}, "
+                f"p = {p:.2g}), but the last quarter's median is {ratio:.2f}x the first's — not a "
+                f"{round((TREND_RATIO - 1) * 100)}% change in that direction.")
+    else:
+        note = (f"Stable over the run: no significant trend (Spearman rho {rho:.2f}, p = {p:.2g}; "
+                f"last/first quarter medians {ratio:.2f}x).")
     return {"tested": True, "n": len(ys), "skipped_warmup": skip, "spearman_rho": rho, "p_value": p,
             "first_quarter_median_s": first, "last_quarter_median_s": last, "ratio": ratio,
             "verdict": verdict, "note": note}

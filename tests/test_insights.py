@@ -281,3 +281,16 @@ def test_deployment_fit_cells():
     assert b["usd1"]["reason"] == "mock run"
     # B: batch (8 s) and 10,000 a day (86,400 / 8 = 10,800) only
     assert fit["models"][0]["passes"] == 9 and fit["models"][1]["passes"] == 2
+
+
+def test_a_measured_zero_is_not_missing_but_an_absent_reading_is():
+    s = copy.deepcopy(SESSION)
+    for n in s["phase8"]["normalised"]:
+        n["accuracy"] = 0.0                                   # both models 0% accurate: measured
+    s["phase8"]["raw_criteria"] = [
+        {"model": "mock:" + A, "accuracy_pct": 0.0, "latency_s": 2.0, "vram_mb": None, "tokens_total": 900},
+        {"model": "mock:" + B, "accuracy_pct": 0.0, "latency_s": 3.0, "vram_mb": None, "tokens_total": 950}]
+    pr = call("criteriaProfile", s)
+    assert pr["missing"] == {"accuracy": False, "latency": False, "vram": True, "tokens": False}
+    rows = {r["criterion"]: r for r in call("weightStability", s)["rows"]}
+    assert rows["accuracy"]["no_data"] is False and rows["vram"]["no_data"] is True

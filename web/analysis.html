@@ -2644,9 +2644,15 @@
     var base = byModel(SAW.rankModels(live.map(function (r) { return normOf[r.model] || { model: r.model }; }), stored, tiers));
     var lab = !(document.body.classList.contains("no-accuracy"));
     var crits = CRIT.filter(function (k) { return lab || k !== "accuracy"; });
-    // a factor with no readings in this run (all normalised scores 0) adds nothing, whatever its weight
+    // a factor not measured in this run adds nothing, whatever its weight
     var empty = {};
-    crits.forEach(function (k) { empty[k] = live.every(function (r) { return !(+(normOf[r.model] || {})[k]); }); });
+    // not measured = the raw value is absent for every model (a measured 0 still counts)
+    var RAWK = { accuracy: "accuracy_pct", latency: "latency_s", vram: "vram_mb", tokens: "tokens_total" };
+    var rawRows = (p8.raw_criteria && p8.raw_criteria.length ? p8.raw_criteria : p8.saw_table) || [];
+    crits.forEach(function (k) {
+      empty[k] = rawRows.length ? rawRows.every(function (r) { return r[RAWK[k]] == null || isNaN(+r[RAWK[k]]); })
+        : live.every(function (r) { return !(+(normOf[r.model] || {})[k]); });
+    });
     document.getElementById("wimpact-legend").innerHTML = crits.map(function (k) {
       return '<span><i style="background:var(--crit-' + k + ')"></i>' + CRIT_LABEL[k] + " " + w[k].toFixed(2) +
         (empty[k] ? ' <span class="note">(no readings in this run — adds 0)</span>' : "") + "</span>";

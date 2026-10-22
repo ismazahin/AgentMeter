@@ -19,6 +19,20 @@
   }
   function pct(v, d) { return v == null ? "—" : (v * 100).toFixed(d == null ? 1 : d) + "%"; }
 
+  // A criterion is missing when it was not MEASURED (its raw value is absent for every model,
+  // or accuracy on unlabelled flows) — never because a measured value scores 0 (e.g. 0% accuracy).
+  var RAW_KEY = { accuracy: "accuracy_pct", latency: "latency_s", vram: "vram_mb", tokens: "tokens_total" };
+  function missingCriteria(res) {
+    var p8 = res.phase8 || {}, lab = !!(res.session || {}).accuracy_available;
+    var raw = (p8.raw_criteria && p8.raw_criteria.length ? p8.raw_criteria : p8.saw_table) || [];
+    var out = {};
+    CRIT.forEach(function (k) {
+      out[k] = (k === "accuracy" && !lab) || (raw.length ? raw.every(function (r) { return num(r[RAW_KEY[k]]) == null; })
+        : (p8.normalised || []).every(function (n) { return !num(n[k]); }));       // older files: no raw values
+    });
+    return out;
+  }
+
   // ---- Overview: per-criterion profile ----------------------------------------------
   // The four SAW criteria, normalised against the study targets (1 = meets the target),
   // per model. A criterion with no readings for any model is flagged, not drawn as 0.
@@ -29,11 +43,7 @@
       CRIT.forEach(function (k) { s[k] = num(n[k]); });
       return { model: bare(n.model), scores: s };
     });
-    var missing = {};
-    CRIT.forEach(function (k) {
-      missing[k] = (k === "accuracy" && !lab) || rows.every(function (r) { return !r.scores[k]; });
-    });
-    return { criteria: CRIT.slice(), rows: rows, missing: missing, targets: p8.targets || {} };
+    return { criteria: CRIT.slice(), rows: rows, missing: missingCriteria(res), targets: p8.targets || {} };
   }
 
   // ---- Overview: key findings ------------------------------------------------------
@@ -118,9 +128,9 @@
       });
       return tie ? null : best;          // null: the top place is a tie at this weight
     }
-    var crits = CRIT.filter(function (k) { return lab || k !== "accuracy"; });
+    var crits = CRIT.filter(function (k) { return lab || k !== "accuracy"; }), miss = missingCriteria(res);
     var rows = crits.map(function (k) {
-      var noData = models.every(function (m) { return !m.s[k]; }), STEPS = 1000, segs = [];
+      var noData = miss[k], STEPS = 1000, segs = [];
       for (var i = 0; i <= STEPS; i++) {
         var t = i / STEPS, l = leaderAt(k, t), last = segs[segs.length - 1];
         if (last && last.leader === l) last.to = t; else segs.push({ from: t, to: t, leader: l });
@@ -424,7 +434,8 @@
         if (!l.error) { tp = Math.max(tp, l.throughput_flows_per_s || 0); p95 = Math.max(p95, l.p95_latency_s || 0); }
         return l;
       });
-      var ok = lv.filter(function (l) { return !l.error; }), top = ok[ok.length - 1];
+      var ok = lv.filter(function (l) { return !l.error; });
+      var top = ok.reduce(function (b, l) { return !b || (l.speedup_vs_1 || 0) > (b.speedup_vs_1 || 0) ? l : b; }, null);   // highest speed-up
       return { model: bare(m.model), levels: lv, failed_at: (lv.filter(function (l) { return l.error; })[0] || {}).concurrency || null,
                error: (lv.filter(function (l) { return l.error; })[0] || {}).error || null,
                best_speedup: top ? top.speedup_vs_1 : null, best_concurrency: top ? top.concurrency : null };

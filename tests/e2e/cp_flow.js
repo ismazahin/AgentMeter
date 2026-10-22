@@ -252,6 +252,13 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(true, 'GPU off: Compare and Leaderboard work');
     await p.goto(APP + '/#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
     log(await p.isDisabled('#svc-upload-btn'), 'GPU off: New benchmark says GPU offline; Prepare is disabled');
+    // the Reuse tab must stay open while the GPU is off (it used to snap back to "Upload a file")
+    await p.click('#tab-src-reuse'); await p.waitForSelector('#svc-stored-table', { timeout: 15000 });
+    await sleep(1500);
+    log(await p.isVisible('#src-reuse') && /src=reuse/.test(await p.evaluate(() => location.hash)) && /GPU offline/.test(await p.textContent('#svc-recent-sets')),
+        'GPU off: Reuse a prepared set opens and stays open, listing the saved sets');
+    await p.click('#svc-stored-table [data-restore]'); await p.waitForSelector('#svc-stored-error:not([hidden])');
+    log(/GPU offline/.test(await p.textContent('#svc-stored-error')) && await p.isVisible('#src-reuse'), 'GPU off: using a saved set says the GPU is needed, the tab stays');
     await p.goto(APP + '/#/new/models?set=' + encodeURIComponent(set)); await p.waitForSelector('#svc-run');
     log(await p.isDisabled('#svc-run') && /GPU offline/.test(await p.textContent('#svc-run')), 'GPU off: Run shows GPU offline');
 

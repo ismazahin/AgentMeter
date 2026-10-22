@@ -1589,7 +1589,13 @@
     $("svc-upload-error").hidden = true;
     if (name === "reuse") { loadRecentSets(); loadStoredSets(); }
   }
-  tablist(document.querySelector("#wiz-step-data .tabs"), function (t) { setSrc(t.id.replace("tab-src-", "")); });
+  // the chosen source lives in the URL (#/new?src=…): a re-render (e.g. the GPU going offline)
+  // keeps it instead of falling back to "Upload a file"; replaceState fires no hashchange
+  tablist(document.querySelector("#wiz-step-data .tabs"), function (t) {
+    var src = t.id.replace("tab-src-", "");
+    try { history.replaceState(null, "", "#/new" + (src === "file" ? "" : "?src=" + src)); } catch (e) { /* URL unchanged */ }
+    setSrc(src);
+  });
   function wizData(src) { setSrc(src === "url" || src === "reuse" ? src : "file"); }
 
   $("svc-upload-form").addEventListener("submit", function (ev) {
@@ -1629,6 +1635,10 @@
     if (ev.dataTransfer && ev.dataTransfer.files.length) $("svc-file").files = ev.dataTransfer.files;
   });
   function loadRecentSets() {
+    if (CP && !ONLINE) {        // sets on the GPU server's own disk: none to list while it is off
+      $("svc-recent-sets").textContent = "GPU offline: sets prepared on the GPU server are listed here while it runs. Saved sets above stay available.";
+      return;
+    }
     api("/api/jobs?limit=50").then(function (r) {
       var sets = ((r.ok && r.data.jobs) || []).filter(function (j) { return j.kind === "prepare" && j.status === "done" && j.prepared; });
       $("svc-recent-sets").innerHTML = !r.ok ? esc(r.data.error) : !sets.length ? "Nothing prepared on this server yet." :
@@ -1672,6 +1682,7 @@
   }
   // the backend still has the set -> use it; otherwise re-import the session's stored copy
   function useStoredSet(sessionId, set) {
+    if (CP && !ONLINE) return Promise.resolve({ ok: false, data: { error: "GPU offline: a saved set can be used once the GPU backend runs (benchmarks need it anyway).", code: "backend_offline" } });
     var have = set ? api("/api/prepared/" + setPath(set)) : Promise.resolve({ ok: false });
     return have.then(function (h) {
       if (h.ok) return { ok: true, set: set };

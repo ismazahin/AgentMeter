@@ -44,6 +44,7 @@ import pandas as pd
 
 from ..config import load_config
 from ..data.dataprep import _normalize_columns
+from . import formats as input_formats
 from .feature_map import CIC_FEATURES, META_COLUMNS
 from .pcap import _MAGIC
 
@@ -94,9 +95,10 @@ def _sniff(path: Path) -> None:
         raise CsvValidationError(f"{path.name}: binary content, not a CSV")
 
 
-def _label_maps(config_path: Optional[str]) -> tuple[dict[str, str], list[str]]:
+def _label_maps(config_path: Optional[str], extra: Optional[dict[str, str]] = None) -> tuple[dict[str, str], list[str]]:
     cfg = load_config(config_path)
-    label_map = {str(k).strip(): str(v) for k, v in (cfg.get("data_prep.label_map", {}) or {}).items()}
+    label_map = {**(extra or {}),
+                 **{str(k).strip(): str(v) for k, v in (cfg.get("data_prep.label_map", {}) or {}).items()}}
     classes = [str(c) for c in (cfg.get("classes", []) or [])]
     return label_map, classes
 
@@ -119,7 +121,8 @@ def _allocate(counts: dict[str, int], total: int) -> dict[str, int]:
 
 
 def read_pool(p: Path, *, max_rows: Optional[int], label_col: Optional[str], read_kw: dict,
-              seed: int = DEFAULT_SEED, progress=None) -> tuple[pd.DataFrame, dict[str, Any]]:
+              seed: int = DEFAULT_SEED, progress=None, rename: Optional[dict[str, str]] = None
+              ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """One streaming pass over the WHOLE file -> the candidate pool (<= max_rows).
 
     A file with <= max_rows data rows is returned whole, in file order (identical
@@ -137,6 +140,8 @@ def read_pool(p: Path, *, max_rows: Optional[int], label_col: Optional[str], rea
     trimmed = False
     for chunk in pd.read_csv(p, chunksize=POOL_CHUNK_ROWS, **read_kw):
         chunk.columns = _normalize_columns(chunk.columns)
+        if rename:
+            chunk = chunk.rename(columns=rename)
         chunk.index = pd.RangeIndex(n, n + len(chunk))
         n += len(chunk)
         strat = (chunk[label_col].fillna("").astype(str).str.strip() if label_col
@@ -158,6 +163,8 @@ def read_pool(p: Path, *, max_rows: Optional[int], label_col: Optional[str], rea
     if pool is None:
         pool = pd.read_csv(p, nrows=0, **read_kw)
         pool.columns = _normalize_columns(pool.columns)
+        if rename:
+            pool = pool.rename(columns=rename)
     pool = pool.drop(columns=["__stratum", "__key"], errors="ignore").sort_index()
     in_pool = ((pool[label_col].fillna("").astype(str).str.strip() if label_col
                 else pd.Series("(all rows)", index=pool.index)).value_counts())
@@ -204,23 +211,36 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
     read_kw = dict(low_memory=False, encoding_errors="replace", skipinitialspace=True)
     try:
         # A short sample surfaces a malformed file before any long scan.
-        cols = list(_normalize_columns(pd.read_csv(p, nrows=1000, **read_kw).columns))
+        sample = pd.read_csv(p, nrows=1000, **read_kw)
+        sample.columns = _normalize_columns(sample.columns)
+        file_cols = list(sample.columns)
     except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as e:
         raise CsvValidationError(f"{p.name}: not a readable CSV ({e})") from e
     except ValueError as e:
         raise CsvValidationError(f"{p.name}: {e}") from e
 
+    # Header: CICFlowMeter columns under other names (configs/input_formats.yaml) are renamed
+    # to the CIC-IDS2017 names; the label column is detected (0/1-only flags are skipped).
+    fmt = input_formats.load_formats()
+    label_col, label_notes = input_formats.pick_label_column(sample, file_cols, fmt)
+    res = input_formats.resolve_columns([c for c in file_cols if c != label_col],
+                                        keep=CIC_FEATURES + list(CSV_META_SOURCES), fmt=fmt)
+    rename = res["rename"]
+    cols = [rename.get(c, c) for c in file_cols]
+    derived = {d: src for d, src in fmt["duplicates"].items() if d not in cols and src in cols}
+
     # Schema checks on the header + sample, before the whole file is scanned.
-    present = [c for c in CIC_FEATURES if c in cols]
-    missing = [c for c in CIC_FEATURES if c not in cols]
-    label_col = next((c for c in cols if c.lower() == "label"), None)
+    present = [c for c in CIC_FEATURES if c in cols or c in derived]
+    missing = [c for c in CIC_FEATURES if c not in present]
     extra = [c for c in cols if c not in CIC_FEATURES and c != label_col
              and c not in CSV_META_SOURCES and c not in _IGNORED]
 
     if not present:
         raise CsvValidationError(
-            f"{p.name}: not CIC-IDS2017 format — none of the 78 feature columns found "
-            f"(first columns: {cols[:6]})")
+            f"{p.name}: not a CICFlowMeter flow CSV — none of the 78 feature columns found under "
+            f"any known name (first columns: {file_cols[:6]}). Supported: CIC-IDS2017, "
+            f"CSE-CIC-IDS2018, CIC-DDoS2019, CICFlowMeter V3/V4 and Python-CICFlowMeter exports "
+            f"(configs/input_formats.yaml), or upload the PCAP instead")
     if missing and not allow_partial:
         raise CsvValidationError(
             f"{p.name}: {len(missing)} of 78 CIC-IDS2017 feature columns missing "
@@ -233,7 +253,7 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
 
     try:
         df, sampling = read_pool(p, max_rows=max_rows, label_col=label_col, read_kw=read_kw,
-                                 seed=seed, progress=progress)
+                                 seed=seed, progress=progress, rename=rename)
     except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError) as e:
         raise CsvValidationError(f"{p.name}: not a readable CSV ({e})") from e
     except ValueError as e:
@@ -241,6 +261,8 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
     if len(df) == 0:
         raise CsvValidationError(f"{p.name}: no data rows")
 
+    for d, src in derived.items():                       # CIC-IDS2017's own duplicate column
+        df[d] = df[src]
     # --- values: numeric features, declared NaN/Inf drop policy --------------------
     feats = df[present].apply(pd.to_numeric, errors="coerce").astype(float)
     non_numeric = {c: int(feats[c].isna().sum() - df[c].isna().sum())
@@ -249,7 +271,7 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
     n_bad = int(bad.sum())
 
     # --- labels -------------------------------------------------------------------
-    label_map, classes = _label_maps(config_path)
+    label_map, classes = _label_maps(config_path, extra=fmt["label_values"])
     by_map = {k.casefold(): v for k, v in label_map.items()}
     by_class = {c.casefold(): c for c in classes}
     excluded_labels: dict[str, int] = {}
@@ -317,18 +339,27 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
             sampling.get("strata_in_file") or {}, by_map, by_class, other_attack) if label_col else {}},
         "columns": {"expected": len(CIC_FEATURES), "present": len(present),
                     "missing": missing, "extra_ignored": extra,
-                    "meta_found": [c for c in CSV_META_SOURCES if c in cols]},
+                    "meta_found": [c for c in CSV_META_SOURCES if c in cols],
+                    "renamed": rename, "derived": derived, "conflicts": res["conflicts"],
+                    "format": res["format"], "format_name": res["format_name"],
+                    "formats_file": "configs/input_formats.yaml"},
         "non_numeric_values": non_numeric,
         "notes": ([] if "Protocol" in cols else
                   ["no Protocol column (MachineLearningCVE format): protocol_name is 'unknown', "
-                   "so protocol-coverage rules see a single group"]),
+                   "so protocol-coverage rules see a single group"])
+                 + ([f"{len(rename)} column(s) renamed to CIC-IDS2017 names ({res['format_name'] or 'name variants'})"]
+                    if rename else [])
+                 + (["no label column: efficiency only (accuracy not measured)"] if label_col is None else [])
+                 + label_notes,
         "label": {
             "column": label_col, "found": label_col is not None,
             "raw_distribution": raw_dist,
             "excluded_out_of_taxonomy": excluded_labels,
             "distribution": ({str(k): int(v) for k, v in labels["label"].value_counts().items()}
                              if labels is not None else {}),
-            "mapping": "config.yaml data_prep.label_map (raw CIC label -> canonical class)",
+            "mapping": ("config.yaml data_prep.label_map + configs/input_formats.yaml labels.values "
+                        "(raw label -> canonical class)"),
+            "detection": label_notes,
             "classes": classes,
             "other_attack": {"enabled": other_attack, "rows": int(sum(other_sources.values())),
                              "sources": other_sources},

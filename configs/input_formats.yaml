@@ -1,0 +1,143 @@
+# AgentMeter — CSV input formats (user runs only; the locked study never reads this file).
+#
+# AgentMeter MEASURES LLM resource efficiency; it is not a threat-detection product. This file
+# lets flow CSVs that use the SAME CICFlowMeter features under DIFFERENT column names be
+# benchmarked: their columns are renamed to the CIC-IDS2017 names the pipeline uses. Nothing
+# is computed or guessed: a column is only renamed when its name matches an alias below.
+#
+# Matching ignores case, spaces and punctuation ("Tot Fwd Pkts" = "tot_fwd_pkts"). A column
+# that already has the CIC-IDS2017 name always wins over an alias. Every rename is listed in
+# the run's schema report and manifest, and the run's feature_match becomes "mapped".
+#
+# The Python CICFlowMeter port's keys (dst_port, flow_duration, …) come from
+# agentmeter/ingest/feature_map.py (the same table the PCAP path uses), so a CSV written by
+# that tool is read with the same feature caveats as a PCAP.
+
+version: 1
+
+formats:
+  cse_cic_ids2018:
+    name: CSE-CIC-IDS2018 / CICFlowMeter-V3 export
+    columns:
+      Dst Port: Destination Port
+      Tot Fwd Pkts: Total Fwd Packets
+      Tot Bwd Pkts: Total Backward Packets
+      TotLen Fwd Pkts: Total Length of Fwd Packets
+      TotLen Bwd Pkts: Total Length of Bwd Packets
+      Fwd Pkt Len Max: Fwd Packet Length Max
+      Fwd Pkt Len Min: Fwd Packet Length Min
+      Fwd Pkt Len Mean: Fwd Packet Length Mean
+      Fwd Pkt Len Std: Fwd Packet Length Std
+      Bwd Pkt Len Max: Bwd Packet Length Max
+      Bwd Pkt Len Min: Bwd Packet Length Min
+      Bwd Pkt Len Mean: Bwd Packet Length Mean
+      Bwd Pkt Len Std: Bwd Packet Length Std
+      Flow Byts/s: Flow Bytes/s
+      Flow Pkts/s: Flow Packets/s
+      Fwd IAT Tot: Fwd IAT Total
+      Bwd IAT Tot: Bwd IAT Total
+      Fwd Header Len: Fwd Header Length
+      Bwd Header Len: Bwd Header Length
+      Fwd Pkts/s: Fwd Packets/s
+      Bwd Pkts/s: Bwd Packets/s
+      Pkt Len Min: Min Packet Length
+      Pkt Len Max: Max Packet Length
+      Pkt Len Mean: Packet Length Mean
+      Pkt Len Std: Packet Length Std
+      Pkt Len Var: Packet Length Variance
+      FIN Flag Cnt: FIN Flag Count
+      SYN Flag Cnt: SYN Flag Count
+      RST Flag Cnt: RST Flag Count
+      PSH Flag Cnt: PSH Flag Count
+      ACK Flag Cnt: ACK Flag Count
+      URG Flag Cnt: URG Flag Count
+      ECE Flag Cnt: ECE Flag Count
+      Pkt Size Avg: Average Packet Size
+      Fwd Seg Size Avg: Avg Fwd Segment Size
+      Bwd Seg Size Avg: Avg Bwd Segment Size
+      Fwd Byts/b Avg: Fwd Avg Bytes/Bulk
+      Fwd Pkts/b Avg: Fwd Avg Packets/Bulk
+      Fwd Blk Rate Avg: Fwd Avg Bulk Rate
+      Bwd Byts/b Avg: Bwd Avg Bytes/Bulk
+      Bwd Pkts/b Avg: Bwd Avg Packets/Bulk
+      Bwd Blk Rate Avg: Bwd Avg Bulk Rate
+      Subflow Fwd Pkts: Subflow Fwd Packets
+      Subflow Fwd Byts: Subflow Fwd Bytes
+      Subflow Bwd Pkts: Subflow Bwd Packets
+      Subflow Bwd Byts: Subflow Bwd Bytes
+      Init Fwd Win Byts: Init_Win_bytes_forward
+      Init Bwd Win Byts: Init_Win_bytes_backward
+      Fwd Act Data Pkts: act_data_pkt_fwd
+      Fwd Seg Size Min: min_seg_size_forward
+      # identification columns (hidden from the model, as in CIC-IDS2017 TrafficLabelling files)
+      Src IP: Source IP
+      Dst IP: Destination IP
+      Src Port: Source Port
+
+  cicflowmeter_v4:
+    name: CICFlowMeter-V4 (Java) export
+    columns:
+      Total Fwd Packet: Total Fwd Packets
+      Total Bwd packets: Total Backward Packets
+      Total Length of Fwd Packet: Total Length of Fwd Packets
+      Total Length of Bwd Packet: Total Length of Bwd Packets
+      Packet Length Min: Min Packet Length
+      Packet Length Max: Max Packet Length
+      Fwd Segment Size Avg: Avg Fwd Segment Size
+      Bwd Segment Size Avg: Avg Bwd Segment Size
+      Fwd Bytes/Bulk Avg: Fwd Avg Bytes/Bulk
+      Fwd Packet/Bulk Avg: Fwd Avg Packets/Bulk
+      Fwd Bulk Rate Avg: Fwd Avg Bulk Rate
+      Bwd Bytes/Bulk Avg: Bwd Avg Bytes/Bulk
+      Bwd Packet/Bulk Avg: Bwd Avg Packets/Bulk
+      Bwd Bulk Rate Avg: Bwd Avg Bulk Rate
+      FWD Init Win Bytes: Init_Win_bytes_forward
+      Bwd Init Win Bytes: Init_Win_bytes_backward
+      Fwd Act Data Pkts: act_data_pkt_fwd
+      Fwd Seg Size Min: min_seg_size_forward
+      CWR Flag Count: CWE Flag Count      # CIC-IDS2017's "CWE" is the TCP CWR flag
+
+  cicflowmeter_python:
+    name: Python CICFlowMeter (cicflowmeter on PyPI) export
+    from_feature_map: true             # keys taken from agentmeter/ingest/feature_map.py
+    columns:
+      src_ip: Source IP
+      dst_ip: Destination IP
+      src_port: Source Port
+      protocol: Protocol
+      timestamp: Timestamp
+
+# CIC-IDS2017 itself repeats one column; a file without the copy gets it from the original.
+duplicates:
+  Fwd Header Length.1: Fwd Header Length
+
+labels:
+  # Label column names, in priority order. A column holding only 0/1 (attack yes/no) cannot be
+  # mapped to the classes: the next candidate is tried, and with none left the run is
+  # efficiency-only (accuracy not measured), with a note saying why.
+  columns: [Label, attack_cat, attack_type, Attack, class, category, traffic_type]
+  # Extra raw label spellings -> the study classes (added to config.yaml data_prep.label_map
+  # for user CSV runs). Labels not listed are excluded, or become "Other Attack" when that
+  # option is on. Declare these mappings in the thesis.
+  values:
+    Normal: Benign
+    # CSE-CIC-IDS2018
+    FTP-BruteForce: Brute Force
+    SSH-Bruteforce: Brute Force
+    DDOS attack-HOIC: Volumetric DDoS
+    DDOS attack-LOIC-UDP: Volumetric DDoS
+    DDoS attacks-LOIC-HTTP: Volumetric DDoS
+    DoS attacks-Hulk: DoS Hulk
+    # CIC-DDoS2019 (reflection / flood attacks)
+    DrDoS_DNS: Volumetric DDoS
+    DrDoS_LDAP: Volumetric DDoS
+    DrDoS_MSSQL: Volumetric DDoS
+    DrDoS_NetBIOS: Volumetric DDoS
+    DrDoS_NTP: Volumetric DDoS
+    DrDoS_SNMP: Volumetric DDoS
+    DrDoS_SSDP: Volumetric DDoS
+    DrDoS_UDP: Volumetric DDoS
+    Syn: Volumetric DDoS
+    UDP-lag: Volumetric DDoS
+    UDPLag: Volumetric DDoS
+    TFTP: Volumetric DDoS

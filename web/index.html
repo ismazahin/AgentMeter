@@ -646,7 +646,8 @@
         <div id="src-file" role="tabpanel" aria-labelledby="tab-src-file">
           <label class="drop" id="svc-drop" for="svc-file">
             <strong>Choose a .csv, .pcap or .pcapng file</strong>
-            <span class="muted">CSV with labels: efficiency + accuracy · PCAP: efficiency only</span><br>
+            <span class="muted">CSV with labels: efficiency + accuracy · PCAP or CSV without labels: efficiency only</span><br>
+            <span class="muted small">CSV: CICFlowMeter flow exports — CIC-IDS2017, CSE-CIC-IDS2018, CIC-DDoS2019, CICFlowMeter V3/V4, Python CICFlowMeter</span><br>
             <span class="muted small" id="svc-limits">Maximum upload: 90 MB — use Import from a link for larger files</span>
             <input type="file" id="svc-file" name="file" accept=".csv,.pcap,.pcapng">
           </label>
@@ -1686,7 +1687,7 @@
         '</td><td class="num">' + (r.kind === "constraint" ? "—" : fmtNum(r.admitted)) + '</td></tr>';
     }).join("");
     $("svc-summary").innerHTML = '<div id="svc-summary-card"><div class="chips">' + modeChip(s.accuracy_available) +
-      '<span class="chip">' + esc((s.source_type || "").toUpperCase()) + '</span><span class="chip">Features: ' + esc(fm.status || "—") + '</span>' +
+      '<span class="chip">' + esc((s.source_type || "").toUpperCase()) + '</span><span class="chip"' + (fm.note ? ' title="' + esc(fm.note) + '"' : "") + '>Features: ' + esc(fm.status || "—") + (fm.format_name ? " · " + esc(fm.format_name) : "") + '</span>' +
       (s.class_scheme ? '<span class="chip">' + esc(s.class_scheme.name) + '</span>' : "") + (big.capped ? '<span class="chip warn">large input · sampled</span>' : "") + '</div>' +
       (big.capped ? '<div class="notice warn" id="svc-large-input" role="status">' + esc(big.message) + '</div>' : "") +
       (samp.description ? '<p id="svc-sampling" class="small"><b>Sampling:</b> ' + esc(samp.description) + '.</p>' : "") +

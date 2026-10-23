@@ -168,3 +168,14 @@ def test_three_models_rejected_by_the_api_too(env):
     run = upload(c, SAMPLE_CSV, max_flows="5").get_json()["run"]
     r = c.post("/api/jobs", json={"run": run, "models": ["a", "b", "c"], "provider": "mock"})
     assert r.status_code == 400 and r.get_json()["code"] == "too_many_models"
+
+
+def test_load_test_flag_is_a_boolean_and_stored_on_the_job(env):
+    c, mgr, _ = env
+    run = upload(c, SAMPLE_CSV, max_flows="5").get_json()["run"]
+    bad = c.post("/api/jobs", json={"run": run, "models": ["a"], "provider": "mock", "load_test": "yes"})
+    assert bad.status_code == 400 and bad.get_json()["code"] == "bad_request"
+    ok = c.post("/api/jobs", json={"run": run, "models": ["a"], "provider": "mock", "load_test": True})
+    assert ok.status_code == 202 and mgr.get(ok.get_json()["job_id"])["load_test"] is True
+    plain = c.post("/api/jobs", json={"run": run, "models": ["a"], "provider": "mock"})
+    assert mgr.get(plain.get_json()["job_id"])["load_test"] is False

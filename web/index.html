@@ -49,7 +49,7 @@
     --danger: #B42323; --danger-soft: #F7E3E0;
     --info-soft: #E7ECFA;
     --series-1: #2455D6; --series-2: #C65C34;
-    --ag-perceive: #3569BE; --ag-reason: #8266B4; --ag-decide: #C65C34; --ag-act: #418B7B;
+    --ag-perceive: #2a78d6; --ag-reason: #eb6834; --ag-decide: #1baf7a; --ag-act: #eda100;
     --radius: 3px; --radius-lg: 4px; --side: 232px;
     color-scheme: light;
   }
@@ -62,8 +62,8 @@
     --success: #6CC3A0; --success-soft: #14291F;
     --danger: #FF8A8A; --danger-soft: #3A1717;
     --info-soft: #1C2540;
-    --series-1: #7D9CF5; --series-2: #E58A62;
-    --ag-perceive: #7FA8F0; --ag-reason: #B79CF2; --ag-decide: #E58A62; --ag-act: #7FD3C7;
+    --series-1: #5b8ae8; --series-2: #d9714a;
+    --ag-perceive: #3987e5; --ag-reason: #d95926; --ag-decide: #199e70; --ag-act: #c98500;
     color-scheme: dark;
   } }
   :root[data-theme="dark"] {
@@ -75,8 +75,8 @@
     --success: #6CC3A0; --success-soft: #14291F;
     --danger: #FF8A8A; --danger-soft: #3A1717;
     --info-soft: #1C2540;
-    --series-1: #7D9CF5; --series-2: #E58A62;
-    --ag-perceive: #7FA8F0; --ag-reason: #B79CF2; --ag-decide: #E58A62; --ag-act: #7FD3C7;
+    --series-1: #5b8ae8; --series-2: #d9714a;
+    --ag-perceive: #3987e5; --ag-reason: #d95926; --ag-decide: #199e70; --ag-act: #c98500;
     color-scheme: dark;
   }
 
@@ -259,6 +259,118 @@
 
   /* charts */
   .hbars { display: grid; gap: 10px; }
+  /* session insight charts (data from INSIGHTS / insights.js; palette validated with the dataviz checker) */
+  .findings { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .findings li { position: relative; padding: 8px 12px 8px 30px; background: var(--surface-2); border-radius: var(--radius); font-size: 14px; line-height: 1.45; }
+  .findings li::before { content: ""; position: absolute; left: 12px; top: 15px; width: 8px; height: 8px; border-radius: 2px; background: var(--accent); }
+  .ilegend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0 12px; font-size: 12.5px; color: var(--muted-2); }
+  .ilegend span { display: inline-flex; align-items: center; gap: 6px; }
+  .ilegend i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
+  .prof { display: grid; gap: 14px; }
+  .prof-row { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 12px; align-items: center; }
+  .prof-row .lbl { font-size: 13.5px; font-weight: 600; }
+  .prof-row .lbl small { display: block; font-weight: 400; color: var(--muted); }
+  .prof-bars { display: grid; gap: 2px; }
+  .ibar { display: grid; grid-template-columns: 1fr 56px; gap: 8px; align-items: center; font-size: 12.5px; }
+  .ibar .track { position: relative; height: 12px; background: var(--surface-2); border-radius: 0 4px 4px 0; }
+  .ibar .fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--c); min-width: 2px; }
+  .ibar .tgt { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 1px dashed var(--muted); }
+  .ibar .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted-2); }
+  .ibar.na .val { font-style: italic; }
+  .ibar.na .fill { display: none; }
+  [data-hover] { cursor: default; }
+  .dots { display: grid; gap: 6px; }
+  .dot-row, .dot-axis { display: grid; grid-template-columns: minmax(110px, 170px) 1fr; gap: 12px; align-items: center; }
+  .dot-row .lbl { font-size: 13.5px; font-weight: 600; }
+  .dot-row .lbl small { display: block; font-weight: 400; color: var(--muted); }
+  #svc-class-metrics .dot-row:last-child { border-top: 1px solid var(--border); padding-top: 6px; }
+  .dot-axis > div { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
+  .dot-track { position: relative; height: 30px; margin: 0 6px; background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat; }
+  .dot-track .dot { position: absolute; top: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px var(--surface); }
+  .mix-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .mix h3 { margin: 0 0 6px; font-size: 14px; }
+  table tr.total td { border-top: 2px solid var(--border-2); font-weight: 600; }
+  .histo { display: grid; gap: 10px; margin: 6px 0 14px; }
+  .histo-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin-bottom: 4px; }
+  .histo-head .pk { margin-left: 8px; white-space: nowrap; }
+  .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--c); margin-right: 6px; vertical-align: -1px; }
+  .histo-plot { position: relative; display: flex; align-items: flex-end; gap: 2px; height: 90px; border-bottom: 1px solid var(--border-2); }
+  .histo-plot .hb { flex: 1; height: 100%; display: flex; align-items: flex-end; }
+  .histo-plot .hb i { display: block; width: 100%; background: var(--c); border-radius: 4px 4px 0 0; }
+  .histo-plot .hb:hover i, .histo-plot .hb:focus i { opacity: .75; }
+  .histo-plot .pm { position: absolute; top: 0; bottom: 0; border-left: 2px solid var(--text); pointer-events: none; }
+  .histo-axis { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); margin-top: -4px; }
+  .pk { font-variant-numeric: tabular-nums; }
+  .ef { margin: 4px 0 12px; }
+  .ef h3 { font-size: 14px; margin: 14px 0 4px; }
+  .ef-row, .ef-axis { display: grid; grid-template-columns: minmax(120px, 200px) 1fr 110px; gap: 12px; align-items: center; min-height: 30px; }
+  .ef-row .lbl { font-size: 13px; font-weight: 600; }
+  .ef-row .lbl small { display: block; font-weight: 400; color: var(--muted); }
+  .ef-row.na { grid-template-columns: minmax(120px, 200px) 1fr; }
+  .ef-axis > div { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
+  .ef-track { position: relative; height: 22px; margin: 0 6px; background: linear-gradient(var(--border), var(--border)) center / 100% 1px no-repeat; }
+  .ef-track .band { position: absolute; top: 2px; bottom: 2px; background: var(--surface-2); border-radius: 3px; }
+  .ef-track .zero { position: absolute; left: 50%; top: 0; bottom: 0; border-left: 1px solid var(--muted); }
+  .ef-track .ci { position: absolute; top: 50%; height: 4px; margin-top: -2px; background: var(--muted-2); border-radius: 2px; }
+  .ef-track .dot { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
+  @media (max-width: 640px) { .ef-row, .ef-axis { grid-template-columns: 1fr; gap: 2px; } .ef-axis > span { display: none; } }
+  .ho h3, .cat-group h3 { font-size: 14px; margin: 12px 0 4px; }
+  .ho-scroll { overflow-x: auto; }
+  .ho svg { display: block; width: 100%; min-width: 620px; height: auto; font-family: inherit; }
+  .ho .node rect:first-of-type { fill: var(--surface-2); stroke: var(--border-2); }
+  .ho .nt { font-size: 15px; font-weight: 600; fill: var(--text); }
+  .ho .ns { font-size: 13px; fill: var(--muted-2); font-variant-numeric: tabular-nums; }
+  .ho .edge line, .ho .edge path { stroke: var(--muted-2); fill: none; }
+  .ho .edge text { font-size: 12.5px; fill: var(--muted-2); }
+  .ho .edge:hover line, .ho .edge:hover path, .ho .edge:focus line, .ho .edge:focus path { stroke: var(--text); }
+  .ho .ah { fill: var(--muted-2); }
+  .ho .node:focus, .ho .edge:focus { outline: none; }
+  .ho .node:focus rect:first-of-type { stroke: var(--text); stroke-width: 2; }
+  .cat-row { display: grid; grid-template-columns: minmax(110px, 170px) 1fr 76px; gap: 12px; align-items: center; margin: 4px 0; }
+  .cat-row .lbl { font-size: 13px; font-weight: 600; }
+  .cat-row .lbl small { display: block; font-weight: 400; color: var(--muted); }
+  .cat-row .val { text-align: right; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--muted-2); }
+  .cat-track { height: 16px; }
+  .cat-bar { display: flex; gap: 2px; height: 100%; min-width: 4px; }
+  .cat-bar span { display: block; height: 100%; background: var(--c); min-width: 1px; }
+  .cat-bar span:last-child { border-radius: 0 4px 4px 0; }
+  .proj-bar { height: 100%; background: var(--c); border-radius: 0 4px 4px 0; min-width: 2px; }
+  .cat-track { position: relative; }
+  .proj-one { position: absolute; top: -4px; bottom: -4px; border-left: 2px dashed var(--text); }
+  #proj-out .notice { margin: 8px 0 12px; }
+  #fit-table td.fit-cell { white-space: nowrap; }
+  #fit-table .fit-v { margin-left: 8px; }
+  #fit-table tr.fit-group th { padding-top: 14px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); border-bottom: 1px solid var(--border); }
+  .lc svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .lc .lc-grid { stroke: var(--border); stroke-width: 1; }
+  .lc .lc-tick { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .lc .lc-line { fill: none; stroke-width: 2; stroke-linejoin: round; }
+  .lc .lc-dot { opacity: .55; }
+  .lc .lc-dot.big { opacity: 1; stroke: var(--surface); stroke-width: 2; }
+  .lc .lc-band.win { opacity: .14; }
+  .lc .lc-band.idle { fill: var(--muted); opacity: .18; }
+  .lc .lc-band-l { font-size: 11px; fill: var(--muted-2); }
+  .lc .lc-cross { stroke: var(--text); stroke-width: 1; stroke-dasharray: 3 3; }
+  .lc .lc-hit { fill: transparent; }
+  .lc-h { font-size: 13px; margin: 12px 0 2px; color: var(--muted-2); }
+  .trend-panel { margin: 10px 0 6px; }
+  .load-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 10px; }
+  .trend-note { margin: 2px 0 0; }
+  .dot-track .dot.cur { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); z-index: 1; }
+  .rep-row { align-items: start; }
+  .rep-spread { margin: 0 6px 4px; }
+  .finding-line { margin: 4px 0 10px; }
+  .stab { display: grid; gap: 12px; }
+  .stab-row, .stab-axis { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 12px; align-items: start; }
+  .stab-row .lbl { font-size: 13.5px; font-weight: 600; padding-top: 2px; }
+  .stab-row .lbl small { display: block; font-weight: 400; color: var(--muted); }
+  .stab-axis > div { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
+  .stab-track { position: relative; height: 16px; margin: 4px 0; background: var(--surface-2); border-radius: 4px; }
+  .stab-track .seg { position: absolute; top: 0; bottom: 0; background: var(--c); box-shadow: inset -2px 0 0 var(--surface); }
+  .stab-track .seg.tie { background: repeating-linear-gradient(45deg, var(--border-2) 0 3px, transparent 3px 6px); }
+  .stab-mark { position: absolute; top: -5px; bottom: -5px; width: 4px; margin-left: -2px; background: var(--text); box-shadow: 0 0 0 2px var(--surface); border-radius: 2px; }
+  .stab-axis > div span:last-child { transform: translateX(2px); }
+  .stab-text { margin: 4px 0 0; }
   .hbar { display: grid; grid-template-columns: minmax(110px, 200px) 1fr minmax(84px, auto); gap: 10px; align-items: center; font-size: 13.5px; }
   .hbar .lbl { overflow-wrap: anywhere; font-weight: 600; }
   .hbar .track { height: 18px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
@@ -732,6 +844,8 @@
         <h2>Settings</h2>
         <p class="small" id="svc-run-mode"></p>
         <dl class="kv small" id="wiz-settings"></dl>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="svc-load-test">
+          <span>Also measure load scaling (1, 2 and 4 flows at once)</span></label><span class="info-i" tabindex="0" role="button" data-tip="After the measured flows, each model runs a few extra flows with 1, 2 and 4 in flight at once, to show whether throughput grows with concurrency. Adds time; it is reported separately and never changes a score, rank or verdict.">i</span>
         <div class="row">
           <a class="btn" id="wiz-back" href="#/new">Back</a>
           <button type="button" class="btn primary" id="svc-run" disabled>Run benchmark</button>
@@ -991,6 +1105,7 @@
 <footer><div class="wrap">AgentMeter measures how efficiently LLMs run: speed, memory, tokens, cost, energy. Accuracy is context only; it isn't a threat detector.</div></footer>
 
 <script src="report.js"></script>
+<script src="insights.js"></script>
 <script>
 (function () {
   "use strict";
@@ -1300,13 +1415,16 @@
   }
   var TIP = null;
   function closeTip() { if (TIP) { TIP.remove(); TIP = null; } }
-  function openTip(el) {
+  function openTip(el, text) {
     closeTip();
-    var text = el.getAttribute("data-tip") || el.getAttribute("title") || el.getAttribute("aria-label");
+    text = text || el.getAttribute("data-tip") || el.getAttribute("title") || el.getAttribute("aria-label");
     if (!text) return;
     TIP = document.createElement("div");
     TIP.className = "tip-pop"; TIP.setAttribute("role", "tooltip"); TIP.textContent = text;
     document.body.appendChild(TIP);
+    placeTip(el);
+  }
+  function placeTip(el) {
     var r = el.getBoundingClientRect(), w = TIP.offsetWidth;
     TIP.style.top = (window.scrollY + r.bottom + 6) + "px";
     TIP.style.left = Math.max(8, Math.min(window.scrollX + r.left - 12, window.scrollX + document.documentElement.clientWidth - w - 8)) + "px";
@@ -1321,7 +1439,19 @@
     if (ev.key === "Escape") closeTip();
     else if ((ev.key === "Enter" || ev.key === " ") && el && el.classList && el.classList.contains("info-i")) { ev.preventDefault(); openTip(el); TIP._for = el; }
   });
-  window.addEventListener("scroll", closeTip, { passive: true });
+  // a scroll closes an ⓘ popover; a chart mark's hover value follows its mark
+  window.addEventListener("scroll", function () { if (TIP && TIP._hover && TIP._for && TIP._for.isConnected) placeTip(TIP._for); else closeTip(); }, { passive: true });
+  // chart marks: hover / focus shows their value (data-hover), the same popover as ⓘ
+  document.addEventListener("mouseover", function (ev) {
+    var el = ev.target.closest && ev.target.closest("[data-hover]");
+    if (el && (!TIP || TIP._for !== el)) hoverTip(el);
+    else if (!el && TIP && TIP._hover) closeTip();
+  });
+  document.addEventListener("focusin", function (ev) {
+    var el = ev.target.closest && ev.target.closest("[data-hover]");
+    if (el) hoverTip(el);
+  });
+  function hoverTip(el) { openTip(el, el.getAttribute("data-hover")); if (TIP) { TIP._for = el; TIP._hover = true; } }
 
   // ---------- routing ----------
   var VIEWS = ["home", "new", "sessions", "session", "compare", "leaderboard", "settings", "profile", "admin", "login"];
@@ -1343,6 +1473,7 @@
   }
   function route() {
     pollToken++;                                    // stops every running poll loop
+    closeTip();                                     // a popover never outlives its view
     var r = parseHash(), p = r.parts, v = p[0] || "home";
     // links from before Phase 46
     if (v === "prepare" || v === "upload") { location.replace("#/new"); return; }
@@ -1600,6 +1731,7 @@
     $("svc-summary").innerHTML = ""; $("wiz-data-error").hidden = true; $("svc-run-error").hidden = true;
     renderModels();
     renderSettings();
+    setDataState("preparing", "Checking your data…", null);    // never show the previous data set's Ready/Failed
     if (WIZ.set) dataReady(WIZ.set);
     else if (WIZ.prep) pollPrepare(WIZ.prep, ++pollToken);
     else location.replace("#/new");
@@ -1813,6 +1945,7 @@
     // The wizard's own preparation: always after_prepare (one session, counted once; the
     // server uses the prepared set directly when it is already done). Reused sets: run.
     if (WIZ.prep) body.after_prepare = WIZ.prep; else body.run = WIZ.set;
+    if ($("svc-load-test").checked) body.load_test = true;
     $("svc-run").disabled = true;
     api("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
       if (!r.ok) { showError(err, r.data); syncRun(); return; }
@@ -2133,17 +2266,19 @@
     acc.setAttribute("aria-disabled", s.accuracy_available ? "false" : "true");
     acc.title = s.accuracy_available ? "" : "No labels in this data — efficiency only";
     var base = "#/session/" + enc(job.job_id) + "/";
+    if (window.INSIGHTS) setModelSlots(res);
+    LC = {};                                         // line charts of this session (wired after render)
     $("spanel-overview").innerHTML = pane("main", overviewTab(res));
     $("spanel-ranking").innerHTML = pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
-        'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", "") + pane("pareto", "") + pane("guide", "");
-    $("spanel-accuracy").innerHTML = pane("main", "");
-    $("spanel-performance").innerHTML = pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res)) + pane("gpu", memoryCard(res)) + pane("statistics", effectsCard(res));
+        'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", stabilityCard(res)) + pane("pareto", "") + pane("guide", "");
+    $("spanel-accuracy").innerHTML = pane("main", classMetricsCard(res));
+    $("spanel-performance").innerHTML = pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + '<div id="svc-repeat-host"></div>');
     $("spanel-agents").innerHTML = pane("main", agentsTab(res));
-    $("spanel-cost").innerHTML = pane("main", costCard(res));
+    $("spanel-cost").innerHTML = pane("main", costCard(res) + gpuTimelineCard(res) + projectionCard(res) + correctCard(res));
     $("spanel-recommendations").innerHTML = pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
     $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
     resetEmbed();
-    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res);
+    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); wireRepeat(res, job);
   }
 
   function setDl(a, path, name) {
@@ -2262,6 +2397,7 @@
         (real ? 'GPU ' + esc(env.gpu_name || "unknown") + ' · NVIDIA driver ' + esc(env.driver_version || "—") + ' · CUDA ' + esc(env.cuda_runtime_version || "—") + ' · 4-bit NF4, one model at a time.'
           : 'MOCK provider: a deterministic heuristic, not a language model. It shows the flow; the numbers are not model measurements.') + '</p>' +
         (rel && cmp ? '<p class="small muted" id="svc-absolute"><b>Absolute SAW</b> (against fixed L4-study targets): ' + esc(cmp.statement) + '</p>' : "") + '</details></div>');
+    h.push(findingsCard(res), profileCard(res));
     var tip = function (t) { return '<span class="info-i" tabindex="0" title="' + esc(t) + '" aria-label="' + esc(t) + '">i</span>'; };
     var rows = pm.map(function (m) {
       var e = m.efficiency.end_to_end, c = ce[m.model] || {};
@@ -2284,6 +2420,113 @@
       '</div><p class="gtk-detail" id="svc-cav-detail" hidden></p><template id="svc-cav-texts">' +
       items.map(function (x) { return '<p>' + esc(x.text) + '</p>'; }).join("") + '</template></div>');
     return h.join("");
+  }
+  // Overview: key findings and the per-criterion profile (INSIGHTS, insights.js)
+  var CRIT_LABEL = { accuracy: "Accuracy", latency: "Latency", vram: "VRAM", tokens: "Tokens" };
+  // a model keeps one colour on every chart of a session (session model order, never rank)
+  var MODEL_SLOT = {};
+  function setModelSlots(res) { MODEL_SLOT = {}; (res.per_model || []).forEach(function (m, i) { MODEL_SLOT[INSIGHTS.bare(m.model)] = i; }); }
+  function modelColor(m) { var i = MODEL_SLOT[window.INSIGHTS ? INSIGHTS.bare(m) : m]; return "var(--series-" + ((i == null ? 0 : i) % 2 + 1) + ")"; }
+  function legendHtml(names) {
+    return names.length < 2 ? "" : '<div class="ilegend">' + names.map(function (n) { return '<span><i style="--c:' + modelColor(n) + '"></i>' + esc(short(n)) + '</span>'; }).join("") + '</div>';
+  }
+  function findingsCard(res) {
+    var f = window.INSIGHTS ? INSIGHTS.keyFindings(res) : [];
+    if (!f.length) return "";
+    return '<div class="card" id="svc-findings"><h2>Key findings</h2><ul class="findings">' +
+      f.map(function (x) { return '<li data-finding="' + esc(x.key) + '">' + esc(x.text) + '</li>'; }).join("") +
+      '</ul><p class="muted small">Each line restates one stored number of this session; nothing is re-measured.</p></div>';
+  }
+  function profileCard(res) {
+    if (!window.INSIGHTS) return "";
+    var pr = INSIGHTS.criteriaProfile(res), names = pr.rows.map(function (r) { return r.model; });
+    if (!pr.rows.length) return "";
+    var body = pr.criteria.map(function (k) {
+      return '<div class="prof-row" data-crit="' + k + '"><span class="lbl">' + CRIT_LABEL[k] + (pr.missing[k] ? '<small>' + (k === "accuracy" ? "no labels" : "no readings") + '</small>' : "") + '</span><div class="prof-bars">' +
+        pr.rows.map(function (r, i) {
+          var v = r.scores[k], na = pr.missing[k] || v == null;
+          var txt = short(r.model) + " · " + CRIT_LABEL[k] + ": " + (na ? "not measured" : v.toFixed(2) + " of 1.00 (target)");
+          return '<div class="ibar' + (na ? " na" : "") + '" tabindex="0" data-hover="' + esc(txt) + '" aria-label="' + esc(txt) + '"><span class="track"><span class="fill" style="--c:' + modelColor(r.model) + ';width:' + (na ? 0 : Math.min(100, 100 * v)) + '%"></span><span class="tgt" style="left:100%"></span></span><span class="val">' + (na ? "n/a" : v.toFixed(2)) + '</span></div>';
+        }).join("") + '</div></div>';
+    }).join("");
+    return '<div class="card" id="svc-profile"><h2>Criteria profile</h2><p class="muted small" style="margin-top:0">Each criterion scored against the study target: 1.00 (dashed line) meets the target. These are the four inputs of the SAW score.</p>' +
+      legendHtml(names) + '<div class="prof" role="group" aria-label="Criteria profile">' + body + '</div>' +
+      '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-profile-table"><thead><tr><th>Model</th>' +
+      pr.criteria.map(function (k) { return '<th class="num">' + CRIT_LABEL[k] + '</th>'; }).join("") + '</tr></thead><tbody>' +
+      pr.rows.map(function (r) { return '<tr><td class="mono">' + esc(r.model) + '</td>' + pr.criteria.map(function (k) { return '<td class="num">' + (pr.missing[k] || r.scores[k] == null ? "—" : r.scores[k].toFixed(3)) + '</td>'; }).join("") + '</tr>'; }).join("") +
+      '</tbody></table></div></details></div>';
+  }
+  // Ranking -> Robustness: the weight range in which the top model stays first
+  function stabilityCard(res) {
+    if (!window.INSIGHTS || !res.phase8) return "";
+    var st = INSIGHTS.weightStability(res);
+    if (st.models.length < 2) return '<div class="card" id="svc-stability"><h2>How far can the weights move?</h2><p class="muted">Single-model run: there is no ranking to change.</p></div>';
+    var r2 = function (v) { return v.toFixed(2); };
+    var rows = st.rows.map(function (row) {
+      var segs = row.segments.map(function (sg) {
+        var lbl = (sg.leader ? short(sg.leader) + " first" : "tie") + " for weight " + r2(sg.from) + "–" + r2(sg.to);
+        return '<span class="seg' + (sg.leader ? "" : " tie") + '" data-hover="' + esc(CRIT_LABEL[row.criterion] + ": " + lbl) + '" style="left:' + (100 * sg.from) + '%;width:' + Math.max(0.4, 100 * (sg.to - sg.from)) + '%;' +
+          (sg.leader ? "--c:" + modelColor(sg.leader) : "") + '"></span>';
+      }).join("");
+      return '<div class="stab-row" data-crit="' + row.criterion + '"><span class="lbl">' + CRIT_LABEL[row.criterion] + '<small>stored ' + r2(row.stored) + '</small></span>' +
+        '<div><div class="stab-track" role="img" aria-label="' + esc(INSIGHTS.stabilitySentence(row)) + '">' + segs +
+        '<span class="stab-mark" style="left:' + (100 * row.stored) + '%" title="stored weight ' + r2(row.stored) + '"></span></div>' +
+        '<p class="small stab-text">' + esc(INSIGHTS.stabilitySentence(row)) + '</p></div></div>';
+    }).join("");
+    return '<div class="card" id="svc-stability"><h2>How far can the weights move?</h2><p class="muted small" style="margin-top:0">Each strip runs one weight from 0 to 1 while the other three keep their stored proportions; ' +
+      'the colour shows which model would rank first. The marker is the stored weight.</p>' + legendHtml(st.models) +
+      '<div class="stab-axis"><span></span><div><span>0</span><span>0.5</span><span>1</span></div></div><div class="stab">' + rows + '</div>' +
+      '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-stability-table"><thead><tr><th>Criterion</th><th class="num">Stored weight</th><th>First at stored weight</th><th>Stays first for weights</th></tr></thead><tbody>' +
+      st.rows.map(function (row) {
+        return '<tr><td>' + CRIT_LABEL[row.criterion] + '</td><td class="num">' + r2(row.stored) + '</td><td class="mono">' + esc(row.leader ? short(row.leader) : "tie") + '</td><td class="num">' +
+          (row.no_data ? "any (no readings)" : row.stable ? r2(row.stable[0]) + " – " + r2(row.stable[1]) : "—") + '</td></tr>';
+      }).join("") + '</tbody></table></div></details></div>';
+  }
+  // Accuracy: precision / recall / F1 per class and the most common mix-ups (from the confusion matrices)
+  function classMetricsCard(res) {
+    if (!window.INSIGHTS) return "";
+    var cm = INSIGHTS.classMetrics(res);
+    if (!cm.available) return "";
+    var f2 = function (v) { return v == null ? "—" : v.toFixed(2); };
+    var classes = cm.models[0].classes.map(function (c) { return c.cls; }), names = cm.models.map(function (m) { return m.model; });
+    var by = function (m, c) { return m.classes.filter(function (x) { return x.cls === c; })[0] || {}; };
+    var dotRow = function (label, sub, vals) {
+      return '<div class="dot-row"><span class="lbl">' + esc(label) + (sub ? '<small>' + esc(sub) + '</small>' : "") + '</span><div class="dot-track">' +
+        vals.map(function (v) {
+          // one lane per model (session slot), so equal values never hide a dot
+          var lane = vals.length > 1 ? (MODEL_SLOT[v.model] ? 7 : -7) : 0;
+          return v.value == null ? "" : '<span class="dot" tabindex="0" style="left:' + (100 * v.value) + '%;margin-top:' + (lane - 6) + 'px;--c:' + modelColor(v.model) + '" data-hover="' + esc(v.text) + '" aria-label="' + esc(v.text) + '"></span>';
+        }).join("") + '</div></div>';
+    };
+    var rows = classes.map(function (c) {
+      return dotRow(c, by(cm.models[0], c).support + " flows", cm.models.map(function (m) {
+        var x = by(m, c);
+        return { model: m.model, value: x.f1, text: short(m.model) + " · " + c + ": F1 " + f2(x.f1) + " (precision " + (x.precision == null ? "never predicted" : f2(x.precision)) + ", recall " + f2(x.recall) + ")" };
+      }));
+    }).join("") + dotRow("Macro average", "all classes", cm.models.map(function (m) {
+      return { model: m.model, value: m.macro.f1, text: short(m.model) + " · macro F1 " + f2(m.macro.f1) + " (precision " + f2(m.macro.precision) + ", recall " + f2(m.macro.recall) + ")" };
+    }));
+    var head = '<tr><th rowspan="2">Class</th><th class="num" rowspan="2">Flows</th>' + cm.models.map(function (m) { return '<th colspan="3" class="num">' + esc(short(m.model)) + '</th>'; }).join("") + '</tr><tr>' +
+      cm.models.map(function () { return '<th class="num">Precision</th><th class="num">Recall</th><th class="num">F1</th>'; }).join("") + '</tr>';
+    var body = classes.map(function (c) {
+      return '<tr><td>' + esc(c) + '</td><td class="num">' + by(cm.models[0], c).support + '</td>' + cm.models.map(function (m) {
+        var x = by(m, c);
+        return '<td class="num">' + (x.precision == null ? '<span class="muted" title="never predicted">—</span>' : f2(x.precision)) + '</td><td class="num">' + f2(x.recall) + '</td><td class="num"><b>' + f2(x.f1) + '</b></td>';
+      }).join("") + '</tr>';
+    }).join("") + '<tr class="total"><td>Macro average</td><td></td>' + cm.models.map(function (m) {
+      return '<td class="num">' + f2(m.macro.precision) + '</td><td class="num">' + f2(m.macro.recall) + '</td><td class="num"><b>' + f2(m.macro.f1) + '</b></td>';
+    }).join("") + '</tr>';
+    var mix = cm.models.map(function (m) {
+      return '<div class="mix"><h3>' + esc(short(m.model)) + '</h3>' + (m.mixups.length ? '<ol class="list">' + m.mixups.map(function (x) {
+        return '<li><b>' + esc(x.truth) + '</b> answered as <b>' + esc(x.predicted) + '</b>: ' + x.count + ' of ' + Math.round(x.count / x.share) + ' (' + fmtPct(x.share) + ')</li>';
+      }).join("") + '</ol>' : '<p class="muted small">No mix-ups.</p>') +
+        '<p class="small muted">Unparseable answers: ' + m.unparseable + ' of ' + m.n + (m.unparseable ? ' (' + fmtPct(m.unparseable / m.n) + ') — counted as misses' : "") + '</p></div>';
+    }).join("");
+    return '<div class="card" id="svc-class-metrics"><h2>Precision, recall and F1 by class</h2><p class="muted small" style="margin-top:0">F1 balances how often a label is right when given (precision) against how many flows of that class are found (recall). Context only: AgentMeter measures efficiency, not detection quality.</p>' +
+      legendHtml(names) + '<div class="dot-axis"><span></span><div><span>0</span><span>0.5</span><span>1</span></div></div><div class="dots">' + rows + '</div>' +
+      '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-class-metrics-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>' +
+      '<p class="muted small">"—": the model never gave this label, so precision is undefined (counted as 0 in the macro average).</p></details></div>' +
+      '<div class="card" id="svc-mixups"><h2>Most common mix-ups</h2><p class="muted small" style="margin-top:0">The true class and the label the model gave instead, largest first (up to 5).</p><div class="mix-grid">' + mix + '</div></div>';
   }
   function wireOverview(res) {
     var box = $("svc-caveats"), det = $("svc-cav-detail"), texts = $("svc-cav-texts");
@@ -2331,6 +2574,226 @@
       '<details class="info"><summary>How this is calculated</summary><p class="muted small" id="svc-energy-method"><b>Method.</b> ' + esc(((cen.per_model || [])[0] || {}).cost_reason || "") + ' ' + esc((cen.notes || {}).cost || "") + ' ' +
       esc((cen.notes || {}).energy || "") + ' ' + esc((cen.notes || {}).energy_net || "") + '</p></details></div>';
   }
+  // ---- a small SVG line chart with a crosshair: series of [x, y]; one y axis; optional bands ----
+  // spec: { id, w, h, xMax, yMax, xFmt, yFmt, yLabel, bands: [{from, to, cls, color, label}],
+  //         series: [{name, color, points, kind: "line" | "dots"}], rows: [{x, text}] (crosshair text, by x) }
+  var LC = {};
+  function niceMax(v) { if (!(v > 0)) return 1; var e = Math.pow(10, Math.floor(Math.log10(v))), f = v / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }
+  function lineChart(spec) {
+    var W = spec.w || 720, H = spec.h || 150, L = 56, R = 10, T = 10, B = 24, pw = W - L - R, ph = H - T - B;
+    var ym = niceMax(spec.yMax), x0 = spec.xMin || 0, xm = spec.xMax || 1;
+    var X = function (x) { return L + pw * (x - x0) / ((xm - x0) || 1); }, Y = function (y) { return T + ph * (1 - y / ym); };
+    LC[spec.id] = { spec: spec, X: X, L: L, pw: pw, x0: x0, xm: xm };
+    var grid = [0, 0.5, 1].map(function (f) {
+      return '<line class="lc-grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(ym * f) + '" y2="' + Y(ym * f) + '"/><text class="lc-tick" x="' + (L - 6) + '" y="' + (Y(ym * f) + 4) + '" text-anchor="end">' + esc(spec.yFmt(ym * f)) + '</text>';
+    }).join("");
+    var xt = [0, 0.5, 1].map(function (f) { var v = x0 + (xm - x0) * f; return '<text class="lc-tick" x="' + X(v) + '" y="' + (H - 6) + '" text-anchor="' + (f === 0 ? "start" : f === 1 ? "end" : "middle") + '">' + esc(spec.xFmt(v)) + '</text>'; }).join("");
+    var bands = (spec.bands || []).map(function (b) {
+      return '<rect class="lc-band ' + (b.cls || "") + '" x="' + X(b.from) + '" y="' + T + '" width="' + Math.max(1, X(b.to) - X(b.from)) + '" height="' + ph + '"' + (b.color ? ' style="fill:' + b.color + '"' : "") + '/>' +
+        (b.label ? '<text class="lc-band-l" x="' + (X(b.from) + 4) + '" y="' + (T + 12) + '">' + esc(b.label) + '</text>' : "");
+    }).join("");
+    var series = spec.series.map(function (sr) {
+      var pts = sr.points.filter(function (p) { return p[1] != null; });
+      if (sr.kind === "dots") return pts.map(function (p) { return '<circle class="lc-dot' + (sr.r ? " big" : "") + '" cx="' + X(p[0]).toFixed(1) + '" cy="' + Y(p[1]).toFixed(1) + '" r="' + (sr.r || 2.2) + '" style="fill:' + sr.color + '"/>'; }).join("");
+      return '<polyline class="lc-line" style="stroke:' + sr.color + '" points="' + pts.map(function (p) { return X(p[0]).toFixed(1) + "," + Y(p[1]).toFixed(1); }).join(" ") + '"/>';
+    }).join("");
+    return '<div class="lc" id="' + spec.id + '"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(spec.label || "") + '">' + bands + grid + xt +
+      (spec.yLabel ? '<text class="lc-tick" x="4" y="' + (T + 4) + '">' + esc(spec.yLabel) + '</text>' : "") + series +
+      '<line class="lc-cross" x1="0" x2="0" y1="' + T + '" y2="' + (T + ph) + '" visibility="hidden"/><rect class="lc-hit" x="' + L + '" y="' + T + '" width="' + pw + '" height="' + ph + '"/></svg></div>';
+  }
+  function wireLineCharts() {
+    Object.keys(LC).forEach(function (id) {
+      var el = $(id), c = LC[id];
+      if (!el || el._wired) return;
+      el._wired = true;
+      var svg = el.querySelector("svg"), cross = el.querySelector(".lc-cross"), rows = c.spec.rows || [];
+      function at(clientX) {
+        var r = svg.getBoundingClientRect(), x = c.x0 + ((clientX - r.left) * svg.viewBox.baseVal.width / r.width - c.L) / c.pw * (c.xm - c.x0);
+        var best = null;
+        rows.forEach(function (row) { if (!best || Math.abs(row.x - x) < Math.abs(best.x - x)) best = row; });
+        if (!best) return;
+        cross.setAttribute("x1", c.X(best.x)); cross.setAttribute("x2", c.X(best.x)); cross.setAttribute("visibility", "visible");
+        openTip(el, best.text); if (TIP) { TIP._for = el; TIP._hover = true; TIP.style.top = (window.scrollY + r.bottom - 18) + "px"; TIP.style.left = Math.max(8, Math.min(clientX + window.scrollX + 12, window.scrollX + document.documentElement.clientWidth - TIP.offsetWidth - 8)) + "px"; }
+      }
+      el.addEventListener("mousemove", function (ev) { at(ev.clientX); });
+      el.addEventListener("mouseleave", function () { cross.setAttribute("visibility", "hidden"); closeTip(); });
+    });
+  }
+  // Performance -> Latency: latency over the run, per model (shared y scale)
+  function trendCard(res) {
+    var tr = window.INSIGHTS && INSIGHTS.latencyTrend(res);
+    if (!tr) return "";
+    var xMax = Math.max.apply(null, tr.models.map(function (m) { return m.n || 1; }));
+    var panels = tr.models.map(function (m, i) {
+      var d = m.drift, chip = d.tested ? (d.verdict === "stable" ? '<span class="chip ok">stable</span>' : '<span class="chip bad">' + (d.verdict === "slows_down" ? "slows down" : "speeds up") + '</span>') : '<span class="chip">not tested</span>';
+      var chart = lineChart({ id: "trend-" + i, h: 140, xMin: 1, xMax: xMax, yMax: tr.ymax, xFmt: function (v) { return "flow " + Math.round(v); }, yFmt: fmtTime,
+        label: "Latency per flow over the run for " + short(m.model),
+        series: [{ name: "flows", kind: "dots", color: modelColor(m.model), points: m.points.map(function (p) { return [p.flow, p.latency_s]; }) },
+                 { name: "rolling median", kind: "line", color: "var(--text)", points: m.points.map(function (p) { return [p.flow, p.median_s]; }) }],
+        rows: m.points.map(function (p) { return { x: p.flow, text: short(m.model) + " · flow " + p.flow + ": " + fmtTime(p.latency_s) + " (rolling median " + fmtTime(p.median_s) + ")" }; }) });
+      return '<div class="trend-panel" data-model="' + esc(m.model) + '"><div class="histo-head"><span class="mono small"><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '</span>' + chip + '</div>' + chart +
+        '<p class="small trend-note">' + esc(d.note || "") + (m.thinned ? ' <span class="muted">(' + fmtNum(m.n) + ' flows; chart thinned, the test uses every flow)</span>' : "") + '</p></div>';
+    }).join("");
+    return '<div class="card" id="stats-trend"><h2>Latency over the run</h2><p class="muted small" style="margin-top:0">Each dot is one flow in the order it ran; the line is the rolling median over ' + (tr.models[0] ? tr.models[0].window : 3) + ' flows. A slow-down over the run points to heat, memory build-up or contention, not the model alone.</p>' +
+      '<div class="ilegend"><span><i style="--c:var(--muted-2)"></i>one flow</span><span><i style="--c:var(--text);height:2px"></i>rolling median</span></div>' + panels +
+      '<details class="info"><summary>Method</summary><p class="muted small">' + esc(tr.method || "") + '</p></details></div>';
+  }
+  // Cost & Energy: board power, utilisation and memory over the session, model windows shaded
+  function gpuTimelineCard(res) {
+    var g = window.INSIGHTS && INSIGHTS.gpuTimeline(res);
+    if (!g) return "";
+    if (!g.sampled) return '<div class="card" id="gpu-timeline"><h2>GPU over the run</h2><p class="muted">Not sampled: ' + esc(g.reason) + '.</p></div>';
+    var bands = g.windows.map(function (w) { return { from: w.from_s, to: w.to_s, color: modelColor(w.model), cls: "win", label: short(w.model) }; })
+      .concat(g.idle.map(function (w) { return { from: w.from_s, to: w.to_s, cls: "idle" }; }));
+    var rows = g.points.map(function (p) {
+      var inw = g.windows.filter(function (w) { return p.t >= w.from_s && p.t <= w.to_s; })[0];
+      return { x: p.t, text: fmtNum(p.t, 1) + " s" + (inw ? " · " + short(inw.model) : "") + ": " + fmtNum(p.power_w, 0) + " W" + (p.util_pct != null ? " · " + fmtNum(p.util_pct, 0) + "% busy" : "") + (p.mem_mb != null ? " · " + fmtMB(p.mem_mb) : "") };
+    });
+    var sec = function (v) { return fmtNum(v, 0) + " s"; };
+    var plain = bands.map(function (b) { return { from: b.from, to: b.to, color: b.color, cls: b.cls }; });   // names on the first chart only
+    var mk = function (id, key, yMax, yFmt, label, first) {
+      return lineChart({ id: id, h: 130, xMax: g.t_max || 1, yMax: yMax, xFmt: sec, yFmt: yFmt, bands: first ? bands : plain, label: label, rows: rows,
+        series: [{ name: key, kind: "line", color: "var(--text)", points: g.points.map(function (p) { return [p.t, p[key]]; }) }] });
+    };
+    return '<div class="card" id="gpu-timeline"><h2>GPU over the run</h2><p class="muted small" style="margin-top:0">Sampled every ' + esc(g.interval_s) + ' s (' + esc(g.method) + ', ' + fmtNum(g.n_samples) + ' samples) from outside the measured process. Shaded in the model\'s colour: its measured window; grey: its idle baseline (sampled just before it loads).</p>' +
+      legendHtml(g.windows.map(function (w) { return w.model; })) +
+      '<h3 class="lc-h">Board power (W)</h3>' + mk("gpu-power", "power_w", g.power_max, function (v) { return fmtNum(v, 0) + " W"; }, "GPU board power over the session", true) +
+      (g.has_util ? '<h3 class="lc-h">GPU utilisation (%)</h3>' + mk("gpu-util", "util_pct", 100, function (v) { return fmtNum(v, 0) + "%"; }, "GPU utilisation over the session") : "") +
+      (g.has_mem ? '<h3 class="lc-h">Device memory used</h3>' + mk("gpu-mem", "mem_mb", g.mem_max, function (v) { return fmtNum(v / 1024, 1) + " GB"; }, "Device memory over the session") : "") +
+      '<div class="table-wrap"><table id="gpu-timeline-table"><thead><tr><th>Model</th><th class="num">Samples</th><th class="num">Mean power</th><th class="num">Peak power</th><th class="num">Mean utilisation</th><th class="num">Peak memory</th></tr></thead><tbody>' +
+      g.per_model.map(function (m) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtNum(m.n_samples) + '</td><td class="num">' + (m.mean_power_w == null ? "—" : fmtNum(m.mean_power_w, 1) + " W") + '</td><td class="num">' + (m.peak_power_w == null ? "—" : fmtNum(m.peak_power_w, 0) + " W") +
+        '</td><td class="num">' + (m.mean_util_pct == null ? "—" : fmtNum(m.mean_util_pct, 0) + "%") + '</td><td class="num">' + (m.peak_mem_mb == null ? "—" : fmtMB(m.peak_mem_mb)) + '</td></tr>'; }).join("") + '</tbody></table></div></div>';
+  }
+  // Performance -> Statistics: repeatability across sessions on the same flows, GPU and settings
+  var REP_FMT = { s: fmtTime, tokens: function (v) { return fmtNum(v, 1); }, MB: fmtMB, Wh: fmtWh, share: fmtPct, points: function (v) { return fmtNum(v, 1); } };
+  function wireRepeat(res, job) {
+    var host = $("svc-repeat-host"), id = job.job_id;
+    if (!host || !window.INSIGHTS) return;
+    var again = '<a class="btn" href="#/new/models?set=' + enc(job.run_name || "") + (CP && job.stored ? "&from=" + enc(id) : "") + '">Benchmark these flows again</a>';
+    var head = '<h2>Repeatability across runs</h2><p class="muted small" style="margin-top:0">The same models on the same flows, GPU and settings in other sessions: how much do the numbers move from run to run?</p>';
+    api("/api/compare/candidates?session=" + enc(id)).then(function (r) {
+      if (SESSION.id !== id) return;
+      var others = r.ok ? (r.data.sessions || []).slice(0, 19) : [];
+      if (!r.ok || !others.length) {
+        host.innerHTML = '<div class="card" id="svc-repeat">' + head + '<p>' + (r.ok ? "No other session ran on these flows, GPU and settings yet." : "Could not look for other sessions: " + esc((r.data || {}).error || "")) +
+          ' Run the same models again to see how stable these numbers are.</p><div class="actions">' + again + '</div></div>';
+        return;
+      }
+      api("/api/compare/merged?sessions=" + [id].concat(others.map(function (x) { return x.session_id; })).map(enc).join(",")).then(function (m) {
+        if (SESSION.id !== id) return;
+        if (!m.ok) { host.innerHTML = '<div class="card" id="svc-repeat">' + head + '<p class="muted">' + esc((m.data || {}).error || "Comparison unavailable") + '</p></div>'; return; }
+        host.innerHTML = repeatCard(INSIGHTS.repeatability(m.data, id), head, again, id);
+      });
+    });
+  }
+  function repeatCard(rp, head, again, id) {
+    var lead = rp.leader ? '<p class="finding-line">' + (rp.leader.current ? "Faster model in this session, <b>" + esc(short(rp.leader.current)) + "</b>, was also faster in " + rp.leader.agree + " of " + rp.leader.sessions + " sessions."
+      : "The two models tie on mean latency in this session.") + '</p>' : "";
+    var metrics = (rp.models[0] || { metrics: [] }).metrics.map(function (d) { return d.metric; });
+    var rows = metrics.map(function (k) {
+      var per = rp.models.map(function (m) { return { model: m.model, d: m.metrics.filter(function (x) { return x.metric === k; })[0] }; }).filter(function (x) { return x.d; });
+      if (!per.length) return "";
+      var f = REP_FMT[per[0].d.unit] || function (v) { return fmtNum(v, 2); };
+      var lo = Math.min.apply(null, per.map(function (x) { return x.d.min; })), hi = Math.max.apply(null, per.map(function (x) { return x.d.max; }));
+      var pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.05 || 1, a = lo - pad, b = hi + pad;
+      var dots = per.map(function (x) {
+        var lane = per.length > 1 ? (MODEL_SLOT[x.model] ? 7 : -7) : 0;
+        return x.d.values.map(function (v) {
+          var t = short(x.model) + " · " + per[0].d.label + ": " + f(v.value) + (v.current ? " (this session)" : " (" + shortId(v.session) + ")");
+          return '<span class="dot' + (v.current ? " cur" : "") + '" tabindex="0" style="left:' + (100 * (v.value - a) / (b - a)) + '%;margin-top:' + (lane - 6) + 'px;--c:' + modelColor(x.model) + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span>';
+        }).join("");
+      }).join("");
+      var spread = per.map(function (x) { return esc(short(x.model)) + ": " + (x.d.cov == null ? "one run" : "±" + fmtPct(x.d.cov) + " run to run"); }).join(" · ");
+      return '<div class="dot-row rep-row" data-metric="' + k + '"><span class="lbl">' + esc(per[0].d.label) + '<small>' + esc(f(a)) + ' – ' + esc(f(b)) + '</small></span><div><div class="dot-track">' + dots + '</div><p class="small muted rep-spread">' + spread + '</p></div></div>';
+    }).join("");
+    return '<div class="card" id="svc-repeat">' + head + '<p class="small">' + rp.n_sessions + ' sessions on this setup. Ringed dot: this session. "±" is the coefficient of variation (standard deviation ÷ mean) across runs.</p>' +
+      lead + legendHtml(rp.models.map(function (m) { return m.model; })) + '<div class="dots">' + rows + '</div>' +
+      '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-repeat-table"><thead><tr><th>Model</th><th>Metric</th><th class="num">Runs</th><th class="num">Mean</th><th class="num">SD</th><th class="num">CoV</th><th class="num">Min – max</th></tr></thead><tbody>' +
+      rp.models.map(function (m) { return m.metrics.map(function (d) { var f = REP_FMT[d.unit] || function (v) { return fmtNum(v, 2); };
+        return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(d.label) + '</td><td class="num">' + d.n + '</td><td class="num">' + f(d.mean) + '</td><td class="num">' + (d.sd == null ? "—" : f(d.sd)) + '</td><td class="num">' + (d.cov == null ? "—" : fmtPct(d.cov)) + '</td><td class="num">' + f(d.min) + ' – ' + f(d.max) + '</td></tr>'; }).join(""); }).join("") +
+      '</tbody></table></div></details><div class="actions"><a class="btn" href="#/compare?a=' + enc(id) + '">Open in Compare</a>' + again + '</div></div>';
+  }
+  // Performance -> GPU & Throughput: throughput and p95 latency with 1, 2, 4 flows in flight (opt-in step)
+  function loadCard(res) {
+    var ls = window.INSIGHTS && INSIGHTS.loadScaling(res);
+    if (!ls) return "";
+    var head = '<h2>Load scaling</h2>';
+    if (!ls.measured) return '<div class="card" id="load-card">' + head + '<p class="muted">Not measured in this session: ' + esc(ls.reason) + '. Tick "Also measure load scaling" when you start a benchmark.</p></div>';
+    var pos = function (c) { return ls.levels.indexOf(c); }, xFmt = function (v) { var c = ls.levels[Math.round(v)]; return c == null ? "" : c + " at once"; };
+    var rows = ls.levels.map(function (c) {
+      return { x: pos(c), text: c + " in flight — " + ls.models.map(function (m) {
+        var l = m.levels.filter(function (x) { return x.concurrency === c; })[0];
+        return short(m.model) + ": " + (!l ? "not run" : l.error ? "failed" : fmtNum(l.throughput_flows_per_s, 2) + " flows/s, p95 " + fmtTime(l.p95_latency_s));
+      }).join(" · ") };
+    });
+    var series = function (key) {
+      return [].concat.apply([], ls.models.map(function (m) {
+        var pts = m.levels.filter(function (l) { return !l.error; }).map(function (l) { return [pos(l.concurrency), l[key]]; });
+        return [{ kind: "line", color: modelColor(m.model), points: pts }, { kind: "dots", r: 5, color: modelColor(m.model), points: pts }];
+      }));
+    };
+    var chart = function (id, key, yMax, yFmt, label) {
+      return lineChart({ id: id, w: 440, h: 170, xMin: 0, xMax: Math.max(1, ls.levels.length - 1), yMax: yMax, xFmt: xFmt, yFmt: yFmt, label: label, rows: rows, series: series(key) });
+    };
+    return '<div class="card" id="load-card">' + head + '<p class="muted small" style="margin-top:0">' + esc(ls.note || "") + '</p>' + legendHtml(ls.models.map(function (m) { return m.model; })) +
+      '<div class="load-grid"><div><h3 class="lc-h">Throughput (flows per second, higher is better)</h3>' + chart("load-tp", "throughput_flows_per_s", ls.max_throughput, function (v) { return fmtNum(v, 2); }, "Throughput by concurrency") + '</div>' +
+      '<div><h3 class="lc-h">p95 latency per flow (lower is better)</h3>' + chart("load-p95", "p95_latency_s", ls.max_p95, fmtTime, "p95 latency by concurrency") + '</div></div>' +
+      ls.models.filter(function (m) { return m.error; }).map(function (m) { return '<div class="notice warn" role="note">' + esc(short(m.model)) + ' failed with ' + m.failed_at + ' in flight: ' + esc(m.error) + '</div>'; }).join("") +
+      '<div class="table-wrap"><table id="load-table"><thead><tr><th>Model</th><th class="num">In flight</th><th class="num">Flows</th><th class="num">Throughput</th><th class="num">Speed-up vs 1</th><th class="num">Scaling efficiency</th><th class="num">p50</th><th class="num">p95</th></tr></thead><tbody>' +
+      ls.models.map(function (m) { return m.levels.map(function (l) {
+        return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + l.concurrency + '</td><td class="num">' + l.n + '</td>' + (l.error ? '<td colspan="5" class="muted">failed: ' + esc(l.error) + '</td>' :
+          '<td class="num">' + fmtNum(l.throughput_flows_per_s, 2) + ' /s</td><td class="num">' + fmtNum(l.speedup_vs_1, 2) + '×</td><td class="num">' + fmtPct(l.efficiency) + '</td><td class="num">' + fmtTime(l.p50_latency_s) + '</td><td class="num">' + fmtTime(l.p95_latency_s) + '</td>') + '</tr>';
+      }).join(""); }).join("") + '</tbody></table></div><details class="info"><summary>Method</summary><p class="muted small">' + esc(ls.method || "") + ' Scaling efficiency = speed-up ÷ flows in flight (100% = perfect scaling).</p></details></div>';
+  }
+  // Cost & Energy: project the measured per-flow numbers onto a daily workload
+  function projectionCard(res) {
+    if (!window.INSIGHTS || !(res.per_model || []).length) return "";
+    var pr = ((res.cost_energy || {}).price || {}).usd_per_hour;
+    return '<form class="card" id="proj-card" novalidate><h2>Project to your workload</h2><p class="muted small" style="margin-top:0">Scales this session\'s measured time, cost and energy per flow to a daily volume — flows one at a time on one GPU, as measured. An estimate, not a quote.</p>' +
+      '<div class="row"><div class="field"><label for="proj-flows">Flows per day</label><input type="number" id="proj-flows" min="0" step="1000" value="10000"></div>' +
+      '<div class="field"><label for="proj-price">GPU price <span class="hint">(USD per hour)</span></label><input type="number" id="proj-price" min="0" step="0.01" placeholder="' + (pr != null ? "stored: " + pr : "e.g. 0.35") + '"></div></div>' +
+      '<div id="proj-out" aria-live="polite"></div></form>';
+  }
+  function wireProjection(res) {
+    var f = $("proj-card");
+    if (!f) return;
+    function draw() {
+      var pv = $("proj-price").value, pj = INSIGHTS.workloadProjection(res, { flows_per_day: $("proj-flows").value, usd_per_hour: pv === "" ? null : pv });
+      var maxU = Math.max.apply(null, pj.models.map(function (m) { return m.utilisation || 0; }).concat([1]));
+      $("proj-out").innerHTML = (pj.real ? "" : '<div class="notice warn" role="note">Demo (mock) run: the per-flow time is not a model measurement, so these figures only show the method.</div>') +
+        '<div class="proj-load">' + pj.models.map(function (m) {
+          var t = short(m.model) + ": " + fmtNum(m.gpu_hours_per_day, 2) + " GPU-hours a day = " + (m.utilisation == null ? "—" : fmtPct(m.utilisation)) + " of one GPU's day";
+          return '<div class="cat-row"><span class="lbl">' + esc(short(m.model)) + '<small>' + (m.gpus_needed == null ? "—" : m.gpus_needed + " GPU" + (m.gpus_needed > 1 ? "s" : "")) + ' needed</small></span><div class="cat-track"><div class="proj-bar" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '" style="width:' + Math.min(100, 100 * (m.utilisation || 0) / maxU) + '%;--c:' + modelColor(m.model) + '"></div>' +
+            (maxU > 1 ? '<span class="proj-one" style="left:' + (100 / maxU) + '%" title="one GPU\'s full day"></span>' : "") + '</div><span class="val">' + (m.utilisation == null ? "—" : fmtPct(m.utilisation)) + '</span></div>';
+        }).join("") + '</div><p class="muted small">Bar: share of one GPU\'s 24 hours this volume takes' + (maxU > 1 ? "; the line marks one full GPU" : "") + '.</p>' +
+        '<div class="table-wrap"><table id="proj-table"><thead><tr><th>Model</th><th class="num">GPU-hours / day</th><th class="num">Max flows / GPU / day</th><th class="num">GPUs needed</th><th class="num">Cost / day</th><th class="num">Cost / 30 days</th><th class="num">Energy / day</th></tr></thead><tbody>' +
+        pj.models.map(function (m) {
+          return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtNum(m.gpu_hours_per_day, 2) + '</td><td class="num">' + fmtNum(m.capacity_per_gpu_day) + '</td><td class="num">' + (m.gpus_needed == null ? "—" : m.gpus_needed) +
+            '</td><td class="num">' + (m.cost_per_day == null ? '<span class="muted">enter a GPU price</span>' : "$" + fmtNum(m.cost_per_day, 2)) + '</td><td class="num">' + (m.cost_per_month == null ? "—" : "$" + fmtNum(m.cost_per_month, 2)) +
+            '</td><td class="num">' + (m.kwh_per_day == null ? '<span class="muted">not measured</span>' : fmtNum(m.kwh_per_day, 2) + " kWh") + '</td></tr>';
+        }).join("") + '</tbody></table></div><p class="muted small">Price: ' + (pj.price_source === "yours" ? "your figure, $" + pj.usd_per_hour + "/h" : pj.price_source === "stored" ? "the session\'s stored GPU price, $" + pj.usd_per_hour + "/h" : "none — enter one above") +
+        '. Energy uses the measured Wh per 1,000 flows (whole board).</p>';
+    }
+    f.addEventListener("input", draw);
+    f.addEventListener("submit", function (ev) { ev.preventDefault(); });
+    draw();
+  }
+  // Cost & Energy: what one correct answer costs (accuracy as context)
+  function correctCard(res) {
+    var rows = window.INSIGHTS && INSIGHTS.costPerCorrect(res);
+    if (!rows || !rows.length) return "";
+    var mx = Math.max.apply(null, rows.map(function (r) { return r.gpu_s_per_correct || 0; })) || 1;
+    return '<div class="card" id="cost-correct"><h2>Cost per correct answer</h2><p class="muted small" style="margin-top:0">A cheap model that is often wrong can cost more per useful answer. GPU time per correct answer = time per flow ÷ accuracy (lower is better). Accuracy is context; this re-reads the stored numbers.</p>' +
+      rows.map(function (r) {
+        var t = short(r.model) + ": " + (r.gpu_s_per_correct == null ? "no correct answers" : fmtTime(r.gpu_s_per_correct) + " of GPU time per correct answer (" + fmtNum(r.flows_per_correct, 1) + " flows per correct one)");
+        return '<div class="cat-row"><span class="lbl">' + esc(short(r.model)) + '<small>accuracy ' + fmtPct(r.accuracy) + '</small></span><div class="cat-track"><div class="proj-bar" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '" style="width:' + (r.gpu_s_per_correct == null ? 0 : 100 * r.gpu_s_per_correct / mx) + '%;--c:' + modelColor(r.model) + '"></div></div><span class="val">' + (r.gpu_s_per_correct == null ? "—" : fmtTime(r.gpu_s_per_correct)) + '</span></div>';
+      }).join("") +
+      '<div class="table-wrap" style="margin-top:10px"><table id="cost-correct-table"><thead><tr><th>Model</th><th class="num">Accuracy</th><th class="num">Flows per correct answer</th><th class="num">GPU time / correct</th><th class="num">Cost / 1,000 correct</th><th class="num">Energy / correct</th></tr></thead><tbody>' +
+      rows.map(function (r) {
+        return '<tr><td class="mono">' + esc(short(r.model)) + '</td><td class="num">' + fmtPct(r.accuracy) + '</td><td class="num">' + fmtNum(r.flows_per_correct, 2) + '</td><td class="num">' + fmtTime(r.gpu_s_per_correct) +
+          '</td><td class="num">' + (r.usd_per_1k_correct == null ? '<span class="muted">not measured</span>' : fmtUsd(r.usd_per_1k_correct)) + '</td><td class="num">' + (r.wh_per_correct == null ? '<span class="muted">not measured</span>' : fmtWh(r.wh_per_correct)) + '</td></tr>';
+      }).join("") + '</tbody></table></div></div>';
+  }
   function memoryCard(res) {
     var mem = res.memory;
     if (!mem) return '<div class="card"><p class="muted">This session predates the GPU memory breakdown.</p></div>';
@@ -2353,15 +2816,13 @@
   function latencyCard(res) {
     var ld = res.latency_distribution, ef = res.effect_sizes;
     if (!ld) return '<div class="card"><p class="muted">This session predates the latency distribution.</p></div>';
-    var colors = ["var(--series-1)", "var(--series-2)"];
     return '<div class="card" id="stats-depth"><h2>Latency distribution</h2>' +
       (ld.small_sample_note || (ef && ef.small_sample_note) ? '<div class="notice warn" id="stats-small" role="note">' + esc(ld.small_sample_note || ef.small_sample_note) + '</div>' : "") +
-      '<div class="table-wrap"><table id="stats-percentiles"><thead><tr><th>Model</th><th class="num">Flows</th><th class="num">p50</th><th class="num">p95</th><th class="num">p99</th><th>Distribution</th><th>Warm-up check</th></tr></thead><tbody>' +
-      ld.per_model.map(function (r, i) {
-        var mx = Math.max.apply(null, (r.histogram || [0]).concat([1]));
+      histogramChart(res) +
+      '<div class="table-wrap"><table id="stats-percentiles"><thead><tr><th>Model</th><th class="num">Flows</th><th class="num">p50</th><th class="num">p95</th><th class="num">p99</th><th>Warm-up check</th></tr></thead><tbody>' +
+      ld.per_model.map(function (r) {
         return '<tr><td class="mono">' + esc(short(r.model)) + '</td><td class="num">' + fmtNum(r.n) + '</td><td class="num">' + fmtTime(r.p50) + '</td><td class="num">' + fmtTime(r.p95) +
-          '</td><td class="num">' + fmtTime(r.p99) + '</td><td style="min-width:140px"><div class="hist" style="--c:' + colors[i % 2] + '" role="img" aria-label="Latency histogram, ' + (r.histogram || []).length + ' bins">' +
-          (r.histogram || []).map(function (c) { return '<i style="height:' + (100 * c / mx) + '%"></i>'; }).join("") + '</div></td><td class="small">' + esc((r.warmup || {}).note || "—") + '</td></tr>';
+          '</td><td class="num">' + fmtTime(r.p99) + '</td><td class="small">' + esc((r.warmup || {}).note || "—") + '</td></tr>';
       }).join("") + '</tbody></table></div>' +
       '<details class="info"><summary>How to read this</summary><p class="muted small">Histogram bins span ' + fmtTime(ld.bin_edges_s[0]) + ' to ' + fmtTime(ld.bin_edges_s[ld.bin_edges_s.length - 1]) +
       ' (shared across models). ' + esc(ld.warmup_rule) + '.</p></details></div>';
@@ -2371,6 +2832,7 @@
     if (!ef) return '<div class="card"><p class="muted">This session predates the effect sizes.</p></div>';
     if (ef.skipped) return '<div class="card" id="stats-effects-card"><h2>Effect size and confidence</h2><p class="muted small">' + esc(ef.skipped) + '.</p></div>';
     return '<div class="card" id="stats-effects-card"><h2>Effect size and confidence <span class="muted small">A = ' + esc(short(ef.model_a)) + ', B = ' + esc(short(ef.model_b)) + '</span></h2>' +
+      effectChart(res) +
       '<div class="table-wrap" style="margin-top:8px"><table id="stats-effects"><thead><tr><th>Metric</th><th class="num">Cliff\'s delta</th><th>Magnitude</th><th class="num">Mean diff A − B</th><th class="num">95% CI (bootstrap)</th><th class="num">Kruskal-Wallis p</th></tr></thead><tbody>' +
       ef.metrics.map(function (m) {
         if (!m.available) return '<tr><td>' + esc(EF_LABEL[m.metric] || m.metric) + '</td><td colspan="5" class="muted">' + esc(m.reason) + '</td></tr>';
@@ -2380,6 +2842,48 @@
           '</td><td class="num">' + d(m.diff_mean_a_minus_b) + '</td><td class="num">[' + d(m.ci95_low) + ', ' + d(m.ci95_high) + ']' + (m.ci_excludes_zero ? "" : ' <span class="muted">includes 0</span>') +
           '</td><td class="num">' + (m.kruskal_wallis_p == null ? "—" : m.kruskal_wallis_p.toPrecision(3)) + '</td></tr>';
       }).join("") + '</tbody></table></div><details class="info"><summary>Method</summary><p class="muted small">' + esc(ef.method) + '</p></details></div>';
+  }
+  // histogram small multiples: shared bins and count scale; p50 / p95 / p99 as line styles
+  var PCT_STYLE = { p50: "solid", p95: "dashed", p99: "dotted" };
+  function histogramChart(res) {
+    var h = window.INSIGHTS && INSIGHTS.latencyHistogram(res);
+    if (!h || !h.ymax) return "";
+    var e = h.edges, mid = (e[0] + e[e.length - 1]) / 2;
+    return '<div class="histo" id="stats-histogram" role="group" aria-label="Latency histograms">' + h.models.map(function (m) {
+      return '<div class="histo-panel" data-model="' + esc(m.model) + '"><div class="histo-head"><span class="mono small"><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '</span>' +
+        '<span class="small muted">' + m.marks.map(function (k) { return '<span class="pk pk-' + k.key + '">' + k.key + ' ' + fmtTime(k.value) + '</span>'; }).join(" ") + '</span></div>' +
+        '<div class="histo-plot">' + m.bins.map(function (b) {
+          var t = short(m.model) + " · " + fmtTime(b.from) + "–" + fmtTime(b.to) + ": " + b.count + " flow" + (b.count === 1 ? "" : "s");
+          return '<span class="hb" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"><i style="height:' + (100 * b.count / h.ymax) + '%;--c:' + modelColor(m.model) + '"></i></span>';
+        }).join("") + m.marks.map(function (k) {
+          return k.pos == null ? "" : '<span class="pm" style="left:' + (100 * k.pos) + '%;border-left-style:' + PCT_STYLE[k.key] + '" aria-hidden="true"></span>';
+        }).join("") + '</div></div>';
+    }).join("") + '<div class="histo-axis"><span>' + fmtTime(e[0]) + '</span><span>' + fmtTime(mid) + '</span><span>' + fmtTime(e[e.length - 1]) + '</span></div>' +
+      '<p class="muted small">Bars: flows per latency bin (same bins and scale for every model). Lines: <span class="pk pk-p50">p50</span> solid, <span class="pk pk-p95">p95</span> dashed, <span class="pk pk-p99">p99</span> dotted.</p></div>';
+  }
+  // effect sizes: Cliff's delta on one unitless axis; each metric's CI on its own axis (units differ)
+  var EF_UNIT = { latency_s: fmtTime, peak_vram_mb: function (v) { return fmtNum(v, 1) + " MB"; }, tokens_per_flow: function (v) { return fmtNum(v, 1) + " tokens"; } };
+  function effectChart(res) {
+    var ef = window.INSIGHTS && INSIGHTS.effectSizes(res);
+    if (!ef) return "";
+    var a = short(ef.model_a), b = short(ef.model_b), signed = function (f, v) { return (v < 0 ? "−" : v > 0 ? "+" : "") + f(Math.abs(v)); };
+    var bands = '<span class="band" style="left:' + 50 * (1 - 0.147) + '%;width:' + 100 * 0.147 + '%"></span>';
+    var drows = ef.rows.map(function (r) {
+      var lbl = '<span class="lbl">' + esc(EF_LABEL[r.metric] || r.metric) + '</span>';
+      if (!r.available) return '<div class="ef-row na">' + lbl + '<span class="small muted">' + esc(r.reason) + '</span></div>';
+      var t = (EF_LABEL[r.metric] || r.metric) + ": Cliff's delta " + (r.delta >= 0 ? "+" : "") + r.delta.toFixed(2) + " (" + r.magnitude + ")";
+      return '<div class="ef-row">' + lbl + '<div class="ef-track">' + bands + '<span class="zero"></span><span class="dot" tabindex="0" style="left:' + 50 * (1 + r.delta) + '%" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span></div><span class="small">' + esc(r.magnitude) + '</span></div>';
+    }).join("");
+    var crows = ef.rows.filter(function (r) { return r.available; }).map(function (r) {
+      var f = EF_UNIT[r.metric] || function (v) { return fmtNum(v, 2); };
+      var t = (EF_LABEL[r.metric] || r.metric) + ": mean " + a + " − " + b + " = " + signed(f, r.diff) + ", 95% CI " + signed(f, r.low) + " to " + signed(f, r.high);
+      return '<div class="ef-row">' + '<span class="lbl">' + esc(EF_LABEL[r.metric] || r.metric) + '<small>±' + esc(f(r.half_range)) + ' axis</small></span><div class="ef-track"><span class="zero"></span>' +
+        '<span class="ci" style="left:' + 100 * r.pos.low + '%;width:' + Math.max(0.5, 100 * (r.pos.high - r.pos.low)) + '%"></span><span class="dot" tabindex="0" style="left:' + 100 * r.pos.diff + '%" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span></div>' +
+        '<span class="small">' + (r.excludes_zero ? "real difference" : '<span class="muted">could be 0</span>') + '</span></div>';
+    }).join("");
+    return '<div class="ef" id="stats-effect-chart"><h3>How big is the difference?</h3><p class="muted small">Cliff\'s delta: −1 = every ' + esc(a) + ' value is lower than every ' + esc(b) + ' value, +1 = every one is higher, 0 = no difference. The shaded band is "negligible" (|δ| &lt; 0.147).</p>' +
+      '<div class="ef-axis"><span></span><div><span>−1 · ' + esc(a) + ' lower</span><span>0</span><span>' + esc(a) + ' higher · +1</span></div><span></span></div>' + drows +
+      '<h3>Is it more than noise?</h3><p class="muted small">Mean of ' + esc(a) + ' minus ' + esc(b) + ' (dot) with its 95% bootstrap interval (bar). If the bar crosses the zero line, the difference could be zero. Each row has its own scale (the units differ).</p>' + crows + '</div>';
   }
   // The analysis page (charts, SAW ranking, robustness, …) embedded ONCE per session; each view
   // asks it (by message, no reload) to show only its sections.
@@ -2446,9 +2950,64 @@
       flows.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join("") + '</select></div></div><div id="agents-gantt" class="gantt" style="margin-top:14px"></div>' +
       '<div class="legend">' + ag.agent_order.map(function (a) { return '<span style="--c:' + (AG_COLOR[a] || "var(--muted)") + '">' + esc(a) + '</span>'; }).join("") + '</div>' +
       '<p class="muted small">' + esc(ag.notes.timeline) + '</p></div>');
+    h.push(handoffCard(res), classAgentCard(res));
     h.push('<div class="card flat"><h2>How these are measured</h2><ul class="list">' +
       ["latency", "vram", "overhead", "failures"].map(function (k) { return '<li>' + esc(ag.notes[k]) + '</li>'; }).join("") + '</ul></div>');
     return h.join("");
+  }
+  // hand-off diagram: which step's output each later prompt re-sends, and how many tokens
+  function handoffCard(res) {
+    var g = window.INSIGHTS && INSIGHTS.handoffGraph(res);
+    if (!g || !g.per_model.length) return "";
+    var X = function (i) { return 10 + i * 200; }, W = 130, Y = 92, H = 58;
+    var maxTok = Math.max.apply(null, g.per_model.map(function (m) { return Math.max.apply(null, m.edges.map(function (e) { return e.tokens || 0; }).concat([1])); }));
+    var diagrams = g.per_model.map(function (m, mi) {
+      var idx = {}; g.agents.forEach(function (a, i) { idx[a] = i; });
+      var edges = m.edges.map(function (e, ei) {
+        var a = idx[e.from], b = idx[e.to], sw = 1.5 + 4 * (e.tokens || 0) / maxTok, lbl = e.tokens == null ? "—" : fmtNum(e.tokens, e.tokens < 10 ? 1 : 0) + " tok";
+        var t = e.from + " → " + e.to + ": " + lbl + " re-sent per flow";
+        if (b === a + 1) {
+          var x1 = X(a) + W, x2 = X(b) - 8, y = Y + H / 2;
+          return '<g class="edge" tabindex="0" data-hover="' + esc(t) + '"><line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke-width="' + sw.toFixed(1) + '" marker-end="url(#ho-arrow-' + mi + ')"/>' +
+            '<text x="' + (x1 + x2) / 2 + '" y="' + (y - 8) + '" text-anchor="middle">' + esc(lbl) + '</text></g>';
+        }
+        var xa = X(a) + W / 2, xb = X(b) + W / 2, lift = 26 + 22 * (b - a - 1) + (a % 2) * 8;
+        return '<g class="edge" tabindex="0" data-hover="' + esc(t) + '"><path d="M' + xa + ' ' + Y + ' C ' + xa + ' ' + (Y - lift - 20) + ', ' + xb + ' ' + (Y - lift - 20) + ', ' + xb + ' ' + (Y - 6) + '" stroke-width="' + sw.toFixed(1) + '" marker-end="url(#ho-arrow-' + mi + ')"/>' +
+          '<text x="' + (xa + xb) / 2 + '" y="' + (Y - lift - 12) + '" text-anchor="middle">' + esc(lbl) + '</text></g>';
+      }).join("");
+      var nodes = m.nodes.map(function (n, i) {
+        var t = n.agent + ": " + fmtTime(n.latency_s) + " per flow (" + fmtPct(n.share) + " of flow time), " + fmtNum(n.in_tokens) + " tokens in, " + fmtNum(n.out_tokens) + " out";
+        return '<g class="node" tabindex="0" data-hover="' + esc(t) + '"><rect x="' + X(i) + '" y="' + Y + '" width="' + W + '" height="' + H + '" rx="6"/><rect x="' + X(i) + '" y="' + Y + '" width="5" height="' + H + '" rx="2" style="fill:' + AG_COLOR[n.agent] + '"/>' +
+          '<text x="' + (X(i) + 16) + '" y="' + (Y + 24) + '" class="nt">' + esc(n.agent) + '</text><text x="' + (X(i) + 16) + '" y="' + (Y + 44) + '" class="ns">' + esc(fmtTime(n.latency_s) + " · " + fmtPct(n.share)) + '</text></g>';
+      }).join("");
+      return '<div class="ho" data-model="' + esc(m.model) + '"><h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + ' <span class="muted small">' + fmtNum(m.resent_tokens, 1) + ' tokens re-sent per flow</span></h3>' +
+        '<div class="ho-scroll"><svg viewBox="0 0 790 168" role="img" aria-label="' + esc("Hand-offs for " + short(m.model) + ": " + m.edges.map(function (e) { return e.from + " to " + e.to; }).join(", ")) + '">' +
+        '<defs><marker id="ho-arrow-' + mi + '" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="ah"/></marker></defs>' + edges + nodes + '</svg></div></div>';
+    }).join("");
+    return '<div class="card" id="agents-handoffs"><h2>Hand-offs between agents</h2><p class="muted small" style="margin-top:0">Each arrow is one step\'s answer re-sent inside a later step\'s prompt; its label and thickness are the tokens it carries per flow (the sender\'s mean output). This is where the agentic overhead comes from.</p>' + diagrams +
+      '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="agents-handoff-table"><thead><tr><th>Model</th><th>From</th><th>To</th><th class="num">Tokens re-sent / flow</th></tr></thead><tbody>' +
+      g.per_model.map(function (m) { return m.edges.map(function (e) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(e.from) + '</td><td>' + esc(e.to) + '</td><td class="num">' + fmtNum(e.tokens, 1) + '</td></tr>'; }).join(""); }).join("") +
+      '</tbody></table></div></details></div>';
+  }
+  // time per agent by attack class (stacked: perceive, reason, decide, act)
+  function classAgentCard(res) {
+    var c = window.INSIGHTS && INSIGHTS.classAgentTime(res);
+    if (!c) return "";
+    var legend = '<div class="ilegend">' + c.agents.map(function (a) { return '<span><i style="--c:' + AG_COLOR[a] + '"></i>' + esc(a) + '</span>'; }).join("") + '</div>';
+    c.per_model.sort(function (a, b) { return (MODEL_SLOT[a.model] || 0) - (MODEL_SLOT[b.model] || 0); });
+    var groups = c.per_model.map(function (m) {
+      return '<div class="cat-group" data-model="' + esc(m.model) + '"><h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '</h3>' + m.rows.map(function (r) {
+        return '<div class="cat-row"><span class="lbl">' + esc(r.cls) + (r.n != null ? '<small>' + r.n + ' flows</small>' : "") + '</span><div class="cat-track"><div class="cat-bar" style="width:' + (c.max_total ? 100 * r.total / c.max_total : 0) + '%">' +
+          r.parts.map(function (p) {
+            var t = short(m.model) + " · " + r.cls + " · " + p.agent + ": " + fmtTime(p.s) + " (" + fmtPct(p.share) + ")";
+            return p.s ? '<span tabindex="0" style="flex:' + (100 * p.share).toFixed(3) + ' 1 0;--c:' + AG_COLOR[p.agent] + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span>' : "";
+          }).join("") + '</div></div><span class="val">' + fmtTime(r.total) + '</span></div>';
+      }).join("") + '</div>';
+    }).join("");
+    return '<div class="card" id="agents-by-class"><h2>Time per agent by attack class</h2><p class="muted small" style="margin-top:0">Mean time each step takes for flows of each class (bar length = the class\'s total per flow, same scale for every model). A resource breakdown, not a detection score.</p>' +
+      legend + groups + '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="agents-by-class-table"><thead><tr><th>Model</th><th>Class</th>' + c.agents.map(function (a) { return '<th class="num">' + esc(a) + '</th>'; }).join("") + '<th class="num">Total</th><th>Slowest step</th></tr></thead><tbody>' +
+      c.per_model.map(function (m) { return m.rows.map(function (r) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(r.cls) + '</td>' + r.parts.map(function (p) { return '<td class="num">' + fmtTime(p.s) + '</td>'; }).join("") + '<td class="num"><b>' + fmtTime(r.total) + '</b></td><td>' + esc(r.slowest_agent || "—") + '</td></tr>'; }).join(""); }).join("") +
+      '</tbody></table></div></details></div>';
   }
   function wireAgents(res) {
     var sel = $("agents-flow");
@@ -2476,6 +3035,7 @@
     var hint = window.REPORT ? window.REPORT.optimisationHint(res, ((res.per_model || [])[0] || {}).db_label) : { text: "" };
     h.push('<div class="card"><h2>Measured verdict</h2><p class="verdict">' + esc(rel ? rel.verdict : (res.comparison || {}).statement || "Single-model run — no head-to-head comparison.") + '</p>' +
       (hint.text ? '<p class="small">' + esc(hint.text) + '</p>' : "") + '<p class="muted small">Decision support, not a deployment sign-off.</p></div>');
+    h.push(fitCard(res));
     if (dh) {
       h.push('<form class="card" id="dh-form" novalidate><h2>Does a model fit your limits?</h2><p class="muted small">' + esc(dh.framing) +
         ' Rule set: <span class="mono">' + esc(dh.rulebase) + '</span>.</p><div class="row">' +
@@ -2486,6 +3046,27 @@
         '<div id="dh-error" class="notice error" role="alert" hidden></div><div id="dh-result" style="margin-top:14px"></div></form>');
     }
     return h.join("");
+  }
+  // Recommendations: each model against common deployment profiles (fixed thresholds, view only)
+  var FIT_MARK = { pass: ["✓", "fits", "ok"], fail: ["✗", "does not fit", "bad"], no_data: ["–", "no data", ""] };
+  function fitCard(res) {
+    var fit = window.INSIGHTS && INSIGHTS.deploymentFit(res);
+    if (!fit || !fit.models.length) return "";
+    var fmtV = function (p, v) { return p.unit === "MB" ? fmtMB(v) : p.unit === "s" ? fmtTime(v) : p.unit === "USD" ? fmtUsd(v) : fmtNum(v) + " flows/day"; };
+    var group = null;
+    var rows = fit.profiles.map(function (p, i) {
+      var head = p.group !== group ? '<tr class="fit-group"><th colspan="' + (fit.models.length + 1) + '">' + esc(p.group) + '</th></tr>' : "";
+      group = p.group;
+      return head + '<tr data-profile="' + p.id + '"><td>' + esc(p.label) + '</td>' + fit.models.map(function (m) {
+        var c = m.cells[i], k = FIT_MARK[c.result];
+        var t = short(m.model) + " · " + p.label + ": " + k[1] + (c.value != null ? " (" + fmtV(p, c.value) + ")" : " — " + c.reason);
+        return '<td class="fit-cell"><span class="chip ' + k[2] + '" tabindex="0" data-result="' + c.result + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"><b aria-hidden="true">' + k[0] + '</b> ' + k[1] + '</span>' +
+          (c.value != null ? '<span class="muted small fit-v">' + esc(fmtV(p, c.value)) + '</span>' : "") + '</td>';
+      }).join("") + '</tr>';
+    }).join("");
+    return '<div class="card" id="fit-card"><h2>Deployment fit at a glance</h2><p class="muted small" style="margin-top:0">Each model against common deployment profiles, using this session\'s measured numbers (total peak VRAM, p95 / mean time per flow, flows one GPU can do in a day, cost per 1,000 flows). Fixed thresholds; set your own below.</p>' +
+      '<div class="table-wrap"><table id="fit-table"><thead><tr><th>Profile</th>' + fit.models.map(function (m) { return '<th><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '<br><span class="muted small">' + m.passes + ' of ' + fit.profiles.length + ' fit</span></th>'; }).join("") + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<p class="muted small">"no data": not measured in this run (e.g. no GPU memory or price on a CPU/mock run). A fit is not a sign-off: the run\'s flows, GPU and settings apply.</p></div>';
   }
   function recContextTab(res) {
     var s3 = res.recommendation_stage3, h = [];

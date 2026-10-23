@@ -49,7 +49,7 @@ DASHBOARD_DIR = REPO_ROOT / "dashboard"     # the read-only baseline page
 WEB_DIR = REPO_ROOT / "web"                 # the static service front-end
 # Only these baseline-page assets are servable (no arbitrary file access).
 # analysis.json: a canonical results file dropped in dashboard/ auto-loads (gitignored).
-_ALLOWED_ASSETS = {"index.html", "saw.js", "report.js", "sample_analysis.json", "README.md",
+_ALLOWED_ASSETS = {"index.html", "saw.js", "report.js", "insights.js", "sample_analysis.json", "README.md",
                    "analysis.json"}
 # Requests that must not count as "activity" for the idle cost guard: a front-end
 # polling /health would otherwise keep a rented GPU alive forever.

@@ -9,11 +9,17 @@ back into any score, SAW value, rank or verdict (tests/test_scored_keys_golden.p
                            the flow, per-agent peak working VRAM, agentic overhead
                            (hand-off tokens), output failures, per-flow timeline
   latency_distribution  D. p50/p95/p99, histogram, warm-up check (first N flows)
+  latency_trend         latency per flow in run order, rolling median and a drift test
+                           (Spearman rank correlation of order vs latency, warm-up excluded)
   effect_sizes          D. Cliff's delta + bootstrap 95% CI of the A-B difference
                            (latency, VRAM, tokens), beside the existing Kruskal-Wallis p
   memory                working VRAM (excludes weights) vs total peak (weights + working)
   cost_energy           B. cost per 1,000 flows (measured time x GPU $/h) and energy
                            (sampled GPU board power) — "not measured" on mock/CPU
+  load_scaling          the opt-in load-scaling step (run/load_test.py): throughput and latency
+                           with 1, 2, 4 flows in flight, read from its own files
+  gpu_timeline          the sampled board power, GPU utilisation and device memory over the
+                           session (thinned), with each model's measured window and idle window
   decision_helper       C. constraint rules (configs/constraint_rules.yaml), evaluated
                            with the rule file's defaults; the UI/PDF re-evaluate with
                            the user's limits
@@ -41,6 +47,11 @@ WARMUP_RATIO = 1.2           # first-N median > 1.2 x the rest -> warm-up effect
 N_BOOT = 2000
 BOOT_SEED = 46
 HIST_BINS = 20
+TIMELINE_MAX_POINTS = 600    # GPU samples stored at most this many (bucket means beyond)
+TREND_MAX_POINTS = 400       # per-flow series stored at most this long (evenly thinned beyond)
+TREND_MIN_N = 10             # flows after warm-up needed for a drift test
+TREND_ALPHA = 0.05
+TREND_RATIO = 1.10           # last-quarter median vs first-quarter median: >10% apart to call it drift
 SMALL_NOTE = ("Sample too small for a stable estimate ({n} flows per model; at least "
               f"{MIN_STABLE_N} recommended): read these numbers as indicative only.")
 
@@ -284,6 +295,64 @@ def latency_block(sr: list[dict], label_of: dict[str, str]) -> dict[str, Any]:
             "small_sample_note": SMALL_NOTE.format(n=n_min) if n_min < MIN_STABLE_N else None}
 
 
+def rolling_median(xs: list[float], window: int) -> list[float]:
+    """Centred rolling median (the window shrinks at the ends)."""
+    h = window // 2
+    return [float(np.median(xs[max(0, i - h):i + h + 1])) for i in range(len(xs))]
+
+
+def drift_test(xs: list[float], skip: int = WARMUP_N) -> dict[str, Any]:
+    """Does latency trend over the run? Spearman rho of flow order vs latency on the flows after
+    the first `skip` (the warm-up check covers those), plus last-quarter / first-quarter medians."""
+    from scipy.stats import spearmanr
+    ys = xs[skip:] if len(xs) - skip >= TREND_MIN_N else []
+    if not ys:
+        return {"tested": False, "n": len(xs) - skip if len(xs) > skip else 0,
+                "note": f"Too few flows for a drift test (needs at least {TREND_MIN_N} after the first {skip})."}
+    q = max(1, len(ys) // 4)
+    first, last = float(np.median(ys[:q])), float(np.median(ys[-q:]))
+    ratio = last / first if first else None
+    if len(set(ys)) < 2:
+        rho, p = 0.0, 1.0
+    else:
+        r = spearmanr(np.arange(len(ys)), ys)
+        rho, p = float(r.statistic), float(r.pvalue)
+    sig = p < TREND_ALPHA and ratio is not None and abs(ratio - 1) > TREND_RATIO - 1
+    verdict = ("slows_down" if rho > 0 else "speeds_up") if sig else "stable"
+    pct = abs(ratio - 1) * 100 if ratio is not None else None
+    note = {"slows_down": f"Slows down over the run: the last quarter's median is {pct:.0f}% above the first's "
+                          f"(Spearman rho {rho:.2f}, p = {p:.2g}).",
+            "speeds_up": f"Speeds up over the run: the last quarter's median is {pct:.0f}% below the first's "
+                         f"(Spearman rho {rho:.2f}, p = {p:.2g}).",
+            "stable": f"Stable over the run: no significant trend (Spearman rho {rho:.2f}, p = {p:.2g}; "
+                      f"last/first quarter medians {ratio:.2f}x)." if ratio is not None else "Stable over the run."}[verdict]
+    return {"tested": True, "n": len(ys), "skipped_warmup": skip, "spearman_rho": rho, "p_value": p,
+            "first_quarter_median_s": first, "last_quarter_median_s": last, "ratio": ratio,
+            "verdict": verdict, "note": note}
+
+
+def latency_trend_block(sr: list[dict], label_of: dict[str, str]) -> dict[str, Any]:
+    """Latency per flow in execution order (rowid), a rolling median and a drift test, per model."""
+    per = []
+    for model, dbm in label_of.items():
+        xs = [float(r["scenario_total_time_s"]) for r in sr if r["model"] == dbm and r["scenario_total_time_s"] is not None]
+        n = len(xs)
+        window = max(3, (n // 10) | 1)
+        med = rolling_median(xs, window) if xs else []
+        idx = list(range(n))
+        if n > TREND_MAX_POINTS:                       # evenly thinned for storage; stats use every flow
+            idx = sorted({round(i * (n - 1) / (TREND_MAX_POINTS - 1)) for i in range(TREND_MAX_POINTS)})
+        per.append({"model": model, "n": n, "window": window, "thinned": n > TREND_MAX_POINTS,
+                    "points": [[i + 1, xs[i], med[i]] for i in idx], "drift": drift_test(xs)})
+    return {"metric": "end-to-end latency per flow (s), in run order",
+            "point_fields": ["flow", "latency_s", "rolling_median_s"],
+            "method": (f"Rolling median over ~10% of the flows (odd window, at least 3). Drift: Spearman rank "
+                       f"correlation of flow order vs latency after the first {WARMUP_N} flows (warm-up is "
+                       f"checked separately); called a trend when p < {TREND_ALPHA} and the last-quarter median "
+                       f"differs from the first-quarter median by more than {round((TREND_RATIO - 1) * 100)}%."),
+            "per_model": per}
+
+
 def _flow_tokens(am: list[dict], dbm: str) -> list[float]:
     tok: dict[str, float] = {}
     for r in am:
@@ -433,6 +502,69 @@ def cost_energy_block(payload: dict[str, Any], sr: list[dict], label_of: dict[st
 # ---------------------------------------------------------------------------
 # GPU memory: working (per agent call, excludes weights) vs total peak (weights + working)
 # ---------------------------------------------------------------------------
+def gpu_timeline_block(sr: list[dict], label_of: dict[str, str], *, real: bool,
+                       energy: Optional[dict] = None) -> dict[str, Any]:
+    """Board power (W), GPU utilisation (%) and device memory (MB) over the session, as sampled
+    by the parent process (power.py), thinned to bucket means; times are seconds from the first
+    sample. Each model's measured window (first flow start .. last flow end) and its idle window
+    are marked. Nothing here changes a stored number."""
+    energy = energy or {}
+    samples = energy.get("samples") or []
+    if not real or not samples:
+        reason = ("mock/CPU run: no GPU to sample" if not real else
+                  energy.get("error") or "no GPU power samples were recorded")
+        return {"sampled": False, "reason": reason, "points": [], "windows": [], "idle": [], "per_model": []}
+    t0 = min(t for t, _ in samples)
+    util = dict(energy.get("util_samples") or [])
+    mem = dict(energy.get("mem_samples") or [])
+    rows = sorted((t, w, util.get(t), mem.get(t)) for t, w in samples)
+    n = len(rows)
+    buckets = min(n, TIMELINE_MAX_POINTS)
+
+    def mean(vs):
+        vs = [v for v in vs if v is not None]
+        return float(np.mean(vs)) if vs else None
+    points = []
+    for b in range(buckets):
+        chunk = rows[b * n // buckets:(b + 1) * n // buckets]
+        if chunk:
+            points.append([round(mean([r[0] for r in chunk]) - t0, 3), mean([r[1] for r in chunk]),
+                           mean([r[2] for r in chunk]), mean([r[3] for r in chunk])])
+    wins = model_windows(sr, label_of)
+    windows = [{"model": m, "from_s": w[0] - t0, "to_s": w[1] - t0} for m, w in wins.items() if w]
+    idle = []
+    for m, dbm in label_of.items():
+        iw = (energy.get("idle") or {}).get(dbm) or (energy.get("idle") or {}).get(m)
+        if iw:
+            idle.append({"model": m, "from_s": iw["t0"] - t0, "to_s": iw["t1"] - t0})
+    per = []
+    for m, w in wins.items():
+        if not w:
+            continue
+        inw = [r for r in rows if w[0] <= r[0] <= w[1]]
+        per.append({"model": m, "n_samples": len(inw), "mean_power_w": mean([r[1] for r in inw]),
+                    "peak_power_w": max((r[1] for r in inw), default=None),
+                    "mean_util_pct": mean([r[2] for r in inw]), "peak_mem_mb": max((r[3] for r in inw if r[3] is not None), default=None)})
+    return {"sampled": True, "method": energy.get("method"), "interval_s": energy.get("interval_s"),
+            "n_samples": n, "thinned": n > TIMELINE_MAX_POINTS, "has_util": bool(util), "has_mem": bool(mem),
+            "point_fields": ["t_s", "power_w", "util_pct", "mem_mb"], "points": points,
+            "windows": windows, "idle": idle, "per_model": per}
+
+
+def load_scaling_block(db_path: str | Path, run_id: str, label_of: dict[str, str]) -> dict[str, Any]:
+    """The opt-in load-scaling results of this run (one file per model), or why there are none."""
+    from ..run.load_test import read_results
+    found = read_results(db_path, run_id, label_of)
+    per = [{**r, "model": m} for m, r in found.items() if r]
+    if not per:
+        return {"measured": False, "reason": "not requested for this session (opt-in: \"Also measure load scaling\")",
+                "per_model": []}
+    return {"measured": True, "method": per[0].get("method"), "per_model": per,
+            "note": ("Separate from the measured flows: uninstrumented, run after them in the same worker. "
+                     "On one GPU, flows in flight share it; throughput that does not grow with concurrency "
+                     "means the model is already using the GPU fully one flow at a time.")}
+
+
 def read_model_memory(db: str | Path, run_id: str) -> dict[str, dict]:
     """model_memory rows (Phase 46 follow-up) by DB model label; {} for older sessions."""
     con = sqlite3.connect(f"file:{Path(db)}?mode=ro", uri=True)
@@ -594,8 +726,11 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     real = env.get("provider") == "real"
     payload["agents"] = agents_block(sr, am, label_of, budgets)
     payload["latency_distribution"] = latency_block(sr, label_of)
+    payload["latency_trend"] = latency_trend_block(sr, label_of)
     payload["effect_sizes"] = effect_block(sr, am, label_of, payload.get("statistics"))
     payload["cost_energy"] = cost_energy_block(payload, sr, label_of, real=real, price=price, energy=energy)
+    payload["gpu_timeline"] = gpu_timeline_block(sr, label_of, real=real, energy=energy)
+    payload["load_scaling"] = load_scaling_block(db_path, run_id, label_of)
     payload["memory"] = memory_block(payload, read_model_memory(db_path, run_id), label_of, real=real,
                                      agents=payload["agents"], sr=sr, energy=energy)
     payload["session_identity"] = identity_block(run_dir, config_data, env)

@@ -107,7 +107,7 @@ def test_create_returns_immediately_and_job_runs_to_done(root):
     assert res["provenance"]["non_validated"] is True
     # persisted on disk, and the locked study is untouched
     rec = json.loads((root / "jobs" / f"{job['job_id']}.json").read_text())
-    assert rec["status"] == "done" and rec["result_path"].endswith("session_results.json")
+    assert rec["status"] == "done" and rec["result_path"].endswith(f"session_results_{job['job_id']}.json")
     assert _db_hashes() == before and _sha(DATASET) == DATASET_SHA256
 
 
@@ -303,3 +303,17 @@ def test_http_errors_have_clear_payloads(root, body, status, code):
     assert r.status_code == status and r.get_json()["code"] == code and r.get_json()["error"]
     nf = c.get("/api/jobs/job_20990101_000000_abcdef")
     assert nf.status_code == 404 and nf.get_json()["code"] == "not_found"
+
+
+def test_a_rerun_on_the_same_prepared_set_keeps_each_sessions_results(root):
+    """Two sessions on one prepared set share its folder; the second must not replace the first's results."""
+    mgr = manager(root)
+    a = mgr.create_job(RUN, ["mock-a"], provider="mock")
+    assert mgr.wait(a["job_id"])["status"] == "done"
+    first = mgr.result(a["job_id"])
+    b = mgr.create_job(RUN, ["mock-a"], provider="mock")
+    assert mgr.wait(b["job_id"])["status"] == "done"
+    second = mgr.result(b["job_id"])
+    assert second["session"]["run_id"] != first["session"]["run_id"]
+    assert mgr.result(a["job_id"]) == first                      # unchanged by the later run
+    assert mgr.get(a["job_id"])["result_path"] != mgr.get(b["job_id"])["result_path"]

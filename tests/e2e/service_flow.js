@@ -129,6 +129,7 @@ async function run(p, idx) {
 
   // 6. bad file -> the data card says why, Run is blocked
   await upload(p, S + '/bad.csv', 10);
+  log(await p.textContent('#wiz-data-chip') !== 'Ready', 'new upload does not show the previous data set as Ready');
   log(await ready(p, 30000) === 'Failed', 'bad CSV: data preparation fails');
   log(/none of the 78/.test(await p.textContent('#wiz-data-error')), 'bad CSV: the reason is shown');
   await (await p.$$('#svc-models input'))[0].check();

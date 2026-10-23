@@ -179,6 +179,7 @@ def _run_model_sqlite(
     n: Optional[int],
     baseline_vram_mb: Optional[float] = None,
     vram_out: Optional[str] = None,
+    load_test: bool = False,
 ) -> None:
     """Run one model's scenarios and persist them into the run-full SQLite DB.
 
@@ -276,6 +277,11 @@ def _run_model_sqlite(
                 store.persist_model_memory(run_id, label, weights=weights,
                                            peak_allocated_mb=gpu.max_allocated_abs_mb,
                                            peak_reserved_mb=gpu.max_reserved_abs_mb)
+            # Optional load scaling (opt-in): only after every measured flow and the memory
+            # readings are persisted; uninstrumented and written to its own file.
+            if load_test:
+                from .load_test import out_path, run_load_test
+                run_load_test(cfg, provider, scenarios, label, out_path(db_path, run_id, label))
         finally:
             release_provider(provider)
 
@@ -304,6 +310,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="fresh-context baseline (first worker's before-load) for the startup guard")
     parser.add_argument("--vram-out", type=str, default=None,
                         help="sqlite mode: sidecar path to write this worker's before-load reading")
+    parser.add_argument("--load-test", action="store_true",
+                        help="sqlite mode: after the measured flows, also run the load-scaling step")
     parser.add_argument("--proj-scenarios", type=int, default=1000)
     parser.add_argument("--proj-models", type=int, default=1)
     args = parser.parse_args(argv)
@@ -338,7 +346,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     cfg = load_config(args.config)
     _run_model_sqlite(
         cfg, args.model, args.run_id, args.n,
-        baseline_vram_mb=args.baseline_vram_mb, vram_out=args.vram_out,
+        baseline_vram_mb=args.baseline_vram_mb, vram_out=args.vram_out, load_test=args.load_test,
     )
     # Rows are persisted and the provider released; opt-in cache cleanup runs
     # last, before exit, so the next worker downloads into freed space.

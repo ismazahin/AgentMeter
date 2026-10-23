@@ -366,6 +366,11 @@
   span.tag-chip { cursor: default; }
   .note-snip { margin-top: 4px; color: var(--muted-2); max-width: 46ch; }
   .notes-text { white-space: pre-wrap; }
+  .tab-summary { margin: 0 0 14px; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 var(--radius) var(--radius) 0; font-size: 14.5px; }
+  .exp-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 10px; }
+  @media (max-width: 720px) { .exp-bar .btn { min-height: 44px; padding: 0 16px; } .tag-chip { min-height: 32px; } }
+  .guide-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .guide-steps { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; line-height: 1.5; }
   .stab { display: grid; gap: 12px; }
   .stab-row, .stab-axis { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 12px; align-items: start; }
   .stab-row .lbl { font-size: 13.5px; font-weight: 600; padding-top: 2px; }
@@ -731,6 +736,15 @@
       <div><h2>Start a new benchmark</h2><p>Upload a CSV or PCAP, pick two models, run.</p></div>
       <a class="btn primary big" id="home-new" href="#/new">New benchmark</a>
     </div>
+    <div id="home-guide" class="card guide" hidden>
+      <div class="guide-head"><h2>How AgentMeter works</h2><button type="button" class="btn" id="home-guide-hide">Got it</button></div>
+      <ol class="guide-steps">
+        <li><b>Data.</b> Upload a CSV (CIC-IDS2017 flows, with labels) or a PCAP. AgentMeter samples the flows you ask for and keeps them as a <i>prepared set</i> you can reuse.</li>
+        <li><b>Models.</b> Pick one or two open models (4-bit). The wizard estimates the time and cost from earlier runs.</li>
+        <li><b>Run.</b> Each flow goes through four agents — Perceive, Reason, Decide, Act — one model at a time, on the same GPU.</li>
+        <li><b>Read.</b> Each session tab opens with a one-line summary; tables download as CSV, line charts and diagrams as PNG. Accuracy is context: AgentMeter measures efficiency.</li>
+      </ol>
+    </div>
     <div id="home-empty" class="card empty" hidden>
       <h2>No sessions yet</h2>
       <p>No sessions yet. Run your first benchmark.</p>
@@ -911,6 +925,15 @@
     </div>
     <div id="session-watch" hidden></div>
     <div id="session-body" hidden>
+      <div id="session-guide" class="card guide" hidden>
+        <div class="guide-head"><h2>How to read a session</h2><button type="button" class="btn" id="session-guide-hide">Got it</button></div>
+        <ul class="guide-steps">
+          <li><b>Overview</b> — the verdict, key findings and your notes. <b>Model Ranking</b> — the SAW score, its weights and how robust the order is.</li>
+          <li><b>Accuracy</b> (context) — per-class precision, recall, F1 and mix-ups. <b>Performance</b> — latency, GPU and the statistics behind the verdict.</li>
+          <li><b>Agent Analysis</b> — where time and tokens go inside the 4-step pipeline. <b>Cost &amp; Energy</b> — per 1,000 flows, projected to your volume.</li>
+          <li><b>Recommendations</b> — does a model fit your limits? <b>Data &amp; Exports</b> — the report, raw results and the flows. Cards with a table or chart have CSV/PNG downloads.</li>
+        </ul>
+      </div>
       <div class="tabs stabs" role="tablist" aria-label="Session sections" id="session-tabs">
         <a role="tab" href="#" data-tab="overview" id="stab-overview" aria-controls="spanel-overview">Overview</a>
         <a role="tab" href="#" data-tab="ranking" id="stab-ranking" aria-controls="spanel-ranking">Model Ranking</a>
@@ -1545,7 +1568,13 @@
     if (w && w !== "tie" && w !== "—" && w !== "mixed") return short(w) + " is more efficient";
     return w === "mixed" ? "Mixed result: each model wins somewhere" : "Tied on efficiency";
   }
+  // first-visit guides: shown until "Got it" (per browser; nothing breaks without storage)
+  function guideSeen(k) { try { return localStorage.getItem("agentmeter.guide." + k) === "1"; } catch (e) { return false; } }
+  function guideHide(k) { try { localStorage.setItem("agentmeter.guide." + k, "1"); } catch (e) { /* shown again next time */ } $(k + "-guide").hidden = true; }
+  $("home-guide-hide").addEventListener("click", function () { guideHide("home"); });
+  $("session-guide-hide").addEventListener("click", function () { guideHide("session"); });
   function loadHome() {
+    $("home-guide").hidden = guideSeen("home");
     api("/api/sessions?limit=8").then(function (r) {
       var rows = (r.ok && r.data.sessions) || [];
       $("home-empty").hidden = !(r.ok && !rows.length);
@@ -2322,18 +2351,22 @@
     acc.title = s.accuracy_available ? "" : "No labels in this data — efficiency only";
     var base = "#/session/" + enc(job.job_id) + "/";
     if (window.INSIGHTS) setModelSlots(res);
+    $("session-guide").hidden = guideSeen("session");
+    var SUM = window.INSIGHTS ? INSIGHTS.tabSummaries(res) : {};
+    var lead = function (k) { return SUM[k] ? '<p class="tab-summary" data-summary="' + k + '">' + esc(SUM[k]) + '</p>' : ""; };
     LC = {};                                         // line charts of this session (wired after render)
     $("spanel-overview").innerHTML = pane("main", overviewTab(res) + notesCard(job));
-    $("spanel-ranking").innerHTML = pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
+    $("spanel-ranking").innerHTML = lead("ranking") + pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
         'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", stabilityCard(res)) + pane("pareto", "") + pane("guide", "");
-    $("spanel-accuracy").innerHTML = pane("main", classMetricsCard(res));
-    $("spanel-performance").innerHTML = pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
-    $("spanel-agents").innerHTML = pane("main", agentsTab(res));
-    $("spanel-cost").innerHTML = pane("main", costCard(res) + gpuTimelineCard(res) + projectionCard(res) + correctCard(res));
-    $("spanel-recommendations").innerHTML = pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
+    $("spanel-accuracy").innerHTML = lead("accuracy") + pane("main", classMetricsCard(res));
+    $("spanel-performance").innerHTML = lead("performance") + pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
+    $("spanel-agents").innerHTML = lead("agents") + pane("main", agentsTab(res));
+    $("spanel-cost").innerHTML = lead("cost") + pane("main", costCard(res) + gpuTimelineCard(res) + projectionCard(res) + correctCard(res));
+    $("spanel-recommendations").innerHTML = lead("recommendations") + pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
     $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
     resetEmbed();
     wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); wireRepeat(res, job); wireNotes(job);
+    addExports($("session-body"));
   }
 
   function setDl(a, path, name) {
@@ -2640,7 +2673,7 @@
     var X = function (x) { return L + pw * (x - x0) / ((xm - x0) || 1); }, Y = function (y) { return T + ph * (1 - y / ym); };
     LC[spec.id] = { spec: spec, X: X, L: L, pw: pw, x0: x0, xm: xm };
     var grid = [0, 0.5, 1].map(function (f) {
-      return '<line class="lc-grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(ym * f) + '" y2="' + Y(ym * f) + '"/><text class="lc-tick" x="' + (L - 6) + '" y="' + (Y(ym * f) + 4) + '" text-anchor="end">' + esc(spec.yFmt(ym * f)) + '</text>';
+      return '<line class="lc-grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(ym * f) + '" y2="' + Y(ym * f) + '"/><text class="lc-tick" x="' + (L - 6) + '" y="' + (Y(ym * f) + 4) + '" text-anchor="end">' + esc(f === 0 ? "0" : spec.yFmt(ym * f)) + '</text>';
     }).join("");
     var xt = [0, 0.5, 1].map(function (f) { var v = x0 + (xm - x0) * f; return '<text class="lc-tick" x="' + X(v) + '" y="' + (H - 6) + '" text-anchor="' + (f === 0 ? "start" : f === 1 ? "end" : "middle") + '">' + esc(spec.xFmt(v)) + '</text>'; }).join("");
     var bands = (spec.bands || []).map(function (b) {
@@ -2719,6 +2752,54 @@
       g.per_model.map(function (m) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtNum(m.n_samples) + '</td><td class="num">' + (m.mean_power_w == null ? "—" : fmtNum(m.mean_power_w, 1) + " W") + '</td><td class="num">' + (m.peak_power_w == null ? "—" : fmtNum(m.peak_power_w, 0) + " W") +
         '</td><td class="num">' + (m.mean_util_pct == null ? "—" : fmtNum(m.mean_util_pct, 0) + "%") + '</td><td class="num">' + (m.peak_mem_mb == null ? "—" : fmtMB(m.peak_mem_mb)) + '</td></tr>'; }).join("") + '</tbody></table></div></div>';
   }
+  // ---- downloads: CSV of a card's table, PNG of its SVG chart (computed colours, any theme) ----
+  function addExports(root) {
+    if (!root) return;
+    root.querySelectorAll(".card").forEach(function (c) {
+      if (c.querySelector(":scope > .exp-bar")) return;
+      var hasT = !!c.querySelector("table"), hasS = !!c.querySelector(".lc svg, .ho svg");
+      if (!hasT && !hasS) return;
+      var bar = document.createElement("div");
+      bar.className = "exp-bar";
+      bar.innerHTML = '<span class="muted small">Download</span>' + (hasT ? '<button type="button" class="btn small-btn" data-exp="csv">CSV</button>' : "") +
+        (hasS ? '<button type="button" class="btn small-btn" data-exp="png">PNG</button>' : "");
+      c.appendChild(bar);
+    });
+  }
+  function expName(card, ext) {
+    var h = ((card.querySelector("h2") || {}).textContent || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+    return "agentmeter_" + (SESSION.id ? shortId(SESSION.id).replace(/…$/, "") + "_" : "") + h + "." + ext;
+  }
+  function tableCsv(t) {
+    var q = function (v) { v = String(v).replace(/\s+/g, " ").trim(); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    return Array.prototype.map.call(t.rows, function (r) { return Array.prototype.map.call(r.cells, function (c) { return q(c.textContent); }).join(","); }).join("\n") + "\n";
+  }
+  function svgPng(svg, name) {
+    var clone = svg.cloneNode(true), src = svg.querySelectorAll("*"), dst = clone.querySelectorAll("*");
+    var PROPS = ["fill", "stroke", "stroke-width", "stroke-dasharray", "opacity", "font-size", "font-family", "font-weight", "visibility"];
+    Array.prototype.forEach.call(src, function (el, i) {
+      var cs = getComputedStyle(el);
+      dst[i].setAttribute("style", PROPS.map(function (p) { return p + ":" + cs.getPropertyValue(p); }).join(";"));
+    });
+    var vb = svg.viewBox.baseVal, scale = 2, w = (vb && vb.width) || svg.clientWidth, h = (vb && vb.height) || svg.clientHeight;
+    clone.setAttribute("width", w); clone.setAttribute("height", h); clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+    var url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml" }));
+    var img = new Image();
+    img.onload = function () {
+      var cv = document.createElement("canvas"); cv.width = w * scale; cv.height = h * scale;
+      var g = cv.getContext("2d"); g.fillStyle = getComputedStyle(document.body).backgroundColor; g.fillRect(0, 0, cv.width, cv.height);
+      g.drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url);
+      cv.toBlob(function (b) { var a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); a.remove(); });
+    };
+    img.src = url;
+  }
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest && ev.target.closest("[data-exp]");
+    if (!b) return;
+    var card = b.closest(".card");
+    if (b.getAttribute("data-exp") === "csv") download(expName(card, "csv"), tableCsv(card.querySelector("table")));
+    else svgPng(card.querySelector(".lc svg, .ho svg"), expName(card, "png"));
+  });
   // Overview: notes and tags (owner or admin edits; with a control plane the Worker stores them)
   function canEditNotes(job) { return CP ? !!job.can_edit : true; }
   function notesCard(job) {
@@ -2786,6 +2867,7 @@
         if (SESSION.id !== id) return;
         if (!m.ok) { host.innerHTML = '<div class="card" id="svc-repeat">' + head + '<p class="muted">' + esc((m.data || {}).error || "Comparison unavailable") + '</p></div>'; return; }
         host.innerHTML = repeatCard(INSIGHTS.repeatability(m.data, id), head, again, id);
+        addExports(host);
       });
     });
   }

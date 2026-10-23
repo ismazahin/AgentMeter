@@ -502,12 +502,67 @@
              }) };
   }
 
+  // ---- one plain sentence at the top of each session tab (restates stored numbers only) ----
+  function tabSummaries(res) {
+    var out = {}, rel = res.relative_comparison, pm = res.per_model || [];
+    // ranking: the stored SAW leader and how robust that is
+    var saw = pm.map(function (m) { return { model: m.model, v: num((m.saw || {}).composite_100) }; }).filter(function (x) { return x.v != null; })
+      .sort(function (a, b) { return b.v - a.v; });
+    if (saw.length > 1) {
+      var tie = Math.abs(saw[0].v - saw[1].v) < 0.05;
+      var st = weightStability(res), flips = st.rows.filter(function (r) { return r.changes && !r.no_data; }).map(function (r) { return r.criterion; });
+      out.ranking = tie ? "The two models tie on the SAW score (" + saw[0].v.toFixed(1) + ")."
+        : short(saw[0].model) + " ranks first on the SAW score (" + saw[0].v.toFixed(1) + " vs " + saw[1].v.toFixed(1) + "); " +
+          (flips.length ? "moving the " + flips.join(" or ") + " weight far enough can change that." : "no single weight change overturns it.");
+    } else if (saw.length) out.ranking = "Single-model run: " + short(saw[0].model) + " scores " + saw[0].v.toFixed(1) + " on the SAW score.";
+    // accuracy (context)
+    var cm = classMetrics(res);
+    if (cm.available) {
+      var best = cm.models.slice().sort(function (a, b) { return (b.macro.f1 || 0) - (a.macro.f1 || 0); })[0];
+      var hard = best.classes.slice().sort(function (a, b) { return (a.f1 || 0) - (b.f1 || 0); })[0];
+      var tied = cm.models.length > 1 && cm.models.every(function (m) { return Math.abs((m.macro.f1 || 0) - (best.macro.f1 || 0)) < 0.005; });
+      out.accuracy = "Context only: " + (cm.models.length === 1 ? short(best.model) + " has macro F1 " :
+        tied ? "the models tie on macro F1 (" : short(best.model) + " has the higher macro F1 (") + (best.macro.f1 || 0).toFixed(2) + (cm.models.length === 1 ? "" : ")") +
+        "; the hardest class " + (tied ? "is " : "for it is ") + hard.cls + " (F1 " + (hard.f1 || 0).toFixed(2) + ").";
+    }
+    // performance: the measured latency comparison
+    var lat = rel && (rel.metrics || []).filter(function (m) { return m.metric === "mean_latency_s"; })[0];
+    if (lat && lat.available) {
+      out.performance = lat.winner === "tie" ? "Latency: the models are within the tie range (" + (lat.note || "no clear difference") + ")."
+        : short(lat.winner) + " is " + lat.pct_better + "% faster per flow" + (lat.p_value != null ? " (p = " + (+lat.p_value).toPrecision(2) + ")" : "") + ".";
+    } else if (pm.length === 1) {
+      var e = ((pm[0].efficiency || {}).end_to_end) || {};
+      if (e.mean_latency_s != null) out.performance = short(pm[0].model) + " takes " + time(e.mean_latency_s) + " per flow on average (p95 " + time(e.p95_latency_s) + ").";
+    }
+    // agents: where the time goes
+    var ag = ((res.agents || {}).per_model || []).map(function (m) {
+      var top = (m.agents || []).slice().sort(function (a, b) { return (b.latency_share || 0) - (a.latency_share || 0); })[0];
+      return top ? short(m.model) + ": " + top.agent + " (" + pct(top.latency_share, 0) + ")" : null;
+    }).filter(Boolean);
+    if (ag.length) out.agents = "The slowest step — " + ag.join("; ") + ". Hand-offs re-send earlier answers inside later prompts.";
+    // cost
+    var ce = ((res.cost_energy || {}).per_model || []).filter(function (r) { return r.cost_per_1k_flows_usd != null; })
+      .sort(function (a, b) { return a.cost_per_1k_flows_usd - b.cost_per_1k_flows_usd; });
+    out.cost = ce.length ? short(ce[0].model) + " is the cheapest at $" + ce[0].cost_per_1k_flows_usd.toFixed(4) + " per 1,000 flows" +
+      (ce[0].wh_per_flow != null ? ", " + (ce[0].wh_per_flow * 1000).toFixed(0) + " Wh per 1,000 flows" : "") + "."
+      : res.cost_energy ? "Cost and energy were not measured in this run (no GPU price or power readings) — the projection below still shows the method." : null;
+    // recommendations
+    var fit = deploymentFit(res);
+    if (fit.models.length) {
+      var bestFit = fit.models.slice().sort(function (a, b) { return b.passes - a.passes; })[0];
+      out.recommendations = fit.models.map(function (m) { return short(m.model) + " fits " + m.passes + " of " + fit.profiles.length; }).join(", ") +
+        " common deployment profiles" + (fit.models.length > 1 && bestFit.passes > Math.min.apply(null, fit.models.map(function (m) { return m.passes; })) ? "; " + short(bestFit.model) + " fits the most." : ".");
+    }
+    Object.keys(out).forEach(function (k) { if (!out[k]) delete out[k]; });
+    return out;
+  }
+
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
               workloadProjection: workloadProjection, costPerCorrect: costPerCorrect, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, repeatability: repeatability,
-              loadScaling: loadScaling, runEstimate: runEstimate, sampleSize: sampleSize };
+              loadScaling: loadScaling, runEstimate: runEstimate, sampleSize: sampleSize, tabSummaries: tabSummaries };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

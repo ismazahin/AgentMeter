@@ -347,3 +347,19 @@ def test_workload_projection_carbon():
     a, b = pj["models"]
     assert a["co2_kg_per_day"] == pytest.approx(4.2 * 475 / 1000) and b["co2_kg_per_day"] is None   # B: no energy
     assert call("workloadProjection", _costed(), {"flows_per_day": 20000})["models"][0]["co2_kg_per_day"] is None
+
+
+def test_tab_summaries_restate_stored_numbers():
+    s = copy.deepcopy(SESSION)
+    s["per_model"][0]["saw"] = {"composite_100": 51.5}
+    s["per_model"][1]["saw"] = {"composite_100": 48.0}
+    out = call("tabSummaries", s)
+    assert out["ranking"].startswith("model-a ranks first on the SAW score (51.5 vs 48.0)")
+    assert out["performance"] == "model-a is 12.5% faster per flow (p = 0.010)."
+    assert out["cost"].startswith("model-a is the cheapest at $0.0200 per 1,000 flows")
+    assert "accuracy" not in out                                   # no confusion matrices in this fixture
+    s["per_model"][1]["saw"] = {"composite_100": 51.5}
+    s["relative_comparison"]["metrics"][0].update(winner="tie", note="within 5%")
+    out = call("tabSummaries", s)
+    assert out["ranking"] == "The two models tie on the SAW score (51.5)."
+    assert out["performance"] == "Latency: the models are within the tie range (within 5%)."

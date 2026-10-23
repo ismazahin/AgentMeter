@@ -38,7 +38,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
 
 (async () => {
   const b = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
-  const ctx = await b.newContext({ viewport: { width: 1280, height: 900 } });
+  const ctx = await b.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => { if (m.type() === 'error' && !/fonts|ERR_|Failed to load resource/.test(m.text())) errs.push(m.text()); });
@@ -183,6 +183,21 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log((await p.$$('#sessions-table tbody tr')).length === 1 && !(await p.isHidden('#flt-tag-row')), 'sessions: clicking a tag filters by it');
     await p.click('#flt-tag'); await p.waitForTimeout(900);
     log((await p.$$('#sessions-table tbody tr')).length >= 3, 'sessions: removing the tag filter lists all again');
+
+    // Phase D — tab summaries, downloads, first-visit guides
+    for (const [t, k] of [['ranking/scores', 'ranking'], ['accuracy', 'accuracy'], ['performance/latency', 'performance'], ['agents', 'agents'], ['cost', 'cost'], ['recommendations/limits', 'recommendations']]) {
+      await tab(p, csv, t, `.tab-summary[data-summary="${k}"]`);
+    }
+    log(true, 'every session tab opens with a one-line summary');
+    await tab(p, csv, 'performance/latency', '#stats-depth .exp-bar');
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#stats-depth .exp-bar [data-exp="csv"]')]);
+    const csvText = fs.readFileSync(await dl.path(), 'utf8');
+    log(/^Model,Flows,p50,p95,p99/.test(csvText) && csvText.trim().split('\n').length === 3, 'downloads: a card\'s table as CSV (' + dl.suggestedFilename() + ')');
+    const [png] = await Promise.all([p.waitForEvent('download'), p.click('#stats-trend .exp-bar [data-exp="png"]')]);
+    log(fs.readFileSync(await png.path()).slice(1, 4).toString() === 'PNG', 'downloads: a line chart as PNG');
+    await p.goto(ORIGIN + '/#/'); await p.waitForSelector('#home-guide:not([hidden])');
+    await p.click('#home-guide-hide'); await p.reload(); await p.waitForSelector('#view-home:not([hidden])'); await p.waitForTimeout(300);
+    log(await p.isHidden('#home-guide'), 'home: the first-visit guide stays hidden after "Got it"');
 
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });

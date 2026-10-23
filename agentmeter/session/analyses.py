@@ -352,6 +352,46 @@ def drift_test(xs: list[float], skip: int = WARMUP_N) -> dict[str, Any]:
             "verdict": verdict, "note": note}
 
 
+FLOW_TEXT_CHARS = 1200        # each agent answer kept up to this many characters in flows_<run>.json
+
+
+def flows_file(db: str | Path, run_id: str, label_of: dict[str, str], labelled: bool = True) -> dict[str, Any]:
+    """Every flow of the run, per model: truth, answer, time, and each agent's time, tokens and
+    answer text (when it was recorded) — the flow explorer's data. Read-only; written beside the
+    results as flows_<run_id>.json, never inside session_results.json."""
+    sr, am = read_rows(db, run_id)
+    con = sqlite3.connect(f"file:{Path(db)}?mode=ro", uri=True)
+    try:
+        has = con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_outputs'").fetchone()
+        texts = {(m, s, a): t for m, s, a, t in con.execute(
+            "SELECT model, scenario_id, agent_name, text FROM agent_outputs WHERE run_id=?", (run_id,))} if has else {}
+    finally:
+        con.close()
+    order = _agents_in_order(am)
+    model_of = {dbm: m for m, dbm in label_of.items()}
+    agents: dict[tuple, list] = {}
+    for r in am:
+        agents.setdefault((r["model"], r["scenario_id"]), []).append(r)
+    flows: dict[str, dict] = {}
+    for r in sr:                                    # execution order of the first model
+        if r["model"] not in model_of:
+            continue
+        # unlabelled input (PCAP): its placeholder label is no ground truth — no truth, no right/wrong
+        f = flows.setdefault(r["scenario_id"], {"scenario_id": r["scenario_id"],
+                                                "truth": r["held_out_label"] if labelled else None, "per_model": {}})
+        rows = sorted(agents.get((r["model"], r["scenario_id"]), []), key=lambda a: order.index(a["agent_name"]) if a["agent_name"] in order else 99)
+        f["per_model"][model_of[r["model"]]] = {
+            "predicted": r["predicted_label"],
+            "correct": bool(r["correct"]) if labelled and r["correct"] is not None else None,
+            "latency_s": _f(r["scenario_total_time_s"]),
+            "agents": [{"agent": a["agent_name"], "wall_s": _f(a["wall_time_s"]), "input_tokens": a["input_tokens"],
+                        "output_tokens": a["output_tokens"],
+                        "text": (lambda t: None if t is None else (t if len(t) <= FLOW_TEXT_CHARS else t[:FLOW_TEXT_CHARS] + " …[cut]"))(
+                            texts.get((r["model"], r["scenario_id"], a["agent_name"])))} for a in rows]}
+    return {"run_id": run_id, "agent_order": order, "models": list(label_of), "labelled": labelled, "has_text": bool(texts),
+            "text_chars": FLOW_TEXT_CHARS, "flows": list(flows.values())}
+
+
 def latency_trend_block(sr: list[dict], label_of: dict[str, str]) -> dict[str, Any]:
     """Latency per flow in execution order (rowid), a rolling median and a drift test, per model."""
     per = []

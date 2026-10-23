@@ -199,6 +199,18 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     await p.click('#home-guide-hide'); await p.reload(); await p.waitForSelector('#view-home:not([hidden])'); await p.waitForTimeout(300);
     log(await p.isHidden('#home-guide'), 'home: the first-visit guide stays hidden after "Got it"');
 
+    // Phase E — flow explorer
+    await tab(p, csv, 'agents', '#flows-table');
+    log((await p.$$('#flows-table tbody tr')).length === 25 && /40 flows × 2 models/.test(await p.textContent('#flows-status')), 'flow explorer: 40 flows x 2 models, 25 per page');
+    await p.selectOption('#flows-filter', 'wrong'); await p.waitForTimeout(200);
+    const wrong = await p.$$eval('#flows-table tbody tr', rs => rs.map(r => r.textContent));
+    log(wrong.length > 0 && wrong.every(t => /✗/.test(t)), 'flow explorer: "wrong answer" keeps only flows a model got wrong');
+    await p.click('#flows-table [data-flow]'); await p.waitForSelector('.flow-detail');
+    log((await p.$$('.flow-detail .flow-col')).length === 2 && (await p.$$('.flow-detail .flow-col:first-child .flow-text')).length === 4,
+        'flow explorer: a flow opens with each model\'s four agent answers');
+    await tab(p, pcap, 'agents', '#flows-table');
+    log(!(await p.$('#flows-filter option[value="wrong"]')) && !(await p.$('#flows-filter option[value="disagree"]')), 'flow explorer (unlabelled, 1 model): no "wrong" or "disagree" filters');
+
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;

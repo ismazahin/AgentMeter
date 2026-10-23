@@ -366,9 +366,15 @@
   span.tag-chip { cursor: default; }
   .note-snip { margin-top: 4px; color: var(--muted-2); max-width: 46ch; }
   .notes-text { white-space: pre-wrap; }
+  .flow-detail { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .flow-detail h3 { margin: 0 0 8px; }
+  .flow-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .flow-col h4 { margin: 0 0 4px; font-size: 14px; }
+  .flow-agent { margin: 8px 0; }
+  .flow-text { margin: 4px 0 0; padding: 8px 10px; background: var(--surface-2); border-radius: var(--radius); white-space: pre-wrap; overflow-wrap: anywhere; font: 12.5px/1.45 var(--mono, ui-monospace, monospace); max-height: 220px; overflow: auto; }
   .tab-summary { margin: 0 0 14px; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 var(--radius) var(--radius) 0; font-size: 14.5px; }
   .exp-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 10px; }
-  @media (max-width: 720px) { .exp-bar .btn { min-height: 44px; padding: 0 16px; } .tag-chip { min-height: 32px; } }
+  @media (max-width: 720px) { .small-btn, .exp-bar .btn { min-height: 44px; padding: 0 16px; } .tag-chip { min-height: 32px; } }
   .guide-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .guide-steps { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; line-height: 1.5; }
   .stab { display: grid; gap: 12px; }
@@ -1275,7 +1281,7 @@
       return null;
     }
     if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
-    if ((m = /^\/api\/jobs\/([^/]+)(\/(result|report\.pdf|constraints))?$/.exec(p))) return m[2] || !STRONG_JOB.test(decodeURIComponent(m[1])) ? { kind: "read" } : null;
+    if ((m = /^\/api\/jobs\/([^/]+)(\/(result|report\.pdf|constraints|flows))?$/.exec(p))) return m[2] || !STRONG_JOB.test(decodeURIComponent(m[1])) ? { kind: "read" } : null;
     if ((m = /^\/api\/prepared\/([^/]+)\/([^/]+)(\/[^/]+)?$/.exec(p)) && m[1] !== "import") return m[3] ? { kind: "files", set: decodeURIComponent(m[1]) + "/" + decodeURIComponent(m[2]) } : { kind: "read" };
     return null;
   }
@@ -2333,6 +2339,7 @@
     var panel = $("spanel-" + t.tab);
     panel.querySelectorAll("[data-pane]").forEach(function (pn) { pn.hidden = pn.getAttribute("data-pane") !== (t.sub || "main"); });
     showEmbed(EMBED_PARTS[key] || null, t.tab);
+    if (t.tab === "agents") loadFlows();
   }
   function pane(name, html) { return '<div data-pane="' + name + '"' + (name === "main" ? "" : " hidden") + '>' + html + '</div>'; }
   function renderSession(res, job) {
@@ -2800,6 +2807,74 @@
     if (b.getAttribute("data-exp") === "csv") download(expName(card, "csv"), tableCsv(card.querySelector("table")));
     else svgPng(card.querySelector(".lc svg, .ho svg"), expName(card, "png"));
   });
+  // ---- Agent Analysis: flow explorer (flows_<run>.json; loaded when the tab opens) ----
+  var FLOWS = { id: null, data: null, filter: "all", q: "", page: 0, open: null };
+  function loadFlows() {
+    var id = SESSION.id, job = SESSION.job || {};
+    if (!$("flows-card") || FLOWS.id === id) return;
+    FLOWS = { id: id, data: null, filter: "all", q: "", page: 0, open: null };
+    var path = CP && job.stored ? "/api/sessions/" + enc(id) + "/files/flows.json" : "/api/jobs/" + enc(id) + "/flows";
+    api(path).then(function (r) {
+      if (SESSION.id !== id || !$("flows-status")) return;
+      if (!r.ok) { $("flows-status").textContent = r.status === 404 ? "This session has no per-flow record: it was run before the flow explorer existed." : "Could not load the flows: " + ((r.data || {}).error || "error"); return; }
+      FLOWS.data = r.data; drawFlows();
+    });
+  }
+  function flowList() {
+    var d = FLOWS.data, q = FLOWS.q.toLowerCase(), list = d.flows.slice();
+    var lat = function (f) { return Math.max.apply(null, d.models.map(function (m) { return ((f.per_model[m] || {}).latency_s) || 0; })); };
+    if (FLOWS.filter === "wrong") list = list.filter(function (f) { return d.models.some(function (m) { return f.per_model[m] && f.per_model[m].correct === false; }); });
+    if (FLOWS.filter === "disagree") list = list.filter(function (f) { var a = d.models.map(function (m) { return (f.per_model[m] || {}).predicted; }); return a.some(function (x) { return x !== a[0]; }); });
+    if (FLOWS.filter === "slow") list = list.sort(function (a, b) { return lat(b) - lat(a); }).slice(0, 10);
+    if (q) list = list.filter(function (f) { return (f.scenario_id + " " + (f.truth || "") + " " + d.models.map(function (m) { return (f.per_model[m] || {}).predicted || ""; }).join(" ")).toLowerCase().indexOf(q) >= 0; });
+    return list;
+  }
+  function drawFlows() {
+    var d = FLOWS.data, list = flowList(), per = 25, pages = Math.max(1, Math.ceil(list.length / per));
+    FLOWS.page = Math.min(FLOWS.page, pages - 1);
+    var labelled = d.labelled !== false && d.flows.some(function (f) { return f.truth; });
+    $("flows-status").innerHTML = esc(d.flows.length + " flows × " + d.models.length + " model" + (d.models.length > 1 ? "s" : "") + ". ") +
+      (d.has_text ? "Open a flow to read each agent's answer (up to " + fmtNum(d.text_chars) + " characters each)." : "<b>Agent answers were not recorded for this run</b> — times and tokens only.");
+    var mark = function (pm) { return !pm ? "—" : (pm.correct === true ? '<span class="chip ok">✓ ' : pm.correct === false ? '<span class="chip bad">✗ ' : '<span class="chip">') + esc(pm.predicted || "—") + '</span>'; };
+    $("flows-body").innerHTML = '<div class="row" style="margin-top:0"><div class="field"><label for="flows-filter">Show</label><select id="flows-filter">' +
+      [["all", "All flows"], ["wrong", "Wrong answer (any model)"], ["disagree", "Models disagree"], ["slow", "10 slowest"]].filter(function (o) { return labelled || o[0] !== "wrong"; })
+        .filter(function (o) { return d.models.length > 1 || o[0] !== "disagree"; })
+        .map(function (o) { return '<option value="' + o[0] + '"' + (FLOWS.filter === o[0] ? " selected" : "") + '>' + o[1] + '</option>'; }).join("") + '</select></div>' +
+      '<div class="field" style="flex:1 1 220px"><label for="flows-q">Find</label><input type="search" id="flows-q" class="wide" placeholder="flow id, class or answer" value="' + esc(FLOWS.q) + '" autocomplete="off"></div></div>' +
+      '<div class="table-wrap"><table id="flows-table"><thead><tr><th>Flow</th>' + (labelled ? "<th>True class</th>" : "") +
+      d.models.map(function (m) { return '<th><i class="sw" style="--c:' + modelColor(m) + '"></i>' + esc(short(m)) + '</th><th class="num">Time</th>'; }).join("") + '<th></th></tr></thead><tbody>' +
+      list.slice(FLOWS.page * per, FLOWS.page * per + per).map(function (f) {
+        return '<tr' + (FLOWS.open === f.scenario_id ? ' class="changed"' : "") + '><td class="mono">' + esc(f.scenario_id) + '</td>' + (labelled ? '<td>' + esc(f.truth || "—") + '</td>' : "") +
+          d.models.map(function (m) { var pm = f.per_model[m]; return '<td>' + mark(pm) + '</td><td class="num">' + (pm ? fmtTime(pm.latency_s) : "—") + '</td>'; }).join("") +
+          '<td><button type="button" class="btn small-btn" data-flow="' + esc(f.scenario_id) + '">' + (FLOWS.open === f.scenario_id ? "Close" : "Open") + '</button></td></tr>';
+      }).join("") + '</tbody></table></div>' +
+      (list.length ? "" : '<p class="muted">No flow matches.</p>') +
+      (pages > 1 ? '<div class="actions"><button type="button" class="btn small-btn" id="flows-prev"' + (FLOWS.page ? "" : " disabled") + '>Previous</button><span class="small muted">page ' + (FLOWS.page + 1) + ' of ' + pages + ' (' + list.length + ' flows)</span><button type="button" class="btn small-btn" id="flows-next"' + (FLOWS.page < pages - 1 ? "" : " disabled") + '>Next</button></div>' : "") +
+      '<div id="flow-detail">' + flowDetail() + '</div>';
+    $("flows-filter").addEventListener("change", function () { FLOWS.filter = this.value; FLOWS.page = 0; drawFlows(); });
+    var t = null;
+    $("flows-q").addEventListener("input", function () { var v = this.value; clearTimeout(t); t = setTimeout(function () { FLOWS.q = v; FLOWS.page = 0; drawFlows(); $("flows-q").focus(); }, 250); });
+    $("flows-body").querySelectorAll("[data-flow]").forEach(function (b) { b.addEventListener("click", function () {
+      var id = b.getAttribute("data-flow"); FLOWS.open = FLOWS.open === id ? null : id; drawFlows();
+      if (FLOWS.open) $("flow-detail").scrollIntoView({ block: "nearest" });
+    }); });
+    if ($("flows-prev")) { $("flows-prev").addEventListener("click", function () { FLOWS.page--; drawFlows(); }); $("flows-next").addEventListener("click", function () { FLOWS.page++; drawFlows(); }); }
+  }
+  function flowDetail() {
+    var d = FLOWS.data, f = FLOWS.open && d.flows.filter(function (x) { return x.scenario_id === FLOWS.open; })[0];
+    if (!f) return "";
+    return '<div class="flow-detail"><h3>Flow ' + esc(f.scenario_id) + (f.truth ? ' <span class="muted small">true class: ' + esc(f.truth) + '</span>' : "") + '</h3><div class="flow-cols">' +
+      d.models.map(function (m) {
+        var pm = f.per_model[m];
+        if (!pm) return '<div class="flow-col"><h4>' + esc(short(m)) + '</h4><p class="muted">Not run.</p></div>';
+        return '<div class="flow-col" data-model="' + esc(m) + '"><h4><i class="sw" style="--c:' + modelColor(m) + '"></i>' + esc(short(m)) + '</h4><p class="small">Answer <b>' + esc(pm.predicted || "—") + '</b>' +
+          (pm.correct === true ? ' <span class="chip ok">✓ correct</span>' : pm.correct === false ? ' <span class="chip bad">✗ wrong</span>' : "") + ' · ' + fmtTime(pm.latency_s) + ' end to end</p>' +
+          pm.agents.map(function (a) {
+            return '<div class="flow-agent"><div class="small"><span class="legend"><span style="--c:' + (AG_COLOR[a.agent] || "var(--muted)") + '">' + esc(a.agent) + '</span></span> ' + fmtTime(a.wall_s) +
+              ' · ' + fmtNum(a.input_tokens) + ' tokens in, ' + fmtNum(a.output_tokens) + ' out</div>' + (a.text != null ? '<pre class="flow-text">' + esc(a.text) + '</pre>' : (d.has_text ? '<p class="muted small">(empty answer)</p>' : "")) + '</div>';
+          }).join("") + '</div>';
+      }).join("") + '</div></div>';
+  }
   // Overview: notes and tags (owner or admin edits; with a control plane the Worker stores them)
   function canEditNotes(job) { return CP ? !!job.can_edit : true; }
   function notesCard(job) {
@@ -3138,7 +3213,7 @@
       flows.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join("") + '</select></div></div><div id="agents-gantt" class="gantt" style="margin-top:14px"></div>' +
       '<div class="legend">' + ag.agent_order.map(function (a) { return '<span style="--c:' + (AG_COLOR[a] || "var(--muted)") + '">' + esc(a) + '</span>'; }).join("") + '</div>' +
       '<p class="muted small">' + esc(ag.notes.timeline) + '</p></div>');
-    h.push(handoffCard(res), classAgentCard(res));
+    h.push(handoffCard(res), classAgentCard(res), '<div class="card" id="flows-card"><h2>Flow explorer</h2><p class="muted small" id="flows-status">Loading the flows…</p><div id="flows-body"></div></div>');
     h.push('<div class="card flat"><h2>How these are measured</h2><ul class="list">' +
       ["latency", "vram", "overhead", "failures"].map(function (k) { return '<li>' + esc(ag.notes[k]) + '</li>'; }).join("") + '</ul></div>');
     return h.join("");

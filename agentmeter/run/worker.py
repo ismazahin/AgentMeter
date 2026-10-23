@@ -264,6 +264,8 @@ def _run_model_sqlite(
                     scenario_total_time_s=total_time,
                     scenario_peak_vram_mb=peak_vram,
                     agent_rows=new_rows,
+                    outputs={r.agent_name: (state.get(r.agent_name) if isinstance(state.get(r.agent_name), str) else None)
+                             for r in new_rows},
                 )
                 persisted += 1
                 print(f"    {s.scenario_id:<10} -> {pred:<16} "

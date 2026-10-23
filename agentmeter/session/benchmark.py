@@ -28,6 +28,7 @@ unchanged, so they behave exactly as before.
 from __future__ import annotations
 
 import copy
+import json
 from pathlib import Path
 from typing import Any, Optional
 
@@ -198,6 +199,12 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
     from .stage3 import add_stage3
     add_stage3(payload)
     write_results(Path(plan["run_dir"]) / RESULTS_JSON, payload)
+    # the flow explorer's data: every flow, every agent (own file per run, never in the results)
+    from .analyses import flows_file
+    label_of = {pm["model"]: pm.get("db_label") or pm["model"] for pm in payload.get("per_model") or []}
+    (Path(plan["run_dir"]) / f"flows_{result.run_id}.json").write_text(
+        json.dumps(flows_file(plan["db_path"], result.run_id, label_of,
+                              labelled=bool((payload.get("session") or {}).get("accuracy_available")))), encoding="utf-8")
     return payload
 
 

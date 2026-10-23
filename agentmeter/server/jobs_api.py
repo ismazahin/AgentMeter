@@ -23,6 +23,14 @@ from . import runtoken
 from .jobs import JobError, JobManager
 
 
+
+def flows_path(job: dict, res: dict) -> Optional["Path"]:
+    """flows_<run_id>.json of a finished session, or None (sessions from before it existed)."""
+    from pathlib import Path as _Path
+    run_id = (res.get("session") or {}).get("run_id")
+    p = _Path(job.get("run_dir") or "") / f"flows_{run_id}.json"
+    return p if run_id and p.is_file() else None
+
 def report_pdf_bytes(mgr: JobManager, job_id: str, decision: Optional[dict] = None) -> bytes:
     """Phase 42: a PDF report built verbatim from the finished job's results (also uploaded to
     the control plane, Phase 47). Raises JobError (not_ready / not_found / pdf_unavailable)."""
@@ -149,6 +157,20 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
             return jsonify(get_manager().result(job_id))
         except JobError as e:
             return fail(e)
+
+    @app.route("/api/jobs/<job_id>/flows", methods=["GET"])
+    def job_flows(job_id):
+        """The flow explorer's data (flows_<run_id>.json beside the results), once done."""
+        from flask import send_file
+        mgr = get_manager()
+        try:
+            res = mgr.result(job_id)
+            p = flows_path(mgr.get(job_id), res)
+            if p is None:
+                raise JobError("this session has no per-flow record (it predates the flow explorer)", "not_found", 404)
+        except JobError as e:
+            return fail(e)
+        return send_file(p, mimetype="application/json", max_age=0)
 
     @app.route("/api/jobs/<job_id>/report.pdf", methods=["GET"])
     def job_report_pdf(job_id):

@@ -267,6 +267,8 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.fill('#flt-q', 'first demo'); await p.waitForTimeout(1200);
     const hits = await p.$$eval('#sessions-table tbody tr', rs => rs.map(r => r.textContent));
     log(hits.length === 1 && /cp-check/.test(hits[0]), 'GPU off: the owner saves notes and tags (control plane); search finds them');
+    await p.goto(APP + `/#/session/${job1}/agents`); await p.waitForSelector('#flows-table', { timeout: 30000 });
+    log((await p.$$('#flows-table tbody tr')).length > 0, 'GPU off: the flow explorer reads the stored flows.json');
     await p.goto(APP + '/#/new/models?set=' + encodeURIComponent(set)); await p.waitForSelector('#svc-run');
     log(await p.isDisabled('#svc-run') && /GPU offline/.test(await p.textContent('#svc-run')), 'GPU off: Run shows GPU offline');
 

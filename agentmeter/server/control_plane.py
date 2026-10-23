@@ -183,6 +183,10 @@ def session_upload(mgr, job: dict, *, keep_identification: bool = False,
             if name == "manifest.json":
                 data = with_content_hash(data, run_dir)
             files[name] = data
+    from .jobs_api import flows_path
+    fp = flows_path(job, res)
+    if fp is not None:                              # the flow explorer's data
+        files["flows.json"] = fp.read_bytes()
     try:
         from .jobs_api import report_pdf_bytes
         files["report.pdf"] = report_pdf_bytes(mgr, job["job_id"])

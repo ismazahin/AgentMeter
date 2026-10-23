@@ -185,13 +185,17 @@ class Storage:
         scenario_total_time_s: float,
         scenario_peak_vram_mb: Optional[float],
         agent_rows: Iterable[AgentMetrics],
+        outputs: Optional[dict[str, Optional[str]]] = None,
     ) -> None:
         """Write all agent rows + the scenario_result in ONE atomic transaction.
 
         Idempotent: any prior rows for this (run_id, model, scenario_id) are
         deleted first inside the same transaction, so a re-run after a crash
-        never duplicates rows.
+        never duplicates rows. `outputs` ({agent: answer text}) goes to the
+        agent_outputs table in the same transaction (flow explorer; nothing scores it).
         """
+        if outputs is not None:
+            self.conn.executescript(self._OUTPUTS_DDL)   # before BEGIN: executescript commits
         agent_params = [
             (
                 run_id,
@@ -238,6 +242,23 @@ class Storage:
                     _now(),
                 ),
             )
+            if outputs is not None:
+                self.conn.execute("DELETE FROM agent_outputs WHERE run_id=? AND model=? AND scenario_id=?",
+                                  (run_id, model, scenario_id))
+                self.conn.executemany(
+                    "INSERT INTO agent_outputs (run_id, model, scenario_id, agent_name, text) VALUES (?, ?, ?, ?, ?)",
+                    [(run_id, model, scenario_id, a, t) for a, t in outputs.items()])
+
+    # Agent answers (flow explorer). Own table, created on first use, like model_memory.
+    _OUTPUTS_DDL = """
+    CREATE TABLE IF NOT EXISTS agent_outputs (
+        run_id      TEXT NOT NULL,
+        model       TEXT NOT NULL,
+        scenario_id TEXT NOT NULL,
+        agent_name  TEXT NOT NULL,
+        text        TEXT,
+        PRIMARY KEY (run_id, model, scenario_id, agent_name)
+    );"""
 
     # --- Phase 46 follow-up: per-model device memory (session DBs) ------
     # Its own table, created on first use (not part of SCHEMA), so no other database's

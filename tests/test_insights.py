@@ -294,3 +294,26 @@ def test_a_measured_zero_is_not_missing_but_an_absent_reading_is():
     assert pr["missing"] == {"accuracy": False, "latency": False, "vram": True, "tokens": False}
     rows = {r["criterion"]: r for r in call("weightStability", s)["rows"]}
     assert rows["accuracy"]["no_data"] is False and rows["vram"]["no_data"] is True
+
+
+def _s(status, gpu, demo, metrics, n=40):
+    return {"status": status, "gpu": gpu, "demo": demo, "n_flows": n, "metrics": metrics}
+
+
+def test_run_estimate_uses_the_same_models_on_the_same_gpu():
+    L4, A100 = "NVIDIA L4", "NVIDIA A100"
+    hist = [_s("Done", L4, False, {A: {"mean_latency_s": 10.0, "n_flows": 40, "cost_per_1k_flows_usd": 2.0},
+                                  B: {"mean_latency_s": 20.0, "n_flows": 40, "cost_per_1k_flows_usd": 4.0}}),
+            _s("Done", L4, False, {A: {"mean_latency_s": 13.0, "n_flows": 20, "cost_per_1k_flows_usd": 3.0}}, n=20),
+            _s("Done", A100, False, {A: {"mean_latency_s": 1.0, "n_flows": 40}}),          # other GPU: ignored
+            _s("Demo", "Demo (no GPU)", True, {A: {"mean_latency_s": 0.001, "n_flows": 40}}),  # demo: ignored
+            _s("Failed", L4, False, {A: {"mean_latency_s": 99.0, "n_flows": 40}})]          # unfinished: ignored
+    e = call("runEstimate", hist, {"models": [A, B], "n_flows": 100, "gpu": L4, "demo": False})
+    a, b = e["models"]
+    assert a["sessions"] == 2 and a["mean_latency_s"] == pytest.approx((10 * 40 + 13 * 20) / 60)   # flow-weighted
+    assert e["complete"] and e["seconds"] == pytest.approx(100 * a["mean_latency_s"] + 100 * 20.0)
+    assert e["cost_usd"] == pytest.approx(100 * ((2 * 40 + 3 * 20) / 60) / 1000 + 100 * 4.0 / 1000)
+    unknown = call("runEstimate", hist, {"models": [A, "org/new"], "n_flows": 100, "gpu": L4, "demo": False})
+    assert unknown["complete"] is False and unknown["seconds"] is None and unknown["unknown"] == ["org/new"]
+    demo = call("runEstimate", hist, {"models": [A], "n_flows": 100, "demo": True})
+    assert demo["seconds"] == pytest.approx(0.1) and demo["cost_usd"] is None

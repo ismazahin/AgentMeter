@@ -444,12 +444,43 @@
     return { measured: true, levels: levels, max_throughput: tp, max_p95: p95, models: models, method: ls.method, note: ls.note };
   }
 
+  // ---- New benchmark: time and cost estimate before Run ------------------------------------
+  // From earlier finished sessions of the same model on the same GPU (demo runs only for a demo
+  // estimate): each model's flow-weighted mean time per flow x this set's flows, and its cost per
+  // 1,000 flows likewise. Model loading / first-use downloads are not measured: never included.
+  function runEstimate(sessions, opts) {
+    var gpu = opts.gpu || null, demo = !!opts.demo, n = Math.max(0, +opts.n_flows || 0);
+    var models = (opts.models || []).map(function (m) {
+      var lat = [], cost = [], used = 0;
+      (sessions || []).forEach(function (s) {
+        if ((s.status !== "Done" && s.status !== "Demo") || !!s.demo !== demo) return;
+        if (!demo && s.gpu !== gpu) return;
+        var row = (s.metrics || {})[m];
+        var k = row && num(row.n_flows) || num(s.n_flows) || 0;
+        if (!row || num(row.mean_latency_s) == null || !k) return;
+        used++;
+        lat.push([row.mean_latency_s, k]);
+        if (num(row.cost_per_1k_flows_usd) != null) cost.push([row.cost_per_1k_flows_usd, k]);
+      });
+      var wmean = function (xs) { var w = xs.reduce(function (a, x) { return a + x[1]; }, 0); return w ? xs.reduce(function (a, x) { return a + x[0] * x[1]; }, 0) / w : null; };
+      var l = wmean(lat), c = wmean(cost);
+      return { model: m, sessions: used, mean_latency_s: l, seconds: l != null ? l * n : null,
+               cost_usd: c != null ? c * n / 1000 : null };
+    });
+    var known = models.filter(function (m) { return m.seconds != null; });
+    var all = known.length === models.length && models.length > 0;
+    return { n_flows: n, gpu: demo ? "Demo (no GPU)" : gpu, models: models, complete: all,
+             seconds: all ? known.reduce(function (a, m) { return a + m.seconds; }, 0) : null,
+             cost_usd: all && models.every(function (m) { return m.cost_usd != null; }) ? models.reduce(function (a, m) { return a + m.cost_usd; }, 0) : null,
+             unknown: models.filter(function (m) { return m.seconds == null; }).map(function (m) { return m.model; }) };
+  }
+
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
               workloadProjection: workloadProjection, costPerCorrect: costPerCorrect, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, repeatability: repeatability,
-              loadScaling: loadScaling };
+              loadScaling: loadScaling, runEstimate: runEstimate };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

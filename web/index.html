@@ -1741,6 +1741,7 @@
     $("svc-summary").innerHTML = ""; $("wiz-data-error").hidden = true; $("svc-run-error").hidden = true;
     renderModels();
     renderSettings();
+    loadHistory();
     setDataState("preparing", "Checking your data…", null);    // never show the previous data set's Ready/Failed
     if (WIZ.set) dataReady(WIZ.set);
     else if (WIZ.prep) pollPrepare(WIZ.prep, ++pollToken);
@@ -1940,6 +1941,28 @@
     var gb = need.reduce(function (a, x) { return a + (x.download_gb || 0); }, 0), min = need.reduce(function (a, x) { return a + (x.download_min || 0); }, 0);
     return [["First run", "downloads ~" + fmtNum(gb, 1) + " GB (~" + fmtNum(Math.max(1, min), 0) + " min) before the benchmark starts; later runs on this rental reuse it. Download time is not measured."]];
   }
+  // time and cost before Run, from earlier sessions of the same models on this GPU (INSIGHTS.runEstimate)
+  function fmtDur(sec) {
+    if (sec == null) return "—";
+    if (sec < 90) return Math.max(1, Math.round(sec)) + " s";
+    if (sec < 5400) return Math.round(sec / 60) + " min";
+    return Math.floor(sec / 3600) + " h " + Math.round((sec % 3600) / 60) + " min";
+  }
+  function estimateLine() {
+    var models = picked(), n = WIZ.summary ? WIZ.summary.rows_selected : null;
+    if (!window.INSIGHTS || !models.length || !n || !WIZ.history) return [];
+    var real = HEALTH && HEALTH.provider === "real";
+    var e = INSIGHTS.runEstimate(WIZ.history, { models: models, n_flows: n, demo: !real, gpu: real && HEALTH.gpu ? HEALTH.gpu.name : null });
+    var where = real ? "on " + (e.gpu || "this GPU") : "in demo mode";
+    if (!e.complete) return [["Estimate", "no earlier session of " + e.unknown.map(short).join(" or ") + " " + where + " yet, so no estimate"]];
+    var src = Math.max.apply(null, e.models.map(function (m) { return m.sessions; }));
+    return [["Estimate", "about " + fmtDur(e.seconds) + " of model time" + (e.cost_usd != null ? ", about $" + fmtNum(e.cost_usd, 2) : "") +
+      " (from earlier sessions " + where + "; model loading and first-use downloads come on top)" + (src < 2 ? " — one earlier session only" : "")]];
+  }
+  function loadHistory() {
+    WIZ.history = null;
+    api("/api/sessions?limit=200").then(function (r) { if (r.ok) { WIZ.history = r.data.sessions || []; renderSettings(); } });
+  }
   function renderSettings() {
     var s = WIZ.summary;
     $("wiz-settings").innerHTML = [
@@ -1947,7 +1970,7 @@
       ["Flows", s ? fmtNum(s.rows_selected) : "from step 1 (" + ($("svc-max-flows").value || 50) + " max)"],
       ["Evaluation", s ? (s.accuracy_available ? "efficiency + accuracy (context)" : "efficiency only") : "known when the data is ready"],
       ["Agents", "Perceive → Reason → Decide → Act (fixed)"]
-    ].concat(downloadLine()).map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("");
+    ].concat(estimateLine()).concat(downloadLine()).map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("");
   }
   $("svc-run").addEventListener("click", function () {
     var err = $("svc-run-error"), body = { models: picked(), provider: CONFIG.provider, base_config: CONFIG.base_config };

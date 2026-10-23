@@ -140,7 +140,13 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     // run the same flows again, this time with load scaling
     await p.click('#svc-repeat a.btn[href^="#/new/models?set="]');
     await p.waitForFunction(() => /Ready/.test(document.querySelector('#wiz-data-chip').textContent), null, { timeout: 60000 });
+    await p.locator('#svc-models input').nth(1).check();            // never benchmarked: no estimate
+    await p.waitForFunction(() => /Estimate/.test(document.querySelector('#wiz-settings').textContent), null, { timeout: 15000 });
+    log(/no earlier session of .* in demo mode yet/.test(await p.textContent('#wiz-settings')), 'estimate: a model never run before gets no estimate, and says so');
+    await p.locator('#svc-models input').nth(1).uncheck();
     for (const i of [0, 3]) await p.locator('#svc-models input').nth(i).check();
+    log(/Estimate\s*about \d+ s of model time \(from earlier sessions in demo mode; model loading/.test(await p.textContent('#wiz-settings')),
+        'estimate: time before Run from the earlier session of the same models');
     await p.check('#svc-load-test'); await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/session\//.test(location.hash), null, { timeout: 180000 });
     const again = decodeURIComponent(p.url().split('#/session/')[1].split('/')[0]);

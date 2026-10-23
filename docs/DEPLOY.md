@@ -403,6 +403,31 @@ still points the app straight at a backend.
 - **`refusing to start in REAL mode`**: read the listed problems. Each says what to
   install or set.
 
+## Optional: the vLLM engine
+
+By default real models run on the transformers engine (`agentmeter/providers/hf.py`). A GPU
+backend can run the same open models with **vLLM** instead, still in **4-bit NF4**: vLLM's
+in-flight bitsandbytes quantization (NF4, double quantization) is the format the study uses,
+and anything else (no quantization, 8-bit, GPTQ, AWQ, FP8) is refused at start-up.
+
+```bash
+pip install -r requirements-vllm.txt          # on the GPU host, after requirements-gpu.txt
+python scripts/serve.py --provider real --engine vllm   # or AGENTMETER_ENGINE=vllm
+```
+
+What changes, and how the app reports it:
+
+- **Continuous batching**: the opt-in load test can show throughput growing with
+  concurrency. The measured run is still one flow at a time.
+- **Per-agent working VRAM and time-to-first-token are not measured**: vLLM reserves its
+  KV cache up front (`model.vllm.gpu_memory_utilization`, default 0.85) and its offline
+  engine does not stream. The total device peak (NVML) is still recorded.
+- **Not like-for-like with transformers sessions**: the engine is part of the session's
+  settings fingerprint, so Compare and the Leaderboard keep vLLM sessions apart.
+
+Settings (in the base config, `model.vllm`): `gpu_memory_utilization` (0.1-0.95),
+`max_model_len` (default 8192), `enforce_eager` (default true), `seed`.
+
 ## Checklist before going public
 - [ ] Served over **HTTPS** (tunnel), never plain http; Worker var `ALLOW_HTTP_BACKEND = "0"`.
 - [ ] `AGENTMETER_TEST_ALLOW_LOOPBACK_URLS` is **not** set.

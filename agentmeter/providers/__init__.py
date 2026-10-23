@@ -4,7 +4,9 @@ One interface (`ModelProvider.generate`) with swappable implementations, so a
 different model is a config change, not a code change (build plan sec 4.4).
 
   - mock : Phases 0-3. No HF account, token, or GPU.
-  - hf   : Phase 4+. In-process on the GPU (Mode A), VRAM measurable.
+  - hf   : Phase 4+. In-process on the GPU (Mode A), VRAM measurable. The engine is
+           transformers (hf.py, default) or vLLM (vllm_provider.py, model.engine: vllm) —
+           open models in 4-bit NF4 either way.
 """
 from __future__ import annotations
 
@@ -20,6 +22,9 @@ def get_provider(config: Config) -> ModelProvider:
     provider = config.get("model.provider")
     if provider == "mock":
         return MockProvider(config)
+    if provider == "hf" and (config.get("model.engine") or "transformers") == "vllm":
+        from .vllm_provider import VLLMProvider
+        return VLLMProvider(config)
     if provider == "hf":
         # Introduced in Phase 4. Import lazily so Phases 0-3 need no GPU deps.
         try:

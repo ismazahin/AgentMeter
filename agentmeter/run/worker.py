@@ -231,6 +231,10 @@ def _run_model_sqlite(
         weights = ({"allocated_mb": gpu.total_used_mb(), "reserved_mb": gpu.reserved_mb(),
                     "nvml_used_mb": gpu.pynvml_used_mb(), "nvml_before_load_mb": dev_before}
                    if gpu.available else None)
+        if weights is not None and not getattr(provider, "measures_call_vram", True):
+            # vLLM: torch's allocator holds the weights AND the pre-reserved KV cache, so it is
+            # no weights reading; the device total (NVML) stays
+            weights.update(allocated_mb=None, reserved_mb=None, engine=getattr(provider, "name", None))
         collector = MetricsCollector()
         hook = make_instrumented_hook(collector, label, gpu)
         pipeline = Pipeline(cfg, provider, node_hook=hook)

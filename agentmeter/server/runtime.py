@@ -143,19 +143,30 @@ def models_local(models: Optional[list[str]] = None) -> dict[str, bool]:
     return {m: model_on_disk(m) for m in (models if models is not None else study_models())}
 
 
+ENGINES = ("transformers", "vllm")
+
+
+def engine() -> str:
+    """The inference engine for real models: transformers (default) or vllm (AGENTMETER_ENGINE)."""
+    e = (os.environ.get("AGENTMETER_ENGINE") or "transformers").strip().lower()
+    return e if e in ENGINES else "transformers"
+
+
 def environment(mode: str) -> dict[str, Any]:
     """The record stamped into every job, session result, PDF and manifest."""
     g = gpu_info() if mode == "real" else {}
     return {
         "provider": mode,
-        "provider_note": ("real models on this GPU, 4-bit NF4 (bitsandbytes), one model at a time"
+        "engine": engine() if mode == "real" else None,
+        "provider_note": (f"real models on this GPU, 4-bit NF4 (bitsandbytes), {engine()} engine, one model at a time"
                           if mode == "real" else
                           "MOCK provider: deterministic heuristic, not a language model — not a measurement"),
         "gpu_name": g.get("name"), "gpu_count": g.get("count"), "gpu_vram_total_mb": g.get("vram_total_mb"),
         "driver_version": g.get("driver_version"), "cuda_driver_version": g.get("cuda_driver_version"),
         "cuda_runtime_version": g.get("cuda_runtime_version"),
         "torch": g.get("torch") or _version("torch"), "transformers": _version("transformers"),
-        "bitsandbytes": _version("bitsandbytes"), "python": platform.python_version(),
+        "bitsandbytes": _version("bitsandbytes"), "vllm": _version("vllm") if engine() == "vllm" else None,
+        "python": platform.python_version(),
         "host": ("vast.ai instance " + os.environ.get("VAST_CONTAINERLABEL", os.environ.get("CONTAINER_ID", "")))
                 if (os.environ.get("VAST_CONTAINERLABEL") or os.environ.get("CONTAINER_ID")) else platform.node(),
     }
@@ -196,6 +207,17 @@ def preflight(base_config: Optional[Path] = None, *, require_control_plane: bool
     q = cfg.get("model.hf.quantization") or {}
     if not (q.get("load_in_4bit") and str(q.get("bnb_4bit_quant_type", "nf4")) == "nf4"):
         problems.append("base config is not uniform 4-bit NF4")
+    raw = (os.environ.get("AGENTMETER_ENGINE") or "transformers").strip().lower()
+    if raw not in ENGINES:
+        problems.append(f"AGENTMETER_ENGINE={raw!r}: the engine must be one of {', '.join(ENGINES)}")
+    elif raw == "vllm":
+        if _version("vllm") is None:
+            problems.append("AGENTMETER_ENGINE=vllm but vLLM is not installed: pip install vllm")
+        from ..providers.vllm_provider import VLLMConfigError, check_quantization
+        try:
+            check_quantization(cfg)
+        except VLLMConfigError as e:
+            problems.append(str(e))
     # models need NOT be on disk: each one is downloaded the first time a benchmark uses it
     # (model_store.ensure_job_models), unless the admin marked it "download at start-up"
     if require_control_plane:

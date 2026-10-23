@@ -1,0 +1,6 @@
+# AgentMeter — optional vLLM engine for real models (scripts/serve.py --engine vllm).
+# Same open models, same 4-bit NF4 (vLLM's in-flight bitsandbytes quantization), with
+# continuous batching. Install on the GPU host AFTER requirements-gpu.txt; vLLM pins its own
+# torch, so use a fresh virtual environment if the versions clash.
+vllm>=0.11
+bitsandbytes>=0.46    # vLLM's 4-bit NF4 path

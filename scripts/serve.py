@@ -256,6 +256,7 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
             "ok": True, "service": "AgentMeter benchmark backend — measures LLM resource efficiency "
                                    "(not a threat-detection product)",
             "provider": mode,
+            "engine": env.get("engine"),
             "gpu": ({"name": env["gpu_name"], "vram_total_mb": env["gpu_vram_total_mb"],
                      "driver_version": env["driver_version"], "cuda": env["cuda_runtime_version"]}
                     if mode == "real" else None),
@@ -323,6 +324,9 @@ def main(argv=None) -> int:
                     help="real = HF models on this GPU (refuses to start without a GPU, the "
                          "models on disk and the control-plane secrets); mock = demo; auto (default, or "
                          "AGENTMETER_SERVICE_PROVIDER) = real iff CUDA is visible")
+    ap.add_argument("--engine", choices=("transformers", "vllm"), default=None,
+                    help="inference engine for real models (default transformers, or AGENTMETER_ENGINE): "
+                         "vllm runs the same open models in the same 4-bit NF4, with continuous batching")
     ap.add_argument("--auto-destroy", action="store_true",
                     help="DESTROY this Vast.ai instance after --idle-timeout minutes with no request "
                          "and no queued/running job (cost safety). DEFAULT OFF.")
@@ -340,6 +344,8 @@ def main(argv=None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     envtools.load_env()            # .env tokens; existing environment values win; never logged
     envtools.log_token_status()
+    if args.engine:
+        os.environ["AGENTMETER_ENGINE"] = args.engine    # read by runtime + every new session
 
     # Decide the provider ONCE; real mode must pass its preflight or the server does
     # not start (never a silent fallback to mock).
@@ -349,7 +355,7 @@ def main(argv=None) -> int:
         if mode == "real":
             env = runtime.preflight()
             print(f"  provider     : REAL — {env['gpu_name']} ({env['gpu_vram_total_mb']} MB), driver "
-                  f"{env['driver_version']}, CUDA {env['cuda_runtime_version']}", flush=True)
+                  f"{env['driver_version']}, CUDA {env['cuda_runtime_version']}, engine {runtime.engine()} (4-bit NF4)", flush=True)
         else:
             print("  provider     : MOCK (demo) — no language model runs on this server", flush=True)
     except runtime.RealModeError as e:

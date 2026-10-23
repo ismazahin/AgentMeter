@@ -773,6 +773,9 @@ def settings_of(config_data: dict[str, Any]) -> dict[str, Any]:
     custom = (config_data.get("pipeline") or {}).get("custom")
     if custom:        # a user-defined pipeline: its agents are part of what was measured
         out["pipeline.custom"] = custom
+    engine = (config_data.get("model") or {}).get("engine")
+    if engine and engine != "transformers":     # another inference engine measures differently
+        out["model.engine"] = engine
     for path in SETTINGS_KEYS:
         v: Any = config_data
         for k in path:

@@ -182,6 +182,8 @@ def make_instrumented_hook(collector: MetricsCollector, model_label: str, gpu: G
         update = agent_fn(state, provider, config)
         wall = time.perf_counter() - t0
         vram = gpu.read_peak_delta_mb()
+        if not getattr(provider, "measures_call_vram", True):
+            vram = None     # e.g. vLLM: its KV cache is reserved up front, no per-call delta exists
 
         res = update.get("_last_result")
         collector.add(

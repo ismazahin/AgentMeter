@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -126,6 +127,13 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
     data.setdefault("model", {})["name"] = models[0]
     if provider:
         data["model"]["provider"] = provider
+    # the inference engine for real models (transformers by default; vLLM when the GPU server
+    # runs with --engine vllm / AGENTMETER_ENGINE=vllm) — 4-bit NF4 either way
+    engine = (os.environ.get("AGENTMETER_ENGINE") or "").strip().lower()
+    if engine and engine != "transformers" and data["model"].get("provider") == "hf":
+        if engine != "vllm":
+            raise SessionError(f"unknown engine {engine!r} (transformers | vllm)")
+        data["model"]["engine"] = "vllm"
     data["dataset"] = {
         "path": str(run_dir / SCENARIOS_CSV),
         "label_column": "label",

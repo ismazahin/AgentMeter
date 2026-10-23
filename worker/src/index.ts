@@ -6,7 +6,7 @@ import { getBackend, heartbeat, register } from "./backend";
 import { authorize } from "./runs";
 import {
   backendGetFile, backendListSessions, backendSetIdentity, compareCandidatesRoute, compareMergedRoute, compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus,
-  leaderboardRoute, listSessions, putFile, putResults, putSummary,
+  leaderboardRoute, listSessions, patchSession, putFile, putResults, putSummary,
 } from "./sessions";
 import { telegramTest } from "./notify";
 import { getLimits, getSettings, putLimits, putSettings } from "./settings";
@@ -44,6 +44,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/api\/sessions$/, listSessions],
   ["GET", /^\/api\/sessions\/([^/]+)$/, getSession],
   ["DELETE", /^\/api\/sessions\/([^/]+)$/, deleteSession],
+  ["PATCH", /^\/api\/sessions\/([^/]+)$/, patchSession],
   ["GET", /^\/api\/sessions\/([^/]+)\/results$/, getResults],
   ["GET", /^\/api\/sessions\/([^/]+)\/constraints$/, constraintsRoute],
   ["GET", /^\/api\/sessions\/([^/]+)\/files\/([a-z_.]+)$/, getFile],

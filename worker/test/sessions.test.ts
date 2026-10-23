@@ -125,3 +125,41 @@ describe("prepared-set hash migration (backend-signed)", () => {
     expect(row.prepared_set_sha256).toBe("2".repeat(64));
   });
 });
+
+describe("notes and tags (owner or admin edits, everyone searches)", () => {
+  it("the owner edits; another user cannot; an admin can; bad input is refused; a summary upload keeps them", async () => {
+    const owner = await user(), other = await user(), admin = await user("admin");
+    await register();
+    await benchmarkFor(owner);
+    const patch = (u: { token: string }, body: unknown) => api(`/api/sessions/${SID}`, { method: "PATCH", body, token: u.token });
+    const r = await patch(owner, { notes: "  rerun after the tokenizer fix ", tags: ["thesis ch4", "Thesis CH4", "rerun", " "] });
+    expect(r.status).toBe(200);
+    expect(r.data).toMatchObject({ notes: "rerun after the tokenizer fix", tags: ["thesis ch4", "rerun"] });   // trimmed, deduped
+    expect((await patch(other, { notes: "x" })).status).toBe(403);
+    expect((await patch(admin, { tags: ["checked"] })).data).toMatchObject({ notes: "rerun after the tokenizer fix", tags: ["checked"] });
+    expect((await patch(owner, { notes: "y".repeat(2001) })).status).toBe(400);
+    expect((await patch(owner, { tags: ["<script>"] })).status).toBe(400);
+    expect((await patch(owner, { tags: Array.from({ length: 11 }, (_, i) => `t${i}`) })).status).toBe(400);
+    expect((await patch(owner, { tags: "rerun" })).status).toBe(400);
+    const s = { ...F.summaries[0], session_id: SID, job_id: SID };
+    await backendCall("PUT", `/api/backend/sessions/${SID}/summary`, { summary: s });
+    expect((await api(`/api/sessions/${SID}`, { token: other.token })).data).toMatchObject({ notes: "rerun after the tokenizer fix", tags: ["checked"] });
+  });
+
+  it("search matches every word across models, notes, tags and owner; tag filter is exact; wildcards are literal", async () => {
+    const u = await user();
+    await register();
+    await benchmarkFor(u);
+    await api(`/api/sessions/${SID}`, { method: "PATCH", body: { notes: "baseline before the 50% cut", tags: ["thesis ch4"] }, token: u.token });
+    const ids = async (qs: string) => (await api(`/api/sessions?${qs}`, { token: u.token })).data.sessions.map((x: any) => x.session_id);
+    expect(await ids("q=baseline")).toEqual([SID]);
+    expect(await ids("q=" + encodeURIComponent("m/a BASELINE"))).toEqual([SID]);        // both words, any case
+    expect(await ids("q=" + encodeURIComponent("baseline nowhere"))).toEqual([]);
+    expect(await ids("q=" + encodeURIComponent(u.name))).toEqual([SID]);
+    expect(await ids("q=" + encodeURIComponent("50%"))).toEqual([SID]);
+    expect(await ids("q=" + encodeURIComponent("%"))).toEqual([SID]);                  // literal %, still in the notes
+    expect(await ids("q=" + encodeURIComponent("_x_"))).toEqual([]);                   // _ is not a wildcard
+    expect(await ids("tag=" + encodeURIComponent("Thesis CH4"))).toEqual([SID]);
+    expect(await ids("tag=thesis")).toEqual([]);                                        // whole tag only
+  });
+});

@@ -154,10 +154,11 @@
   .btn.big { min-height: 52px; padding: 0 24px; font-size: 16px; }
   .btn[disabled], .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
   label { font-weight: 600; }
-  input[type="text"], input[type="url"], input[type="number"], input[type="password"], select {
+  input[type="text"], input[type="url"], input[type="number"], input[type="password"], input[type="search"], textarea, select {
     font: inherit; min-height: 44px; padding: 8px 12px; border: 1px solid var(--border-2); border-radius: var(--radius);
     background: var(--surface); color: var(--text); max-width: 100%; }
-  input[type="url"], input.wide { width: 100%; max-width: 640px; }
+  input[type="url"], input.wide, textarea { width: 100%; max-width: 640px; }
+  textarea { font: inherit; resize: vertical; }
   input[type="number"] { width: 130px; }
   input[type="file"] { font: inherit; color: var(--muted-2); max-width: 100%; }
   .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; max-width: 100%; }
@@ -360,6 +361,11 @@
   .rep-row { align-items: start; }
   .rep-spread { margin: 0 6px 4px; }
   .finding-line { margin: 4px 0 10px; }
+  .tag-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .tag-chip { cursor: pointer; font-size: 12px; padding: 2px 8px; }
+  span.tag-chip { cursor: default; }
+  .note-snip { margin-top: 4px; color: var(--muted-2); max-width: 46ch; }
+  .notes-text { white-space: pre-wrap; }
   .stab { display: grid; gap: 12px; }
   .stab-row, .stab-axis { display: grid; grid-template-columns: minmax(90px, 150px) 1fr; gap: 12px; align-items: start; }
   .stab-row .lbl { font-size: 13.5px; font-weight: 600; padding-top: 2px; }
@@ -486,7 +492,7 @@
   .btn:hover { background: var(--surface-2); }
   .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
   .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-  input[type="text"], input[type="url"], input[type="number"], input[type="password"], select { background: var(--surface); border-radius: var(--radius); }
+  input[type="text"], input[type="url"], input[type="number"], input[type="password"], input[type="search"], textarea, select { background: var(--surface); border-radius: var(--radius); }
   .drop { border-radius: var(--radius-lg); background: var(--surface); }
   .model { border-radius: var(--radius); background: var(--surface); }
   .model:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
@@ -878,11 +884,14 @@
       <a class="btn primary" href="#/new">New benchmark</a></div>
     <div class="card">
       <form class="row" style="margin-top:0" id="sessions-filter">
+        <div class="field" style="flex:1 1 260px"><label for="flt-q">Search</label>
+          <input type="search" id="flt-q" class="wide" placeholder="model, notes, tag, owner…" autocomplete="off"></div>
         <div class="field"><label for="flt-status">Status</label>
           <select id="flt-status"><option value="">All</option><option>Done</option><option>Demo</option><option>Running</option><option>Failed</option><option>Stopped</option></select></div>
         <div class="field"><label for="flt-input">Input type</label>
           <select id="flt-input"><option value="">All</option><option value="CSV">CSV</option><option value="PCAP">PCAP</option></select></div>
       </form>
+      <p id="flt-tag-row" class="small" hidden>Tag: <button type="button" class="chip tag-chip" id="flt-tag" aria-label="Remove tag filter"></button></p>
       <div class="table-wrap" style="margin-top:14px" id="sessions-table-box"></div>
     </div>
   </section>
@@ -1510,8 +1519,10 @@
   function sessionsTable(rows, id) {
     return '<table id="' + id + '"><thead><tr><th>Session</th><th>Input</th><th class="num">Flows</th><th>GPU</th><th>More efficient</th><th>Status</th><th></th></tr></thead><tbody>' +
       rows.map(function (s) {
+        var tags = (s.tags || []).map(function (t) { return '<button type="button" class="chip tag-chip" data-tag="' + esc(t) + '" title="Show sessions tagged ' + esc(t) + '">' + esc(t) + '</button>'; }).join("");
         return '<tr><td><span class="mono" title="' + esc(s.session_id) + '">' + esc(shortId(s.session_id)) + '</span><br><span class="muted small">' + esc((s.models || []).map(short).join(" vs ")) +
-          '</span></td><td>' + esc(s.input_type || "—") + '</td><td class="num">' + fmtNum(s.n_flows) + '</td><td>' + esc(s.gpu || "—") +
+          '</span>' + (tags ? '<div class="tag-row">' + tags + '</div>' : "") + (s.notes ? '<div class="small note-snip" title="' + esc(s.notes) + '">' + esc(s.notes.length > 90 ? s.notes.slice(0, 88) + "…" : s.notes) + '</div>' : "") +
+          '</td><td>' + esc(s.input_type || "—") + '</td><td class="num">' + fmtNum(s.n_flows) + '</td><td>' + esc(s.gpu || "—") +
           '</td><td>' + esc(s.more_efficient ? (s.more_efficient.indexOf("/") > 0 ? short(s.more_efficient) : s.more_efficient) : "—") +
           '</td><td>' + statusChip(s.status) + '</td><td>' + sessionLink(s) + '</td></tr>';
       }).join("") + '</tbody></table>';
@@ -2090,21 +2101,31 @@
   }
 
   // ---------- SESSIONS ----------
+  var FLT_TAG = "";
   function loadSessions() {
-    var q = [], st = $("flt-status").value, it = $("flt-input").value;
+    var q = [], st = $("flt-status").value, it = $("flt-input").value, qs = $("flt-q").value.trim();
     if (st) q.push("status=" + enc(st));
     if (it) q.push("input=" + enc(it));
+    if (qs) q.push("q=" + enc(qs));
+    if (FLT_TAG) q.push("tag=" + enc(FLT_TAG));
+    $("flt-tag-row").hidden = !FLT_TAG; $("flt-tag").textContent = FLT_TAG + " ✕";
     var box = $("sessions-table-box");
     box.innerHTML = '<p class="muted" style="padding:12px">Loading…</p>';
     api("/api/sessions?limit=200" + (q.length ? "&" + q.join("&") : "")).then(function (r) {
       if (!r.ok) { box.innerHTML = '<p class="notice error" style="margin:12px">' + esc(r.data.error) + '</p>'; return; }
       var rows = r.data.sessions || [];
+      var any = st || it || qs || FLT_TAG;
       box.innerHTML = rows.length ? sessionsTable(rows, "sessions-table")
-        : '<div class="empty"><p>' + (st || it ? "No sessions match these filters." : "No sessions yet — start one with New benchmark.") + '</p>' +
-          (st || it ? "" : '<a class="btn primary" href="#/new">New benchmark</a>') + '</div>';
+        : '<div class="empty"><p>' + (any ? "No sessions match these filters." : "No sessions yet — start one with New benchmark.") + '</p>' +
+          (any ? "" : '<a class="btn primary" href="#/new">New benchmark</a>') + '</div>';
+      box.querySelectorAll("[data-tag]").forEach(function (b) { b.addEventListener("click", function () { FLT_TAG = b.getAttribute("data-tag"); loadSessions(); }); });
     });
   }
   ["flt-status", "flt-input"].forEach(function (id) { $(id).addEventListener("change", loadSessions); });
+  var fltTimer = null;
+  $("flt-q").addEventListener("input", function () { clearTimeout(fltTimer); fltTimer = setTimeout(loadSessions, 250); });
+  $("sessions-filter").addEventListener("submit", function (ev) { ev.preventDefault(); loadSessions(); });
+  $("flt-tag").addEventListener("click", function () { FLT_TAG = ""; loadSessions(); });
 
   // ---------- ONE SESSION ----------
   var SESSION = { id: null, res: null, job: null };
@@ -2207,6 +2228,7 @@
             if (!rr.ok) { w.hidden = false; w.innerHTML = '<div class="notice error">' + esc(rr.data.error) + '</div>'; return; }
             w.hidden = true; w.innerHTML = "";
             var st = SESSION.stored, job = { job_id: id, run_name: st.run_name, models: st.models, created_at: st.created_at,
+                                            notes: st.notes || "", tags: st.tags || [], can_edit: !!st.can_delete,
                                             owner: st.owner, files: st.files || [], can_delete: st.can_delete, stored: true };
             SESSION.res = rr.data; SESSION.job = job;
             renderSession(rr.data, job);
@@ -2301,7 +2323,7 @@
     var base = "#/session/" + enc(job.job_id) + "/";
     if (window.INSIGHTS) setModelSlots(res);
     LC = {};                                         // line charts of this session (wired after render)
-    $("spanel-overview").innerHTML = pane("main", overviewTab(res));
+    $("spanel-overview").innerHTML = pane("main", overviewTab(res) + notesCard(job));
     $("spanel-ranking").innerHTML = pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
         'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", stabilityCard(res)) + pane("pareto", "") + pane("guide", "");
     $("spanel-accuracy").innerHTML = pane("main", classMetricsCard(res));
@@ -2311,7 +2333,7 @@
     $("spanel-recommendations").innerHTML = pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
     $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
     resetEmbed();
-    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); wireRepeat(res, job);
+    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); wireRepeat(res, job); wireNotes(job);
   }
 
   function setDl(a, path, name) {
@@ -2696,6 +2718,36 @@
       '<div class="table-wrap"><table id="gpu-timeline-table"><thead><tr><th>Model</th><th class="num">Samples</th><th class="num">Mean power</th><th class="num">Peak power</th><th class="num">Mean utilisation</th><th class="num">Peak memory</th></tr></thead><tbody>' +
       g.per_model.map(function (m) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtNum(m.n_samples) + '</td><td class="num">' + (m.mean_power_w == null ? "—" : fmtNum(m.mean_power_w, 1) + " W") + '</td><td class="num">' + (m.peak_power_w == null ? "—" : fmtNum(m.peak_power_w, 0) + " W") +
         '</td><td class="num">' + (m.mean_util_pct == null ? "—" : fmtNum(m.mean_util_pct, 0) + "%") + '</td><td class="num">' + (m.peak_mem_mb == null ? "—" : fmtMB(m.peak_mem_mb)) + '</td></tr>'; }).join("") + '</tbody></table></div></div>';
+  }
+  // Overview: notes and tags (owner or admin edits; with a control plane the Worker stores them)
+  function canEditNotes(job) { return CP ? !!job.can_edit : true; }
+  function notesCard(job) {
+    var tags = job.tags || [], edit = canEditNotes(job);
+    var view = (tags.length ? '<div class="tag-row">' + tags.map(function (t) { return '<span class="chip tag-chip">' + esc(t) + '</span>'; }).join("") + '</div>' : "") +
+      (job.notes ? '<p class="notes-text">' + esc(job.notes) + '</p>' : "");
+    if (!edit) return '<div class="card" id="svc-notes"><h2>Notes and tags</h2>' + (view || '<p class="muted small">No notes.</p>') + '<p class="muted small">Only the session\'s owner or an admin can edit them.</p></div>';
+    return '<form class="card" id="svc-notes" novalidate><h2>Notes and tags</h2><p class="muted small" style="margin-top:0">Your own labels for this session — e.g. what you were testing. Searchable under Sessions; they never change a result.</p>' +
+      '<div class="field"><label for="svc-notes-text">Notes</label><textarea id="svc-notes-text" rows="3" maxlength="2000" placeholder="e.g. rerun after the tokenizer fix">' + esc(job.notes || "") + '</textarea></div>' +
+      '<div class="field"><label for="svc-notes-tags">Tags <span class="hint">(comma-separated, up to 10)</span></label><input type="text" id="svc-notes-tags" class="wide" value="' + esc(tags.join(", ")) + '" placeholder="thesis ch4, baseline" autocomplete="off"></div>' +
+      '<div class="actions"><button type="submit" class="btn" id="svc-notes-save">Save notes and tags</button><span class="small muted" id="svc-notes-saved" role="status"></span></div>' +
+      '<div id="svc-notes-error" class="notice error" role="alert" hidden></div></form>';
+  }
+  function wireNotes(job) {
+    var f = $("svc-notes");
+    if (!f || f.tagName !== "FORM") return;
+    f.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      $("svc-notes-error").hidden = true; $("svc-notes-saved").textContent = "";
+      var body = { notes: $("svc-notes-text").value, tags: $("svc-notes-tags").value.split(",") };
+      $("svc-notes-save").disabled = true;
+      api("/api/sessions/" + enc(job.job_id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
+        $("svc-notes-save").disabled = false;
+        if (!r.ok) { showError($("svc-notes-error"), r.data); return; }
+        job.notes = r.data.notes; job.tags = r.data.tags;
+        $("svc-notes-tags").value = (r.data.tags || []).join(", "); $("svc-notes-text").value = r.data.notes || "";
+        $("svc-notes-saved").textContent = "Saved.";
+      });
+    });
   }
   // Performance -> Statistics: how many flows a reliable latency comparison needs
   function sampleSizeCard(res) {

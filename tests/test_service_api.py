@@ -179,3 +179,18 @@ def test_load_test_flag_is_a_boolean_and_stored_on_the_job(env):
     assert ok.status_code == 202 and mgr.get(ok.get_json()["job_id"])["load_test"] is True
     plain = c.post("/api/jobs", json={"run": run, "models": ["a"], "provider": "mock"})
     assert mgr.get(plain.get_json()["job_id"])["load_test"] is False
+
+
+def test_session_notes_tags_and_search_without_a_control_plane(env):
+    c, mgr, _ = env
+    run = upload(c, SAMPLE_CSV, max_flows="5").get_json()["run"]
+    j = c.post("/api/jobs", json={"run": run, "models": ["a"], "provider": "mock"}).get_json()["job_id"]
+    mgr.wait(j)
+    r = c.patch(f"/api/sessions/{j}", json={"notes": "  baseline before the 50% cut ", "tags": ["thesis ch4", "Thesis CH4", " "]})
+    assert r.status_code == 200 and r.get_json()["notes"] == "baseline before the 50% cut" and r.get_json()["tags"] == ["thesis ch4"]
+    for bad in ({"notes": "y" * 2001}, {"tags": ["<script>"]}, {"tags": [f"t{i}" for i in range(11)]}, {"tags": "x"}, {"notes": 3}):
+        assert c.patch(f"/api/sessions/{j}", json=bad).status_code == 400, bad
+    ids = lambda qs: [s["session_id"] for s in c.get(f"/api/sessions?{qs}").get_json()["sessions"]]  # noqa: E731
+    assert ids("q=BASELINE") == [j] and ids("q=a%20baseline") == [j] and ids("q=baseline%20nowhere") == []
+    assert ids("q=50%25") == [j] and ids("tag=Thesis%20CH4") == [j] and ids("tag=thesis") == []
+    assert c.get(f"/api/sessions/{j}").get_json()["tags"] == ["thesis ch4"]

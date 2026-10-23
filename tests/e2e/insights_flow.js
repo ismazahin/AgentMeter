@@ -169,6 +169,21 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log(/CO₂ \/ day/.test(await p.textContent('#proj-table thead')) && /needs measured energy/.test(await p.textContent('#proj-table tbody')),
         'cost: CO₂ column, honest when energy was not measured');
 
+    // Phase C — notes, tags, search
+    await tab(p, csv, 'overview', '#svc-notes');
+    await p.fill('#svc-notes-text', 'rerun after the tokenizer fix'); await p.fill('#svc-notes-tags', 'thesis ch4, baseline, Baseline');
+    await p.click('#svc-notes-save'); await p.waitForFunction(() => /Saved/.test(document.getElementById('svc-notes-saved').textContent));
+    log(await p.inputValue('#svc-notes-tags') === 'thesis ch4, baseline', 'notes: saved; tags trimmed and de-duplicated');
+    await p.goto(ORIGIN + '/#/sessions'); await p.waitForSelector('#sessions-table');
+    await p.fill('#flt-q', 'tokenizer'); await p.waitForTimeout(900);
+    const found = await p.$$eval('#sessions-table tbody tr', rs => rs.map(r => r.textContent));
+    log(found.length === 1 && /rerun after the tokenizer fix/.test(found[0]), 'sessions: search finds the session by its notes');
+    await p.fill('#flt-q', ''); await p.waitForTimeout(900);
+    await p.click('#sessions-table [data-tag="thesis ch4"]'); await p.waitForTimeout(900);
+    log((await p.$$('#sessions-table tbody tr')).length === 1 && !(await p.isHidden('#flt-tag-row')), 'sessions: clicking a tag filters by it');
+    await p.click('#flt-tag'); await p.waitForTimeout(900);
+    log((await p.$$('#sessions-table tbody tr')).length >= 3, 'sessions: removing the tag filter lists all again');
+
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;
@@ -176,6 +191,8 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
       await tab(p, csv, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }
+    await p.goto(ORIGIN + '/#/sessions'); await p.waitForSelector('#sessions-table'); await p.waitForTimeout(300);
+    maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     log(maxW <= 375, 'no horizontal page scroll at 375px (max scrollWidth ' + maxW + ')');
   } catch (e) {
     log(false, 'walk-through crashed: ' + e.message.split('\n')[0]);

@@ -13,6 +13,8 @@ finished job's session_results.json (persistence moves to a control plane later)
 """
 from __future__ import annotations
 
+import re
+
 from pathlib import Path
 from typing import Any, Optional
 
@@ -142,6 +144,7 @@ def session_summary(job: dict[str, Any], res: Optional[dict[str, Any]] = None,
         "gpu": ("Demo (no GPU)" if demo else (env.get("gpu_name") or "GPU")),
         "message": job.get("message"), "error": job.get("error"),
         "waiting_for_prepare": job.get("after_prepare") if not job.get("run_dir") else None,
+        "notes": job.get("notes") or "", "tags": list(job.get("tags") or []),
     }
     if res:
         v = _verdict(res)
@@ -151,6 +154,50 @@ def session_summary(job: dict[str, Any], res: Optional[dict[str, Any]] = None,
                    prepared_set_sha256=ident.get("prepared_set_sha256"),
                    settings_fingerprint=ident.get("settings_fingerprint"))
     return out
+
+
+NOTES_MAX, TAGS_MAX = 2000, 10
+_TAG = re.compile(r"^[^\W_][\w .\-]{0,29}$")
+
+
+def clean_annotations(body: dict[str, Any]) -> dict[str, Any]:
+    """Notes and tags of a session, checked the same way as the Worker (worker/src/sessions.ts)."""
+    from .jobs import JobError
+    out: dict[str, Any] = {}
+    if "notes" in body:
+        if not isinstance(body["notes"], str):
+            raise JobError("notes must be text", "bad_request", 400)
+        n = body["notes"].strip()
+        if len(n) > NOTES_MAX:
+            raise JobError(f"notes are limited to {NOTES_MAX} characters", "bad_request", 400)
+        out["notes"] = n
+    if "tags" in body:
+        if not isinstance(body["tags"], list) or not all(isinstance(t, str) for t in body["tags"]):
+            raise JobError("tags must be a list of words", "bad_request", 400)
+        seen, tags = set(), []
+        for raw in body["tags"]:
+            t = " ".join(raw.split())
+            if not t:
+                continue
+            if not _TAG.match(t):
+                raise JobError(f'tag "{t[:40]}": letters, digits, space, _ . - only, up to 30 characters', "bad_request", 400)
+            if t.lower() not in seen:
+                seen.add(t.lower())
+                tags.append(t)
+        if len(tags) > TAGS_MAX:
+            raise JobError(f"at most {TAGS_MAX} tags", "bad_request", 400)
+        out["tags"] = tags
+    return out
+
+
+def matches(row: dict[str, Any], q: str, tag: str) -> bool:
+    """Search (every word, any case, in models / prepared set / notes / tags / owner / id) and an
+    exact tag — the Worker's list filters, on a session_summary row."""
+    if tag and tag.lower() not in [t.lower() for t in row.get("tags") or []]:
+        return False
+    hay = " ".join([*(row.get("models") or []), row.get("run_name") or "", row.get("notes") or "",
+                    *(row.get("tags") or []), row.get("owner_username") or "", row.get("session_id") or ""]).lower()
+    return all(w in hay for w in q.lower().split()[:8])
 
 
 def cp_summary(job: dict[str, Any], res: dict[str, Any]) -> dict[str, Any]:
@@ -453,6 +500,7 @@ def register_sessions(app, get_manager) -> None:
         mgr = get_manager()
         status = (request.args.get("status") or "").strip().lower()
         itype = (request.args.get("input") or "").strip().upper()
+        q, tag = (request.args.get("q") or "").strip(), (request.args.get("tag") or "").strip()
         try:
             limit = max(1, min(200, int(request.args.get("limit", 50))))
         except ValueError:
@@ -467,6 +515,8 @@ def register_sessions(app, get_manager) -> None:
                     prep = None
             r = session_summary(j, _result(mgr, j), prep)
             if status and r["status"].lower() != status:
+                continue
+            if (q or tag) and not matches(r, q, tag):
                 continue
             if itype and (r["input_type"] or "") != itype:
                 continue
@@ -486,7 +536,24 @@ def register_sessions(app, get_manager) -> None:
             return fail(JobError(f"{job_id} is not a benchmark session", "not_found", 404))
         out = session_summary(job, _result(mgr, job))
         out["identity"] = identity(job, _result(mgr, job)) if job.get("status") == "done" else None
+        out["can_delete"] = out["can_edit"] = True          # no control plane: one user (it checks owners)
         return jsonify(out)
+
+    @app.route("/api/sessions/<job_id>", methods=["PATCH"])
+    def session_annotate(job_id):
+        """Notes and tags (no control plane; with one, the Worker serves this and the backend
+        refuses writes it does not know — access.required)."""
+        mgr = get_manager()
+        try:
+            job = mgr.get(job_id)
+            if (job.get("kind") or "benchmark") != "benchmark":
+                raise JobError(f"{job_id} is not a benchmark session", "not_found", 404)
+            c = clean_annotations(request.get_json(silent=True) or {})
+            if c:
+                mgr._update(job_id, **c)
+        except JobError as e:
+            return fail(e)
+        return jsonify(session_summary(mgr.get(job_id), _result(mgr, mgr.get(job_id))))
 
     @app.route("/api/compare", methods=["GET"])
     def sessions_compare():

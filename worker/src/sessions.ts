@@ -6,7 +6,7 @@ import { requireUser } from "./auth";
 import { mapJobStatus as STATUS_FROM_JOB, parseBody, verifyBackend } from "./backend";
 import { ConstraintError, Summary, compare, compareMany, comparable, evaluateFacts, leaderboard, leaderboardOverall, LEADERBOARD_SORTS, OVERALL_BY } from "./analytics";
 import { notifyFinal } from "./notify";
-import { Env, fail, intVar, json, nowIso } from "./util";
+import { Env, fail, intVar, json, nowIso, readJson } from "./util";
 
 const SESSION_ID = /^job_\d{8}_\d{6}_([0-9a-f]{6}|[0-9a-f]{32})$/;
 export const FILES = ["report.pdf", "manifest.json", "features.csv", "labels.csv"] as const;
@@ -20,13 +20,13 @@ interface Row {
   finished_at: string | null; input_type: string | null; n_flows: number | null; gpu: string | null; provider: string | null;
   models_json: string | null; more_efficient: string | null; prepared_set: string | null; summary_json: string | null;
   results_json: string | null; results_r2_key: string | null; results_bytes: number | null; files_json: string | null;
-  weights_json: string | null; deleted_at: string | null;
+  weights_json: string | null; deleted_at: string | null; notes: string | null; tags_json: string | null;
 }
 
 const checkId = (id: string) => { if (!SESSION_ID.test(id)) fail(404, "not_found", "no such session"); return id; };
 
 async function getRow(env: Env, id: string, withResults = false): Promise<Row> {
-  const cols = withResults ? "*" : "id, owner_id, owner_username, status, created_at, finished_at, input_type, n_flows, gpu, provider, models_json, more_efficient, prepared_set, summary_json, results_r2_key, results_bytes, files_json, weights_json, deleted_at";
+  const cols = withResults ? "*" : "id, owner_id, owner_username, status, created_at, finished_at, input_type, n_flows, gpu, provider, models_json, more_efficient, prepared_set, summary_json, results_r2_key, results_bytes, files_json, weights_json, deleted_at, notes, tags_json";
   const r = await env.DB.prepare(`SELECT ${cols} FROM sessions WHERE id=?`).bind(checkId(id)).first<Row>();
   if (!r || r.deleted_at) fail(404, "not_found", "no such session");
   return r!;
@@ -41,7 +41,44 @@ function view(r: Row): Summary {
   };
   delete s.facts;
   return { ...s, status: r.status, owner: r.owner_username, has_results: !!(r.summary_json && (r.results_bytes || 0) > 0),
-           files: r.files_json ? Object.keys(JSON.parse(r.files_json)) : [], finished_at: r.finished_at ?? s.finished_at ?? null };
+           files: r.files_json ? Object.keys(JSON.parse(r.files_json)) : [], finished_at: r.finished_at ?? s.finished_at ?? null,
+           notes: r.notes ?? "", tags: r.tags_json ? JSON.parse(r.tags_json) : [] };
+}
+
+// notes and tags: limits shared with the backend (agentmeter/server/sessions.py clean_annotations)
+const NOTES_MAX = 2000, TAGS_MAX = 10, TAG = /^[\p{L}\p{N}][\p{L}\p{N} _.\-]{0,29}$/u;
+export function cleanAnnotations(body: Record<string, unknown>): { notes?: string; tags?: string[] } {
+  const out: { notes?: string; tags?: string[] } = {};
+  if (body.notes !== undefined) {
+    if (typeof body.notes !== "string") fail(400, "bad_request", "notes must be text");
+    const n = (body.notes as string).trim();
+    if (n.length > NOTES_MAX) fail(400, "bad_request", `notes are limited to ${NOTES_MAX} characters`);
+    out.notes = n;
+  }
+  if (body.tags !== undefined) {
+    if (!Array.isArray(body.tags) || body.tags.some((t) => typeof t !== "string")) fail(400, "bad_request", "tags must be a list of words");
+    const seen = new Set<string>(), tags: string[] = [];
+    for (const raw of body.tags as string[]) {
+      const t = raw.trim().replace(/\s+/g, " ");
+      if (!t) continue;
+      if (!TAG.test(t)) fail(400, "bad_request", `tag "${t.slice(0, 40)}": letters, digits, space, _ . - only, up to 30 characters`);
+      if (!seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); tags.push(t); }
+    }
+    if (tags.length > TAGS_MAX) fail(400, "bad_request", `at most ${TAGS_MAX} tags`);
+    out.tags = tags;
+  }
+  return out;
+}
+
+/** PATCH /api/sessions/:id {notes?, tags?} — the owner or an admin. */
+export async function patchSession(req: Request, env: Env, id: string): Promise<Response> {
+  const a = await requireUser(req, env);
+  const r = await getRow(env, id);
+  if (a.user.role !== "admin" && (!r.owner_id || r.owner_id !== a.user.id)) fail(403, "forbidden", "only the owner or an admin can edit a session's notes and tags");
+  const c = cleanAnnotations(await readJson(req, 16 * 1024));
+  await env.DB.prepare("UPDATE sessions SET notes=COALESCE(?, notes), tags_json=COALESCE(?, tags_json), updated_at=? WHERE id=?")
+    .bind(c.notes ?? null, c.tags ? JSON.stringify(c.tags) : null, nowIso(), id).run();
+  return json(view(await getRow(env, id)));
 }
 
 // --- users --------------------------------------------------------------------------------
@@ -54,8 +91,16 @@ export async function listSessions(req: Request, env: Env): Promise<Response> {
   if (st) { where.push("LOWER(status)=LOWER(?)"); args.push(st); }
   const it = (q.get("input") || "").trim().toUpperCase();
   if (it) { where.push("input_type=?"); args.push(it); }
+  // search: every word must appear in the models, prepared set, notes, tags, owner or session id
+  const like = (w: string) => "%" + w.replace(/[\\%_]/g, (c) => "\\" + c) + "%";
+  for (const w of (q.get("q") || "").trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8)) {
+    where.push("(LOWER(COALESCE(models_json,'') || ' ' || COALESCE(prepared_set,'') || ' ' || COALESCE(notes,'') || ' ' || COALESCE(tags_json,'') || ' ' || COALESCE(owner_username,'') || ' ' || id) LIKE ? ESCAPE '\\')");
+    args.push(like(w));
+  }
+  const tag = (q.get("tag") || "").trim().toLowerCase();
+  if (tag) { where.push("LOWER(COALESCE(tags_json,'')) LIKE ? ESCAPE '\\'"); args.push(like(JSON.stringify(tag))); }
   const r = await env.DB.prepare(
-    `SELECT id, owner_id, owner_username, status, created_at, finished_at, input_type, n_flows, gpu, provider, models_json, prepared_set, summary_json, results_bytes, files_json
+    `SELECT id, owner_id, owner_username, status, created_at, finished_at, input_type, n_flows, gpu, provider, models_json, prepared_set, summary_json, results_bytes, files_json, notes, tags_json
      FROM sessions WHERE ${where.join(" AND ")} ORDER BY created_at DESC LIMIT ?`).bind(...args, limit).all<Row>();
   return json({ sessions: r.results.map(view), statuses: ["Done", "Demo", "Running", "Failed", "Interrupted", "Stopped"] });
 }

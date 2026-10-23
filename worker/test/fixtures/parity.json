@@ -21,6 +21,8 @@
    "message": null,
    "error": null,
    "waiting_for_prepare": null,
+   "notes": "",
+   "tags": [],
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -140,6 +142,8 @@
    "message": null,
    "error": null,
    "waiting_for_prepare": null,
+   "notes": "",
+   "tags": [],
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -259,6 +263,8 @@
    "message": null,
    "error": null,
    "waiting_for_prepare": null,
+   "notes": "",
+   "tags": [],
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -377,6 +383,8 @@
    "message": null,
    "error": null,
    "waiting_for_prepare": null,
+   "notes": "",
+   "tags": [],
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -465,6 +473,8 @@
    "message": null,
    "error": null,
    "waiting_for_prepare": null,
+   "notes": "",
+   "tags": [],
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -584,6 +594,8 @@
    "message": null,
    "error": null,
    "waiting_for_prepare": null,
+   "notes": "",
+   "tags": [],
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -692,6 +704,8 @@
    "message": null,
    "error": null,
    "waiting_for_prepare": null,
+   "notes": "",
+   "tags": [],
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -817,6 +831,8 @@
      "message": null,
      "error": null,
      "waiting_for_prepare": null,
+     "notes": "",
+     "tags": [],
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -908,6 +924,8 @@
      "message": null,
      "error": null,
      "waiting_for_prepare": null,
+     "notes": "",
+     "tags": [],
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -1325,6 +1343,8 @@
      "message": null,
      "error": null,
      "waiting_for_prepare": null,
+     "notes": "",
+     "tags": [],
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -1416,6 +1436,8 @@
      "message": null,
      "error": null,
      "waiting_for_prepare": null,
+     "notes": "",
+     "tags": [],
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -1823,6 +1845,8 @@
      "message": null,
      "error": null,
      "waiting_for_prepare": null,
+     "notes": "",
+     "tags": [],
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -1913,6 +1937,8 @@
      "message": null,
      "error": null,
      "waiting_for_prepare": null,
+     "notes": "",
+     "tags": [],
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -2283,6 +2309,8 @@
      "message": null,
      "error": null,
      "waiting_for_prepare": null,
+     "notes": "",
+     "tags": [],
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -2374,6 +2402,8 @@
      "message": null,
      "error": null,
      "waiting_for_prepare": null,
+     "notes": "",
+     "tags": [],
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -2797,6 +2827,8 @@
      "message": null,
      "error": null,
      "waiting_for_prepare": null,
+     "notes": "",
+     "tags": [],
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -2888,6 +2920,8 @@
      "message": null,
      "error": null,
      "waiting_for_prepare": null,
+     "notes": "",
+     "tags": [],
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -3313,6 +3347,8 @@
      "message": null,
      "error": null,
      "waiting_for_prepare": null,
+     "notes": "",
+     "tags": [],
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -3403,6 +3439,8 @@
      "message": null,
      "error": null,
      "waiting_for_prepare": null,
+     "notes": "",
+     "tags": [],
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",

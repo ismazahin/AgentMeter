@@ -259,6 +259,14 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
         'GPU off: Reuse a prepared set opens and stays open, listing the saved sets');
     await p.click('#svc-stored-table [data-restore]'); await p.waitForSelector('#svc-stored-error:not([hidden])');
     log(/GPU offline/.test(await p.textContent('#svc-stored-error')) && await p.isVisible('#src-reuse'), 'GPU off: using a saved set says the GPU is needed, the tab stays');
+    // notes and tags live in the control plane: editable and searchable with the GPU off
+    await p.goto(APP + `/#/session/${job1}/overview`); await p.waitForSelector('form#svc-notes', { timeout: 30000 });
+    await p.fill('#svc-notes-text', 'first demo session'); await p.fill('#svc-notes-tags', 'cp-check');
+    await p.click('#svc-notes-save'); await p.waitForFunction(() => /Saved/.test(document.getElementById('svc-notes-saved').textContent), null, { timeout: 15000 });
+    await p.goto(APP + '/#/sessions'); await p.waitForSelector('#sessions-table');
+    await p.fill('#flt-q', 'first demo'); await p.waitForTimeout(1200);
+    const hits = await p.$$eval('#sessions-table tbody tr', rs => rs.map(r => r.textContent));
+    log(hits.length === 1 && /cp-check/.test(hits[0]), 'GPU off: the owner saves notes and tags (control plane); search finds them');
     await p.goto(APP + '/#/new/models?set=' + encodeURIComponent(set)); await p.waitForSelector('#svc-run');
     log(await p.isDisabled('#svc-run') && /GPU offline/.test(await p.textContent('#svc-run')), 'GPU off: Run shows GPU offline');
 

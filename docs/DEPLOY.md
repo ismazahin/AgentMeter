@@ -208,7 +208,7 @@ backend are recomputed automatically from their run folder.
 
 **Updating a deployed control plane** (after `git pull`), from the `worker` folder:
 ```bash
-npx wrangler d1 migrations apply agentmeter --remote   # only applies new files in migrations/ (e.g. 0003_auth_devices.sql)
+npx wrangler d1 migrations apply agentmeter --remote   # only applies new files in migrations/ (e.g. 0004_session_notes.sql: session notes and tags)
 npx wrangler deploy                                    # the Worker
 cd .. && npx wrangler pages deploy web --project-name agentmeter   # the pages
 ```

@@ -159,6 +159,16 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     const r2 = await (await fetch(ORIGIN + '/api/jobs/' + encodeURIComponent(again) + '/result')).json();
     log(r1.session.run_id !== r2.session.run_id, 'each session keeps its own results after a re-run on the same flows');
 
+    // Phase B — sample-size advisor + carbon
+    await tab(p, csv, 'performance/statistics', '#svc-samplesize');
+    log((await p.$$('#svc-samplesize-table tbody tr')).length === 3 && /cannot be told apart reliably/.test(await p.textContent('#svc-samplesize-lead')),
+        'statistics: how many flows are needed for 5 / 10 / 20% latency differences');
+    await tab(p, pcap, 'performance/statistics', '#svc-samplesize');
+    log(/mean latency is known to within/.test(await p.textContent('#svc-samplesize-lead')), 'statistics (1 model): precision of the mean instead');
+    await tab(p, csv, 'cost', '#proj-table');
+    log(/CO₂ \/ day/.test(await p.textContent('#proj-table thead')) && /needs measured energy/.test(await p.textContent('#proj-table tbody')),
+        'cost: CO₂ column, honest when energy was not measured');
+
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;

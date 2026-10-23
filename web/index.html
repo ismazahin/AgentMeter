@@ -2305,7 +2305,7 @@
     $("spanel-ranking").innerHTML = pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
         'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", stabilityCard(res)) + pane("pareto", "") + pane("guide", "");
     $("spanel-accuracy").innerHTML = pane("main", classMetricsCard(res));
-    $("spanel-performance").innerHTML = pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + '<div id="svc-repeat-host"></div>');
+    $("spanel-performance").innerHTML = pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
     $("spanel-agents").innerHTML = pane("main", agentsTab(res));
     $("spanel-cost").innerHTML = pane("main", costCard(res) + gpuTimelineCard(res) + projectionCard(res) + correctCard(res));
     $("spanel-recommendations").innerHTML = pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
@@ -2697,6 +2697,24 @@
       g.per_model.map(function (m) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtNum(m.n_samples) + '</td><td class="num">' + (m.mean_power_w == null ? "—" : fmtNum(m.mean_power_w, 1) + " W") + '</td><td class="num">' + (m.peak_power_w == null ? "—" : fmtNum(m.peak_power_w, 0) + " W") +
         '</td><td class="num">' + (m.mean_util_pct == null ? "—" : fmtNum(m.mean_util_pct, 0) + "%") + '</td><td class="num">' + (m.peak_mem_mb == null ? "—" : fmtMB(m.peak_mem_mb)) + '</td></tr>'; }).join("") + '</tbody></table></div></div>';
   }
+  // Performance -> Statistics: how many flows a reliable latency comparison needs
+  function sampleSizeCard(res) {
+    var ss = window.INSIGHTS && INSIGHTS.sampleSize(res);
+    if (!ss) return "";
+    var pct = function (v) { return v == null ? "—" : fmtNum(100 * v, v < 0.1 ? 1 : 0) + "%"; };
+    var lead = ss.single
+      ? esc("With " + ss.models[0].n + " flows, this model's mean latency is known to within ±" + fmtTime(ss.ci_half_s) + " (±" + pct(ss.ci_rel) + ", 95%).")
+      : "With " + ss.models[0].n + " and " + ss.models[1].n + " flows and this spread, latency differences smaller than about <b>" + esc(fmtTime(ss.mde_s)) +
+        " (" + pct(ss.mde_rel) + ")</b> cannot be told apart reliably. This session's gap is " + esc(fmtTime(ss.gap_s)) + " (" + pct(ss.gap_rel) + "): " +
+        (ss.gap_detectable ? "large enough to detect." : "<b>smaller than that</b> — more flows would be needed to be sure.");
+    return '<div class="card" id="svc-samplesize"><h2>How many flows do you need?</h2><p class="small" style="margin-top:0" id="svc-samplesize-lead">' + lead + '</p>' +
+      '<div class="table-wrap"><table id="svc-samplesize-table"><thead><tr><th>' + (ss.single ? "Pin the mean latency to within" : "To detect a latency difference of") + '</th><th class="num">Flows per model</th><th>This session</th></tr></thead><tbody>' +
+      ss.needed.map(function (r) {
+        var have = Math.min.apply(null, ss.models.map(function (m) { return m.n; }));
+        return '<tr><td>' + fmtNum(100 * r.target) + '%</td><td class="num">' + fmtNum(r.flows) + '</td><td>' + (have >= r.flows ? '<span class="chip ok">enough (' + have + ')</span>' : '<span class="chip">' + have + ' (' + fmtNum(r.flows - have) + ' more needed)</span>') + '</td></tr>';
+      }).join("") + '</tbody></table></div>' +
+      '<p class="muted small">Normal approximation from each model\'s per-flow latency spread (two-sided 5% significance, 80% power' + (ss.single ? ", 95% interval" : "") + '). A planning guide, not a guarantee: the tests above use the measured flows.</p></div>';
+  }
   // Performance -> Statistics: repeatability across sessions on the same flows, GPU and settings
   var REP_FMT = { s: fmtTime, tokens: function (v) { return fmtNum(v, 1); }, MB: fmtMB, Wh: fmtWh, share: fmtPct, points: function (v) { return fmtNum(v, 1); } };
   function wireRepeat(res, job) {
@@ -2784,14 +2802,16 @@
     var pr = ((res.cost_energy || {}).price || {}).usd_per_hour;
     return '<form class="card" id="proj-card" novalidate><h2>Project to your workload</h2><p class="muted small" style="margin-top:0">Scales this session\'s measured time, cost and energy per flow to a daily volume — flows one at a time on one GPU, as measured. An estimate, not a quote.</p>' +
       '<div class="row"><div class="field"><label for="proj-flows">Flows per day</label><input type="number" id="proj-flows" min="0" step="1000" value="10000"></div>' +
-      '<div class="field"><label for="proj-price">GPU price <span class="hint">(USD per hour)</span></label><input type="number" id="proj-price" min="0" step="0.01" placeholder="' + (pr != null ? "stored: " + pr : "e.g. 0.35") + '"></div></div>' +
+      '<div class="field"><label for="proj-price">GPU price <span class="hint">(USD per hour)</span></label><input type="number" id="proj-price" min="0" step="0.01" placeholder="' + (pr != null ? "stored: " + pr : "e.g. 0.35") + '"></div>' +
+      '<div class="field"><label for="proj-grid">Grid carbon intensity <span class="hint">(g CO₂ per kWh)</span></label><input type="number" id="proj-grid" min="0" step="10" value="475"></div></div>' +
       '<div id="proj-out" aria-live="polite"></div></form>';
   }
   function wireProjection(res) {
     var f = $("proj-card");
     if (!f) return;
     function draw() {
-      var pv = $("proj-price").value, pj = INSIGHTS.workloadProjection(res, { flows_per_day: $("proj-flows").value, usd_per_hour: pv === "" ? null : pv });
+      var pv = $("proj-price").value, gv = $("proj-grid").value;
+      var pj = INSIGHTS.workloadProjection(res, { flows_per_day: $("proj-flows").value, usd_per_hour: pv === "" ? null : pv, grid_g_per_kwh: gv === "" ? null : gv });
       var maxU = Math.max.apply(null, pj.models.map(function (m) { return m.utilisation || 0; }).concat([1]));
       $("proj-out").innerHTML = (pj.real ? "" : '<div class="notice warn" role="note">Demo (mock) run: the per-flow time is not a model measurement, so these figures only show the method.</div>') +
         '<div class="proj-load">' + pj.models.map(function (m) {
@@ -2799,13 +2819,14 @@
           return '<div class="cat-row"><span class="lbl">' + esc(short(m.model)) + '<small>' + (m.gpus_needed == null ? "—" : m.gpus_needed + " GPU" + (m.gpus_needed > 1 ? "s" : "")) + ' needed</small></span><div class="cat-track"><div class="proj-bar" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '" style="width:' + Math.min(100, 100 * (m.utilisation || 0) / maxU) + '%;--c:' + modelColor(m.model) + '"></div>' +
             (maxU > 1 ? '<span class="proj-one" style="left:' + (100 / maxU) + '%" title="one GPU\'s full day"></span>' : "") + '</div><span class="val">' + (m.utilisation == null ? "—" : fmtPct(m.utilisation)) + '</span></div>';
         }).join("") + '</div><p class="muted small">Bar: share of one GPU\'s 24 hours this volume takes' + (maxU > 1 ? "; the line marks one full GPU" : "") + '.</p>' +
-        '<div class="table-wrap"><table id="proj-table"><thead><tr><th>Model</th><th class="num">GPU-hours / day</th><th class="num">Max flows / GPU / day</th><th class="num">GPUs needed</th><th class="num">Cost / day</th><th class="num">Cost / 30 days</th><th class="num">Energy / day</th></tr></thead><tbody>' +
+        '<div class="table-wrap"><table id="proj-table"><thead><tr><th>Model</th><th class="num">GPU-hours / day</th><th class="num">Max flows / GPU / day</th><th class="num">GPUs needed</th><th class="num">Cost / day</th><th class="num">Cost / 30 days</th><th class="num">Energy / day</th><th class="num">CO₂ / day</th></tr></thead><tbody>' +
         pj.models.map(function (m) {
           return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtNum(m.gpu_hours_per_day, 2) + '</td><td class="num">' + fmtNum(m.capacity_per_gpu_day) + '</td><td class="num">' + (m.gpus_needed == null ? "—" : m.gpus_needed) +
             '</td><td class="num">' + (m.cost_per_day == null ? '<span class="muted">enter a GPU price</span>' : "$" + fmtNum(m.cost_per_day, 2)) + '</td><td class="num">' + (m.cost_per_month == null ? "—" : "$" + fmtNum(m.cost_per_month, 2)) +
-            '</td><td class="num">' + (m.kwh_per_day == null ? '<span class="muted">not measured</span>' : fmtNum(m.kwh_per_day, 2) + " kWh") + '</td></tr>';
+            '</td><td class="num">' + (m.kwh_per_day == null ? '<span class="muted">not measured</span>' : fmtNum(m.kwh_per_day, 2) + " kWh") +
+            '</td><td class="num">' + (m.co2_kg_per_day == null ? '<span class="muted">' + (m.kwh_per_day == null ? "needs measured energy" : "enter a grid value") + '</span>' : fmtNum(m.co2_kg_per_day, 2) + " kg") + '</td></tr>';
         }).join("") + '</tbody></table></div><p class="muted small">Price: ' + (pj.price_source === "yours" ? "your figure, $" + pj.usd_per_hour + "/h" : pj.price_source === "stored" ? "the session\'s stored GPU price, $" + pj.usd_per_hour + "/h" : "none — enter one above") +
-        '. Energy uses the measured Wh per 1,000 flows (whole board).</p>';
+        '. Energy uses the measured Wh per 1,000 flows (whole board); CO₂ = energy × grid carbon intensity (default 475 g/kWh, about the world average — use your grid\'s value).</p>';
     }
     f.addEventListener("input", draw);
     f.addEventListener("submit", function (ev) { ev.preventDefault(); });

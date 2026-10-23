@@ -317,3 +317,33 @@ def test_run_estimate_uses_the_same_models_on_the_same_gpu():
     assert unknown["complete"] is False and unknown["seconds"] is None and unknown["unknown"] == ["org/new"]
     demo = call("runEstimate", hist, {"models": [A], "n_flows": 100, "demo": True})
     assert demo["seconds"] == pytest.approx(0.1) and demo["cost_usd"] is None
+
+
+Z = 1.959964 + 0.841621
+
+
+def test_sample_size_two_models():
+    s = {"advanced": {"latency_cov": [{"model": "mock:" + A, "n": 40, "mean_latency_s": 10.0, "std_latency_s": 2.0},
+                                      {"model": B, "n": 40, "mean_latency_s": 12.0, "std_latency_s": 3.0}]}}
+    ss = call("sampleSize", s)
+    assert ss["single"] is False and [m["model"] for m in ss["models"]] == [A, B]
+    assert ss["mde_s"] == pytest.approx(Z * (4 / 40 + 9 / 40) ** 0.5)            # ~1.60 s
+    assert ss["gap_s"] == 2.0 and ss["gap_detectable"] is True and ss["mde_rel"] == pytest.approx(ss["mde_s"] / 11)
+    need = {r["target"]: r["flows"] for r in ss["needed"]}
+    import math
+    assert need[0.1] == math.ceil(Z * Z * (4 + 9) / (0.1 * 11) ** 2)               # 110 flows per model
+    assert need[0.05] > need[0.1] > need[0.2]
+
+
+def test_sample_size_one_model_and_missing_data():
+    s = {"advanced": {"latency_cov": [{"model": A, "n": 25, "mean_latency_s": 4.0, "std_latency_s": 1.0}]}}
+    ss = call("sampleSize", s)
+    assert ss["single"] and ss["ci_half_s"] == pytest.approx(1.959964 * 1.0 / 5) and ss["ci_rel"] == pytest.approx(ss["ci_half_s"] / 4)
+    assert call("sampleSize", {}) is None
+
+
+def test_workload_projection_carbon():
+    pj = call("workloadProjection", _costed(), {"flows_per_day": 20000, "grid_g_per_kwh": 475})
+    a, b = pj["models"]
+    assert a["co2_kg_per_day"] == pytest.approx(4.2 * 475 / 1000) and b["co2_kg_per_day"] is None   # B: no energy
+    assert call("workloadProjection", _costed(), {"flows_per_day": 20000})["models"][0]["co2_kg_per_day"] is None

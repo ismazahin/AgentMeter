@@ -49,6 +49,7 @@
     --danger: #B42323; --danger-soft: #F7E3E0;
     --info-soft: #E7ECFA;
     --series-1: #2455D6; --series-2: #C65C34;
+    --mseries-1: #2a78d6; --mseries-2: #eda100; --mseries-3: #e87ba4; --mseries-4: #008300;
     --ag-1: #2a78d6; --ag-2: #eb6834; --ag-3: #1baf7a; --ag-4: #eda100; --ag-5: #e87ba4; --ag-6: #008300; --ag-7: #6250d6; --ag-8: #e34948;
     --radius: 3px; --radius-lg: 4px; --side: 232px;
     color-scheme: light;
@@ -63,6 +64,7 @@
     --danger: #FF8A8A; --danger-soft: #3A1717;
     --info-soft: #1C2540;
     --series-1: #5b8ae8; --series-2: #d9714a;
+    --mseries-1: #3987e5; --mseries-2: #c98500; --mseries-3: #d55181; --mseries-4: #008300;
     --ag-1: #3987e5; --ag-2: #d95926; --ag-3: #199e70; --ag-4: #c98500; --ag-5: #d55181; --ag-6: #008300; --ag-7: #9085e9; --ag-8: #e66767;
     color-scheme: dark;
   } }
@@ -76,6 +78,7 @@
     --danger: #FF8A8A; --danger-soft: #3A1717;
     --info-soft: #1C2540;
     --series-1: #5b8ae8; --series-2: #d9714a;
+    --mseries-1: #3987e5; --mseries-2: #c98500; --mseries-3: #d55181; --mseries-4: #008300;
     --ag-1: #3987e5; --ag-2: #d95926; --ag-3: #199e70; --ag-4: #c98500; --ag-5: #d55181; --ag-6: #008300; --ag-7: #9085e9; --ag-8: #e66767;
     color-scheme: dark;
   }
@@ -773,14 +776,14 @@
       <p>Compare two LLMs on your own network flows.</p>
     </div></div>
     <div class="cta">
-      <div><h2>Start a new benchmark</h2><p>Upload a CSV or PCAP, pick two models, run.</p></div>
+      <div><h2>Start a new benchmark</h2><p>Upload a CSV or PCAP, pick up to four models, run.</p></div>
       <a class="btn primary big" id="home-new" href="#/new">New benchmark</a>
     </div>
     <div id="home-guide" class="card guide" hidden>
       <div class="guide-head"><h2>How AgentMeter works</h2><button type="button" class="btn" id="home-guide-hide">Got it</button></div>
       <ol class="guide-steps">
         <li><b>Data.</b> Upload a CSV (CIC-IDS2017 flows, with labels) or a PCAP. AgentMeter samples the flows you ask for and keeps them as a <i>prepared set</i> you can reuse.</li>
-        <li><b>Models.</b> Pick one or two open models (4-bit). The wizard estimates the time and cost from earlier runs.</li>
+        <li><b>Models.</b> Pick one to four open models (4-bit). The wizard estimates the time and cost from earlier runs.</li>
         <li><b>Run.</b> Each flow goes through the agents — by default Perceive, Reason, Decide, Act, or your own pipeline — one model at a time, on the same GPU.</li>
         <li><b>Read.</b> Each session tab opens with a one-line summary; tables download as CSV, line charts and diagrams as PNG. Accuracy is context: AgentMeter measures efficiency.</li>
       </ol>
@@ -811,7 +814,7 @@
       <h2>1. Run a benchmark</h2>
       <ol class="guide-steps">
         <li><b>Data.</b> Open <a href="#/new">New benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for accuracy) or a PCAP. Choose how many flows to sample. The result is a <i>prepared set</i>; use <b>Reuse a prepared set</b> next time to skip this step.</li>
-        <li><b>Models.</b> Pick one or two open models. Every model runs in 4-bit NF4 on the same GPU, one at a time, so the numbers are comparable. The wizard estimates time and cost from earlier runs.</li>
+        <li><b>Models.</b> Pick one to four open models. Every model runs in 4-bit NF4 on the same GPU, one at a time, so the numbers are comparable. The wizard estimates time and cost from earlier runs.</li>
         <li><b>Agents.</b> Keep the default pipeline (Perceive → Reason → Decide → Act) or build your own: up to 8 agents, from the built-ins, ready-made templates or agents you write. Exactly one agent gives the answer (a <i>label</i> agent); each agent reads the flow and/or earlier agents' answers.</li>
         <li><b>Options.</b> Tick <b>Load test</b> to also measure how throughput scales with 1, 2 and 4 flows in parallel.</li>
         <li><b>Run.</b> The session page shows live progress. You can leave it; the run continues on the GPU server. Stop it from the same page if needed.</li>
@@ -964,7 +967,7 @@
       </div>
       <div class="card">
         <h2>Models</h2>
-        <p class="muted small" id="svc-mode-line">Pick 1 or 2 models.</p>
+        <p class="muted small" id="svc-mode-line">Pick 1 to 4 models.</p>
         <p class="small" style="margin:8px 0 2px;font-weight:600">Study models <span class="muted" style="font-weight:400">(validated baseline)</span></p>
         <div class="models" id="svc-models" role="group" aria-describedby="svc-model-hint"></div>
         <details class="extra-models" id="svc-extra" hidden>
@@ -973,7 +976,7 @@
           <div class="models" id="svc-extra-models" role="group" aria-label="More models to try"></div>
           <p class="small muted" id="svc-extra-note"></p>
         </details>
-        <p id="svc-model-hint" class="muted small" aria-live="polite">Select 1 or 2 models.</p>
+        <p id="svc-model-hint" class="muted small" aria-live="polite">Select 1 to 4 models.</p>
         <hr class="sep">
         <h2>Agents</h2>
         <div class="seg-opts" role="radiogroup" aria-label="Agent pipeline" id="pl-mode">
@@ -1171,7 +1174,7 @@
       <p class="small muted" id="set-tg-status"></p>
       <hr class="sep">
       <h2>New benchmark defaults</h2>
-      <div class="field" style="margin-top:8px"><span class="small" style="font-weight:600">Default models (up to two)</span>
+      <div class="field" style="margin-top:8px"><span class="small" style="font-weight:600">Default models (up to four)</span>
         <div class="models" id="set-models" role="group" aria-label="Default models"></div></div>
       <div class="row">
         <div class="field"><label for="set-flows">Default flows</label><input id="set-flows" type="number" min="1" max="500"></div>
@@ -1691,7 +1694,7 @@
     return '<div><h3 style="margin-bottom:8px">' + esc(title) + '</h3><div class="hbars">' + rows.map(function (r, i) {
       var w = r.v == null || !max ? 0 : Math.max(2, 100 * r.v / max);
       return '<div class="hbar"><span class="lbl">' + esc(r.label) + '</span><span class="track" aria-hidden="true"><span class="fill" style="display:block;width:' + w +
-        '%;background:var(--series-' + (i % 2 + 1) + ')"></span></span><span class="val">' + (r.v == null ? (unitNote || "not measured") : fmt(r.v)) +
+        '%;background:' + (rows.length > 2 ? "var(--mseries-" + (i % 4 + 1) : "var(--series-" + (i % 2 + 1)) + ')"></span></span><span class="val">' + (r.v == null ? (unitNote || "not measured") : fmt(r.v)) +
         (r.extra ? '<br><span class="small muted">' + esc(r.extra) + '</span>' : "") + '</span></div>';
     }).join("") + '</div></div>';
   }
@@ -2116,7 +2119,7 @@
     $("svc-run").disabled = n < 1 || n > max || failed || off || plBad;
     $("svc-run").textContent = off ? "GPU offline" : WIZ.set || failed ? "Run benchmark" : "Run when data is ready";
     $("svc-model-hint").textContent = n >= max ? "Maximum of " + max + " models selected — deselect one to change."
-      : n === 1 ? "1 model selected — add one more to compare head-to-head, or run it alone." : "Select 1 or 2 models.";
+      : n === 1 ? "1 model selected — add another to compare, or run it alone." : n > 1 ? n + " models selected — up to " + max + "; each runs on its own, one after another." : "Select 1 to " + max + " models.";
   }
   // picked models (study or extra) that are not on this server yet: downloaded before the benchmark starts
   function downloadLine() {
@@ -2793,7 +2796,9 @@
   function gpuShort(n) { return String(n || "").replace(/^NVIDIA\s+/, "").replace(/^GeForce\s+/, ""); }
   function headline(rel, pm) {
     if (!rel) return short((pm[0] || {}).model) + ": single-model run";
-    var ev = rel.efficiency_verdict || {}, a = short(rel.models[0]), b = short(rel.models[1]);
+    var ev = rel.efficiency_verdict || {}, a = short(rel.models[0]), b = short(rel.models[1]), n = rel.models.length;
+    if (n > 2) return ev.verdict === "more_efficient" ? short(ev.model) + " is the most efficient of " + n + " models"
+      : ev.verdict === "mixed" ? "Mixed result: no model beats all " + (n - 1) + " others" : "All " + n + " models tie on efficiency";
     if (ev.verdict === "more_efficient") return short(ev.model) + " is more efficient than " + (ev.model === rel.models[0] ? b : a);
     if (ev.verdict === "mixed") return "Mixed result: each model wins somewhere";
     return a + " and " + b + " are tied on efficiency";
@@ -2804,17 +2809,18 @@
     if (!rel) return "";
     var t = rel.metrics.filter(function (m) { return TILE[m.metric]; }).map(function (m) {
       var v = !m.available ? "—" : m.winner === "tie" ? "Tie" : Math.round(m.pct_better) + " % " + TILE[m.metric][1];
-      var w = !m.available ? "not measured" : m.winner === "tie" ? "within the tie range" : short(m.winner);
+      var w = !m.available ? "not measured" : m.winner === "tie" ? "within the tie range" : short(m.winner) + (m.runner_up ? " vs " + short(m.runner_up) : "");
       return '<div class="tile" data-metric="' + esc(m.metric) + '"><div class="k">' + TILE[m.metric][0] + '</div><div class="v">' + esc(v) + '</div><div class="w">' + esc(w) + '</div></div>';
     });
     var acc = rel.metrics.filter(function (m) { return m.metric === "accuracy"; })[0];
     t.push('<div class="tile" data-metric="accuracy"><div class="k">Accuracy <span class="muted">(context)</span></div><div class="v">' +
       (!lab || !acc ? "—" : acc.winner === "tie" ? "Tie" : "+" + acc.diff_pp + " pp") + '</div><div class="w">' +
-      esc(!lab || !acc ? "no labels" : acc.winner === "tie" ? "within " + rel.thresholds.accuracy_tie_pp + " pp" : short(acc.winner)) + '</div></div>');
+      esc(!lab || !acc ? "no labels" : acc.winner === "tie" ? "within " + rel.thresholds.accuracy_tie_pp + " pp" : short(acc.winner) + (acc.runner_up ? " vs " + short(acc.runner_up) : "")) + '</div></div>');
     return '<div class="tiles" id="svc-tiles">' + t.join("") + '</div>';
   }
   // the stored caveat sentences, shown as short labels (each opens its full sentence)
   var CAVEAT_LABEL = [
+    [/^Relative view: all (\d) models/, function () { return "✓ Fair comparison"; }],
     [/^Relative view/, function () { return "✓ Fair A-vs-B"; }],
     [/^Measured on (.+?): absolute numbers/, function (m) { return (/^cpu$/i.test(m[1]) ? "CPU" : gpuShort(m[1])) + " ≠ study GPU (L4)"; }],
     [/^NON-VALIDATED/, function () { return "Exploratory run"; }],
@@ -2884,9 +2890,11 @@
   // Overview: key findings and the per-criterion profile (INSIGHTS, insights.js)
   var CRIT_LABEL = { accuracy: "Accuracy", latency: "Latency", vram: "VRAM", tokens: "Tokens" };
   // a model keeps one colour on every chart of a session (session model order, never rank)
-  var MODEL_SLOT = {};
-  function setModelSlots(res) { MODEL_SLOT = {}; (res.per_model || []).forEach(function (m, i) { MODEL_SLOT[INSIGHTS.bare(m.model)] = i; }); }
-  function modelColor(m) { var i = MODEL_SLOT[window.INSIGHTS ? INSIGHTS.bare(m) : m]; return "var(--series-" + ((i == null ? 0 : i) % 2 + 1) + ")"; }
+  // 1-2 models: --series-1/2; 3-4 models: --mseries-1..4 (validated for every pair, not only neighbours)
+  var MODEL_SLOT = {}, MODEL_N = 2;
+  function setModelSlots(res) { MODEL_SLOT = {}; MODEL_N = (res.per_model || []).length; (res.per_model || []).forEach(function (m, i) { MODEL_SLOT[INSIGHTS.bare(m.model)] = i; }); }
+  function slotColor(i) { return MODEL_N > 2 ? "var(--mseries-" + (i % 4 + 1) + ")" : "var(--series-" + (i % 2 + 1) + ")"; }
+  function modelColor(m) { var i = MODEL_SLOT[window.INSIGHTS ? INSIGHTS.bare(m) : m]; return slotColor(i == null ? 0 : i); }
   function legendHtml(names) {
     return names.length < 2 ? "" : '<div class="ilegend">' + names.map(function (n) { return '<span><i style="--c:' + modelColor(n) + '"></i>' + esc(short(n)) + '</span>'; }).join("") + '</div>';
   }
@@ -3003,18 +3011,26 @@
   function h2hCard(res) {
     var rel = res.relative_comparison, pm = res.per_model, names = pm.map(function (m) { return m.model; });
     if (!rel) return '<div class="card"><h2>Head-to-head</h2><p class="muted">Single-model run: there is no second model to compare with.</p></div>';
+    var multi = names.length > 2;
     var rr = rel.metrics.map(function (m) {
-      var a = m.values[names[0]], b = m.values[names[1]], isAcc = m.metric === "accuracy";
+      var isAcc = m.metric === "accuracy";
       var f = isAcc ? fmtPct : m.metric === "mean_latency_s" ? fmtTime : m.metric === "mean_peak_vram_mb" ? fmtMB : function (v) { return fmtNum(v); };
-      var res2 = !m.available ? '<span class="muted">not available</span>' : m.winner === "tie" ? 'tie <span class="muted">(' + esc(m.note || "") + ')</span>'
-        : esc(short(m.winner)) + ' — ' + (isAcc ? m.diff_pp + " pp higher" : m.pct_better + "% better");
-      return '<tr><td>' + esc(m.label) + (m.metric === "mean_peak_vram_mb" ? ' <span class="muted small">(excludes model weights)</span>' : "") +
-        '</td><td class="num">' + f(a) + '</td><td class="num">' + f(b) + '</td><td>' + res2 + '</td></tr>';
+      var res2 = !m.available ? '<span class="muted">not available</span>' : m.winner === "tie" ? (multi ? "no clear best" : "tie") + ' <span class="muted">(' + esc(m.note || "") + ')</span>'
+        : esc(short(m.winner)) + ' — ' + (isAcc ? m.diff_pp + " pp higher" : m.pct_better + "% better") + (m.runner_up ? " than " + esc(short(m.runner_up)) : "");
+      return '<tr><td>' + esc(m.label) + (m.metric === "mean_peak_vram_mb" ? ' <span class="muted small">(excludes model weights)</span>' : "") + '</td>' +
+        names.map(function (n) { return '<td class="num">' + f(m.values[n]) + '</td>'; }).join("") + '<td>' + res2 + '</td></tr>';
     }).join("");
-    return '<div class="card"><h2>Head-to-head</h2><p class="muted small">Fair comparison: same flows, same GPU.' +
+    var pairs = !multi ? "" : '<h3 style="margin-top:16px">Every pair</h3><p class="muted small" style="margin-top:0">Each pair compared on its own (pairwise significance: Dunn post-hoc). The ranking counts pair wins minus losses.</p>' +
+      '<div class="table-wrap"><table id="svc-pairs-table"><thead><tr><th>Pair</th><th>Result</th></tr></thead><tbody>' +
+      rel.pairs.map(function (p) {
+        var ev = p.efficiency_verdict;
+        return '<tr><td>' + esc(short(p.models[0]) + " vs " + short(p.models[1])) + '</td><td>' + esc(ev.verdict === "more_efficient" ? short(ev.model) + " is more efficient" : ev.verdict === "mixed" ? "mixed: each wins a metric" : "tie") + '</td></tr>';
+      }).join("") + '</tbody></table></div>' +
+      '<ol class="small" id="svc-pair-ranking">' + rel.ranking.map(function (r) { return '<li><b>' + esc(short(r.model)) + '</b> — ' + r.pair_wins + ' pair win' + (r.pair_wins === 1 ? "" : "s") + ', ' + r.pair_losses + ' loss' + (r.pair_losses === 1 ? "" : "es") + '</li>'; }).join("") + '</ol>';
+    return '<div class="card"><h2>' + (multi ? "All " + names.length + " models" : "Head-to-head") + '</h2><p class="muted small">Fair comparison: same flows, same GPU.' +
       '<span class="info-i" tabindex="0" title="Ties: within ' + (rel.thresholds.efficiency_tie_rel * 100) + '% (latency and VRAM also need p < ' + rel.thresholds.significance_alpha +
       '); accuracy within ' + rel.thresholds.accuracy_tie_pp + ' pp.">i</span></p>' +
-      '<div class="table-wrap"><table id="svc-relative-table"><thead><tr><th>Metric</th><th class="num">' + esc(short(names[0])) + '</th><th class="num">' + esc(short(names[1])) + '</th><th>Result</th></tr></thead><tbody>' + rr + '</tbody></table></div></div>';
+      '<div class="table-wrap"><table id="svc-relative-table"><thead><tr><th>Metric</th>' + names.map(function (n) { return '<th class="num">' + esc(short(n)) + '</th>'; }).join("") + '<th>' + (multi ? "Best" : "Result") + '</th></tr></thead><tbody>' + rr + '</tbody></table></div>' + pairs + '</div>';
   }
   function costCard(res) {
     var cen = res.cost_energy;
@@ -3459,7 +3475,15 @@
     var ef = res.effect_sizes;
     if (!ef) return '<div class="card"><p class="muted">This session predates the effect sizes.</p></div>';
     if (ef.skipped) return '<div class="card" id="stats-effects-card"><h2>Effect size and confidence</h2><p class="muted small">' + esc(ef.skipped) + '.</p></div>';
-    return '<div class="card" id="stats-effects-card"><h2>Effect size and confidence <span class="muted small">A = ' + esc(short(ef.model_a)) + ', B = ' + esc(short(ef.model_b)) + '</span></h2>' +
+    var pairs = !ef.pairs ? "" : '<h3 style="margin-top:16px">Every pair (latency per flow)</h3><div class="table-wrap"><table id="stats-effect-pairs"><thead><tr><th>A vs B</th><th class="num">Cliff\'s delta</th><th>Magnitude</th><th class="num">Mean diff A − B</th><th>95% CI</th></tr></thead><tbody>' +
+      ef.pairs.map(function (p) {
+        var m = (p.metrics || []).filter(function (x) { return x.metric === "latency_s"; })[0];
+        if (!m || !m.available) return '<tr><td>' + esc(short(p.model_a) + " vs " + short(p.model_b)) + '</td><td colspan="4" class="muted">no data</td></tr>';
+        var d = function (v) { return (v < 0 ? "−" : "") + fmtTime(Math.abs(v)); };
+        return '<tr><td>' + esc(short(p.model_a) + " vs " + short(p.model_b)) + '</td><td class="num">' + (m.cliffs_delta >= 0 ? "+" : "") + m.cliffs_delta.toFixed(2) + '</td><td>' + esc(m.magnitude) +
+          '</td><td class="num">' + d(m.diff_mean_a_minus_b) + '</td><td>' + (m.ci_excludes_zero ? "excludes 0" : '<span class="muted">includes 0</span>') + '</td></tr>';
+      }).join("") + '</tbody></table></div>';
+    return '<div class="card" id="stats-effects-card"><h2>Effect size and confidence <span class="muted small">A = ' + esc(short(ef.model_a)) + ', B = ' + esc(short(ef.model_b)) + (ef.pairs ? " (" + esc(ef.pair_basis) + ")" : "") + '</span></h2>' +
       effectChart(res) +
       '<div class="table-wrap" style="margin-top:8px"><table id="stats-effects"><thead><tr><th>Metric</th><th class="num">Cliff\'s delta</th><th>Magnitude</th><th class="num">Mean diff A − B</th><th class="num">95% CI (bootstrap)</th><th class="num">Kruskal-Wallis p</th></tr></thead><tbody>' +
       ef.metrics.map(function (m) {
@@ -3469,7 +3493,7 @@
         return '<tr><td>' + esc(EF_LABEL[m.metric] || m.metric) + '</td><td class="num">' + (m.cliffs_delta >= 0 ? "+" : "") + m.cliffs_delta.toFixed(2) + '</td><td>' + esc(m.magnitude) +
           '</td><td class="num">' + d(m.diff_mean_a_minus_b) + '</td><td class="num">[' + d(m.ci95_low) + ', ' + d(m.ci95_high) + ']' + (m.ci_excludes_zero ? "" : ' <span class="muted">includes 0</span>') +
           '</td><td class="num">' + (m.kruskal_wallis_p == null ? "—" : m.kruskal_wallis_p.toPrecision(3)) + '</td></tr>';
-      }).join("") + '</tbody></table></div><details class="info"><summary>Method</summary><p class="muted small">' + esc(ef.method) + '</p></details></div>';
+      }).join("") + '</tbody></table></div>' + pairs + '<details class="info"><summary>Method</summary><p class="muted small">' + esc(ef.method) + (ef.note ? " " + esc(ef.note) : "") + '</p></details></div>';
   }
   // histogram small multiples: shared bins and count scale; p50 / p95 / p99 as line styles
   var PCT_STYLE = { p50: "solid", p95: "dashed", p99: "dotted" };
@@ -4038,7 +4062,7 @@
     }).join("") : '<p class="muted small">The model list comes from the GPU backend — it is offline now.</p>';
     var sync = function () {
       var on = $("set-models").querySelectorAll("input:checked").length;
-      $("set-models").querySelectorAll("input").forEach(function (x) { x.disabled = !x.checked && on >= 2; });
+      $("set-models").querySelectorAll("input").forEach(function (x) { x.disabled = !x.checked && on >= ((CONFIG && CONFIG.max_models) || 4); });
     };
     $("set-models").querySelectorAll("input").forEach(function (inp) { inp.addEventListener("change", sync); });
     sync();
@@ -4474,7 +4498,7 @@
     if (CP) { clearTimeout(offlineTimer); offlineTimer = setTimeout(checkControlPlaneBackend, 30000); }
     if (!first) return Promise.resolve();
     return api("/api/service/config").then(function (r) {
-      CONFIG = r.ok ? r.data : { canonical_models: [], max_models: 2, provider: "mock", base_config: null, demo_mode: true, note: "Service config unavailable." };
+      CONFIG = r.ok ? r.data : { canonical_models: [], max_models: 4, provider: "mock", base_config: null, demo_mode: true, note: "Service config unavailable." };
       $("svc-demo").hidden = !CONFIG.demo_mode;
       $("svc-demo").innerHTML = '<b>Demo mode:</b> no GPU, so results are simulated, not model measurements.' + infoI(CONFIG.note || "");
       $("svc-max-flows").value = (SETTINGS && SETTINGS.default_flows) || CONFIG.default_max_flows || 50;

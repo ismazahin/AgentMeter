@@ -1,4 +1,4 @@
-"""Relative (head-to-head) comparison of the two models in a session.
+"""Relative (head-to-head) comparison of the models in a session (2 to 4).
 
 The absolute SAW (scoring.py) normalises each model against FIXED targets from
 the L4 study, so two models that are both under a target both score the
@@ -23,9 +23,17 @@ Overall efficiency verdict (transparent dominance rule, no weights):
   * all ties / unavailable -> "tie"
 Accuracy, when labelled, is reported beside the efficiency verdict, never
 folded into it, so a trade-off (faster but less accurate) stays visible.
+
+3 or 4 models: every pair is compared exactly as above (pairwise significance from the
+session's Dunn post-hoc test instead of the overall Kruskal-Wallis p), and
+  * per metric, the best model against the runner-up (same tie rules);
+  * a model that is "more resource-efficient" than EACH other model in its pair is the
+    most efficient overall; otherwise "mixed" (or "tie" when every pair ties);
+  * ranking: pairwise wins - losses (a view of the pair verdicts, no weights).
 """
 from __future__ import annotations
 
+from itertools import combinations
 from typing import Any, Optional
 
 REL_TIE = 0.02        # efficiency metrics within 2% of each other: tie
@@ -83,14 +91,22 @@ def _accuracy_metric(a: str, b: str, va: float, vb: float) -> dict[str, Any]:
 
 def relative_comparison(models: list[str], per_model: dict[str, dict], labelled: bool,
                         caveats: list[str], hardware: Optional[str] = None,
-                        p_values: Optional[dict[str, float]] = None) -> Optional[dict[str, Any]]:
-    """Head-to-head A-vs-B over Phase 38's per-model metrics (None unless 2 models).
+                        p_values: Optional[dict[str, float]] = None,
+                        pair_p: Optional[dict[str, dict[tuple, float]]] = None) -> Optional[dict[str, Any]]:
+    """Head-to-head over Phase 38's per-model metrics (None for a single-model session).
 
     p_values: per-flow significance already computed by the session's statistics
-    (keys = efficiency metric keys); a latency/VRAM gap with p >= ALPHA is a tie."""
-    if len(models) != 2:
+    (keys = efficiency metric keys); a latency/VRAM gap with p >= ALPHA is a tie.
+    pair_p (3-4 models): {metric key: {(model, model): Dunn p}} for the pairwise tests."""
+    if len(models) < 2:
         return None
-    a, b = models
+    if len(models) > 2:
+        return _multi(models, per_model, labelled, caveats, hardware, pair_p or {})
+    return _pair(models[0], models[1], per_model, labelled, caveats, hardware, p_values)
+
+
+def _pair(a: str, b: str, per_model: dict[str, dict], labelled: bool, caveats: list[str],
+          hardware: Optional[str], p_values: Optional[dict[str, float]]) -> dict[str, Any]:
     ea = per_model[a]["efficiency"]["end_to_end"]
     eb = per_model[b]["efficiency"]["end_to_end"]
     p_values = p_values or {}
@@ -163,6 +179,108 @@ def relative_comparison(models: list[str], per_model: dict[str, dict], labelled:
         },
         "accuracy_verdict": ({"model": acc["winner"], "diff_pp": acc["diff_pp"]} if acc else None),
         "accuracy_included": labelled,
+        "verdict": sentence,
+        "caveats": rel_caveats,
+    }
+
+
+def _pp(pair_p: dict[str, dict[tuple, float]], key: str, a: str, b: str) -> Optional[float]:
+    d = pair_p.get(key) or {}
+    return d.get((a, b), d.get((b, a)))
+
+
+def _multi(models: list[str], per_model: dict[str, dict], labelled: bool, caveats: list[str],
+           hardware: Optional[str], pair_p: dict[str, dict[tuple, float]]) -> dict[str, Any]:
+    n = len(models)
+    pairs = [_pair(a, b, per_model, labelled, [], hardware,
+                   {k: p for k in pair_p if (p := _pp(pair_p, k, a, b)) is not None})
+             for a, b in combinations(models, 2)]
+    eff = []
+    for k, lbl, ph, u in EFFICIENCY_METRICS:
+        vals = {m: per_model[m]["efficiency"]["end_to_end"].get(k) for m in models}
+        known = sorted((v, m) for m, v in vals.items() if v is not None)
+        if len(known) < n:
+            eff.append({"metric": k, "label": lbl, "lower_is_better": True, "unit": u, "values": vals,
+                        "available": False, "winner": None, "note": "not measured for every model (e.g. no VRAM on CPU/mock)"})
+            continue
+        (vb, best), (vr, runner) = known[0], known[1]
+        m = _cost_metric(k, lbl, ph, u, best, runner, vb, vr, _pp(pair_p, k, best, runner))
+        m.update(values=vals, runner_up=runner)
+        eff.append(m)
+    beats = {m: [o for o in models if o != m and any(
+        p["efficiency_verdict"]["model"] == m and set(p["models"]) == {m, o} for p in pairs)] for m in models}
+    losses = {m: sum(1 for p in pairs if m in p["models"] and p["efficiency_verdict"]["model"] not in (None, m))
+              for m in models}
+    top = [m for m in models if len(beats[m]) == n - 1]
+    if top:
+        eff_verdict, winner = "more_efficient", top[0]
+    elif all(p["efficiency_verdict"]["verdict"] == "tie" for p in pairs):
+        eff_verdict, winner = "tie", None
+    else:
+        eff_verdict, winner = "mixed", None
+    ranking = sorted(({"model": m, "pair_wins": len(beats[m]), "pair_losses": losses[m]} for m in models),
+                     key=lambda r: (-(r["pair_wins"] - r["pair_losses"]), models.index(r["model"])))
+    for i, r in enumerate(ranking, 1):
+        r["rank"] = i
+
+    def best_line(m: dict) -> str:
+        if not m["available"]:
+            return f"{m['label']}: not available"
+        if m["winner"] == "tie":
+            return f"{m['label']}: no clear best ({m['note']})"
+        return f"{m['phrase']}: {m['winner']} ({m['pct_better']}% ahead of {m['runner_up']})"
+
+    if eff_verdict == "more_efficient":
+        sentence = f"{winner} is more resource-efficient than each of the other {n - 1} models"
+    elif eff_verdict == "mixed":
+        sentence = f"Mixed efficiency across the {n} models: no model beats every other one"
+    else:
+        sentence = f"The {n} models are tied on resource efficiency"
+    sentence += ". Best per metric: " + "; ".join(best_line(m) for m in eff) + "."
+
+    acc = None
+    if labelled:
+        vals = {m: per_model[m]["accuracy"]["accuracy"] for m in models}
+        (va, best), (vr, runner) = sorted(((v, m) for m, v in vals.items()), reverse=True)[:2]
+        acc = _accuracy_metric(best, runner, va, vr)
+        acc.update(values=vals, runner_up=runner)
+        listing = ", ".join(f"{m} {v:.1%}" for m, v in sorted(vals.items(), key=lambda kv: -kv[1]))
+        if acc["winner"] == "tie":
+            sentence += f" Accuracy: the top two are within {ACC_TIE_PP:g} points ({listing})."
+        else:
+            sentence += f" Accuracy: {best} is highest, {acc['diff_pp']} points ahead of {runner} ({listing})."
+        if winner and acc["winner"] not in ("tie", winner):
+            sentence += f" Trade-off: {winner} is the most efficient, {acc['winner']} the most accurate."
+    else:
+        sentence += " Accuracy: not available (no ground-truth labels) — efficiency only."
+
+    rel_caveats = [
+        f"Relative view: all {n} models were measured in this session on the same hardware and the same "
+        "flows, so their differences are like-for-like; it does not use the fixed L4 targets (the "
+        "absolute SAW does). Pairwise latency/VRAM differences must be significant in the session's "
+        "Dunn post-hoc test (p < 0.05).",
+    ]
+    if hardware and "L4" not in hardware:
+        rel_caveats.append(f"Measured on {hardware}: absolute numbers are not comparable with the "
+                           "locked study (NVIDIA L4); only the relations between the models are.")
+    rel_caveats += caveats
+    return {
+        "models": list(models),
+        "mode": "multi",
+        "basis": f"pairwise comparisons of the {n} models on this session's measured metrics (no fixed targets)",
+        "thresholds": {"efficiency_tie_rel": REL_TIE, "accuracy_tie_pp": ACC_TIE_PP,
+                       "significance_alpha": ALPHA},
+        "metrics": eff + ([acc] if acc else []),
+        "efficiency_verdict": {
+            "verdict": eff_verdict, "model": winner,
+            "wins": {m: [x["metric"] for x in eff if x.get("winner") == m] for m in models},
+            "beats": beats,
+            "rule": "more resource-efficient than each other model in its pair (pairwise dominance)",
+        },
+        "accuracy_verdict": ({"model": acc["winner"], "diff_pp": acc["diff_pp"]} if acc else None),
+        "accuracy_included": labelled,
+        "ranking": ranking,
+        "pairs": pairs,
         "verdict": sentence,
         "caveats": rel_caveats,
     }

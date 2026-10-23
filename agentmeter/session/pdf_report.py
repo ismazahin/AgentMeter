@@ -66,19 +66,29 @@ def recommendation_lines(res: dict[str, Any]) -> dict[str, Any]:
     lead: Optional[str] = None
     if rel:
         ev = rel["efficiency_verdict"]
-        if ev["verdict"] == "more_efficient":
+        n = len(rel["models"])
+        if ev["verdict"] == "more_efficient" and n > 2:
+            lead = ev["model"]
+            lines.append(f"{lead} is the most resource-efficient of the {n} models on this input "
+                         f"(more efficient than each of the other {n - 1} in its head-to-head comparison).")
+        elif ev["verdict"] == "more_efficient":
             lead = ev["model"]
             other = next(m for m in rel["models"] if m != lead)
             lines.append(f"{lead} is the more resource-efficient of the two models on this input "
                          f"(it wins on {len(ev['wins'][lead])} efficiency metric(s) and loses none to {other}).")
+        elif ev["verdict"] == "mixed" and n > 2:
+            lines.append(f"No model is more resource-efficient than all the others: the {n} models each win "
+                         "on different efficiency metrics or pairs (see the comparison table) - choose by "
+                         "the resource you are most constrained on.")
         elif ev["verdict"] == "mixed":
             a, b = rel["models"]
             lines.append(f"Neither model is more resource-efficient overall: {a} and {b} each win on "
                          "different efficiency metrics (see the comparison table) - choose by the resource "
                          "you are most constrained on.")
         else:
-            lines.append("The two models are equally resource-efficient on this input: every efficiency "
-                         "difference is within the tie threshold or not statistically significant.")
+            lines.append(("The two models are" if n == 2 else f"The {n} models are") + " equally resource-efficient "
+                         "on this input: every efficiency difference is within the tie threshold or not "
+                         "statistically significant.")
     else:
         m = res["per_model"][0]
         lines.append(f"Single-model run: {m['model']} scored SAW {m['saw']['composite_100']} "
@@ -267,7 +277,7 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
     # --- comparison table --------------------------------------------------------------------------
     story.append(P("Per-metric comparison", "h"))
     if rel:
-        rows = [["Metric", names[0], names[1], "Winner"]]
+        rows = [["Metric"] + names + ["Winner" if len(names) == 2 else "Best"]]
         for m in rel["metrics"]:
             is_acc = m["metric"] == "accuracy"
             f = fmt_pct if is_acc else fmt_time if m["metric"] == "mean_latency_s" else \
@@ -279,8 +289,11 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
             else:
                 win = f"{m['winner']} - " + (f"{m['diff_pp']} pp higher" if is_acc else f"{m['pct_better']}% better")
             label = m["label"] + (" (working VRAM, excludes model weights)" if m["metric"] == "mean_peak_vram_mb" else "")
-            rows.append([label, f(m["values"][names[0]]), f(m["values"][names[1]]), win])
-        story.append(table(rows, [44 * mm, 32 * mm, 32 * mm, W - 108 * mm]))
+            if m.get("runner_up") and m["winner"] not in (None, "tie"):
+                win += f" than {m['runner_up']}"
+            rows.append([label] + [f(m["values"][x]) for x in names] + [win])
+        col = (W - 44 * mm - 40 * mm) / len(names)
+        story.append(table(rows, [44 * mm] + [col] * len(names) + [40 * mm]))
     memrows = {r["model"]: r for r in ((res.get("memory") or {}).get("per_model") or [])}
     hdr = ["Model", "Latency/flow", "p95", "Tokens/flow", "Working VRAM (excl. weights)", "Total peak VRAM"] + \
           (["Accuracy"] if labelled else []) + ["SAW" + ("" if labelled else " (eff.)"), "SAW eff.-only"]

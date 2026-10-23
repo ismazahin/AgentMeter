@@ -78,7 +78,10 @@ async function run(p, idx) {
   // 2. run 2 models; reload during the run re-attaches; the session page shows the results
   const boxes = await p.$$('#svc-models input');
   await boxes[0].check(); await boxes[3].check();
-  log(await boxes[1].isDisabled() && await boxes[4].isDisabled(), 'UI blocks a 3rd model once 2 are selected');
+  const twoOk = !(await boxes[1].isDisabled());
+  await boxes[1].check(); await boxes[2].check();
+  log(twoOk && await boxes[4].isDisabled(), 'UI allows up to 4 models and blocks a 5th');
+  await boxes[1].uncheck(); await boxes[2].uncheck();
   await p.click('#svc-run');
   await p.waitForFunction(() => /^#\/new\/run\//.test(location.hash), null, { timeout: 30000 });
   const runHash = await p.evaluate(() => location.hash);

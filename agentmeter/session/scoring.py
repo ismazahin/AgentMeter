@@ -148,11 +148,27 @@ def _winner(values: dict[str, Optional[float]], lower_better: bool) -> Optional[
     vals = {m: v for m, v in values.items() if v is not None}
     if len(vals) < 2:
         return None
-    (m1, v1), (m2, v2) = sorted(vals.items(), key=lambda kv: kv[1], reverse=not lower_better)
+    (m1, v1), (m2, v2) = sorted(vals.items(), key=lambda kv: kv[1], reverse=not lower_better)[:2]
     base = max(abs(v1), abs(v2))
     if base == 0 or abs(v1 - v2) / base < TIE_REL:
         return "tie"
     return m1
+
+
+def _pair_p(stats: dict[str, Any], models: list[str], label_of: dict[str, str]) -> dict[str, dict[tuple, float]]:
+    """3-4 models: each pair's p for latency / VRAM — Dunn (Holm) when the Kruskal-Wallis test
+    was significant, else the Kruskal-Wallis p itself (no pair can then be called)."""
+    if len(models) < 3:
+        return {}
+    out: dict[str, dict[tuple, float]] = {}
+    for key, metric in (("mean_latency_s", "scenario_total_time_s"), ("mean_peak_vram_mb", "scenario_peak_vram_mb")):
+        e = stats.get(metric)
+        if not isinstance(e, dict) or "p_value" not in e:
+            continue
+        dunn = e.get("dunn_matrix") or {}
+        out[key] = {(a, b): float((dunn.get(label_of[a]) or {}).get(label_of[b], e["p_value"])) if dunn else float(e["p_value"])
+                    for i, a in enumerate(models) for b in models[i + 1:]}
+    return out
 
 
 def _compare(models: list[str], per_model: dict[str, dict], eff: pd.DataFrame,
@@ -168,8 +184,8 @@ def _compare(models: list[str], per_model: dict[str, dict], eff: pd.DataFrame,
         metrics.append({"metric": key, "label": label, "lower_is_better": True, "values": vals,
                         "winner": w, "available": w is not None})
     e = eff.set_index("model")["composite"]
-    a, b = models
-    eff_w = "tie" if abs(e[a] - e[b]) < TIE_SCORE else (a if e[a] > e[b] else b)
+    top = sorted(models, key=lambda m: -e[m])
+    eff_w = "tie" if abs(e[top[0]] - e[top[1]]) < TIE_SCORE else top[0]
     saw = full if full is not None else eff
     ranking = [{"rank": int(r["rank"]), "model": r["model"], "composite_100": round(float(r["composite"]) * 100, 2),
                 "tier": r["tier"]} for _, r in saw.iterrows()]
@@ -287,7 +303,7 @@ def score_session(plan: dict[str, Any], run_id: str) -> dict[str, Any]:
                 (("mean_latency_s", "scenario_total_time_s"), ("mean_peak_vram_mb", "scenario_peak_vram_mb"))
                 if isinstance(stats.get(metric), dict) and "p_value" in stats[metric]}
     relative = relative_comparison(models, per_model, labelled, caveats, run.get("hardware_label"),
-                                   p_values=p_values)
+                                   p_values=p_values, pair_p=_pair_p(stats, models, label_of))
 
     payload: dict[str, Any] = {
         "schema": SCHEMA,

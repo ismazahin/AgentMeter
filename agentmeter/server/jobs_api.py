@@ -2,7 +2,7 @@
 Flask app (scripts/serve.py); access.py (run tokens, CORS, rate limits)
 covers them like every other route.
 
-  POST /api/jobs                {run | after_prepare, models[<=2], provider?, base_config?, load_test?,
+  POST /api/jobs                {run | after_prepare, models[<=4], provider?, base_config?, load_test?,
                                 pipeline?} -> 202 {job}   (pipeline: pipeline/spec.py)
   GET  /api/jobs                ?limit=N  -> recent jobs, newest first
   GET  /api/jobs/<id>           status + live progress + result_ready / result_url
@@ -121,7 +121,7 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
             return fail(JobError("'load_test' must be true or false", "bad_request", 400))
         models = body.get("models")
         if not isinstance(models, list):
-            return fail(JobError("'models' must be a list of 1 or 2 model ids", "bad_models", 400))
+            return fail(JobError("'models' must be a list of 1 to 4 model ids", "bad_models", 400))
         try:
             asked = body.get("provider")
             if provider is not None:

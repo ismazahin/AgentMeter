@@ -101,3 +101,60 @@ def test_an_untestable_p_value_never_declares_a_winner():
     r = rel(pm(2.0, 1000, vram=1000), pm(2.0, 1000, vram=1300), p_values={"mean_peak_vram_mb": float("nan")})
     v = metric(r, "mean_peak_vram_mb")
     assert v["winner"] == "tie" and v["p_value"] is None and "could not be tested" in v["note"]
+
+
+# ---------------------------------------------------------------- 3 or 4 models (Phase H)
+def multi(models, pair_p=None, labelled=None):
+    names = list(models)
+    if labelled is None:
+        labelled = all(m["accuracy"] is not None for m in models.values())
+    return relative_comparison(names, models, labelled, CAVEATS, pair_p=pair_p)
+
+
+def test_three_models_one_beats_every_other():
+    r = multi({"A": pm(1.0, 500, acc=0.9), "B": pm(2.0, 800, acc=0.7), "C": pm(3.0, 900, acc=0.8)})
+    assert r["mode"] == "multi" and r["models"] == ["A", "B", "C"] and len(r["pairs"]) == 3
+    lat = metric(r, "mean_latency_s")
+    assert (lat["winner"], lat["runner_up"], lat["pct_better"]) == ("A", "B", 50.0)
+    assert lat["values"] == {"A": 1.0, "B": 2.0, "C": 3.0}
+    ev = r["efficiency_verdict"]
+    assert ev["verdict"] == "more_efficient" and ev["model"] == "A" and set(ev["beats"]["A"]) == {"B", "C"}
+    assert [x["model"] for x in r["ranking"]] == ["A", "B", "C"] and r["ranking"][0]["pair_wins"] == 2
+    assert r["verdict"].startswith("A is more resource-efficient than each of the other 2 models. Best per metric: lower latency: A (50.0% ahead of B)")
+    acc = metric(r, "accuracy")
+    assert (acc["winner"], acc["runner_up"], acc["diff_pp"]) == ("A", "C", 10.0)
+    assert "Accuracy: A is highest, 10.0 points ahead of C (A 90.0%, C 80.0%, B 70.0%)." in r["verdict"]
+    # every pair is the ordinary 2-model comparison
+    ab = next(p for p in r["pairs"] if p["models"] == ["A", "B"])
+    assert ab["efficiency_verdict"]["model"] == "A" and "pairs" not in ab
+
+
+def test_four_models_mixed_when_nobody_beats_all():
+    r = multi({"A": pm(1.0, 900), "B": pm(2.0, 500), "C": pm(3.0, 950), "D": pm(4.0, 990)})
+    ev = r["efficiency_verdict"]
+    assert ev["verdict"] == "mixed" and ev["model"] is None
+    assert ev["wins"] == {"A": ["mean_latency_s"], "B": ["mean_tokens_per_flow"], "C": [], "D": []}
+    assert r["verdict"].startswith("Mixed efficiency across the 4 models: no model beats every other one.")
+    assert "Accuracy: not available" in r["verdict"] and len(r["pairs"]) == 6
+    assert [x["model"] for x in r["ranking"]][-1] == "D"
+
+
+def test_multi_uses_pairwise_significance():
+    # A is 10% faster than B, but the Dunn test for that pair says noise -> no clear best on latency
+    p = {"mean_latency_s": {("A", "B"): 0.4, ("A", "C"): 0.001, ("B", "C"): 0.001}}
+    r = multi({"A": pm(1.0, 500), "B": pm(1.1, 500), "C": pm(3.0, 500)}, pair_p=p)
+    lat = metric(r, "mean_latency_s")
+    assert lat["winner"] == "tie" and lat["p_value"] == 0.4 and lat["runner_up"] == "B"
+    ab = next(x for x in r["pairs"] if x["models"] == ["A", "B"])
+    assert metric(ab, "mean_latency_s")["winner"] == "tie"
+    ac = next(x for x in r["pairs"] if x["models"] == ["A", "C"])
+    assert metric(ac, "mean_latency_s")["winner"] == "A"
+    assert r["efficiency_verdict"]["verdict"] == "mixed"       # A does not beat B
+    assert "latency per flow: no clear best" in r["verdict"]
+
+
+def test_multi_all_tied_and_missing_vram():
+    r = multi({"A": pm(1.0, 500, 4000), "B": pm(1.0, 501, None), "C": pm(1.005, 500, 4000)})
+    assert r["efficiency_verdict"]["verdict"] == "tie" and r["verdict"].startswith("The 3 models are tied")
+    vram = metric(r, "mean_peak_vram_mb")
+    assert vram["available"] is False and "not measured for every model" in vram["note"]

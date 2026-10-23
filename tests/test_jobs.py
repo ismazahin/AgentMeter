@@ -208,7 +208,7 @@ def test_failed_job_is_resumable_and_done_is_not(root, monkeypatch):
 
 # --- rejections ---------------------------------------------------------------------------
 @pytest.mark.parametrize("run, models, kw, code", [
-    (RUN, ["a", "b", "c"], {"provider": "mock"}, "too_many_models"),
+    (RUN, ["a", "b", "c", "d", "e"], {"provider": "mock"}, "too_many_models"),
     (RUN, ["a", "a"], {"provider": "mock"}, "bad_models"),
     ("csv_runs/nope", ["a"], {"provider": "mock"}, "run_missing"),
     ("../../etc", ["a"], {"provider": "mock"}, "bad_request"),
@@ -287,7 +287,7 @@ def test_http_endpoints_end_to_end(root):
 
 
 @pytest.mark.parametrize("body, status, code", [
-    ({"run": RUN, "models": ["a", "b", "c"], "provider": "mock"}, 400, "too_many_models"),
+    ({"run": RUN, "models": ["a", "b", "c", "d", "e"], "provider": "mock"}, 400, "too_many_models"),
     ({"run": RUN, "models": "mock-a", "provider": "mock"}, 400, "bad_models"),
     ({"run": "csv_runs/missing", "models": ["a"], "provider": "mock"}, 404, "run_missing"),
     ({"run": "/etc/passwd", "models": ["a"], "provider": "mock"}, 400, "bad_request"),

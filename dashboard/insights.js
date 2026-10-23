@@ -57,7 +57,7 @@
       }).sort(function (a, b) { return b.pct_better - a.pct_better; });
       if (wins.length) {
         var w = wins[0];
-        out.push({ key: "gap", text: "Biggest measured gap: " + short(w.winner) + " is " + w.pct_better + "% better on " + w.label +
+        out.push({ key: "gap", text: "Biggest measured gap: " + short(w.winner) + " is " + w.pct_better + "% better on " + w.label + (w.runner_up ? " than the runner-up, " + short(w.runner_up) : "") +
           (w.p_value != null ? " (p = " + (+w.p_value).toPrecision(2) + ")" : "") + "." });
       } else {
         out.push({ key: "gap", text: "No efficiency metric separates the models beyond the tie range." });
@@ -492,6 +492,8 @@
       return { models: rows, single: true, ci_half_s: half, ci_rel: r.mean ? half / r.mean : null,
                needed: targets.map(function (t) { return { target: t, flows: Math.max(2, Math.ceil(Math.pow(1.959964 * r.sd / (t * r.mean), 2))) }; }) };
     }
+    // 3-4 models: the two fastest (the closest race decides how many flows are needed)
+    if (rows.length > 2) rows = rows.slice().sort(function (x, y) { return x.mean - y.mean; });
     var a = rows[0], b = rows[1], mbar = (a.mean + b.mean) / 2;
     var mde = Z_SUM * Math.sqrt(a.sd * a.sd / a.n + b.sd * b.sd / b.n);
     var gap = Math.abs(a.mean - b.mean);
@@ -511,7 +513,7 @@
     if (saw.length > 1) {
       var tie = Math.abs(saw[0].v - saw[1].v) < 0.05;
       var st = weightStability(res), flips = st.rows.filter(function (r) { return r.changes && !r.no_data; }).map(function (r) { return r.criterion; });
-      out.ranking = tie ? "The two models tie on the SAW score (" + saw[0].v.toFixed(1) + ")."
+      out.ranking = tie ? (saw.length > 2 ? "The top two models tie" : "The two models tie") + " on the SAW score (" + saw[0].v.toFixed(1) + ")."
         : short(saw[0].model) + " ranks first on the SAW score (" + saw[0].v.toFixed(1) + " vs " + saw[1].v.toFixed(1) + "); " +
           (flips.length ? "moving the " + flips.join(" or ") + " weight far enough can change that." : "no single weight change overturns it.");
     } else if (saw.length) out.ranking = "Single-model run: " + short(saw[0].model) + " scores " + saw[0].v.toFixed(1) + " on the SAW score.";
@@ -529,7 +531,7 @@
     var lat = rel && (rel.metrics || []).filter(function (m) { return m.metric === "mean_latency_s"; })[0];
     if (lat && lat.available) {
       out.performance = lat.winner === "tie" ? "Latency: the models are within the tie range (" + (lat.note || "no clear difference") + ")."
-        : short(lat.winner) + " is " + lat.pct_better + "% faster per flow" + (lat.p_value != null ? " (p = " + (+lat.p_value).toPrecision(2) + ")" : "") + ".";
+        : short(lat.winner) + " is " + lat.pct_better + "% faster per flow" + (lat.runner_up ? " than the next-fastest, " + short(lat.runner_up) : "") + (lat.p_value != null ? " (p = " + (+lat.p_value).toPrecision(2) + ")" : "") + ".";
     } else if (pm.length === 1) {
       var e = ((pm[0].efficiency || {}).end_to_end) || {};
       if (e.mean_latency_s != null) out.performance = short(pm[0].model) + " takes " + time(e.mean_latency_s) + " per flow on average (p95 " + time(e.p95_latency_s) + ").";

@@ -32,7 +32,7 @@ def _fmt(v, spec="{:.4f}"):
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("run_dir", help="results/csv_runs/<name> or results/pcap_runs/<name>")
-    ap.add_argument("--models", nargs="+", required=True, help="1 or 2 model ids")
+    ap.add_argument("--models", nargs="+", required=True, help="1 to 4 model ids")
     ap.add_argument("--base-config", default=None,
                     help="config to derive the session from (default config.yaml; "
                          "configs/run_full_l4.yaml for hf + 4-bit NF4 on a GPU)")

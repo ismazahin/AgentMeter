@@ -22,6 +22,7 @@ describe("per-user settings", () => {
     const a = await user();
     const bad: Record<string, unknown>[] = [
       { theme: "neon" }, { notify_on: "sometimes" }, { telegram_chat_id: "abc" }, { default_models: ["a", "b", "c"] },
+      { default_models: ["o/a", "o/b", "o/c", "o/d", "o/e"] },
       { default_models: ["not a model"] }, { default_flows: 0 }, { default_flows: 501 }, { default_other_attack: "yes" },
       { timezone: "Mars/Olympus" }, { weight_presets: [{ name: "x", weights: { accuracy: 0, latency: 0, vram: 0, tokens: 0 } }] },
       { weight_presets: [{ name: "x", weights: { accuracy: 2, latency: 0, vram: 0, tokens: 0 } }] },

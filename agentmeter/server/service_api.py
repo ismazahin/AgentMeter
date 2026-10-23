@@ -11,9 +11,9 @@ Prepare (data preparation for benchmarking, not analysis):
   POST /api/prepared/import     multipart manifest, features[, labels] -> 201 {summary}
                                 (re-upload of a prepared set downloaded earlier)
 Benchmark:
-  POST /api/jobs                (jobs_api.py) {run: <prepared-set id>, models[<=2]}
+  POST /api/jobs                (jobs_api.py) {run: <prepared-set id>, models[<=4]}
 Other:
-  GET  /api/service/config      canonical models, max 2, provider, demo flag, limits
+  GET  /api/service/config      canonical models, max 4, provider, demo flag, limits
 
 Input guards (config.yaml `service:`): an upload above max_upload_mb is rejected
 with 413 before its body is read; a URL import above max_url_download_gb is

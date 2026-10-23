@@ -46,11 +46,13 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     log(/mixture of experts/.test(moe), 'Other architectures are offered too (mixture of experts)');
     await p.screenshot({ path: S + '/01-picker.png', fullPage: true });
 
-    // 2. pick an extra + a study model; a third is disabled (max 2)
+    // 2. pick an extra + study models; a fifth is disabled (max 4, across both groups)
     await p.check(`input[value="${EXTRA}"]`);
     await p.check('#svc-models input[value="Qwen/Qwen2.5-7B-Instruct"]');
-    log(await p.isDisabled('#svc-models input[value="google/gemma-2-9b-it"]') && await p.isDisabled('#svc-extra-models input:not(:checked)'),
-        'Max 2 models across both groups: the others are disabled');
+    await p.check('#svc-models input[value="google/gemma-2-9b-it"]'); await p.check('#svc-models input[value="microsoft/Phi-3-mini-4k-instruct"]');
+    log(await p.isDisabled('#svc-models input[value="mistralai/Mistral-7B-Instruct-v0.3"]') && await p.isDisabled('#svc-extra-models input:not(:checked)'),
+        'Max 4 models across both groups: the others are disabled');
+    await p.uncheck('#svc-models input[value="google/gemma-2-9b-it"]'); await p.uncheck('#svc-models input[value="microsoft/Phi-3-mini-4k-instruct"]');
     await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/new\/run\//.test(location.hash), null, { timeout: 30000 });
     const job = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[3]);

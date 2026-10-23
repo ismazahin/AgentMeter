@@ -85,7 +85,10 @@ async function frameOf(p) {
   await p.waitForSelector('#svc-models input');
   const boxes = await p.$$('#svc-models input');
   await boxes[1].check(); await boxes[3].check();
-  log(await boxes[0].isDisabled(), 'a 3rd model is blocked once 2 are picked');
+  const thirdOk = !(await boxes[0].isDisabled());
+  await boxes[0].check(); await boxes[2].check();
+  log(thirdOk && await boxes[4].isDisabled(), 'up to 4 models can be picked; a 5th is blocked');
+  await boxes[0].uncheck(); await boxes[2].uncheck();
   await p.waitForFunction(() => document.querySelector('#wiz-data-chip').textContent === 'Ready', null, { timeout: 60000 });
   log(/10 flows ready/.test(await p.textContent('#wiz-data-status')), 'data ready: ' + await p.textContent('#wiz-data-status'));
   log(!!(await p.$('#svc-summary-card')), 'data summary shown on step 2');

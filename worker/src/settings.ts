@@ -46,8 +46,8 @@ export function mergeSettings(current: Settings, patch: Record<string, unknown>)
         out.notify_on = v as string;
         break;
       case "default_models":
-        if (!Array.isArray(v) || v.length > 2 || !v.every((m) => typeof m === "string" && MODEL_ID.test(m)))
-          fail(400, "bad_setting", "default_models: up to 2 model ids (owner/name)");
+        if (!Array.isArray(v) || v.length > 4 || !v.every((m) => typeof m === "string" && MODEL_ID.test(m)))
+          fail(400, "bad_setting", "default_models: up to 4 model ids (owner/name)");
         out.default_models = v as string[];
         break;
       case "default_flows":

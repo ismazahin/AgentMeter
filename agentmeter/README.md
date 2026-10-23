@@ -72,8 +72,8 @@ agentmeter/
 │   └── sample.py          Deterministic sample capture + sample CIC-IDS2017 CSV for tests/demos.
 │
 ├── session/            ← BENCHMARK SESSIONS (service pivot): a prepared user run → the
-│   │                      EXISTING runner/pipeline for ≤2 models → session.db in the run dir
-│   ├── benchmark.py       Validate ≤2 models, write session scenarios + config, call run_full.
+│   │                      EXISTING runner/pipeline for ≤4 models → session.db in the run dir
+│   ├── benchmark.py       Validate ≤4 models, write session scenarios + config, call run_full.
 │   ├── scoring.py         Reuse analyze.py (phase7/phase8 SAW/sensitivity/per_agent/stats) +
 │   │                      the absolute 2-model comparison → session_results.json (non_validated).
 │   ├── relative.py        Head-to-head A-vs-B on the same metrics (ties by threshold + significance).

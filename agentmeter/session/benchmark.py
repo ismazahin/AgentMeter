@@ -10,7 +10,7 @@ the user run's directory, then calls the existing Phase 6 runner:
                          written, so they cannot reach a prompt.
   session_config.yaml    the base config (e.g. configs/run_full_l4.yaml for
                          Colab: hf + 4-bit NF4 + require_gpu) with per-session
-                         overrides: run.models (<=2), dataset -> the CSV above,
+                         overrides: run.models (<=4), dataset -> the CSV above,
                          storage -> <run_dir>/session.db, and classes -> the
                          run's class set.
 
@@ -39,7 +39,7 @@ from ..config import PROJECT_ROOT, load_config
 from ..ingest.csv_input import OTHER_ATTACK
 from ..ingest.unified import load_input_run
 
-MAX_MODELS = 2
+MAX_MODELS = 4
 SESSION_DB = "session.db"
 SCENARIOS_CSV = "session_scenarios.csv"
 SESSION_CONFIG = "session_config.yaml"
@@ -64,11 +64,11 @@ def canonical_models() -> list[str]:
 def validate_models(models: list[str]) -> list[str]:
     models = [str(m).strip() for m in models if str(m).strip()]
     if not models:
-        raise SessionError("choose 1 or 2 models to benchmark")
+        raise SessionError(f"choose 1 to {MAX_MODELS} models to benchmark")
     if len(models) > MAX_MODELS:
         raise SessionError(
             f"at most {MAX_MODELS} models per benchmark session (got {len(models)}: "
-            f"{', '.join(models)}). Pick two — e.g. from the 5-model set or a pulled model.")
+            f"{', '.join(models)}).")
     if len(set(models)) != len(models):
         raise SessionError(f"duplicate model in {models}")
     return models

@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import bisect
 import hashlib
+import itertools
 import json
 import math
 import sqlite3
@@ -432,10 +433,25 @@ def _flow_tokens(am: list[dict], dbm: str) -> list[float]:
 
 def effect_block(sr: list[dict], am: list[dict], label_of: dict[str, str],
                  statistics: Optional[dict] = None) -> dict[str, Any]:
+    """Two models: A vs B. Three or four: every pair under "pairs", and the top level is the
+    pair of the two fastest models (the closest race on latency)."""
     models = list(label_of)
-    if len(models) != 2:
+    if len(models) < 2:
         return {"skipped": "effect sizes compare two models (single-model session)"}
-    a, b = models
+    if len(models) > 2:
+        lat = {m: float(np.mean([r["scenario_total_time_s"] for r in sr if r["model"] == label_of[m]] or [np.inf]))
+               for m in models}
+        pairs = [_effect_pair(sr, am, label_of, statistics, a, b) for a, b in itertools.combinations(models, 2)]
+        f1, f2 = sorted(models, key=lambda m: (lat[m], models.index(m)))[:2]
+        main = next(p for p in pairs if {p["model_a"], p["model_b"]} == {f1, f2})
+        return {**main, "pairs": pairs, "pair_basis": "the two fastest models (lowest mean latency)",
+                "note": "Kruskal-Wallis p is the session's test across all the models; pairwise "
+                        "significance is the Dunn post-hoc test (Statistics)."}
+    return _effect_pair(sr, am, label_of, statistics, *models)
+
+
+def _effect_pair(sr: list[dict], am: list[dict], label_of: dict[str, str], statistics: Optional[dict],
+                 a: str, b: str) -> dict[str, Any]:
     da, db_ = label_of[a], label_of[b]
     stats = statistics or {}
     series = {

@@ -262,9 +262,9 @@ def test_pcap_session_is_efficiency_only(tmp_path):
 
 # --- rejections + safety -------------------------------------------------------------------
 @pytest.mark.parametrize("models, msg", [
-    (["a", "b", "c"], "at most 2 models"),
+    (["a", "b", "c", "d", "e"], "at most 4 models"),
     (["a", "a"], "duplicate"),
-    ([], "choose 1 or 2"),
+    ([], "choose 1 to 4"),
 ])
 def test_model_count_is_enforced_before_anything_runs(labelled, models, msg):
     run_dir, _ = labelled
@@ -272,13 +272,13 @@ def test_model_count_is_enforced_before_anything_runs(labelled, models, msg):
         run_session(run_dir, models, provider="mock")
 
 
-def test_cli_rejects_three_models(labelled, capsys):
+def test_cli_rejects_five_models(labelled, capsys):
     spec = importlib.util.spec_from_file_location("bench_cli", PROJECT_ROOT / "scripts" / "benchmark.py")
     cli = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cli)
     run_dir, _ = labelled
-    assert cli.main([str(run_dir), "--models", "a", "b", "c", "--provider", "mock"]) == 2
-    assert "at most 2 models" in capsys.readouterr().err
+    assert cli.main([str(run_dir), "--models", "a", "b", "c", "d", "e", "--provider", "mock"]) == 2
+    assert "at most 4 models" in capsys.readouterr().err
 
 
 def test_refuses_to_write_into_the_locked_study_db(tmp_path, monkeypatch):
@@ -352,3 +352,23 @@ def test_model_on_disk_rejects_dangling_weight_links(tmp_path):
     assert runtime.model_on_disk("org/m", cache=tmp_path)
     blob.unlink()                       # what a deleted cache blob leaves behind
     assert not runtime.model_on_disk("org/m", cache=tmp_path)
+
+
+# --- 3-4 models in one session (Phase H) -----------------------------------------------------
+def test_four_models_in_one_session(tmp_path):
+    process_csv(SAMPLE, out_root=tmp_path, max_flows=6)
+    run_dir = tmp_path / "cicids2017_sample"
+    models = ["mock-a", "mock-b", "mock-c", "mock-d"]
+    p = run_session(run_dir, models, provider="mock")
+    assert [m["model"] for m in p["per_model"]] == models and all(m["efficiency"]["n_flows"] == 6 for m in p["per_model"])
+    rel = p["relative_comparison"]
+    assert rel["mode"] == "multi" and rel["models"] == models and len(rel["pairs"]) == 6
+    assert {r["model"] for r in rel["ranking"]} == set(models)
+    assert rel["efficiency_verdict"]["verdict"] in ("more_efficient", "mixed", "tie")
+    assert p["comparison"]["models"] == models and p["comparison"]["more_resource_efficient"]["model"]
+    eff = p["effect_sizes"]
+    assert len(eff["pairs"]) == 6 and {eff["model_a"], eff["model_b"]} <= set(models)
+    assert len(p["agents"]["per_model"]) == 4 and len(p["cost_energy"]["per_model"]) == 4
+    # the PDF report renders with four model columns
+    from agentmeter.session.pdf_report import build_report_pdf
+    assert build_report_pdf(p, job={"job_id": "job_x", "models": models}, input_meta={}, audit={}, prepared=None)[:4] == b"%PDF"

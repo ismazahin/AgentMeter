@@ -62,7 +62,7 @@ def test_service_page_and_config(env):
                  "view-session", "sessions-table", 'src="report.js"'):
         assert hook in html
     cfg = c.get("/api/service/config").get_json()
-    assert cfg["max_models"] == 2 and len(cfg["canonical_models"]) == 5
+    assert cfg["max_models"] == 4 and len(cfg["canonical_models"]) == 5
     assert cfg["gpu_available"] is False and cfg["demo_mode"] is True and cfg["provider"] == "mock"
     assert "MOCK" in cfg["note"]
     assert c.get("/").status_code == 200                     # the app (Phase 46)
@@ -163,10 +163,10 @@ def test_upload_then_run_through_the_job_api_end_to_end(env):
     assert _sha(DATASET) == DATASET_SHA256
 
 
-def test_three_models_rejected_by_the_api_too(env):
+def test_five_models_rejected_by_the_api_too(env):
     c, _, _ = env
     run = upload(c, SAMPLE_CSV, max_flows="5").get_json()["run"]
-    r = c.post("/api/jobs", json={"run": run, "models": ["a", "b", "c"], "provider": "mock"})
+    r = c.post("/api/jobs", json={"run": run, "models": ["a", "b", "c", "d", "e"], "provider": "mock"})
     assert r.status_code == 400 and r.get_json()["code"] == "too_many_models"
 
 

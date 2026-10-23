@@ -2,7 +2,7 @@
 
 A **session** takes a prepared user run (from `scripts/ingest.py`, see
 [INPUT_LAYER.md](INPUT_LAYER.md)) and runs its selected flows through the
-**existing** instrumented 4-agent pipeline for **1 or 2 models**. It then scores
+**existing** instrumented 4-agent pipeline for **1 to 4 models**. It then scores
 and compares them. It measures LLM resource efficiency, plus accuracy where labels
 exist. It is not a detection product.
 
@@ -58,6 +58,15 @@ two models directly against each other, using the same measured metrics:
 | Mean peak working VRAM (excludes model weights) | lower | % less, and a ratio | within 2%, or not significant; "not available" on CPU/mock |
 | Mean tokens per flow | lower | % fewer, and a ratio | within 2% |
 | Accuracy (labelled runs only) | higher | percentage-point difference | within 2 percentage points |
+
+**Three or four models.** Every pair is compared exactly as above, but a pair's latency
+and VRAM gap must be significant in the session's Dunn post-hoc test (Holm-corrected;
+the Kruskal-Wallis p when that test was not significant). Per metric, the best model is
+compared with the runner-up. A model that is more resource-efficient than each other model
+in its pair is "the most efficient"; otherwise the verdict is "mixed" (or "tie" when every
+pair ties). `ranking` orders the models by pair wins minus losses, and `pairs` holds every
+pairwise comparison. Effect sizes are reported for every pair; the top-level effect sizes
+compare the two fastest models.
 
 The significance check reuses the session's existing statistics. A gap that is only
 timing noise is reported as a tie together with its p-value, so it never produces a
@@ -229,7 +238,7 @@ wizard.
      files), plus the flow count and the Other Attack opt-in.
   2. **Models and settings.** The data is prepared in the background while you choose.
      The data card shows its progress, then the summary (sampling, class table, rules)
-     and the prepared-set downloads. Pick 1 or 2 models from **Study models (validated
+     and the prepared-set downloads. Pick 1 to 4 models from **Study models (validated
      baseline)** — the 5 models of `configs/run_full_l4.yaml` — and/or **More models to
      try**: the extra models of `configs/model_catalog.yaml` that the suitability rules
      offer (`GET /api/models/catalog`, RULE_BASE.md rule-base M). Each card shows the

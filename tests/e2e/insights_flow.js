@@ -218,11 +218,29 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     const snip = await p.waitForSelector(`#sessions-table tr:has(a[data-open="${pcap}"]) .note-snip`, { timeout: 15000 }).then(e => e.textContent()).catch(() => '');
     log(snip === 'pcap smoke test' && !(await p.$('#sessions-table [data-del]')), 'sessions: "Note" from the list saves; no Delete button without a control plane (' + JSON.stringify(snip) + ')');
 
+    // up to 4 models in one session (Phase H): one verdict over all of them, every pair, 4 colours
+    const four = await session(p, REPO + '/data/sample_csv/cicids2017_sample.csv', 20, [0, 1, 2, 3]);
+    await tab(p, four, 'overview', '#svc-headline');
+    log(/most efficient of 4 models|no model beats all 3 others|All 4 models tie/.test(await p.textContent('#svc-headline')), 'four models: the headline speaks about all 4 (' + await p.textContent('#svc-headline') + ')');
+    log((await p.$$('#svc-models-table tbody tr')).length === 4 && /Fair comparison/.test(await p.textContent('#svc-caveats')), 'four models: per-model table has 4 rows; caveat says "Fair comparison"');
+    await tab(p, four, 'performance/comparison', '#svc-relative-table');
+    log((await p.$$('#svc-relative-table thead th')).length === 6 && (await p.$$('#svc-pairs-table tbody tr')).length === 6 && (await p.$$('#svc-pair-ranking li')).length === 4,
+        'four models: comparison has 4 model columns, 6 pairs and a 4-place ranking');
+    await tab(p, four, 'performance/latency', '#stats-histogram');
+    const sw = await p.$$eval('#session-body .ilegend i, #session-body .sw', els => [...new Set(els.map(e => e.getAttribute('style') || ''))].filter(s => /series/.test(s)));
+    log(sw.length >= 4 && sw.every(x => /mseries-[1-4]/.test(x)), 'four models: charts use the 4-model palette (' + sw.length + ' colours)');
+    await tab(p, four, 'performance/statistics', '#stats-effect-pairs');
+    log((await p.$$('#stats-effect-pairs tbody tr')).length === 6, 'four models: effect sizes for every pair');
+
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;
     for (const t of ['overview', 'ranking/robustness', 'accuracy', 'performance/latency', 'performance/statistics', 'agents', 'cost', 'recommendations/limits', 'performance/gpu']) {
       await tab(p, csv, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
+      maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
+    }
+    for (const t of ['overview', 'performance/comparison', 'performance/statistics']) {
+      await tab(p, four, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }
     await p.goto(ORIGIN + '/#/sessions'); await p.waitForSelector('#sessions-table'); await p.waitForTimeout(300);

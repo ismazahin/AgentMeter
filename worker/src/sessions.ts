@@ -83,7 +83,7 @@ export async function patchSession(req: Request, env: Env, id: string): Promise<
 
 // --- users --------------------------------------------------------------------------------
 export async function listSessions(req: Request, env: Env): Promise<Response> {
-  await requireUser(req, env);
+  const a = await requireUser(req, env);
   const q = new URL(req.url).searchParams;
   const limit = Math.max(1, Math.min(200, intVar(q.get("limit") || "", 50)));
   const where = ["deleted_at IS NULL"], args: unknown[] = [];
@@ -102,7 +102,9 @@ export async function listSessions(req: Request, env: Env): Promise<Response> {
   const r = await env.DB.prepare(
     `SELECT id, owner_id, owner_username, status, created_at, finished_at, input_type, n_flows, gpu, provider, models_json, prepared_set, summary_json, results_bytes, files_json, notes, tags_json
      FROM sessions WHERE ${where.join(" AND ")} ORDER BY created_at DESC LIMIT ?`).bind(...args, limit).all<Row>();
-  return json({ sessions: r.results.map(view), statuses: ["Done", "Demo", "Running", "Failed", "Interrupted", "Stopped"] });
+  // can_edit: the owner or an admin may delete the session and edit its notes (the rows' buttons)
+  const mine = (x: Row) => a.user.role === "admin" || (!!x.owner_id && x.owner_id === a.user.id);
+  return json({ sessions: r.results.map((x) => ({ ...view(x), can_edit: mine(x) })), statuses: ["Done", "Demo", "Running", "Failed", "Interrupted", "Stopped"] });
 }
 
 export async function getSession(req: Request, env: Env, id: string): Promise<Response> {

@@ -362,6 +362,13 @@
   .rep-spread { margin: 0 6px 4px; }
   .finding-line { margin: 4px 0 10px; }
   .tag-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .row-acts { white-space: nowrap; }
+  .row-acts > * { margin-left: 6px; vertical-align: middle; }
+  .row-acts > a { margin-left: 0; }
+  .danger-lite { color: var(--danger); }
+  .note-row td { background: var(--surface-2); }
+  .note-form { display: grid; gap: 6px; max-width: 640px; }
+  .note-form label { font-weight: 600; font-size: 13.5px; }
   .tag-chip { cursor: pointer; font-size: 12px; padding: 2px 8px; }
   span.tag-chip { cursor: default; }
   .note-snip { margin-top: 4px; color: var(--muted-2); max-width: 46ch; }
@@ -1546,7 +1553,7 @@
     var running = row.status === "Running";
     return '<a href="#/session/' + enc(row.session_id) + '" data-open="' + esc(row.session_id) + '">' + (running ? "Watch" : "Open") + '</a>';
   }
-  function sessionsTable(rows, id) {
+  function sessionsTable(rows, id, actions) {
     return '<table id="' + id + '"><thead><tr><th>Session</th><th>Input</th><th class="num">Flows</th><th>GPU</th><th>More efficient</th><th>Status</th><th></th></tr></thead><tbody>' +
       rows.map(function (s) {
         var tags = (s.tags || []).map(function (t) { return '<button type="button" class="chip tag-chip" data-tag="' + esc(t) + '" title="Show sessions tagged ' + esc(t) + '">' + esc(t) + '</button>'; }).join("");
@@ -1554,7 +1561,9 @@
           '</span>' + (tags ? '<div class="tag-row">' + tags + '</div>' : "") + (s.notes ? '<div class="small note-snip" title="' + esc(s.notes) + '">' + esc(s.notes.length > 90 ? s.notes.slice(0, 88) + "…" : s.notes) + '</div>' : "") +
           '</td><td>' + esc(s.input_type || "—") + '</td><td class="num">' + fmtNum(s.n_flows) + '</td><td>' + esc(s.gpu || "—") +
           '</td><td>' + esc(s.more_efficient ? (s.more_efficient.indexOf("/") > 0 ? short(s.more_efficient) : s.more_efficient) : "—") +
-          '</td><td>' + statusChip(s.status) + '</td><td>' + sessionLink(s) + '</td></tr>';
+          '</td><td>' + statusChip(s.status) + '</td><td class="row-acts">' + sessionLink(s) +
+          (actions && s.can_edit ? '<button type="button" class="btn small-btn" data-note="' + esc(s.session_id) + '" aria-expanded="false">Note</button>' : "") +
+          (actions && s.can_edit && CP && s.status !== "Running" ? '<button type="button" class="btn small-btn danger-lite" data-del="' + esc(s.session_id) + '">Delete</button>' : "") + '</td></tr>';
       }).join("") + '</tbody></table>';
   }
   function hbars(title, rows, fmt, unitNote) {
@@ -2151,13 +2160,51 @@
       if (!r.ok) { box.innerHTML = '<p class="notice error" style="margin:12px">' + esc(r.data.error) + '</p>'; return; }
       var rows = r.data.sessions || [];
       var any = st || it || qs || FLT_TAG;
-      box.innerHTML = rows.length ? sessionsTable(rows, "sessions-table")
+      box.innerHTML = rows.length ? sessionsTable(rows, "sessions-table", true)
         : '<div class="empty"><p>' + (any ? "No sessions match these filters." : "No sessions yet — start one with New benchmark.") + '</p>' +
           (any ? "" : '<a class="btn primary" href="#/new">New benchmark</a>') + '</div>';
       box.querySelectorAll("[data-tag]").forEach(function (b) { b.addEventListener("click", function () { FLT_TAG = b.getAttribute("data-tag"); loadSessions(); }); });
+      wireRowActions(box, rows);
     });
   }
   ["flt-status", "flt-input"].forEach(function (id) { $(id).addEventListener("change", loadSessions); });
+  // row actions: a short note (inline editor under the row) and delete (owner or admin)
+  function wireRowActions(box, rows) {
+    var byId = {}; rows.forEach(function (s) { byId[s.session_id] = s; });
+    box.querySelectorAll("[data-note]").forEach(function (b) { b.addEventListener("click", function () {
+      var id = b.getAttribute("data-note"), tr = b.closest("tr"), open = tr.nextElementSibling && tr.nextElementSibling.classList.contains("note-row");
+      box.querySelectorAll(".note-row").forEach(function (r) { r.remove(); });
+      box.querySelectorAll("[data-note]").forEach(function (x) { x.setAttribute("aria-expanded", "false"); });
+      if (open) return;
+      b.setAttribute("aria-expanded", "true");
+      var row = document.createElement("tr"); row.className = "note-row";
+      row.innerHTML = '<td colspan="' + tr.cells.length + '"><form class="note-form" novalidate><label for="row-note-text">Note for ' + esc(shortId(id)) + '</label>' +
+        '<textarea id="row-note-text" rows="2" maxlength="2000" placeholder="e.g. rerun after the tokenizer fix">' + esc(byId[id].notes || "") + '</textarea>' +
+        '<div class="actions"><button type="submit" class="btn primary small-btn">Save note</button><button type="button" class="btn small-btn" data-note-cancel>Cancel</button>' +
+        '<span class="small muted" role="status" data-note-status></span></div></form></td>';
+      tr.after(row);
+      var f = row.querySelector("form"), ta = row.querySelector("textarea");
+      ta.focus();
+      row.querySelector("[data-note-cancel]").addEventListener("click", function () { row.remove(); b.setAttribute("aria-expanded", "false"); b.focus(); });
+      f.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        api("/api/sessions/" + enc(id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes: ta.value }) }).then(function (r) {
+          if (!r.ok) { row.querySelector("[data-note-status]").textContent = (r.data || {}).error || "Could not save."; return; }
+          loadSessions();
+        });
+      });
+    }); });
+    box.querySelectorAll("[data-del]").forEach(function (b) { b.addEventListener("click", function () {
+      var id = b.getAttribute("data-del"), s = byId[id];
+      if (!confirm("Delete session " + id + " (" + (s.models || []).map(short).join(" vs ") + ") for everyone?\n\nIts results, PDF and stored prepared-set copy are removed. This cannot be undone.")) return;
+      b.disabled = true;
+      api("/api/sessions/" + enc(id), { method: "DELETE" }).then(function (r) {
+        if (!r.ok) { b.disabled = false; alert((r.data || {}).error || "Could not delete the session."); return; }
+        if (SESSION.id === id) SESSION = { id: null, res: null, job: null };
+        loadSessions();
+      });
+    }); });
+  }
   var fltTimer = null;
   $("flt-q").addEventListener("input", function () { clearTimeout(fltTimer); fltTimer = setTimeout(loadSessions, 250); });
   $("sessions-filter").addEventListener("submit", function (ev) { ev.preventDefault(); loadSessions(); });

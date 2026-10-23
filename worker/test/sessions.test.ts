@@ -163,3 +163,15 @@ describe("notes and tags (owner or admin edits, everyone searches)", () => {
     expect(await ids("tag=thesis")).toEqual([]);                                        // whole tag only
   });
 });
+
+describe("the session list says who may edit each row", () => {
+  it("can_edit: true for the owner and an admin, false for other users", async () => {
+    const owner = await user(), other = await user(), admin = await user("admin");
+    await register();
+    await benchmarkFor(owner);
+    const row = async (u: { token: string }) => (await api("/api/sessions", { token: u.token })).data.sessions.find((x: any) => x.session_id === SID);
+    expect((await row(owner)).can_edit).toBe(true);
+    expect((await row(admin)).can_edit).toBe(true);
+    expect((await row(other)).can_edit).toBe(false);
+  });
+});

@@ -336,6 +336,16 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(JSON.stringify(lbAfter.groups) === JSON.stringify(lbBefore.groups), 'the Leaderboard is unchanged by a stopped run');
     await p.goto(APP + '/#/sessions'); await p.waitForSelector('#sessions-table');
     log(/Stopped/.test(await p.textContent(`tr:has(a[data-open="${jobS}"])`)), 'Sessions lists it as Stopped');
+    // row actions on the list: a short note, then delete (owner or admin; confirmed)
+    await p.click(`tr:has(a[data-open="${jobS}"]) [data-note]`); await p.waitForSelector('.note-row textarea');
+    await p.fill('.note-row textarea', 'stopped on purpose (stop test)'); await p.click('.note-row button[type="submit"]');
+    await p.waitForFunction(j => /stopped on purpose/.test((document.querySelector(`tr:has(a[data-open="${j}"])`) || {}).textContent || ''), jobS, { timeout: 15000 });
+    log(true, 'Sessions: "Note" adds a short note from the list; it shows under the session');
+    p.once('dialog', d => d.accept());
+    await p.click(`tr:has(a[data-open="${jobS}"]) [data-del]`);
+    await p.waitForFunction(j => !document.querySelector(`a[data-open="${j}"]`), jobS, { timeout: 15000 });
+    const goneS = await fetch(WORKER + '/api/sessions/' + jobS, { headers: { Authorization: 'Bearer ' + (await loginApi('admin', 'admin-password-123')).access_token } });
+    log(goneS.status === 404, 'Sessions: "Delete" (confirmed) removes the session for everyone');
     await stopBackend(); startBackend();
     await waitFor(async () => (await workerJson('/api/backend', (await loginApi('admin', 'admin-password-123')).access_token)).online, 30000);
 

@@ -518,6 +518,7 @@ def register_sessions(app, get_manager) -> None:
                 continue
             if (q or tag) and not matches(r, q, tag):
                 continue
+            r["can_edit"] = True                     # no control plane: one user (the Worker checks owners)
             if itype and (r["input_type"] or "") != itype:
                 continue
             rows.append(r)

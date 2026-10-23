@@ -169,6 +169,68 @@ HANDOFFS: dict[str, list[str]] = {
     "act": ["reason"],
 }
 
+# --- user-defined agents (pipeline/spec.py) ----------------------------------
+# Only the output-FORMAT lines below are the harness's; the role is the user's text.
+_FORMAT = {
+    "text": "Be concise.",
+    "label": "Choose EXACTLY ONE label from the allowed list. Reply with ONLY that label, copied "
+             "verbatim, and nothing else — no punctuation, no explanation, no quotes.",
+    "verdict": "Produce the final verdict: the predicted class, its MITRE ATT&CK technique, and a "
+               "one-line justification.",
+}
+
+
+def custom_system_prompt(spec: dict) -> str:
+    return (f"You are the {spec['title']} agent in a network threat-detection pipeline. "
+            f"{spec['instructions']} {_FORMAT[spec['kind']]}")
+
+
+def make_custom_agent(name: str, spec: dict, titles: dict[str, str]) -> Callable[[dict, ModelProvider, Config], dict]:
+    """One model call built from a user's agent spec: its instructions as the system prompt,
+    the outputs of the agents it reads (and the flow features, if asked) as the user prompt."""
+    kind = spec.get("kind", "text")
+
+    def agent(state: dict, provider: ModelProvider, config: Config) -> dict:
+        classes = list(config.get("classes", []) or [])
+        parts = []
+        if kind == "label":
+            parts.append(f"Allowed labels (copy one verbatim): {' | '.join(classes)}")
+        if kind == "verdict":
+            parts.append(f"Chosen class: {state.get('predicted_class', 'Unparseable')}")
+        for src in spec.get("reads") or []:
+            parts.append(f"{titles.get(src, src)} output:\n{state.get(src, '')}")
+        if spec.get("features", True):
+            parts.append(f"Raw features:\n{state['feature_prompt']}")
+        if kind == "label":
+            parts.append("Your entire answer must be exactly one label from the list above.")
+        if kind == "verdict":
+            parts.append("Give: predicted class, its MITRE ATT&CK technique, one-line justification.")
+        res = provider.generate("\n\n".join(parts), system=custom_system_prompt(spec),
+                                max_new_tokens=_max_tokens(config, name))
+        update: dict = {name: res.text, "_last_result": res}
+        if kind == "label":
+            update["predicted_class"] = normalize_class(res.text, classes)
+        elif kind == "verdict":
+            update["verdict"] = make_verdict(state.get("predicted_class", "Unparseable"), res.text, config)
+        return update
+
+    agent.__name__ = f"{name}_agent"
+    return agent
+
+
+def make_verdict(predicted: str, text: str, config: Config) -> dict:
+    """The verdict a pipeline ends with. Without a verdict agent it is the label alone."""
+    classes = list(config.get("classes", []) or [])
+    mitre = dict(config.get("mitre", {}) or {})
+    final_class = predicted if predicted in classes else (normalize_class(text, classes) if text else "Unparseable")
+    return {
+        "predicted_class": final_class,
+        "mitre_technique": mitre.get(final_class, "N/A"),
+        "justification": text.strip().splitlines()[-1] if text.strip() else "",
+        "raw": text,
+    }
+
+
 # Registry keeps the harness agent-count agnostic: config lists names, the
 # graph builder wires whichever of these are named, in order.
 AGENT_REGISTRY: dict[str, Callable[[dict, ModelProvider, Config], dict]] = {

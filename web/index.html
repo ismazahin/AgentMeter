@@ -49,7 +49,7 @@
     --danger: #B42323; --danger-soft: #F7E3E0;
     --info-soft: #E7ECFA;
     --series-1: #2455D6; --series-2: #C65C34;
-    --ag-perceive: #2a78d6; --ag-reason: #eb6834; --ag-decide: #1baf7a; --ag-act: #eda100;
+    --ag-1: #2a78d6; --ag-2: #eb6834; --ag-3: #1baf7a; --ag-4: #eda100; --ag-5: #e87ba4; --ag-6: #008300; --ag-7: #6250d6; --ag-8: #e34948;
     --radius: 3px; --radius-lg: 4px; --side: 232px;
     color-scheme: light;
   }
@@ -63,7 +63,7 @@
     --danger: #FF8A8A; --danger-soft: #3A1717;
     --info-soft: #1C2540;
     --series-1: #5b8ae8; --series-2: #d9714a;
-    --ag-perceive: #3987e5; --ag-reason: #d95926; --ag-decide: #199e70; --ag-act: #c98500;
+    --ag-1: #3987e5; --ag-2: #d95926; --ag-3: #199e70; --ag-4: #c98500; --ag-5: #d55181; --ag-6: #008300; --ag-7: #9085e9; --ag-8: #e66767;
     color-scheme: dark;
   } }
   :root[data-theme="dark"] {
@@ -76,7 +76,7 @@
     --danger: #FF8A8A; --danger-soft: #3A1717;
     --info-soft: #1C2540;
     --series-1: #5b8ae8; --series-2: #d9714a;
-    --ag-perceive: #3987e5; --ag-reason: #d95926; --ag-decide: #199e70; --ag-act: #c98500;
+    --ag-1: #3987e5; --ag-2: #d95926; --ag-3: #199e70; --ag-4: #c98500; --ag-5: #d55181; --ag-6: #008300; --ag-7: #9085e9; --ag-8: #e66767;
     color-scheme: dark;
   }
 
@@ -378,6 +378,24 @@
   .help-dl dd { margin: 0; color: var(--muted-2); }
   @media (max-width: 640px) { .help-dl { grid-template-columns: 1fr; } .help-dl dd { margin-bottom: 6px; } }
   #view-help .card { scroll-margin-top: 80px; }
+  .pl-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; counter-reset: pl; }
+  .pl-item { border: 1px solid var(--border-2); border-left: 4px solid var(--c); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); }
+  .pl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .pl-head b { font-size: 14px; }
+  .pl-tools { margin-left: auto; display: flex; gap: 6px; }
+  .pl-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; margin-top: 10px; }
+  .pl-fields .field { min-width: 0; }
+  .pl-fields .field input, .pl-fields .field select { width: 100%; }
+  .pl-fields .pl-wide { grid-column: 1 / -1; }
+  .pl-fields textarea { width: 100%; min-height: 64px; resize: vertical; font: inherit; }
+  .pl-reads { grid-column: 1 / -1; border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+  .pl-reads legend { font-weight: 600; font-size: 13px; padding: 0; margin-bottom: 4px; }
+  .pl-item p { margin: 4px 0 0; }
+  @media (max-width: 720px) { .pl-fields { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 420px) { .pl-fields { grid-template-columns: 1fr; } .pl-tools { margin-left: 0; } }
+  .pl-view { margin: 8px 0 0; padding-left: 22px; display: grid; gap: 10px; }
+  .pl-view p { margin: 2px 0 0; }
+  .pl-instr { white-space: pre-wrap; }
   .note-snip { margin-top: 4px; color: var(--muted-2); max-width: 46ch; }
   .notes-text { white-space: pre-wrap; }
   .flow-detail { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
@@ -763,7 +781,7 @@
       <ol class="guide-steps">
         <li><b>Data.</b> Upload a CSV (CIC-IDS2017 flows, with labels) or a PCAP. AgentMeter samples the flows you ask for and keeps them as a <i>prepared set</i> you can reuse.</li>
         <li><b>Models.</b> Pick one or two open models (4-bit). The wizard estimates the time and cost from earlier runs.</li>
-        <li><b>Run.</b> Each flow goes through four agents — Perceive, Reason, Decide, Act — one model at a time, on the same GPU.</li>
+        <li><b>Run.</b> Each flow goes through the agents — by default Perceive, Reason, Decide, Act, or your own pipeline — one model at a time, on the same GPU.</li>
         <li><b>Read.</b> Each session tab opens with a one-line summary; tables download as CSV, line charts and diagrams as PNG. Accuracy is context: AgentMeter measures efficiency.</li>
       </ol>
     </div>
@@ -794,6 +812,7 @@
       <ol class="guide-steps">
         <li><b>Data.</b> Open <a href="#/new">New benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for accuracy) or a PCAP. Choose how many flows to sample. The result is a <i>prepared set</i>; use <b>Reuse a prepared set</b> next time to skip this step.</li>
         <li><b>Models.</b> Pick one or two open models. Every model runs in 4-bit NF4 on the same GPU, one at a time, so the numbers are comparable. The wizard estimates time and cost from earlier runs.</li>
+        <li><b>Agents.</b> Keep the default pipeline (Perceive → Reason → Decide → Act) or build your own: up to 8 agents, from the built-ins, ready-made templates or agents you write. Exactly one agent gives the answer (a <i>label</i> agent); each agent reads the flow and/or earlier agents' answers.</li>
         <li><b>Options.</b> Tick <b>Load test</b> to also measure how throughput scales with 1, 2 and 4 flows in parallel.</li>
         <li><b>Run.</b> The session page shows live progress. You can leave it; the run continues on the GPU server. Stop it from the same page if needed.</li>
       </ol>
@@ -815,7 +834,7 @@
         <tr><td>Model Ranking</td><td>How do the models score overall (SAW), and does the order hold if I care about different things?</td></tr>
         <tr><td>Accuracy</td><td>Which attack classes does each model get right or miss? (Needs labelled flows; context, not the ranking.)</td></tr>
         <tr><td>Performance</td><td>How fast and how steady is each model, how much GPU does it use, and are the differences real or noise?</td></tr>
-        <tr><td>Agent Analysis</td><td>Which of the four agents (Perceive, Reason, Decide, Act) uses the time and tokens, and what did they say for a given flow?</td></tr>
+        <tr><td>Agent Analysis</td><td>Which agent (by default Perceive, Reason, Decide, Act) uses the time and tokens, what each one passes on, and what did they say for a given flow?</td></tr>
         <tr><td>Cost &amp; Energy</td><td>What would it cost per 1,000 flows and per day at my volume, and how much energy does it use?</td></tr>
         <tr><td>Recommendations</td><td>Does a model fit my latency, memory and budget limits, and what should I do next?</td></tr>
         <tr><td>Data &amp; Exports</td><td>Where are the PDF report, the raw results and the per-flow outputs?</td></tr>
@@ -837,6 +856,7 @@
         <dt>SAW score</dt><dd>Simple Additive Weighting: each criterion (accuracy, latency, VRAM, tokens) is scaled 0–1 and combined with weights into one score out of 100.</dd>
         <dt>p95 latency</dt><dd>95% of flows finished faster than this. It shows the slow tail that an analyst queue actually feels.</dd>
         <dt>VRAM</dt><dd>GPU memory. <i>Total peak</i> includes the model weights; <i>working</i> is what the agent calls add on top.</dd>
+        <dt>Label agent</dt><dd>The one agent in a pipeline that gives the answer: an attack class from the allowed list (Decide in the default pipeline). Accuracy is scored on its answer.</dd>
         <dt>Hand-off tokens</dt><dd>Earlier agents' output that a later agent's prompt re-sends: the overhead of splitting the work into agents.</dd>
         <dt>4-bit NF4</dt><dd>The quantisation every model runs in, so a 7B model fits on one GPU and all models are measured the same way.</dd>
         <dt>Demo (mock)</dt><dd>A run without a real model, to try the app. Its numbers are not measurements.</dd>
@@ -955,6 +975,24 @@
         </details>
         <p id="svc-model-hint" class="muted small" aria-live="polite">Select 1 or 2 models.</p>
         <hr class="sep">
+        <h2>Agents</h2>
+        <div class="seg-opts" role="radiogroup" aria-label="Agent pipeline" id="pl-mode">
+          <label><input type="radio" name="pl-mode" value="default" id="pl-mode-default" checked> Default pipeline</label>
+          <label><input type="radio" name="pl-mode" value="custom" id="pl-mode-custom"> Build my own</label>
+        </div>
+        <p class="muted small" id="pl-default-line">Perceive → Reason → Decide → Act: the study pipeline, comparable with every default session.</p>
+        <div id="pl-editor" hidden>
+          <p class="muted small">Up to 8 agents run one after another on every flow, each one model call. Exactly one <b>label</b> agent gives the answer (an attack class); a <b>verdict</b> agent after it may add the MITRE technique. Each agent reads the flow features and/or earlier agents' answers. Your instructions are sent to the model as written; AgentMeter adds only the format line a label or verdict needs.</p>
+          <ol class="pl-list" id="pl-list"></ol>
+          <div class="row">
+            <div class="field"><label for="pl-add-kind">Add an agent</label>
+              <select id="pl-add-kind"></select></div>
+            <button type="button" class="btn" id="pl-add">Add</button>
+            <button type="button" class="btn" id="pl-reset">Start again from the default</button>
+          </div>
+          <p class="small" id="pl-check" role="status" aria-live="polite"></p>
+        </div>
+        <hr class="sep">
         <h2>Settings</h2>
         <p class="small" id="svc-run-mode"></p>
         <dl class="kv small" id="wiz-settings"></dl>
@@ -1025,7 +1063,7 @@
         <ul class="guide-steps">
           <li><b>Overview</b> — the verdict, key findings and your notes. <b>Model Ranking</b> — the SAW score, its weights and how robust the order is.</li>
           <li><b>Accuracy</b> (context) — per-class precision, recall, F1 and mix-ups. <b>Performance</b> — latency, GPU and the statistics behind the verdict.</li>
-          <li><b>Agent Analysis</b> — where time and tokens go inside the 4-step pipeline. <b>Cost &amp; Energy</b> — per 1,000 flows, projected to your volume.</li>
+          <li><b>Agent Analysis</b> — where time and tokens go inside the agent pipeline. <b>Cost &amp; Energy</b> — per 1,000 flows, projected to your volume.</li>
           <li><b>Recommendations</b> — does a model fit your limits? <b>Data &amp; Exports</b> — the report, raw results and the flows. Cards with a table or chart have CSV/PNG downloads.</li>
         </ul>
       </div>
@@ -2074,7 +2112,8 @@
     modelInputs().forEach(function (inp) { inp.disabled = !!inp.dataset.locked || (!inp.checked && n >= max); });
     if ($("wiz-settings")) renderSettings();
     var failed = $("wiz-data-chip").textContent === "Failed", off = !!CP && !ONLINE;
-    $("svc-run").disabled = n < 1 || n > max || failed || off;
+    var plBad = typeof PL !== "undefined" && PL.custom && plProblems().length > 0;
+    $("svc-run").disabled = n < 1 || n > max || failed || off || plBad;
     $("svc-run").textContent = off ? "GPU offline" : WIZ.set || failed ? "Run benchmark" : "Run when data is ready";
     $("svc-model-hint").textContent = n >= max ? "Maximum of " + max + " models selected — deselect one to change."
       : n === 1 ? "1 model selected — add one more to compare head-to-head, or run it alone." : "Select 1 or 2 models.";
@@ -2102,7 +2141,8 @@
     var where = real ? "on " + (e.gpu || "this GPU") : "in demo mode";
     if (!e.complete) return [["Estimate", "no earlier session of " + e.unknown.map(short).join(" or ") + " " + where + " yet, so no estimate"]];
     var src = Math.max.apply(null, e.models.map(function (m) { return m.sessions; }));
-    return [["Estimate", "about " + fmtDur(e.seconds) + " of model time" + (e.cost_usd != null ? ", about $" + fmtNum(e.cost_usd, 2) : "") +
+    var own = PL.custom && !plIsDefault();
+    return [["Estimate", (own ? "for the default pipeline (yours will differ): " : "") + "about " + fmtDur(e.seconds) + " of model time" + (e.cost_usd != null ? ", about $" + fmtNum(e.cost_usd, 2) : "") +
       " (from earlier sessions " + where + "; model loading and first-use downloads come on top)" + (src < 2 ? " — one earlier session only" : "")]];
   }
   function loadHistory() {
@@ -2115,9 +2155,194 @@
       ["Provider", HEALTH && HEALTH.provider === "real" ? "Real GPU · 4-bit" : "Demo (no GPU)"],
       ["Flows", s ? fmtNum(s.rows_selected) : "from step 1 (" + ($("svc-max-flows").value || 50) + " max)"],
       ["Evaluation", s ? (s.accuracy_available ? "efficiency + accuracy (context)" : "efficiency only") : "known when the data is ready"],
-      ["Agents", "Perceive → Reason → Decide → Act (fixed)"]
+      ["Agents", PL.custom && !plIsDefault() ? plChain() + " (your own pipeline, " + PL.agents.length + " agents)" : "Perceive → Reason → Decide → Act (default)"]
     ].concat(estimateLine()).concat(downloadLine()).map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("");
   }
+  // ---------- Agents: the default pipeline or the user's own (agentmeter/pipeline/spec.py) ----------
+  var PL_MAX = 8, PL_NAME = /^[a-z][a-z0-9_]{1,23}$/, PL_RESERVED = ["scenario_id", "feature_prompt", "predicted_class", "verdict", "outputs"];
+  var PL_DEFAULT = ["perceive", "reason", "decide", "act"];
+  var PL_BUILTIN = {
+    perceive: { kind: "text", reads: [], about: "Summarises the raw flow features in a few sentences." },
+    reason: { kind: "text", reads: ["perceive"], about: "Reasons about which threat behaviours the flow fits." },
+    decide: { kind: "label", reads: ["reason", "perceive"], about: "Picks exactly one attack class: the pipeline's answer." },
+    act: { kind: "verdict", reads: ["reason"], about: "Writes the verdict: the class, its MITRE technique and one line why." }
+  };
+  var PL_BUDGET = { text: 192, label: 16, verdict: 160 };
+  var PL_KIND_LABEL = { text: "text", label: "label: the answer", verdict: "verdict" };
+  var PL_TEMPLATES = [
+    ["verify", { title: "Verify", kind: "text", features: true, tokens: 160,
+      instructions: "Check the earlier reasoning against the flow features. Point out any mistake or contradiction in one or two sentences, or say that it holds." }],
+    ["priority", { title: "Priority", kind: "text", features: true, tokens: 64,
+      instructions: "Rate how urgent this flow is for a SOC analyst: low, medium or high, followed by a one-line reason." }],
+    ["summary", { title: "Analyst summary", kind: "text", features: false, tokens: 128,
+      instructions: "Write a two-sentence note for the SOC analyst handling this alert: what the flow looks like and what to check first." }],
+    ["classify", { title: "Classify", kind: "label", features: true, tokens: 16,
+      instructions: "Decide which attack class this network flow belongs to." }],
+    ["report", { title: "Report", kind: "verdict", features: false, tokens: 160,
+      instructions: "Write the final verdict for the analyst." }],
+    ["agent", { title: "", kind: "text", features: true, tokens: 192, instructions: "" }]
+  ];
+  var PL_TPL = {}; PL_TEMPLATES.forEach(function (t) { PL_TPL[t[0]] = t[1]; });
+  var PL = { custom: false, agents: PL_DEFAULT.map(function (n) { return { builtin: n }; }) };
+  try { var plSaved = JSON.parse(localStorage.getItem("agentmeter.pipeline") || "null"); if (plSaved && Array.isArray(plSaved.agents)) PL = plSaved; } catch (e) { /* the default */ }
+  function plSave() { try { localStorage.setItem("agentmeter.pipeline", JSON.stringify(PL)); } catch (e) { /* this browser only */ } }
+  function plName(a) { return a.builtin || a.name; }
+  function plTitle(a) { return a.builtin ? a.builtin.charAt(0).toUpperCase() + a.builtin.slice(1) : (a.title || a.name || "New agent"); }
+  function plKind(a) { return a.builtin ? PL_BUILTIN[a.builtin].kind : a.kind; }
+  function plFreeName(base) {
+    var used = PL.agents.map(plName), n = base, i = 2;
+    while (used.indexOf(n) >= 0 || PL_DEFAULT.indexOf(n) >= 0) n = base + "_" + i++;
+    return n;
+  }
+  // the same rules the server applies (spec.normalize); the server stays the authority
+  function plProblems() {
+    var p = [], names = [], ag = PL.agents, first = [];
+    if (!ag.length) return ["Add at least one agent."];
+    if (ag.length > PL_MAX) p.push("At most " + PL_MAX + " agents.");
+    ag.forEach(function (a, i) {
+      var n = plName(a), t = plTitle(a);
+      if (!a.builtin) {
+        if (!PL_NAME.test(n || "") || PL_RESERVED.indexOf(n) >= 0) p.push("Agent " + (i + 1) + ": the name must be 2 to 24 lowercase letters, digits or _, starting with a letter.");
+        else if (PL_DEFAULT.indexOf(n) >= 0) p.push("Agent " + (i + 1) + ": “" + n + "” is a built-in agent's name; pick another.");
+        if (!(a.title || "").trim() || a.title.length > 40) p.push(t + ": give it a title (up to 40 characters).");
+        var len = (a.instructions || "").trim().length;
+        if (len < 10 || len > 1500) p.push(t + ": write its instructions (10 to 1,500 characters).");
+        var before = ag.slice(0, i).map(plName), reads = (a.reads || []).filter(function (r) { return before.indexOf(r) >= 0; });
+        if (!a.features && !reads.length) p.push(t + ": it has no input — tick the flow features or an earlier agent.");
+        if (!(a.tokens >= 8 && a.tokens <= 1024 && Math.round(a.tokens) === a.tokens)) p.push(t + ": max output tokens must be a whole number from 8 to 1,024.");
+      }
+      if (names.indexOf(n) >= 0) p.push("Two agents are called “" + n + "”.");
+      names.push(n);
+    });
+    var kinds = ag.map(plKind), nl = kinds.filter(function (k) { return k === "label"; }).length;
+    if (nl !== 1) first.push(nl ? "Only one agent can give the answer (a label agent): there are " + nl + "." : "Add an agent that gives the answer: Decide, Classify, or your own label agent.");
+    if (kinds.filter(function (k) { return k === "verdict"; }).length > 1) first.push("Only one verdict agent.");
+    if (kinds.indexOf("verdict") >= 0 && kinds.indexOf("label") >= 0 && kinds.indexOf("verdict") < kinds.indexOf("label")) first.push("The verdict agent must come after the label agent.");
+    return first.concat(p);
+  }
+  function plIsDefault() { return PL.agents.map(function (a) { return a.builtin || "-"; }).join() === PL_DEFAULT.join(); }
+  function plSpec() {
+    if (!PL.custom || plIsDefault()) return null;
+    return PL.agents.map(function (a, i) {
+      if (a.builtin) return a.builtin;
+      var earlier = PL.agents.slice(0, i).map(plName);
+      return { name: a.name, title: a.title.trim(), kind: a.kind, instructions: a.instructions.trim(),
+               reads: (a.reads || []).filter(function (r) { return earlier.indexOf(r) >= 0; }), features: !!a.features, max_new_tokens: a.tokens };
+    });
+  }
+  function plChain() { return PL.agents.map(plTitle).join(" → "); }
+  function plOptions() {
+    var used = PL.agents.map(plName);
+    var b = PL_DEFAULT.filter(function (n) { return used.indexOf(n) < 0; }).map(function (n) { return '<option value="b:' + n + '">' + esc(n.charAt(0).toUpperCase() + n.slice(1)) + ' (built-in, ' + PL_BUILTIN[n].kind + ')</option>'; });
+    var t = PL_TEMPLATES.map(function (x) { return '<option value="t:' + x[0] + '">' + esc(x[0] === "agent" ? "Your own agent (blank)" : x[1].title + " (template, " + x[1].kind + ")") + '</option>'; });
+    $("pl-add-kind").innerHTML = (b.length ? '<optgroup label="Built-in">' + b.join("") + '</optgroup>' : "") + '<optgroup label="Templates">' + t.join("") + '</optgroup>';
+  }
+  function plItem(a, i) {
+    var n = PL.agents.length, t = plTitle(a), id = "pl-" + i;
+    var tools = '<span class="pl-tools">' +
+      '<button type="button" class="btn small-btn" data-pl="up"' + (i ? "" : " disabled") + ' aria-label="Move ' + esc(t) + ' up">↑</button>' +
+      '<button type="button" class="btn small-btn" data-pl="down"' + (i < n - 1 ? "" : " disabled") + ' aria-label="Move ' + esc(t) + ' down">↓</button>' +
+      '<button type="button" class="btn small-btn" data-pl="del" aria-label="Remove ' + esc(t) + '">Remove</button></span>';
+    var head = '<div class="pl-head"><b data-head="' + i + '">' + (i + 1) + '. ' + esc(t) + '</b><span class="chip">' + esc(PL_KIND_LABEL[plKind(a)]) + '</span>' + (a.builtin ? '<span class="muted small">built-in</span>' : "") + tools + '</div>';
+    if (a.builtin) {
+      var bi = PL_BUILTIN[a.builtin], present = PL.agents.slice(0, i).map(plName);
+      var reads = bi.reads.filter(function (r) { return present.indexOf(r) >= 0; }).map(function (r) { return r.charAt(0).toUpperCase() + r.slice(1); }).concat(["the flow features"]);
+      return '<li class="pl-item" data-i="' + i + '" style="--c:var(--ag-' + (i % 8 + 1) + ')">' + head + '<p class="small muted">' + esc(bi.about) + ' Reads ' + esc(reads.join(", ")) + '. Its prompt is fixed, so it measures the same as in the default pipeline.</p></li>';
+    }
+    var earlier = PL.agents.slice(0, i);
+    return '<li class="pl-item" data-i="' + i + '" style="--c:var(--ag-' + (i % 8 + 1) + ')">' + head + '<div class="pl-fields">' +
+      '<div class="field"><label for="' + id + '-title">Title</label><input id="' + id + '-title" data-f="title" maxlength="40" value="' + esc(a.title || "") + '"></div>' +
+      '<div class="field"><label for="' + id + '-name">Name <span class="hint">(id)</span></label><input id="' + id + '-name" data-f="name" maxlength="24" spellcheck="false" autocapitalize="off" value="' + esc(a.name || "") + '"></div>' +
+      '<div class="field"><label for="' + id + '-kind">Type</label><select id="' + id + '-kind" data-f="kind">' + ["text", "label", "verdict"].map(function (k) { return '<option value="' + k + '"' + (a.kind === k ? " selected" : "") + '>' + esc(PL_KIND_LABEL[k]) + '</option>'; }).join("") + '</select></div>' +
+      '<div class="field"><label for="' + id + '-tok">Max output tokens</label><input id="' + id + '-tok" data-f="tokens" type="number" min="8" max="1024" step="1" value="' + esc(a.tokens) + '"></div>' +
+      '<div class="field pl-wide"><label for="' + id + '-ins">Instructions <span class="hint">(its role, sent to the model as written)</span></label><textarea id="' + id + '-ins" data-f="instructions" maxlength="1500" rows="3">' + esc(a.instructions || "") + '</textarea></div>' +
+      '<fieldset class="pl-reads"><legend>Reads</legend><label class="check"><input type="checkbox" data-f="features"' + (a.features ? " checked" : "") + '> <span>The flow features</span></label>' +
+        earlier.map(function (e, j) { return '<label class="check"><input type="checkbox" data-read="' + j + '"' + ((a.reads || []).indexOf(plName(e)) >= 0 ? " checked" : "") + '> <span data-read-label="' + j + '">' + esc(plTitle(e)) + '’s answer</span></label>'; }).join("") +
+      '</fieldset></div></li>';
+  }
+  // a title shows in its own header and in later agents' "Reads": updated in place, focus untouched
+  function plLabels() {
+    PL.agents.forEach(function (a, i) {
+      var h = document.querySelector('#pl-list [data-head="' + i + '"]'); if (h) h.textContent = (i + 1) + ". " + plTitle(a);
+      document.querySelectorAll('#pl-list [data-read-label="' + i + '"]').forEach(function (x) { x.textContent = plTitle(a) + "’s answer"; });
+    });
+  }
+  function plStatus() {
+    var p = PL.custom ? plProblems() : [];
+    $("pl-check").innerHTML = !PL.custom ? "" : p.length ? '<span class="chip bad">Fix before running</span> ' + esc(p[0]) + (p.length > 1 ? ' <span class="muted">(+' + (p.length - 1) + ' more)</span>' : "")
+      : '<span class="chip ok">Ready</span> ' + esc(plChain()) + (plIsDefault() ? " — the default pipeline." : ".");
+    $("pl-add").disabled = PL.agents.length >= PL_MAX;
+    plSave();
+    syncRun();
+  }
+  function plRender() {
+    var f = document.activeElement, li = f && f.closest && f.closest("#pl-list .pl-item"), keep = null;
+    if (li) keep = { i: li.getAttribute("data-i"), sel: f.getAttribute("data-f") ? '[data-f="' + f.getAttribute("data-f") + '"]' : f.getAttribute("data-read") ? '[data-read="' + f.getAttribute("data-read") + '"]' : f.getAttribute("data-pl") ? '[data-pl="' + f.getAttribute("data-pl") + '"]' : null };
+    $("pl-mode-custom").checked = PL.custom; $("pl-mode-default").checked = !PL.custom;
+    $("pl-editor").hidden = !PL.custom; $("pl-default-line").hidden = PL.custom;
+    $("pl-list").innerHTML = PL.agents.map(plItem).join("");
+    plOptions();
+    if (keep && keep.sel) {
+      var el = document.querySelector('#pl-list .pl-item[data-i="' + keep.i + '"] ' + keep.sel);
+      if (el && !el.disabled) el.focus(); else if (el) { var b = document.querySelector('#pl-list .pl-item[data-i="' + keep.i + '"] [data-pl="del"]'); if (b) b.focus(); }
+    }
+    plStatus();
+  }
+  $("pl-mode").addEventListener("change", function () { PL.custom = $("pl-mode-custom").checked; plRender(); });
+  $("pl-reset").addEventListener("click", function () { PL.agents = PL_DEFAULT.map(function (n) { return { builtin: n }; }); plRender(); });
+  $("pl-add").addEventListener("click", function () {
+    if (PL.agents.length >= PL_MAX) return;
+    var v = $("pl-add-kind").value, a;
+    if (v.indexOf("b:") === 0) a = { builtin: v.slice(2) };
+    else {
+      var t = PL_TPL[v.slice(2)], last = PL.agents[PL.agents.length - 1];
+      a = { name: plFreeName(v.slice(2)), title: t.title || "", kind: t.kind, instructions: t.instructions, features: t.features, tokens: t.tokens,
+            reads: last ? [plName(last)] : [] };
+      if (!last) a.features = true;
+    }
+    PL.agents.push(a); plRender();
+    var items = document.querySelectorAll("#pl-list .pl-item"), it = items[items.length - 1];
+    if (it) { it.scrollIntoView({ block: "nearest" }); (it.querySelector('[data-f="title"]') || it.querySelector('[data-pl="del"]')).focus(); }
+  });
+  $("pl-list").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-pl]"); if (!b) return;
+    var i = +b.closest(".pl-item").getAttribute("data-i"), ag = PL.agents, act = b.getAttribute("data-pl");
+    if (act === "del") {
+      var gone = plName(ag[i]); ag.splice(i, 1);
+      ag.forEach(function (a) { if (a.reads) a.reads = a.reads.filter(function (r) { return r !== gone; }); });
+    } else {
+      var j = act === "up" ? i - 1 : i + 1; if (j < 0 || j >= ag.length) return;
+      var x = ag[i]; ag[i] = ag[j]; ag[j] = x;
+      b = null;
+    }
+    plRender();
+    if (act !== "del") { var mv = document.querySelector('#pl-list .pl-item[data-i="' + (act === "up" ? i - 1 : i + 1) + '"] [data-pl="' + act + '"]'); if (mv && !mv.disabled) mv.focus(); }
+  });
+  $("pl-list").addEventListener("input", function (e) {
+    var el = e.target, li = el.closest(".pl-item"); if (!li) return;
+    var a = PL.agents[+li.getAttribute("data-i")], f = el.getAttribute("data-f");
+    if (!f || a.builtin) return;
+    if (f === "name") {
+      var old = a.name, nu = el.value.trim();
+      PL.agents.forEach(function (o) { if (o.reads) o.reads = o.reads.map(function (r) { return r === old ? nu : r; }); });
+      a.name = nu;
+    } else if (f === "tokens") a.tokens = el.value === "" ? null : +el.value;
+    else if (f === "features") a.features = el.checked;
+    else if (f === "kind") a.kind = el.value;
+    else a[f] = el.value;
+    if (f === "title") plLabels();
+    plStatus();
+  });
+  $("pl-list").addEventListener("change", function (e) {
+    var el = e.target, li = el.closest(".pl-item"); if (!li) return;
+    var a = PL.agents[+li.getAttribute("data-i")], r = el.getAttribute("data-read");
+    if (r) r = plName(PL.agents[+r]);
+    if (r) { a.reads = (a.reads || []).filter(function (x) { return x !== r; }); if (el.checked) a.reads.push(r); plStatus(); return; }
+    var f = el.getAttribute("data-f");
+    if (f === "kind") { if (a.tokens === PL_BUDGET.text || a.tokens === PL_BUDGET.label || a.tokens === PL_BUDGET.verdict) a.tokens = PL_BUDGET[a.kind]; plRender(); }
+  });
+  plRender();
+
   $("svc-run").addEventListener("click", function () {
     var err = $("svc-run-error"), body = { models: picked(), provider: CONFIG.provider, base_config: CONFIG.base_config };
     err.hidden = true;
@@ -2125,6 +2350,7 @@
     // server uses the prepared set directly when it is already done). Reused sets: run.
     if (WIZ.prep) body.after_prepare = WIZ.prep; else body.run = WIZ.set;
     if ($("svc-load-test").checked) body.load_test = true;
+    var spec = plSpec(); if (spec) body.pipeline = spec;
     $("svc-run").disabled = true;
     api("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
       if (!r.ok) { showError(err, r.data); syncRun(); return; }
@@ -2496,6 +2722,7 @@
     acc.title = s.accuracy_available ? "" : "No labels in this data — efficiency only";
     var base = "#/session/" + enc(job.job_id) + "/";
     if (window.INSIGHTS) setModelSlots(res);
+    setAgentSlots(res);
     $("session-guide").hidden = guideSeen("session");
     var SUM = window.INSIGHTS ? INSIGHTS.tabSummaries(res) : {};
     var lead = function (k) { return SUM[k] ? '<p class="tab-summary" data-summary="' + k + '">' + esc(SUM[k]) + '</p>' : ""; };
@@ -3008,7 +3235,7 @@
         return '<div class="flow-col" data-model="' + esc(m) + '"><h4><i class="sw" style="--c:' + modelColor(m) + '"></i>' + esc(short(m)) + '</h4><p class="small">Answer <b>' + esc(pm.predicted || "—") + '</b>' +
           (pm.correct === true ? ' <span class="chip ok">✓ correct</span>' : pm.correct === false ? ' <span class="chip bad">✗ wrong</span>' : "") + ' · ' + fmtTime(pm.latency_s) + ' end to end</p>' +
           pm.agents.map(function (a) {
-            return '<div class="flow-agent"><div class="small"><span class="legend"><span style="--c:' + (AG_COLOR[a.agent] || "var(--muted)") + '">' + esc(a.agent) + '</span></span> ' + fmtTime(a.wall_s) +
+            return '<div class="flow-agent"><div class="small"><span class="legend"><span style="--c:' + agColor(a.agent) + '">' + esc(agName(a.agent)) + '</span></span> ' + fmtTime(a.wall_s) +
               ' · ' + fmtNum(a.input_tokens) + ' tokens in, ' + fmtNum(a.output_tokens) + ' out</div>' + (a.text != null ? '<pre class="flow-text">' + esc(a.text) + '</pre>' : (d.has_text ? '<p class="muted small">(empty answer)</p>' : "")) + '</div>';
           }).join("") + '</div>';
       }).join("") + '</div></div>';
@@ -3323,11 +3550,31 @@
   });
 
   // Agents tab
-  var AG_COLOR = { perceive: "var(--ag-perceive)", reason: "var(--ag-reason)", decide: "var(--ag-decide)", act: "var(--ag-act)" };
+  // an agent's colour is its position in the session's pipeline (slots 1-8, fixed order);
+  // user-defined agents show their own title
+  var AG_ORDER = ["perceive", "reason", "decide", "act"], AG_TITLE = {};
+  function setAgentSlots(res) {
+    var ag = res.agents || {};
+    AG_ORDER = ag.agent_order || ["perceive", "reason", "decide", "act"]; AG_TITLE = {};
+    (ag.pipeline || []).forEach(function (a) { if (!a.builtin) AG_TITLE[a.name] = a.title; });
+  }
+  function pipelineCard(ag) {
+    return '<div class="card" id="agents-pipeline"><h2>This session\'s pipeline</h2><p class="muted small" style="margin-top:0">A custom pipeline: ' + ag.pipeline.length +
+      ' agents, run one after another on every flow. Compare and the Leaderboard treat it as its own setup, never like-for-like with the default four.</p><ol class="pl-view">' +
+      ag.pipeline.map(function (a) {
+        var reads = (a.reads || []).map(agName).concat(a.features === false ? [] : ["the flow features"]);
+        return '<li><div><span class="legend"><span style="--c:' + agColor(a.name) + '"><b>' + esc(agName(a.name)) + '</b></span></span> <span class="chip">' + esc(PL_KIND_LABEL[a.kind] || a.kind) + '</span>' +
+          (a.builtin ? ' <span class="muted small">built-in</span>' : "") + '</div><p class="small muted">Reads ' + esc(reads.join(", ") || "nothing") + '.</p>' +
+          (a.instructions ? '<details class="info"><summary>Instructions</summary><p class="small pl-instr">' + esc(a.instructions) + '</p></details>' : "") + '</li>';
+      }).join("") + '</ol></div>';
+  }
+  function agColor(a) { var i = AG_ORDER.indexOf(a); return i < 0 ? "var(--muted)" : "var(--ag-" + (i % 8 + 1) + ")"; }
+  function agName(a) { return AG_TITLE[a] || a; }
   function agentsTab(res) {
     var ag = res.agents;
     if (!ag) return '<div class="card"><p class="muted">This session predates the per-agent breakdown.</p></div>';
     var h = [];
+    if (ag.pipeline) h.push(pipelineCard(ag));
     ag.per_model.forEach(function (m, mi) {
       var o = m.overhead || {};
       h.push('<div class="card agents-model"><h2>' + esc(m.model) + extraTag(m.model) + '</h2><div class="table-wrap"><table class="agents-table" id="agents-table-' + mi + '"><thead><tr><th>Agent</th><th class="num">Latency</th><th>Share of flow time</th><th class="num">Tokens in</th><th class="num">Tokens out</th><th class="num">Token share</th><th class="num">Working VRAM<br><span class="small">(excludes model weights)</span></th><th>Failures</th></tr></thead><tbody>' +
@@ -3336,9 +3583,9 @@
           fl.push(f.empty_output + " empty");
           if (f.hit_token_cap != null) fl.push(f.hit_token_cap + " at token cap (" + f.token_cap + ")");
           if (f.unparseable_label != null) fl.push(f.unparseable_label + " unparseable label");
-          return '<tr><td><span class="legend"><span style="--c:' + (AG_COLOR[a.agent] || "var(--muted)") + '">' + esc(a.agent) + '</span></span></td><td class="num">' + fmtTime(a.mean_latency_s) +
+          return '<tr><td><span class="legend"><span style="--c:' + agColor(a.agent) + '">' + esc(agName(a.agent)) + '</span></span></td><td class="num">' + fmtTime(a.mean_latency_s) +
             '</td><td style="min-width:150px"><div class="hbar" style="grid-template-columns:1fr auto"><span class="track"><span class="fill" style="display:block;width:' + (100 * (a.latency_share || 0)) +
-            '%;background:' + (AG_COLOR[a.agent] || "var(--muted)") + '"></span></span><span class="val">' + fmtPct(a.latency_share) + '</span></div></td><td class="num">' + fmtNum(a.mean_input_tokens) +
+            '%;background:' + agColor(a.agent) + '"></span></span><span class="val">' + fmtPct(a.latency_share) + '</span></div></td><td class="num">' + fmtNum(a.mean_input_tokens) +
             '</td><td class="num">' + fmtNum(a.mean_output_tokens) + '</td><td class="num">' + fmtPct(a.token_share) + '</td><td class="num">' + fmtMB(a.mean_peak_vram_mb) +
             '</td><td class="small">' + esc(fl.join(" · ")) + ' <span class="muted">(rate ' + fmtPct(a.failure_rate) + ')</span></td></tr>';
         }).join("") + '</tbody></table></div>' +
@@ -3349,7 +3596,7 @@
     var flows = Object.keys((ag.per_model[0] || {}).timeline || {});
     h.push('<div class="card" id="agents-timeline-card"><h2>Pipeline timeline for one flow</h2><div class="row" style="margin-top:0"><div class="field"><label for="agents-flow">Flow</label><select id="agents-flow">' +
       flows.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join("") + '</select></div></div><div id="agents-gantt" class="gantt" style="margin-top:14px"></div>' +
-      '<div class="legend">' + ag.agent_order.map(function (a) { return '<span style="--c:' + (AG_COLOR[a] || "var(--muted)") + '">' + esc(a) + '</span>'; }).join("") + '</div>' +
+      '<div class="legend">' + ag.agent_order.map(function (a) { return '<span style="--c:' + agColor(a) + '">' + esc(agName(a)) + '</span>'; }).join("") + '</div>' +
       '<p class="muted small">' + esc(ag.notes.timeline) + '</p></div>');
     h.push(handoffCard(res), classAgentCard(res), '<div class="card" id="flows-card"><h2>Flow explorer</h2><p class="muted small" id="flows-status">Loading the flows…</p><div id="flows-body"></div></div>');
     h.push('<div class="card flat"><h2>How these are measured</h2><ul class="list">' +
@@ -3366,7 +3613,7 @@
       var idx = {}; g.agents.forEach(function (a, i) { idx[a] = i; });
       var edges = m.edges.map(function (e, ei) {
         var a = idx[e.from], b = idx[e.to], sw = 1.5 + 4 * (e.tokens || 0) / maxTok, lbl = e.tokens == null ? "—" : fmtNum(e.tokens, e.tokens < 10 ? 1 : 0) + " tok";
-        var t = e.from + " → " + e.to + ": " + lbl + " re-sent per flow";
+        var t = agName(e.from) + " → " + agName(e.to) + ": " + lbl + " re-sent per flow";
         if (b === a + 1) {
           var x1 = X(a) + W, x2 = X(b) - 8, y = Y + H / 2;
           return '<g class="edge" tabindex="0" data-hover="' + esc(t) + '"><line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke-width="' + sw.toFixed(1) + '" marker-end="url(#ho-arrow-' + mi + ')"/>' +
@@ -3377,36 +3624,36 @@
           '<text x="' + (xa + xb) / 2 + '" y="' + (Y - lift - 12) + '" text-anchor="middle">' + esc(lbl) + '</text></g>';
       }).join("");
       var nodes = m.nodes.map(function (n, i) {
-        var t = n.agent + ": " + fmtTime(n.latency_s) + " per flow (" + fmtPct(n.share) + " of flow time), " + fmtNum(n.in_tokens) + " tokens in, " + fmtNum(n.out_tokens) + " out";
-        return '<g class="node" tabindex="0" data-hover="' + esc(t) + '"><rect x="' + X(i) + '" y="' + Y + '" width="' + W + '" height="' + H + '" rx="6"/><rect x="' + X(i) + '" y="' + Y + '" width="5" height="' + H + '" rx="2" style="fill:' + AG_COLOR[n.agent] + '"/>' +
-          '<text x="' + (X(i) + 16) + '" y="' + (Y + 24) + '" class="nt">' + esc(n.agent) + '</text><text x="' + (X(i) + 16) + '" y="' + (Y + 44) + '" class="ns">' + esc(fmtTime(n.latency_s) + " · " + fmtPct(n.share)) + '</text></g>';
+        var t = agName(n.agent) + ": " + fmtTime(n.latency_s) + " per flow (" + fmtPct(n.share) + " of flow time), " + fmtNum(n.in_tokens) + " tokens in, " + fmtNum(n.out_tokens) + " out";
+        return '<g class="node" tabindex="0" data-hover="' + esc(t) + '"><rect x="' + X(i) + '" y="' + Y + '" width="' + W + '" height="' + H + '" rx="6"/><rect x="' + X(i) + '" y="' + Y + '" width="5" height="' + H + '" rx="2" style="fill:' + agColor(n.agent) + '"/>' +
+          '<text x="' + (X(i) + 16) + '" y="' + (Y + 24) + '" class="nt">' + esc(agName(n.agent).length > 14 ? agName(n.agent).slice(0, 13) + "…" : agName(n.agent)) + '</text><text x="' + (X(i) + 16) + '" y="' + (Y + 44) + '" class="ns">' + esc(fmtTime(n.latency_s) + " · " + fmtPct(n.share)) + '</text></g>';
       }).join("");
       return '<div class="ho" data-model="' + esc(m.model) + '"><h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + ' <span class="muted small">' + fmtNum(m.resent_tokens, 1) + ' tokens re-sent per flow</span></h3>' +
-        '<div class="ho-scroll"><svg viewBox="0 0 790 168" role="img" aria-label="' + esc("Hand-offs for " + short(m.model) + ": " + m.edges.map(function (e) { return e.from + " to " + e.to; }).join(", ")) + '">' +
+        '<div class="ho-scroll"><svg viewBox="0 0 ' + (20 + (g.agents.length - 1) * 200 + W) + ' 168" style="min-width:' + Math.max(0, (g.agents.length - 4) * 150) + 'px" role="img" aria-label="' + esc("Hand-offs for " + short(m.model) + ": " + m.edges.map(function (e) { return agName(e.from) + " to " + agName(e.to); }).join(", ")) + '">' +
         '<defs><marker id="ho-arrow-' + mi + '" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="ah"/></marker></defs>' + edges + nodes + '</svg></div></div>';
     }).join("");
     return '<div class="card" id="agents-handoffs"><h2>Hand-offs between agents</h2><p class="muted small" style="margin-top:0">Each arrow is one step\'s answer re-sent inside a later step\'s prompt; its label and thickness are the tokens it carries per flow (the sender\'s mean output). This is where the agentic overhead comes from.</p>' + diagrams +
       '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="agents-handoff-table"><thead><tr><th>Model</th><th>From</th><th>To</th><th class="num">Tokens re-sent / flow</th></tr></thead><tbody>' +
-      g.per_model.map(function (m) { return m.edges.map(function (e) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(e.from) + '</td><td>' + esc(e.to) + '</td><td class="num">' + fmtNum(e.tokens, 1) + '</td></tr>'; }).join(""); }).join("") +
+      g.per_model.map(function (m) { return m.edges.map(function (e) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(agName(e.from)) + '</td><td>' + esc(agName(e.to)) + '</td><td class="num">' + fmtNum(e.tokens, 1) + '</td></tr>'; }).join(""); }).join("") +
       '</tbody></table></div></details></div>';
   }
-  // time per agent by attack class (stacked: perceive, reason, decide, act)
+  // time per agent by attack class (stacked, in pipeline order)
   function classAgentCard(res) {
     var c = window.INSIGHTS && INSIGHTS.classAgentTime(res);
     if (!c) return "";
-    var legend = '<div class="ilegend">' + c.agents.map(function (a) { return '<span><i style="--c:' + AG_COLOR[a] + '"></i>' + esc(a) + '</span>'; }).join("") + '</div>';
+    var legend = '<div class="ilegend">' + c.agents.map(function (a) { return '<span><i style="--c:' + agColor(a) + '"></i>' + esc(agName(a)) + '</span>'; }).join("") + '</div>';
     c.per_model.sort(function (a, b) { return (MODEL_SLOT[a.model] || 0) - (MODEL_SLOT[b.model] || 0); });
     var groups = c.per_model.map(function (m) {
       return '<div class="cat-group" data-model="' + esc(m.model) + '"><h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '</h3>' + m.rows.map(function (r) {
         return '<div class="cat-row"><span class="lbl">' + esc(r.cls) + (r.n != null ? '<small>' + r.n + ' flows</small>' : "") + '</span><div class="cat-track"><div class="cat-bar" style="width:' + (c.max_total ? 100 * r.total / c.max_total : 0) + '%">' +
           r.parts.map(function (p) {
-            var t = short(m.model) + " · " + r.cls + " · " + p.agent + ": " + fmtTime(p.s) + " (" + fmtPct(p.share) + ")";
-            return p.s ? '<span tabindex="0" style="flex:' + (100 * p.share).toFixed(3) + ' 1 0;--c:' + AG_COLOR[p.agent] + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span>' : "";
+            var t = short(m.model) + " · " + r.cls + " · " + agName(p.agent) + ": " + fmtTime(p.s) + " (" + fmtPct(p.share) + ")";
+            return p.s ? '<span tabindex="0" style="flex:' + (100 * p.share).toFixed(3) + ' 1 0;--c:' + agColor(p.agent) + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span>' : "";
           }).join("") + '</div></div><span class="val">' + fmtTime(r.total) + '</span></div>';
       }).join("") + '</div>';
     }).join("");
     return '<div class="card" id="agents-by-class"><h2>Time per agent by attack class</h2><p class="muted small" style="margin-top:0">Mean time each step takes for flows of each class (bar length = the class\'s total per flow, same scale for every model). A resource breakdown, not a detection score.</p>' +
-      legend + groups + '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="agents-by-class-table"><thead><tr><th>Model</th><th>Class</th>' + c.agents.map(function (a) { return '<th class="num">' + esc(a) + '</th>'; }).join("") + '<th class="num">Total</th><th>Slowest step</th></tr></thead><tbody>' +
+      legend + groups + '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="agents-by-class-table"><thead><tr><th>Model</th><th>Class</th>' + c.agents.map(function (a) { return '<th class="num">' + esc(agName(a)) + '</th>'; }).join("") + '<th class="num">Total</th><th>Slowest step</th></tr></thead><tbody>' +
       c.per_model.map(function (m) { return m.rows.map(function (r) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(r.cls) + '</td>' + r.parts.map(function (p) { return '<td class="num">' + fmtTime(p.s) + '</td>'; }).join("") + '<td class="num"><b>' + fmtTime(r.total) + '</b></td><td>' + esc(r.slowest_agent || "—") + '</td></tr>'; }).join(""); }).join("") +
       '</tbody></table></div></details></div>';
   }
@@ -3419,9 +3666,9 @@
       $("agents-gantt").innerHTML = rows.map(function (r) {
         var total = r.segs.reduce(function (s, x) { return Math.max(s, x[1] + x[2]); }, 0);
         return '<div class="g-row"><span class="mono small">' + esc(short(r.model)) + '<br><span class="muted">' + fmtTime(total) + '</span></span><div class="g-track" role="img" aria-label="' +
-          esc(r.segs.map(function (x) { return x[0] + " " + fmtTime(x[2]); }).join(", ")) + '">' +
+          esc(r.segs.map(function (x) { return agName(x[0]) + " " + fmtTime(x[2]); }).join(", ")) + '">' +
           r.segs.map(function (x) {
-            return '<span class="g-seg" title="' + esc(x[0] + ": " + fmtTime(x[2]) + " (from " + fmtTime(x[1]) + ")") + '" style="left:' + (100 * x[1] / max) + '%;width:' + (100 * x[2] / max) + '%;background:' + (AG_COLOR[x[0]] || "var(--muted)") + '"></span>';
+            return '<span class="g-seg" title="' + esc(agName(x[0]) + ": " + fmtTime(x[2]) + " (from " + fmtTime(x[1]) + ")") + '" style="left:' + (100 * x[1] / max) + '%;width:' + (100 * x[2] / max) + '%;background:' + agColor(x[0]) + '"></span>';
           }).join("") + '</div></div>';
       }).join("");
     }

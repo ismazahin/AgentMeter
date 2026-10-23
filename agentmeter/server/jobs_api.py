@@ -2,7 +2,8 @@
 Flask app (scripts/serve.py); access.py (run tokens, CORS, rate limits)
 covers them like every other route.
 
-  POST /api/jobs                {run | after_prepare, models[<=2], provider?, base_config?} -> 202 {job}
+  POST /api/jobs                {run | after_prepare, models[<=2], provider?, base_config?, load_test?,
+                                pipeline?} -> 202 {job}   (pipeline: pipeline/spec.py)
   GET  /api/jobs                ?limit=N  -> recent jobs, newest first
   GET  /api/jobs/<id>           status + live progress + result_ready / result_url
   GET  /api/jobs/<id>/result    session_results.json once done (409 until then)
@@ -13,7 +14,7 @@ covers them like every other route.
 
 Errors are {"error": <message>, "code": <stable reason>} with codes such as
 not_found, run_missing, too_many_models, bad_models, no_gpu, not_ready,
-not_resumable, bad_request.
+not_resumable, bad_pipeline, bad_request.
 """
 from __future__ import annotations
 
@@ -139,7 +140,8 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
                                  base_config=base_config if provider is not None and base_config
                                  else body.get("base_config"),
                                  environment=environment() if environment else None,
-                                 after_prepare=after, meta=runtoken.job_meta(), load_test=load_test)
+                                 after_prepare=after, meta=runtoken.job_meta(), load_test=load_test,
+                                 pipeline=body.get("pipeline"))
         except JobError as e:
             return fail(e)
         return jsonify(with_links(job)), 202

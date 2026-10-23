@@ -164,15 +164,20 @@ def read_rows(db: str | Path, run_id: str) -> tuple[list[dict], list[dict]]:
 
 def _agents_in_order(am: list[dict]) -> list[str]:
     seen = list(dict.fromkeys(r["agent_name"] for r in am))
-    return [a for a in AGENT_ORDER if a in seen] + [a for a in seen if a not in AGENT_ORDER]
+    if not set(seen) <= set(AGENT_ORDER):     # a user-defined pipeline: the order the agents ran in
+        return seen
+    return [a for a in AGENT_ORDER if a in seen]
 
 
 # ---------------------------------------------------------------------------
 # A. agents
 # ---------------------------------------------------------------------------
 def agents_block(sr: list[dict], am: list[dict], label_of: dict[str, str],
-                 budgets: dict[str, int], decide_agent: str = "decide") -> dict[str, Any]:
+                 budgets: dict[str, int], decide_agent: str = "decide",
+                 pipeline: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
+    """pipeline: spec.describe() of the session's pipeline (None = the default four)."""
     order = _agents_in_order(am)
+    handoffs = {a["name"]: list(a["reads"]) for a in pipeline} if pipeline else HANDOFFS
     out_models = []
     for model, dbm in label_of.items():
         rows = [r for r in am if r["model"] == dbm]
@@ -223,7 +228,7 @@ def agents_block(sr: list[dict], am: list[dict], label_of: dict[str, str],
         handoff = task = 0.0
         for fl in by_flow.values():
             for ag, r in fl.items():
-                h = sum((fl[src]["output_tokens"] or 0) for src in HANDOFFS.get(ag, []) if src in fl)
+                h = sum((fl[src]["output_tokens"] or 0) for src in handoffs.get(ag, []) if src in fl)
                 handoff += h
                 task += max(0, (r["input_tokens"] or 0) - h)
         timeline = {}
@@ -248,18 +253,21 @@ def agents_block(sr: list[dict], am: list[dict], label_of: dict[str, str],
         })
     return {
         "agent_order": order,
-        "handoffs": {a: HANDOFFS.get(a, []) for a in order},
+        "handoffs": {a: handoffs.get(a, []) for a in order},
+        "pipeline": ([{k: a.get(k) for k in ("name", "title", "kind", "builtin", "reads", "features", "instructions")}
+                      for a in pipeline] if pipeline else None),
+        "label_agent": decide_agent,
         "notes": {
             "latency": "Per-agent latency = the agent's own model call (perf_counter); shares are of "
                        "the summed agent time, which is the flow's end-to-end latency.",
             "vram": "Per-agent peak working VRAM = torch allocator peak above the pre-call baseline "
                     "(excludes the loaded weights); null on CPU/mock.",
             "overhead": "Agentic overhead = tokens of earlier agents' outputs re-sent in later prompts "
-                        "(hand-offs: " + ", ".join(f"{a} <- {'+'.join(s)}" for a, s in HANDOFFS.items() if s)
+                        "(hand-offs: " + ", ".join(f"{a} <- {'+'.join(s)}" for a, s in handoffs.items() if s)
                         + "). Estimated from the recorded output-token counts; the rest of the input "
                           "(system prompt, flow features, instructions) is the task input.",
             "failures": "empty_output = 0 output tokens; hit_token_cap = output reached the agent's "
-                        "max_new_tokens (likely truncated); unparseable_label = Decide's reply matched no "
+                        "max_new_tokens (likely truncated); unparseable_label = the label agent's reply matched no "
                         "allowed label. The pipeline has no timeouts or retries by design (one call per "
                         "agent), so timeouts are not applicable and retries are always 0.",
             "timeline": "Agents run back-to-back; a flow's timeline is the cumulative sum of its agents' "
@@ -746,6 +754,9 @@ def prepared_set_sha256(run_dir: str | Path) -> Optional[str]:
 
 def settings_of(config_data: dict[str, Any]) -> dict[str, Any]:
     out = {}
+    custom = (config_data.get("pipeline") or {}).get("custom")
+    if custom:        # a user-defined pipeline: its agents are part of what was measured
+        out["pipeline.custom"] = custom
     for path in SETTINGS_KEYS:
         v: Any = config_data
         for k in path:
@@ -785,7 +796,11 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     budgets = {k: int(v) for k, v in ((config_data.get("pipeline") or {}).get("max_new_tokens") or {}).items() if v}
     env = payload.get("environment") or {}
     real = env.get("provider") == "real"
-    payload["agents"] = agents_block(sr, am, label_of, budgets)
+    from ..pipeline.spec import describe, label_agent
+    pl = config_data.get("pipeline") or {}
+    custom = bool(pl.get("custom"))
+    payload["agents"] = agents_block(sr, am, label_of, budgets, decide_agent=label_agent(pl) or "decide",
+                                     pipeline=describe(pl) if custom else None)
     payload["latency_distribution"] = latency_block(sr, label_of)
     payload["latency_trend"] = latency_trend_block(sr, label_of)
     payload["effect_sizes"] = effect_block(sr, am, label_of, payload.get("statistics"))

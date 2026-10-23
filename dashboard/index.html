@@ -2792,7 +2792,7 @@
   }
 
   // ==== Detailed Analysis (read-only; no recomputation) ====
-  var AGENT_ORDER = ["perceive", "reason", "decide", "act"];
+  var DEFAULT_AGENTS = ["perceive", "reason", "decide", "act"];
 
   function modelsInOrder(rows, key) {
     var out = [];
@@ -2800,12 +2800,15 @@
     return out;
   }
 
-  // per-agent value tables: rows = models, cols = 4 agents; highlight the max per row
+  // per-agent value tables: rows = models, cols = the agents; highlight the max per row
   function agentTable(tableId, valKey, fmt) {
     var t = (state.data.per_agent && state.data.per_agent.table) || [];
     var el = document.getElementById(tableId);
     if (!t.length) { el.innerHTML = '<tbody><tr><td class="l">(no per-agent data in this file)</td></tr></tbody>'; return; }
     var models = modelsInOrder(t, "model");
+    // a user-defined pipeline lists its own agents (in the order they ran)
+    var seen = modelsInOrder(t, "agent_name");
+    var AGENT_ORDER = seen.every(function (a) { return DEFAULT_AGENTS.indexOf(a) >= 0; }) ? DEFAULT_AGENTS : seen;
     var byMA = {};
     t.forEach(function (r) { (byMA[r.model] = byMA[r.model] || {})[r.agent_name] = r; });
     var head = "<thead><tr><th class='l'>Model</th>" +

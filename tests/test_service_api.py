@@ -181,6 +181,25 @@ def test_load_test_flag_is_a_boolean_and_stored_on_the_job(env):
     assert mgr.get(plain.get_json()["job_id"])["load_test"] is False
 
 
+def test_custom_pipeline_is_validated_and_stored_on_the_job(env):
+    c, mgr, _ = env
+    run = upload(c, SAMPLE_CSV, max_flows="4").get_json()["run"]
+    bad = c.post("/api/jobs", json={"run": run, "models": ["a"], "provider": "mock", "pipeline": ["perceive", "reason"]})
+    assert bad.status_code == 400 and bad.get_json()["code"] == "bad_pipeline" and "label agent" in bad.get_json()["error"]
+    spec = ["perceive", {"name": "triage", "kind": "label", "instructions": "Pick the attack class.", "reads": ["perceive"]}]
+    ok = c.post("/api/jobs", json={"run": run, "models": ["a"], "provider": "mock", "pipeline": spec})
+    assert ok.status_code == 202
+    job = mgr.get(ok.get_json()["job_id"])
+    assert [a["name"] for a in job["pipeline"]] == ["perceive", "triage"] and job["pipeline"][1]["max_new_tokens"] == 16
+    mgr.wait(job["job_id"], timeout=120)
+    assert mgr.get(job["job_id"])["status"] == "done", mgr.get(job["job_id"]).get("error")
+    res = c.get(f"/api/jobs/{job['job_id']}/result").get_json()
+    assert res["agents"]["agent_order"] == ["perceive", "triage"] and res["agents"]["label_agent"] == "triage"
+    plain = c.post("/api/jobs", json={"run": run, "models": ["a"], "provider": "mock",
+                                      "pipeline": ["perceive", "reason", "decide", "act"]})
+    assert mgr.get(plain.get_json()["job_id"])["pipeline"] is None       # the default chain, as before
+
+
 def test_session_notes_tags_and_search_without_a_control_plane(env):
     c, mgr, _ = env
     run = upload(c, SAMPLE_CSV, max_flows="5").get_json()["run"]

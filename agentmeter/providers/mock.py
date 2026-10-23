@@ -18,6 +18,7 @@ from ..config import Config
 from .base import GenerationResult, ModelProvider
 
 _FEATURE_RE = re.compile(r"^-\s*(.+?):\s*(.+)$", re.MULTILINE)
+_ROLE_RE = re.compile(r"you are the (\w[\w ]*?) agent")
 
 
 def _parse_features(prompt: str) -> dict[str, float]:
@@ -84,20 +85,27 @@ class MockProvider(ModelProvider):
         role = (system or "").lower()
         features = _parse_features(prompt)
         predicted = _heuristic_class(features, self.classes)
+        # the agent's role: "You are the <Name> agent" (built-in and user-defined agents);
+        # a label or verdict request is recognised by the harness's own format lines
+        m = _ROLE_RE.match(role)
+        name = m.group(1) if m else ""
+        low = prompt.lower()
 
-        if "perceive" in role:
-            text = self._perceive(features)
-        elif "reason" in role:
-            text = self._reason(features, predicted)
-        elif "decide" in role:
+        if "allowed labels (copy one verbatim)" in low or name == "decide":
             text = f"Classification: {predicted}"
-        elif "act" in role:
+        elif "its mitre att&ck technique" in low or name == "act":
             technique = self.mitre.get(predicted, "N/A")
             text = (
                 f"Predicted class: {predicted}\n"
                 f"MITRE ATT&CK: {technique}\n"
                 f"Justification: Flow features are most consistent with {predicted}."
             )
+        elif name == "perceive":
+            text = self._perceive(features)
+        elif name == "reason":
+            text = self._reason(features, predicted)
+        elif m:
+            text = f"{m.group(1).capitalize()} note: the flow is consistent with {predicted}."
         else:
             text = f"Observation: {predicted}"
 

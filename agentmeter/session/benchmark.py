@@ -81,7 +81,8 @@ def _locked_dbs() -> set[Path]:
 
 def prepare_session(run_dir: str | Path, models: list[str], *,
                     base_config: Optional[str] = None,
-                    provider: Optional[str] = None) -> dict[str, Any]:
+                    provider: Optional[str] = None,
+                    pipeline: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
     """Write session_scenarios.csv + session_config.yaml into run_dir and return
     what the session will do. Raises SessionError / InputContractError."""
     run_dir = Path(run_dir).resolve()
@@ -136,6 +137,12 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
         "drop_labels": [],
     }
     data["storage"] = {"sqlite_path": str(db_path)}
+    # a user-defined pipeline (pipeline/spec.py; validated again here) replaces the base chain
+    from ..pipeline.spec import SpecError, apply_to_config, normalize
+    try:
+        apply_to_config(normalize(pipeline), data)
+    except SpecError as e:
+        raise SessionError(str(e)) from e
     data["session"] = {                          # informational; not read by the runner
         "source_run": str(run_dir), "base_config": str(base.path),
         "class_scheme": "6-class" if six else "5-class",
@@ -156,13 +163,14 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
 def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional[str] = None,
                 provider: Optional[str] = None, fresh: bool = False,
                 environment: Optional[dict[str, Any]] = None, load_test: bool = False,
-                run_id: Optional[str] = None) -> dict[str, Any]:
+                run_id: Optional[str] = None,
+                pipeline: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
     """Prepare, execute (existing sequential runner), score, and write
     <run_dir>/session_results.json. Returns the results payload."""
     from ..run.runner import run_full
     from .scoring import score_session, write_results
 
-    plan = prepare_session(run_dir, models, base_config=base_config, provider=provider)
+    plan = prepare_session(run_dir, models, base_config=base_config, provider=provider, pipeline=pipeline)
     real = plan["provider"] == "hf"
     ops = ops_settings()
     # Phase 46: GPU board power, sampled from THIS (parent) process while the worker

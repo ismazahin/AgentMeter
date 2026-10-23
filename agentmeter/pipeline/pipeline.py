@@ -3,15 +3,16 @@
 Builds a LangGraph StateGraph from the config-listed agents and wires them in a
 strictly LINEAR chain: START -> a1 -> a2 -> ... -> an -> END. No conditional
 edges, no loops, no governance. The agent list comes from config.pipeline.agents
-so the harness is agent-count agnostic (3/4/5 agents all work).
+so the harness is agent-count agnostic (3/4/5 agents all work). Agents named in
+config.pipeline.custom are user-defined (pipeline/spec.py); the rest are the built-ins.
 """
 from __future__ import annotations
 
-from typing import Any, Callable, TypedDict
+from typing import Any, Callable, TypedDict, get_type_hints
 
 from langgraph.graph import END, START, StateGraph
 
-from .agents import AGENT_REGISTRY
+from .agents import AGENT_REGISTRY, make_custom_agent, make_verdict
 from ..config import Config
 from ..providers.base import ModelProvider
 
@@ -46,21 +47,28 @@ class Pipeline:
         self.provider = provider
         self.node_hook = node_hook or _default_hook
         self.agent_names: list[str] = list(config.get("pipeline.agents", []) or [])
+        self.custom: dict[str, dict] = dict(config.get("pipeline.custom", {}) or {})
         self._validate_agents()
         self.graph = self._build()
 
     def _validate_agents(self) -> None:
         if not self.agent_names:
             raise ValueError("pipeline.agents is empty in config.")
-        unknown = [a for a in self.agent_names if a not in AGENT_REGISTRY]
+        unknown = [a for a in self.agent_names if a not in AGENT_REGISTRY and a not in self.custom]
         if unknown:
             raise ValueError(
                 f"Unknown agent(s) in pipeline.agents: {unknown}. "
                 f"Known: {sorted(AGENT_REGISTRY)}"
             )
 
+    def _agent_fn(self, name: str):
+        if name in self.custom:
+            titles = {n: (self.custom.get(n) or {}).get("title") or n.capitalize() for n in self.agent_names}
+            return make_custom_agent(name, self.custom[name], titles)
+        return AGENT_REGISTRY[name]
+
     def _make_node(self, name: str):
-        agent_fn = AGENT_REGISTRY[name]
+        agent_fn = self._agent_fn(name)
 
         def node(state: dict) -> dict:
             return self.node_hook(name, agent_fn, state, self.provider, self.config)
@@ -68,7 +76,12 @@ class Pipeline:
         return node
 
     def _build(self):
-        builder = StateGraph(PipelineState)
+        state = PipelineState
+        fields = get_type_hints(PipelineState)
+        extra = [n for n in self.agent_names if n not in fields]
+        if extra:   # custom agents: one text field each, beside the built-in ones
+            state = TypedDict("PipelineState", {**fields, **{n: str for n in extra}}, total=False)
+        builder = StateGraph(state)
         for name in self.agent_names:
             builder.add_node(name, self._make_node(name))
         # strictly linear wiring
@@ -84,4 +97,6 @@ class Pipeline:
             "feature_prompt": feature_prompt,
         }
         result = self.graph.invoke(initial)
+        if "verdict" not in result:    # a pipeline without a verdict agent ends with its label
+            result["verdict"] = make_verdict(result.get("predicted_class", "Unparseable"), "", self.config)
         return result

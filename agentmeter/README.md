@@ -21,9 +21,10 @@ agentmeter/
 │   └── dataprep.py        `build-dataset`: makes the balanced 300-scenario CSV from
 │                          the raw CIC-IDS2017 files.
 │
-├── pipeline/            ← THE 4-AGENT PROCESS (Perceive → Reason → Decide → Act)
+├── pipeline/            ← THE AGENT PROCESS (default: Perceive → Reason → Decide → Act)
 │   ├── pipeline.py        The linear agent chain (LangGraph).
-│   ├── agents.py          The four agents + registry.
+│   ├── agents.py          The four built-in agents + registry, and the user-defined agent.
+│   ├── spec.py            A session's own pipeline (1-8 agents, one label agent): rules + config.
 │   └── instrument.py      Per-agent instrumentation: wall time, TTFT, VRAM, tokens.
 │
 ├── providers/           ← MODEL BACKENDS

@@ -371,6 +371,13 @@
   .note-form label { font-weight: 600; font-size: 13.5px; }
   .tag-chip { cursor: pointer; font-size: 12px; padding: 2px 8px; }
   span.tag-chip { cursor: default; }
+  .help-toc { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  .help-toc a { min-height: 32px; display: inline-flex; align-items: center; }
+  .help-dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 18px; margin: 0; }
+  .help-dl dt { font-weight: 700; }
+  .help-dl dd { margin: 0; color: var(--muted-2); }
+  @media (max-width: 640px) { .help-dl { grid-template-columns: 1fr; } .help-dl dd { margin-bottom: 6px; } }
+  #view-help .card { scroll-margin-top: 80px; }
   .note-snip { margin-top: 4px; color: var(--muted-2); max-width: 46ch; }
   .notes-text { white-space: pre-wrap; }
   .flow-detail { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
@@ -666,6 +673,8 @@
       <a href="#/settings" data-nav="settings" title="Settings"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="nl">Settings</span></a>
       <a href="#/profile" data-nav="profile" id="side-profile" title="Profile" hidden><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span class="nl">Profile</span></a>
       <a href="#/admin" data-nav="admin" id="side-admin" title="Admin" hidden><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><span class="nl">Admin</span></a>
+      <span class="nav-group" aria-hidden="true">Help</span>
+      <a href="#/help" data-nav="help" title="How to use"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg><span class="nl">How to use</span></a>
     </nav>
     <div class="top-right">
       <span id="svc-backend-badge" class="chip-gpu" role="status" aria-live="polite">Checking backend…</span>
@@ -767,6 +776,78 @@
     <div id="home-recent" class="card" hidden>
       <div class="row" style="margin-top:0;justify-content:space-between"><h2>Recent sessions</h2><a href="#/sessions">All sessions</a></div>
       <div class="table-wrap" style="margin-top:10px" id="home-sessions"></div>
+    </div>
+  </section>
+
+  <!-- HOW TO USE: a static guide (no data), reachable from the sidebar -->
+  <section id="view-help" class="view" hidden aria-labelledby="h-help">
+    <div class="page-head"><div>
+      <h1 id="h-help">How to use AgentMeter</h1>
+      <p>AgentMeter measures how efficiently open LLMs run a 4-agent SOC triage pipeline on your own network flows: speed, GPU memory, tokens, cost and energy. Accuracy is shown as context.</p>
+    </div></div>
+    <nav class="card help-toc" aria-label="On this page">
+      <a href="#help-run">Run a benchmark</a><a href="#help-read">Read a session</a><a href="#help-tabs">What each tab answers</a>
+      <a href="#help-manage">Sessions, Compare, Leaderboard</a><a href="#help-terms">Key terms</a><a href="#help-faq">Common questions</a>
+    </nav>
+    <div class="card" id="help-run">
+      <h2>1. Run a benchmark</h2>
+      <ol class="guide-steps">
+        <li><b>Data.</b> Open <a href="#/new">New benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for accuracy) or a PCAP. Choose how many flows to sample. The result is a <i>prepared set</i>; use <b>Reuse a prepared set</b> next time to skip this step.</li>
+        <li><b>Models.</b> Pick one or two open models. Every model runs in 4-bit NF4 on the same GPU, one at a time, so the numbers are comparable. The wizard estimates time and cost from earlier runs.</li>
+        <li><b>Options.</b> Tick <b>Load test</b> to also measure how throughput scales with 1, 2 and 4 flows in parallel.</li>
+        <li><b>Run.</b> The session page shows live progress. You can leave it; the run continues on the GPU server. Stop it from the same page if needed.</li>
+      </ol>
+      <p class="muted small">No GPU connected? The app says so in the top bar. Preparing data and reading old sessions still work; new runs wait for the GPU.</p>
+    </div>
+    <div class="card" id="help-read">
+      <h2>2. Read a session</h2>
+      <ol class="guide-steps">
+        <li>Start at <b>Overview</b>: the headline says which model is more efficient, the tiles give the main numbers, and <b>Key findings</b> lists what stands out.</li>
+        <li>Each tab opens with a one-line summary. Sub-tabs (such as <i>Latency</i> or <i>Statistics</i>) go one level deeper.</li>
+        <li>Hover or tap a chart for exact values. Tables download as CSV and charts as PNG from the buttons under each card. The full report is in <b>Data &amp; Exports</b>.</li>
+        <li>Add a note or tags on the Overview tab, or a short note straight from the <a href="#/sessions">Sessions</a> list, so you remember why you ran it.</li>
+      </ol>
+    </div>
+    <div class="card" id="help-tabs">
+      <h2>3. What each tab answers</h2>
+      <div class="table-wrap"><table id="help-tabs-table"><thead><tr><th>Tab</th><th>The question it answers</th></tr></thead><tbody>
+        <tr><td>Overview</td><td>Which model is more efficient, by how much, and what should I know before trusting it?</td></tr>
+        <tr><td>Model Ranking</td><td>How do the models score overall (SAW), and does the order hold if I care about different things?</td></tr>
+        <tr><td>Accuracy</td><td>Which attack classes does each model get right or miss? (Needs labelled flows; context, not the ranking.)</td></tr>
+        <tr><td>Performance</td><td>How fast and how steady is each model, how much GPU does it use, and are the differences real or noise?</td></tr>
+        <tr><td>Agent Analysis</td><td>Which of the four agents (Perceive, Reason, Decide, Act) uses the time and tokens, and what did they say for a given flow?</td></tr>
+        <tr><td>Cost &amp; Energy</td><td>What would it cost per 1,000 flows and per day at my volume, and how much energy does it use?</td></tr>
+        <tr><td>Recommendations</td><td>Does a model fit my latency, memory and budget limits, and what should I do next?</td></tr>
+        <tr><td>Data &amp; Exports</td><td>Where are the PDF report, the raw results and the per-flow outputs?</td></tr>
+      </tbody></table></div>
+    </div>
+    <div class="card" id="help-manage">
+      <h2>4. Sessions, Compare and Leaderboard</h2>
+      <ul class="guide-steps">
+        <li><a href="#/sessions">Sessions</a> lists every run. Search by text, filter by tag, open a session, add a note, or delete a finished session (with an account).</li>
+        <li><a href="#/compare">Compare</a> puts two sessions side by side, for example the same model on two GPUs or two data sets.</li>
+        <li><a href="#/leaderboard">Leaderboard</a> ranks models across all sessions, overall or per GPU and data setup.</li>
+      </ul>
+    </div>
+    <div class="card" id="help-terms">
+      <h2>5. Key terms</h2>
+      <dl class="help-dl">
+        <dt>Flow</dt><dd>One network connection summarised as features (duration, packets, bytes, flags…). Each flow goes through the pipeline once.</dd>
+        <dt>Prepared set</dt><dd>The sampled, cleaned flows from one upload. Reusing it keeps two runs on exactly the same data.</dd>
+        <dt>SAW score</dt><dd>Simple Additive Weighting: each criterion (accuracy, latency, VRAM, tokens) is scaled 0–1 and combined with weights into one score out of 100.</dd>
+        <dt>p95 latency</dt><dd>95% of flows finished faster than this. It shows the slow tail that an analyst queue actually feels.</dd>
+        <dt>VRAM</dt><dd>GPU memory. <i>Total peak</i> includes the model weights; <i>working</i> is what the agent calls add on top.</dd>
+        <dt>Hand-off tokens</dt><dd>Earlier agents' output that a later agent's prompt re-sends: the overhead of splitting the work into agents.</dd>
+        <dt>4-bit NF4</dt><dd>The quantisation every model runs in, so a 7B model fits on one GPU and all models are measured the same way.</dd>
+        <dt>Demo (mock)</dt><dd>A run without a real model, to try the app. Its numbers are not measurements.</dd>
+      </dl>
+    </div>
+    <div class="card" id="help-faq">
+      <h2>6. Common questions</h2>
+      <details class="info"><summary>Why is the Accuracy tab greyed out?</summary><p class="small">The flows have no labels (a PCAP, or a CSV without a Label column), so the run measures efficiency only.</p></details>
+      <details class="info"><summary>Why does my result say "could not be tested" or "tie"?</summary><p class="small">With few flows, a difference can be noise. Performance → Statistics shows how many flows you need for a clear answer.</p></details>
+      <details class="info"><summary>Why are cost or energy "not measured"?</summary><p class="small">Cost needs the GPU's hourly price: the live Vast.ai price, or <span class="mono">AGENTMETER_GPU_USD_PER_HOUR</span> on the GPU server. Energy needs the GPU's power reading, which some cloud GPUs do not expose. Demo runs measure neither.</p></details>
+      <details class="info"><summary>Can I bring back the first-visit tips?</summary><p class="small">Yes: <button type="button" class="btn small-btn" id="help-guides-reset">Show the tips again</button> <span class="muted" id="help-guides-done" role="status"></span></p></details>
     </div>
   </section>
 
@@ -1499,7 +1580,7 @@
   function hoverTip(el) { openTip(el, el.getAttribute("data-hover")); if (TIP) { TIP._for = el; TIP._hover = true; } }
 
   // ---------- routing ----------
-  var VIEWS = ["home", "new", "sessions", "session", "compare", "leaderboard", "settings", "profile", "admin", "login"];
+  var VIEWS = ["home", "new", "sessions", "session", "compare", "leaderboard", "settings", "profile", "admin", "help", "login"];
   function parseHash() {
     var h = location.hash.replace(/^#\/?/, ""), q = {}, qi = h.indexOf("?");
     if (qi >= 0) { new URLSearchParams(h.slice(qi + 1)).forEach(function (v, k) { q[k] = v; }); h = h.slice(0, qi); }
@@ -1588,6 +1669,15 @@
   function guideSeen(k) { try { return localStorage.getItem("agentmeter.guide." + k) === "1"; } catch (e) { return false; } }
   function guideHide(k) { try { localStorage.setItem("agentmeter.guide." + k, "1"); } catch (e) { /* shown again next time */ } $(k + "-guide").hidden = true; }
   $("home-guide-hide").addEventListener("click", function () { guideHide("home"); });
+  $("help-guides-reset").addEventListener("click", function () {
+    ["home", "session"].forEach(function (k) { try { localStorage.removeItem("agentmeter.guide." + k); } catch (e) { /* nothing stored */ } });
+    $("help-guides-done").textContent = "Done: the tips show again on Home and on a session.";
+  });
+  // in-page links of the guide scroll instead of changing the route
+  $("view-help").addEventListener("click", function (e) {
+    var a = e.target.closest('a[href^="#help-"]'); if (!a) return;
+    e.preventDefault(); var t = $(a.getAttribute("href").slice(1)); if (t) { t.scrollIntoView({ behavior: "smooth", block: "start" }); t.setAttribute("tabindex", "-1"); t.focus({ preventScroll: true }); }
+  });
   $("session-guide-hide").addEventListener("click", function () { guideHide("session"); });
   function loadHome() {
     $("home-guide").hidden = guideSeen("home");

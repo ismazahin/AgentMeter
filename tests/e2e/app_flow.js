@@ -317,6 +317,16 @@ async function frameOf(p) {
   await p.click('.lb-group .lb-compare'); await p.waitForSelector('#cmp-validity');
   log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Open in Compare opens the merged view of that setup');
 
+  // How to use: a sidebar page; its contents links scroll within the page; the tips come back
+  await p.click('.sidenav-account a[data-nav="help"]'); await p.waitForSelector('#view-help:not([hidden])');
+  log(await p.$$eval('#help-tabs-table tbody tr', r => r.length) === 8 && await p.getAttribute('.sidenav-account a[data-nav="help"]', 'aria-current') === 'page', 'How to use: opens from the sidebar and covers all 8 session tabs');
+  await p.evaluate(() => localStorage.setItem('agentmeter.guide.home', '1'));
+  await p.click('.help-toc a[href="#help-faq"]'); await p.waitForTimeout(400);
+  const helpHash = await p.evaluate(() => location.hash);
+  await p.click('#help-faq summary >> nth=3'); await p.click('#help-guides-reset');
+  log(helpHash === '#/help' && await p.evaluate(() => localStorage.getItem('agentmeter.guide.home')) === null, 'How to use: contents links keep the route; "Show the tips again" resets them');
+  await p.screenshot({ path: S + '/11c-help.png', fullPage: true });
+
   // 10. Settings: theme toggle (persisted)
   await p.click('.sidenav-account a[data-nav="settings"]'); await p.waitForSelector('#view-settings:not([hidden])');   // the sidebar's Account group
   await p.check('#set-theme-light');

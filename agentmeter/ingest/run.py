@@ -197,6 +197,8 @@ def schema_markdown(report: dict[str, Any], metadata: dict[str, Any]) -> str:
         f"- Missing: {', '.join(cols['missing']) or 'none'}",
         f"- Extra columns ignored: {', '.join(cols['extra_ignored']) or 'none'}",
         f"- Identification columns found: {', '.join(cols['meta_found']) or 'none'}",
+        f"- Format: {cols.get('format_name') or 'CIC-IDS2017 column names'}"
+        + (f" — renamed: {', '.join(f'{k} → {v}' for k, v in cols['renamed'].items())}" if cols.get('renamed') else ""),
         f"- Rows dropped (NaN/Inf/non-numeric feature): {report['rows_dropped_nan_inf']:,}",
         f"- Label column: {lab['column'] or 'NOT FOUND'} → evaluation_mode "
         f"**{metadata['evaluation_mode']}**",
@@ -261,14 +263,7 @@ def process_csv(csv_path: str | Path, *, name: Optional[str] = None,
     out_dir = Path(out_root or DEFAULT_CSV_OUT_ROOT) / run_name
     metadata = build_metadata(
         source_type="csv", source_file=src.name, run_name=run_name, labelled=data.labelled,
-        feature_match={
-            "status": "exact" if n_present == 78 else "partial",
-            "reference": "CIC-IDS2017 MachineLearningCVE (78 features, Java CICFlowMeter)",
-            "comparable": n_present, "missing": rep["columns"]["missing"],
-            "note": ("features supplied in CIC-IDS2017 format — same definitions as the "
-                     "reference dataset" if n_present == 78 else
-                     f"only {n_present}/78 features present; missing ones are empty"),
-        },
+        feature_match=_csv_feature_match(rep, n_present),
         feature_columns=[c for c in feature_map.CIC_FEATURES if c not in rep["columns"]["missing"]],
         rows_total=rep["rows_usable"], rows_selected=len(selected),
         rules_fired=audit["rules_fired"], label_distribution_selected=sel_dist,
@@ -287,6 +282,21 @@ def process_csv(csv_path: str | Path, *, name: Optional[str] = None,
         _dump(out_dir / "manifest.json", manifest)
         (out_dir / "schema_report.md").write_text(schema_markdown(rep, metadata), encoding="utf-8")
     return {"manifest": manifest, "selection": sel, "audit": audit, "input": run, "report": rep}
+
+
+def _csv_feature_match(rep: dict[str, Any], n_present: int) -> dict[str, Any]:
+    """exact = CIC-IDS2017 column names; mapped = the same CICFlowMeter features under other
+    names (configs/input_formats.yaml); partial = some of the 78 features are missing."""
+    c = rep["columns"]
+    renamed = c.get("renamed") or {}
+    status = "partial" if n_present < 78 else "mapped" if renamed else "exact"
+    note = {"exact": "features supplied in CIC-IDS2017 format — same definitions as the reference dataset",
+            "mapped": (f"{c.get('format_name') or 'CICFlowMeter export'}: {len(renamed)} column(s) renamed "
+                       "to CIC-IDS2017 names (same CICFlowMeter features; see the schema report)"),
+            "partial": f"only {n_present}/78 features present; missing ones are empty"}[status]
+    return {"status": status, "reference": "CIC-IDS2017 MachineLearningCVE (78 features, Java CICFlowMeter)",
+            "comparable": n_present, "missing": c["missing"], "format": c.get("format"),
+            "format_name": c.get("format_name"), "renamed": len(renamed), "note": note}
 
 
 def process_input(path: str | Path, **kw) -> dict[str, Any]:

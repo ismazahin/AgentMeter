@@ -40,7 +40,8 @@ Validation rejects a file with a stated reason rather than silently carrying on:
 - **Not a CSV:** packet captures (pointed to the PCAP path), binary files, empty
   files, header-only files and unparseable CSVs.
 - **Schema:** headers are whitespace-stripped, since the official files use
-  `' Label'` and `' Flow Duration'`. All 78 feature columns are required.
+  `' Label'` and `' Flow Duration'`. All 78 feature columns are required, under their
+  CIC-IDS2017 names **or a known alias** (see *Other CICFlowMeter formats* below).
   `--allow-partial` accepts a subset, marked `feature_match: partial`, but never
   one that lacks a column the rule-base reads.
 - **Values:** rows with NaN/Inf or non-numeric features are dropped and counted, the
@@ -48,16 +49,48 @@ Validation rejects a file with a stated reason rather than silently carrying on:
   rejected.
 
 Labels:
-- **Detection:** the label column is found case-insensitively (`Label` / `label`).
+- **Detection:** the first of `Label`, `attack_cat`, `attack_type`, `Attack`, `class`,
+  `category`, `traffic_type` (case-insensitive; `configs/input_formats.yaml`) that is
+  present. A column holding only 0/1 (attack yes/no) is skipped, because it cannot be
+  mapped to the classes; with no usable column the run is **efficiency-only** and the
+  schema report says why.
 - **Mapping:** labels go through `config.yaml data_prep.label_map`, the same
-  mapping the study used (for example `SSH-Patator` → Brute Force). Labels that are
-  already canonical are accepted.
+  mapping the study used (for example `SSH-Patator` → Brute Force), plus the extra
+  spellings in `configs/input_formats.yaml labels.values` for user runs
+  (CSE-CIC-IDS2018 `SSH-Bruteforce` → Brute Force, CIC-DDoS2019 `DrDoS_DNS` →
+  Volumetric DDoS, UNSW-style `Normal` → Benign). Labels that are already canonical
+  are accepted. Declare these mappings in the thesis.
 - **Out-of-taxonomy labels:** rows with labels outside the 5 classes (for example
   `DoS slowloris`) are excluded and counted, because accuracy is only defined over
   the 5 classes.
 - **Isolation:** the label is split off before the rule engine runs. The engine is
   label-blind, exactly like the PCAP path, and the class mix of the selection is
   reported afterwards for transparency.
+
+### Other CICFlowMeter formats (`agentmeter/ingest/formats.py`, `configs/input_formats.yaml`)
+
+Many datasets carry the **same CICFlowMeter features under other column names**. Their
+columns are renamed to the CIC-IDS2017 names before validation; nothing is computed or
+guessed:
+
+| Format | Example names | feature_match |
+|---|---|---|
+| CIC-IDS2017, CIC-DDoS2019 | `Destination Port`, `Total Fwd Packets` | `exact` |
+| CSE-CIC-IDS2018 / CICFlowMeter-V3 | `Dst Port`, `Tot Fwd Pkts`, `Flow Byts/s` | `mapped` |
+| CICFlowMeter-V4 (Java) | `Total Fwd Packet`, `FWD Init Win Bytes`, `CWR Flag Count` | `mapped` |
+| Python CICFlowMeter (PyPI `cicflowmeter`) | `dst_port`, `tot_fwd_pkts` (from `feature_map.py`) | `mapped` |
+| Case / punctuation variants | `FLOW_DURATION`, `flow duration` | `exact` |
+
+- Matching ignores case, spaces and punctuation. A column that already has the CIC-IDS2017
+  name always wins over an alias; two columns for the same feature keep the first.
+- CIC-IDS2017's duplicate `Fwd Header Length.1` is copied from `Fwd Header Length` when a
+  file does not have it.
+- Every rename is listed in `schema_report.md` and the manifest (`columns.renamed`,
+  `columns.format`); the New benchmark page shows "Features: mapped · <format>".
+- A CSV with other features (UNSW-NB15's own features, NetFlow, Zeek) is still refused, with
+  a pointer to upload the PCAP instead.
+- Token counts and latency depend on the prompt, so sessions are compared only within the
+  same prepared set (already enforced by Compare and the Leaderboard).
 
 ### "Other Attack": 6-class user runs (opt-in)
 

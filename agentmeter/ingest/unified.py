@@ -15,7 +15,7 @@ Whatever the source (CSV or PCAP), a run directory contains:
     class_scheme       {"name": "5-class" | "6-class", "classes": [...]} or null
     selection_mode     "label_aware_balanced" | "label_blind_statistical"
     accuracy_unavailable_reasons   why not, when accuracy is false
-    feature_match      {"status": "exact" | "partial" | "approximate", ...}
+    feature_match      {"status": "exact" | "mapped" | "partial" | "approximate", ...}
     feature_columns    feature columns that carry real values (model input)
     hidden_columns     META_COLUMNS (+ label): never shown to the model
 

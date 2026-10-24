@@ -2748,12 +2748,12 @@
     $("spanel-reliability").innerHTML = lead("reliability") + pane("main", reliabilityCard(res) + consistencyCard(res) + failureCard(res));
     $("spanel-performance").innerHTML = lead("performance") + pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("capacity", capacityCard(res) + coldStartCard(res)) + pane("drivers", driversCard(res) + scalingCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
     $("spanel-agents").innerHTML = lead("agents") + pane("main", agentsTab(res));
-    $("spanel-cost").innerHTML = lead("cost") + pane("main", costCard(res) + gpuTimelineCard(res) + projectionCard(res) + correctCard(res));
+    $("spanel-cost").innerHTML = lead("cost") + pane("main", costCard(res) + energyEffCard(res) + gpuTimelineCard(res) + idleCard(res) + projectionCard(res) + priceCard(res) + correctCard(res));
     $("spanel-recommendations").innerHTML = lead("recommendations") + pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
     $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
     resetEmbed();
     wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); SAME_SETUP = {};       // fresh per render: a later session on these flows must show up
-    wireRepeat(res, job); wireNotes(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePipelineCompare(job);
+    wireRepeat(res, job); wireNotes(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePipelineCompare(job); wirePrices(res); wirePicker(res);
     addExports($("session-body"));
   }
 
@@ -3247,6 +3247,89 @@
           }).join("") + '</tbody></table></div>') + '</div>';
       addExports(host);
     });
+  }
+  // ---------- Analysis expansion, phase 5: energy, provider prices, idle cost, best-model picker ----------
+  function energyEffCard(res) {
+    if (!window.INSIGHTS || !res.cost_energy) return "";
+    var e = INSIGHTS.energyEfficiency(res);
+    return '<div class="card" id="cost-energy-eff"><h2>Energy efficiency</h2><p class="muted small" style="margin-top:0">Work done per unit of energy: higher is better. Measured from the GPU board power during each model\'s flows.</p>' +
+      '<div class="table-wrap"><table id="cost-energy-eff-table"><thead><tr><th>Model</th><th class="num">Energy / flow</th><th class="num">Flows per kWh</th><th class="num">Tokens per Wh</th></tr></thead><tbody>' +
+      e.models.map(function (m) {
+        return m.wh_per_flow == null ? '<tr><td class="mono">' + esc(short(m.model)) + '</td><td colspan="3" class="muted">' + esc(m.reason) + '</td></tr>'
+          : '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtWh(m.wh_per_flow) + '</td><td class="num">' + fmtNum(m.flows_per_kwh) + '</td><td class="num">' + fmtNum(m.tokens_per_wh, 1) + '</td></tr>';
+      }).join("") + '</tbody></table></div></div>';
+  }
+  var OFFERS_KEY = "agentmeter.priceOffers";
+  function loadOffers() { try { var x = JSON.parse(localStorage.getItem(OFFERS_KEY) || "[]"); return Array.isArray(x) ? x : []; } catch (e) { return []; } }
+  function priceCard(res) {
+    if (!window.INSIGHTS) return "";
+    return '<form class="card" id="cost-prices" novalidate><h2>Where is it cheapest to run?</h2><p class="muted small" style="margin-top:0">The measured time per flow priced at other hourly rates for the <b>same GPU model</b>' +
+      ((res.environment || {}).gpu_name ? " (" + esc(gpuShort(res.environment.gpu_name)) + ")" : "") + '. Enter the current prices you are quoted (cloud, rental, your own cluster); they are kept in this browser only. A different GPU model would change the time, so compare like for like.</p>' +
+      '<div id="price-rows"></div><div class="row"><button type="button" class="btn small-btn" id="price-add">Add a price</button></div><div id="price-out" style="margin-top:12px"></div></form>';
+  }
+  function wirePrices(res) {
+    var host = $("price-rows");
+    if (!host) return;
+    var offers = loadOffers();
+    function save() { try { localStorage.setItem(OFFERS_KEY, JSON.stringify(offers)); } catch (e) { /* this view only */ } }
+    function draw() {
+      host.innerHTML = offers.map(function (o, i) {
+        return '<div class="row price-row" data-i="' + i + '" style="margin-top:6px"><div class="field"><label for="po-n-' + i + '">Provider</label><input id="po-n-' + i + '" type="text" data-k="name" maxlength="40" value="' + esc(o.name || "") + '"></div>' +
+          '<div class="field"><label for="po-p-' + i + '">USD per GPU-hour</label><input id="po-p-' + i + '" data-k="usd_per_hour" type="number" min="0" step="any" value="' + esc(o.usd_per_hour == null ? "" : o.usd_per_hour) + '"></div>' +
+          '<button type="button" class="btn small-btn" data-rm="' + i + '" aria-label="Remove ' + esc(o.name || "this price") + '">Remove</button></div>';
+      }).join("");
+      out();
+    }
+    function out() {
+      var pc = INSIGHTS.priceCompare(res, offers);
+      $("price-out").innerHTML = !pc.offers.length ? '<p class="muted small">' + (pc.real ? "Add a price to compare." : "Demo session: the time is not a model measurement, but you can still try the comparison.") + '</p>'
+        : '<div class="table-wrap"><table id="price-table"><thead><tr><th>Price</th><th class="num">USD / GPU-hour</th>' + pc.offers[0].per_model.map(function (m) { return '<th class="num">' + esc(short(m.model)) + ' / 1,000 flows</th>'; }).join("") + '</tr></thead><tbody>' +
+          pc.offers.map(function (o) { return '<tr><td>' + esc(o.name) + '</td><td class="num">' + fmtUsd(o.usd_per_hour) + '</td>' + o.per_model.map(function (m) { return '<td class="num">' + fmtUsd(m.usd_per_1k_flows) + '</td>'; }).join("") + '</tr>'; }).join("") +
+          '</tbody></table></div>';
+    }
+    $("price-add").addEventListener("click", function () { offers.push({ name: "", usd_per_hour: null }); save(); draw(); var x = host.querySelector('.price-row:last-child [data-k="name"]'); if (x) x.focus(); });
+    host.addEventListener("input", function (e) {
+      var row = e.target.closest(".price-row"); if (!row) return;
+      var o = offers[+row.getAttribute("data-i")], k = e.target.getAttribute("data-k");
+      o[k] = k === "usd_per_hour" ? (e.target.value === "" ? null : +e.target.value) : e.target.value; save(); out();
+    });
+    host.addEventListener("click", function (e) { var b = e.target.closest("[data-rm]"); if (!b) return; offers.splice(+b.getAttribute("data-rm"), 1); save(); draw(); });
+    $("cost-prices").addEventListener("submit", function (ev) { ev.preventDefault(); });
+    draw();
+  }
+  function idleCard(res) {
+    if (!window.INSIGHTS) return "";
+    var ic = INSIGHTS.idleCost(res);
+    return '<div class="card" id="cost-idle"><h2>GPU idle while running</h2>' + (!ic.measured ? '<p class="muted small" style="margin-bottom:0">Not measured: ' + esc(ic.reason) + '.</p>'
+      : '<p class="muted small" style="margin-top:0">Share of each model\'s run with the GPU under ' + ic.threshold_pct + '% busy (between agent calls, tokenising, Python), and the share of its energy drawn then. A high share means batching or overlapping agent calls would get more out of the same GPU.</p>' +
+        '<div class="table-wrap"><table id="cost-idle-table"><thead><tr><th>Model</th><th class="num">Mean GPU busy</th><th class="num">Time nearly idle</th><th class="num">Energy while nearly idle</th></tr></thead><tbody>' +
+        ic.models.map(function (m) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + (m.mean_util_pct == null ? "—" : fmtNum(m.mean_util_pct, 0) + "%") + '</td><td class="num">' + fmtPct(m.low_util_share) + '</td><td class="num">' + fmtPct(m.low_util_energy_share) + '</td></tr>'; }).join("") +
+        '</tbody></table></div>') + '</div>';
+  }
+  var PICK_LABELS = [["speed", "Fastest per flow"], ["tail", "Shortest slow tail (p95)"], ["cost", "Cheapest to run"], ["memory", "Smallest GPU memory"], ["tokens", "Fewest tokens"], ["validity", "Most valid answers"]];
+  function pickerCard(res) {
+    if (!window.INSIGHTS || (res.per_model || []).length < 2) return "";
+    return '<form class="card" id="rec-picker" novalidate><h2>Best model for my priority</h2><p class="muted small" style="margin-top:0">Choose what matters most; optionally require a share of valid answers. The pick restates this session\'s measurements.</p>' +
+      '<div class="row" style="margin-top:0"><div class="field"><label for="pick-priority">My priority</label><select id="pick-priority">' + PICK_LABELS.map(function (p) { return '<option value="' + p[0] + '">' + esc(p[1]) + '</option>'; }).join("") + '</select></div>' +
+      '<div class="field"><label for="pick-valid">At least this share of valid answers <span class="hint">(%, optional)</span></label><input id="pick-valid" type="number" min="0" max="100" step="1" placeholder="e.g. 95"></div></div>' +
+      '<p class="verdict" id="pick-out" aria-live="polite"></p></form>';
+  }
+  function wirePicker(res) {
+    var sel = $("pick-priority");
+    if (!sel) return;
+    function draw() {
+      var v = $("pick-valid").value, r = INSIGHTS.recommend(res, sel.value, v === "" ? null : +v / 100);
+      $("pick-out").innerHTML = !r.best ? "No model meets that" + (r.min_valid != null ? " share of valid answers (" + fmtPct(r.min_valid) + ")" : "") + "."
+        : r.tie ? 'Tie: <b>' + esc(short(r.best.model)) + '</b> and <b>' + esc(short(r.runner_up.model)) + '</b> are within 5% here (' + esc(fmtUnit(r.unit, r.best.value)) + ' and ' + esc(fmtUnit(r.unit, r.runner_up.value)) +
+            '). Pick by your next priority.'
+        : '<b>' + esc(short(r.best.model)) + '</b> ' + esc(r.label) + ': ' + esc(fmtUnit(r.unit, r.best.value)) +
+          (r.runner_up ? ' — ' + (r.unit === "share" ? fmtNum(r.margin * 100, 1) + " points" : fmtNum(r.margin * 100, 0) + "%") + ' ahead of ' + esc(short(r.runner_up.model)) + ' (' + esc(fmtUnit(r.unit, r.runner_up.value)) + ')' : "") + '.' +
+          (r.excluded.length ? ' <span class="muted">Left out for too few valid answers: ' + esc(r.excluded.map(short).join(", ")) + '.</span>' : "") +
+          (r.no_data.length ? ' <span class="muted">No data for: ' + esc(r.no_data.map(short).join(", ")) + '.</span>' : "");
+    }
+    sel.addEventListener("change", draw); $("pick-valid").addEventListener("input", draw);
+    $("rec-picker").addEventListener("submit", function (ev) { ev.preventDefault(); });
+    draw();
   }
   // Output Reliability: is the pipeline's output usable? A validity check of the output, not a
   // detection score — nothing here enters a score, rank or verdict.
@@ -4022,7 +4105,7 @@
     var hint = window.REPORT ? window.REPORT.optimisationHint(res, ((res.per_model || [])[0] || {}).db_label) : { text: "" };
     h.push('<div class="card"><h2>Measured verdict</h2><p class="verdict">' + esc(rel ? rel.verdict : (res.comparison || {}).statement || "Single-model run — no head-to-head comparison.") + '</p>' +
       (hint.text ? '<p class="small">' + esc(hint.text) + '</p>' : "") + '<p class="muted small">Decision support, not a deployment sign-off.</p></div>');
-    h.push(fitCard(res));
+    h.push(pickerCard(res), fitCard(res));
     if (dh) {
       h.push('<form class="card" id="dh-form" novalidate><h2>Does a model fit your limits?</h2><p class="muted small">' + esc(dh.framing) +
         ' Rule set: <span class="mono">' + esc(dh.rulebase) + '</span>.</p><div class="row">' +

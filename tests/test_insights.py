@@ -484,3 +484,26 @@ def test_pipeline_compare_finds_other_pipelines_on_the_same_flows():
     assert [o["session_id"] for o in pc["others"]] == ["short"]
     m = pc["others"][0]["models"][0]
     assert m["latency_vs_this"] == -0.5 and m["tokens_vs_this"] == -0.4 and abs(m["valid_vs_this"] + 0.1) < 1e-9
+
+
+# ---------------------------------------------------------------- analysis expansion, phase 5
+def test_energy_efficiency_price_compare_idle_and_recommend():
+    s = _card()
+    s["cost_energy"]["per_model"] = [{"model": A, "wh_per_flow": 0.5}, {"model": B, "wh_per_flow": None, "energy_reason": "mock run"}]
+    s["cost_energy"]["price"] = {"usd_per_hour": 0.9, "source": "vast.ai live"}
+    s["environment"] = {"provider": "real", "gpu_name": "NVIDIA L4"}
+    e = call("energyEfficiency", s)
+    assert e["models"][0]["flows_per_kwh"] == 2000 and e["models"][0]["tokens_per_wh"] == 1800 and e["models"][1]["reason"] == "mock run"
+    pc = call("priceCompare", s, [{"name": "Cheap cloud", "usd_per_hour": 0.36}, {"name": "", "usd_per_hour": None}, {"name": "zero", "usd_per_hour": 0}])
+    assert [o["name"] for o in pc["offers"]] == ["This session (vast.ai live)", "Cheap cloud"]          # empty and zero rows ignored
+    assert abs(pc["offers"][1]["per_model"][0]["usd_per_1k_flows"] - 1.0 * 1000 / 3600 * 0.36) < 1e-12
+    s["gpu_timeline"] = {"sampled": True, "has_util": True, "low_util_pct": 10, "per_model": [{"model": A, "low_util_share": 0.3, "low_util_energy_share": 0.2, "mean_util_pct": 61}]}
+    ic = call("idleCost", s)
+    assert ic["measured"] and ic["models"][0]["low_util_share"] == 0.3
+    assert call("idleCost", {"gpu_timeline": {"sampled": False, "reason": "mock run"}})["reason"] == "mock run"
+    r = call("recommend", s, "tokens", None)
+    assert r["best"]["model"] == B and r["runner_up"]["model"] == A and not r["tie"] and abs(r["margin"] - 1 / 3) < 1e-9
+    r = call("recommend", s, "tokens", 0.95)                       # B has 90% valid answers -> left out
+    assert r["best"]["model"] == A and r["excluded"] == [B]
+    assert call("recommend", s, "speed", None)["tie"] is True       # 1.00 s vs 1.03 s: within 5%
+    assert call("recommend", s, "memory", None)["no_data"] == [B]

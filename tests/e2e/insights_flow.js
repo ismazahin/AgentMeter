@@ -93,6 +93,20 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     await p.waitForSelector('#agents-pipelines');
     log(/No other session ran a different pipeline/.test(await p.textContent('#agents-pipelines')), 'agents: other pipelines on these flows (none yet, says how)');
 
+    // Analysis expansion, phase 5 — energy efficiency, provider prices, idle cost, best-model picker
+    await tab(p, csv, 'cost', '#cost-prices');
+    log(/mock|not measured/i.test(await p.textContent('#cost-energy-eff')) && /Not measured/.test(await p.textContent('#cost-idle')), 'cost (demo): energy efficiency and idle time say why they are not measured');
+    await p.click('#price-add'); await p.fill('#po-n-0', 'Provider A'); await p.fill('#po-p-0', '0.8'); await p.waitForTimeout(200);
+    log((await p.$$('#price-table tbody tr')).length === 1 && /\$0\.8000/.test(await p.textContent('#price-table')) && (await p.$$('#price-table thead th')).length === 4,
+        'cost: a price you enter is applied to each model\'s measured time per flow');
+    await p.reload(); await p.waitForSelector('#price-table');
+    log(await p.inputValue('#po-n-0') === 'Provider A', 'cost: entered prices are remembered in this browser');
+    await tab(p, csv, 'recommendations/limits', '#rec-picker');
+    await p.selectOption('#pick-priority', 'speed'); await p.waitForTimeout(200);
+    log(/fastest per flow|Tie:/.test(await p.textContent('#pick-out')), 'recommendations: best model for a chosen priority (or a tie)');
+    await p.fill('#pick-valid', '101'); await p.waitForTimeout(200);
+    log(/No model meets that/.test(await p.textContent('#pick-out')), 'recommendations: a validity floor nobody meets is said plainly');
+
     // Phase 2 — Ranking -> Robustness: weight range in which #1 stays first
     await tab(p, csv, 'ranking/robustness', '#svc-stability');
     log((await p.$$('#svc-stability .stab-row')).length === 3 && (await p.$$('#svc-stability .stab-mark')).length === 3,

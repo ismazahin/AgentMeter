@@ -960,13 +960,23 @@ def gpu_timeline_block(sr: list[dict], label_of: dict[str, str], *, real: bool,
         if not w:
             continue
         inw = [r for r in rows if w[0] <= r[0] <= w[1]]
+        # idle cost: samples in the model's window with the GPU nearly idle (between agent calls,
+        # tokenising, Python) and the share of the board energy drawn then (equal-interval samples)
+        withu = [r for r in inw if r[2] is not None]
+        low = [r for r in withu if r[2] < LOW_UTIL_PCT]
+        pw = sum(r[1] for r in withu)
         per.append({"model": m, "n_samples": len(inw), "mean_power_w": mean([r[1] for r in inw]),
                     "peak_power_w": max((r[1] for r in inw), default=None),
-                    "mean_util_pct": mean([r[2] for r in inw]), "peak_mem_mb": max((r[3] for r in inw if r[3] is not None), default=None)})
+                    "mean_util_pct": mean([r[2] for r in inw]), "peak_mem_mb": max((r[3] for r in inw if r[3] is not None), default=None),
+                    "low_util_share": (len(low) / len(withu)) if withu else None,
+                    "low_util_energy_share": (sum(r[1] for r in low) / pw) if withu and pw else None})
     return {"sampled": True, "method": energy.get("method"), "interval_s": energy.get("interval_s"),
-            "n_samples": n, "thinned": n > TIMELINE_MAX_POINTS, "has_util": bool(util), "has_mem": bool(mem),
+            "n_samples": n, "thinned": n > TIMELINE_MAX_POINTS, "has_util": bool(util), "has_mem": bool(mem), "low_util_pct": LOW_UTIL_PCT,
             "point_fields": ["t_s", "power_w", "util_pct", "mem_mb"], "points": points,
             "windows": windows, "idle": idle, "per_model": per}
+
+
+LOW_UTIL_PCT = 10.0     # GPU utilisation below this counts as "nearly idle"
 
 
 def load_scaling_block(db_path: str | Path, run_id: str, label_of: dict[str, str]) -> dict[str, Any]:

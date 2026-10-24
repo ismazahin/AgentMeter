@@ -673,6 +673,65 @@
     return { current: { pipeline: cur.pipeline || ["perceive", "reason", "decide", "act"] }, others: others };
   }
 
+  // ---- Cost & Energy: energy efficiency (work per unit of energy) -----------------------------
+  function energyEfficiency(res) {
+    var tok = {};
+    (res.per_model || []).forEach(function (m) { tok[bare(m.model)] = num((((m.efficiency || {}).end_to_end) || {}).mean_tokens_per_flow); });
+    var rows = ((res.cost_energy || {}).per_model || []).map(function (r) {
+      var wh = num(r.wh_per_flow), k = bare(r.model), t = tok[k];
+      return { model: k, wh_per_flow: wh, flows_per_kwh: wh ? 1000 / wh : null, tokens_per_wh: wh && t != null ? t / wh : null,
+               reason: wh == null ? (r.energy_reason || r.energy_status || "not measured") : null };
+    });
+    return { measured: rows.some(function (r) { return r.wh_per_flow != null; }), models: rows };
+  }
+
+  // ---- Cost & Energy: the measured GPU time priced at other providers' hourly rates -------------
+  // The time is this session's (this GPU model); a provider renting the SAME GPU model at another
+  // price changes only the price. Rates are the user's own entries — none are built in.
+  function priceCompare(res, offers) {
+    var models = (res.per_model || []).map(function (m) { return { model: bare(m.model), lat: num((((m.efficiency || {}).end_to_end) || {}).mean_latency_s) }; });
+    var own = ((res.cost_energy || {}).price) || {};
+    var list = (own.usd_per_hour != null ? [{ name: "This session (" + (own.source || "measured price") + ")", usd_per_hour: num(own.usd_per_hour), own: true }] : [])
+      .concat((offers || []).filter(function (o) { return o && num(o.usd_per_hour) != null && +o.usd_per_hour > 0; }).map(function (o) { return { name: String(o.name || "Provider"), usd_per_hour: +o.usd_per_hour, own: false }; }));
+    return { gpu: ((res.environment || {}).gpu_name) || null, real: (res.environment || {}).provider === "real",
+             offers: list.map(function (o) {
+               return { name: o.name, own: o.own, usd_per_hour: o.usd_per_hour, per_model: models.map(function (m) {
+                 return { model: m.model, usd_per_1k_flows: m.lat != null ? m.lat * 1000 / 3600 * o.usd_per_hour : null };
+               }) };
+             }) };
+  }
+
+  // ---- Cost & Energy: time the GPU sat nearly idle while a model was running ------------------
+  function idleCost(res) {
+    var g = res.gpu_timeline;
+    if (!g || !g.sampled) return { measured: false, reason: (g && g.reason) || "GPU power was not sampled" };
+    if (!g.has_util) return { measured: false, reason: "GPU utilisation was not sampled" };
+    return { measured: true, threshold_pct: g.low_util_pct != null ? g.low_util_pct : 10,
+             models: (g.per_model || []).map(function (m) {
+               return { model: bare(m.model), low_util_share: num(m.low_util_share), low_util_energy_share: num(m.low_util_energy_share), mean_util_pct: num(m.mean_util_pct) };
+             }) };
+  }
+
+  // ---- Recommendations: the best model for one priority (with an optional validity floor) -----
+  var PRIORITIES = { cost: ["cost_per_1k", "is the cheapest to run"], speed: ["mean_latency_s", "is the fastest per flow"], tail: ["p95_latency_s", "has the shortest slow tail (p95)"],
+                     memory: ["memory_mb", "needs the least GPU memory"], tokens: ["tokens", "uses the fewest tokens"], validity: ["valid_rate", "gives the most valid answers"] };
+  function recommend(res, priority, minValid) {
+    var pr = PRIORITIES[priority] || PRIORITIES.speed, sc = scorecard(res);
+    var dim = sc.dims.filter(function (d) { return d.key === pr[0]; })[0], valid = sc.dims.filter(function (d) { return d.key === "valid_rate"; })[0];
+    var floor = minValid != null && minValid !== "" ? +minValid : null;
+    var cands = sc.models.map(function (m, i) { return { model: m, value: dim.cells[i].value, valid: valid.cells[i].value }; });
+    var excluded = floor == null ? [] : cands.filter(function (c) { return c.valid == null || c.valid < floor; });
+    var ok = cands.filter(function (c) { return excluded.indexOf(c) < 0 && c.value != null; });
+    var higher = pr[0] === "valid_rate";
+    ok.sort(function (a, b) { return higher ? b.value - a.value : a.value - b.value; });
+    var best = ok[0] || null, next = ok[1] || null;
+    return { priority: priority in PRIORITIES ? priority : "speed", label: pr[1], unit: dim.unit, min_valid: floor, best: best, runner_up: next,
+             margin: best && next && next.value ? (higher ? best.value - next.value : (next.value - best.value) / next.value) : null,
+             tie: !!(best && next && (higher ? best.value - next.value < 0.005 : !next.value || (next.value - best.value) / next.value < SAME_BAND)),
+             excluded: excluded.map(function (c) { return c.model; }),
+             no_data: cands.filter(function (c) { return c.value == null; }).map(function (c) { return c.model; }) };
+  }
+
   // ---- one plain sentence at the top of each session tab (restates stored numbers only) ----
   function tabSummaries(res) {
     var out = {}, rel = res.relative_comparison, pm = res.per_model || [];
@@ -729,7 +788,7 @@
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
-              workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, removeAgent: removeAgent, budgetTuning: budgetTuning, pipelineCompare: pipelineCompare, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
+              workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, energyEfficiency: energyEfficiency, priceCompare: priceCompare, idleCost: idleCost, recommend: recommend, removeAgent: removeAgent, budgetTuning: budgetTuning, pipelineCompare: pipelineCompare, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, repeatability: repeatability,
               loadScaling: loadScaling, runEstimate: runEstimate, sampleSize: sampleSize, tabSummaries: tabSummaries };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

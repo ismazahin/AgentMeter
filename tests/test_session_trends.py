@@ -120,6 +120,17 @@ def test_gpu_timeline_marks_model_and_idle_windows(golden):
     assert gt["idle"][0]["from_s"] == 0 and gt["idle"][0]["to_s"] == 2
     for m in gt["per_model"]:
         assert m["mean_util_pct"] == 90.0 and m["peak_power_w"] in (70.0, 80.0) and m["peak_mem_mb"] == 6000.0
+        assert m["low_util_share"] == 0 and m["low_util_energy_share"] == 0          # always busy
+    # every other sample nearly idle (util 5%): half the time, and the 70 W samples' share of the energy
+    energy["util_samples"] = [(t, 5.0 if i % 2 == 0 else 90.0) for i, t in enumerate(ts)]
+    gt = analysed(golden, real=True, energy=energy)["gpu_timeline"]
+    assert gt["low_util_pct"] == 10
+    for m in gt["per_model"]:
+        inw = [i for i, t in enumerate(ts) if win[m["model"]][0] <= t <= win[m["model"]][1]]
+        low = [i for i in inw if i % 2 == 0]
+        watts = lambda ix: sum(70.0 + (i % 2) * 10 for i in ix)  # noqa: E731
+        assert m["low_util_share"] == pytest.approx(len(low) / len(inw))
+        assert m["low_util_energy_share"] == pytest.approx(watts(low) / watts(inw))
 
 
 def test_gpu_timeline_thins_to_bucket_means(golden, monkeypatch):

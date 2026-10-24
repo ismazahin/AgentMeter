@@ -479,6 +479,67 @@ def rank_stability_block(sr: list[dict], am: list[dict], label_of: dict[str, str
                      "on it, so the top can tie in many resamples even when one model is faster (see p_lowest).")}
 
 
+DRIVER_TOP, SCALING_POINTS = 6, 200
+
+
+def drivers_block(sr: list[dict], am: list[dict], label_of: dict[str, str], run_dir: str | Path) -> dict[str, Any]:
+    """What makes a flow slow or token-hungry? Per model, the Spearman rank correlation of each
+    model-visible flow feature (session_scenarios.csv) with the flow's latency and tokens, the
+    strongest first; and how latency grows with the prompt size (input tokens per flow): a linear fit.
+    Correlation, not cause: a feature can stand in for another one."""
+    from scipy.stats import spearmanr
+    import pandas as pd
+    path = Path(run_dir) / "session_scenarios.csv"
+    feats = None
+    if path.is_file():
+        df = pd.read_csv(path)
+        cols = [c for c in df.columns if c not in ("flow_id", "label") and pd.api.types.is_numeric_dtype(df[c])]
+        feats = df.set_index(df["flow_id"].astype(str))[cols]
+    tok_in: dict[tuple, float] = {}
+    tok_all: dict[tuple, float] = {}
+    for r in am:
+        k = (r["model"], r["scenario_id"])
+        tok_in[k] = tok_in.get(k, 0.0) + (r["input_tokens"] or 0)
+        tok_all[k] = tok_all.get(k, 0.0) + (r["input_tokens"] or 0) + (r["output_tokens"] or 0)
+    per = []
+    for model, dbm in label_of.items():
+        rows = [r for r in sr if r["model"] == dbm and r["scenario_total_time_s"] is not None]
+        sids = [str(r["scenario_id"]) for r in rows]
+        lat = np.array([float(r["scenario_total_time_s"]) for r in rows])
+        tok = np.array([tok_all.get((dbm, r["scenario_id"]), 0.0) for r in rows])
+        tin = np.array([tok_in.get((dbm, r["scenario_id"]), 0.0) for r in rows])
+        out: dict[str, Any] = {"model": model, "n_flows": len(rows)}
+        if feats is not None and len(rows) >= 8:
+            sub = feats.reindex(sids)
+            corr = []
+            for c in sub.columns:
+                x = sub[c].to_numpy(dtype=float)
+                ok = ~np.isnan(x)
+                if ok.sum() < 8 or np.nanstd(x) == 0:
+                    continue
+                rl, pl = spearmanr(x[ok], lat[ok])
+                rt, pt = spearmanr(x[ok], tok[ok]) if np.std(tok[ok]) > 0 else (float("nan"), float("nan"))
+                if np.isnan(rl) and np.isnan(rt):
+                    continue
+                corr.append({"feature": c, "rho_latency": _f(rl), "p_latency": _f(pl), "rho_tokens": _f(rt), "p_tokens": _f(pt)})
+            corr.sort(key=lambda d: -abs(d["rho_latency"] or 0))
+            out["features"] = corr[:DRIVER_TOP]
+            out["n_features_tested"] = len(corr)
+        if len(rows) >= 5 and np.std(tin) > 0:
+            slope, icept = np.polyfit(tin, lat, 1)
+            r = float(np.corrcoef(tin, lat)[0, 1])
+            idx = np.linspace(0, len(rows) - 1, min(len(rows), SCALING_POINTS)).round().astype(int)
+            out["input_scaling"] = {"slope_s_per_1k_tokens": float(slope) * 1000, "intercept_s": float(icept), "r": r,
+                                    "min_tokens": float(tin.min()), "max_tokens": float(tin.max()),
+                                    "points": [[float(tin[i]), float(lat[i])] for i in sorted(set(idx.tolist()))]}
+        per.append(out)
+    return {"per_model": per, "has_features": feats is not None,
+            "method": ("Spearman rank correlation of each model-visible flow feature with the flow's end-to-end latency "
+                       f"and total tokens, per model (the {DRIVER_TOP} strongest for latency shown). Input scaling: a "
+                       "least-squares line of latency against the flow's input tokens (all agents). Correlation is not "
+                       "cause: features move together.")}
+
+
 def cold_start_block(sr: list[dict], label_of: dict[str, str], loads: dict[str, Optional[dict]]) -> dict[str, Any]:
     """How long loading each model took, and whether its first flow was slower than the rest
     (a warm-up the measured mean includes). Model downloads are not part of the load time."""
@@ -1045,6 +1106,7 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
         sr, am, label_of, budgets, label_agent(pl) or "decide", verdict, list(config_data.get("classes") or []),
         read_texts(db_path, run_id), bool((payload.get("session") or {}).get("accuracy_available")),
         mitre=dict(config_data.get("mitre") or {}), repeat=read_extras(db_path, run_id, labels, "repeat_check"))
+    payload["drivers"] = drivers_block(sr, am, label_of, run_dir)
     payload["cold_start"] = cold_start_block(sr, label_of, read_extras(db_path, run_id, labels, "model_load"))
     payload["rank_stability"] = rank_stability_block(sr, am, label_of, config_data.get("scoring"))
     payload["latency_distribution"] = latency_block(sr, label_of)

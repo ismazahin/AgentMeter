@@ -464,3 +464,22 @@ def test_repeat_check_runs_end_to_end(tmp_path):
     r = p["output_reliability"]["per_model"][0]
     assert r["answer_stability"] == {"checked": 6, "same": 6, "rate": 1.0}           # the mock is deterministic
     assert p["cold_start"]["per_model"][0]["load_s"] is not None and p["cold_start"]["per_model"][0]["engine"] == "mock"
+
+
+def test_drivers_block_correlates_features_and_fits_prompt_size(tmp_path):
+    import pandas as pd
+    from agentmeter.session.analyses import drivers_block
+    n = 20
+    pd.DataFrame({"flow_id": [f"s{i}" for i in range(n)], "Flow Duration": [i * 10.0 for i in range(n)],
+                  "Constant": [1.0] * n, "Noise": [(i * 7) % 5 for i in range(n)], "label": ["Benign"] * n}).to_csv(tmp_path / "session_scenarios.csv", index=False)
+    sr = [{"model": "m", "scenario_id": f"s{i}", "scenario_total_time_s": 1.0 + 0.1 * i} for i in range(n)]
+    am = [{"model": "m", "scenario_id": f"s{i}", "input_tokens": 1000 + 50 * i, "output_tokens": 10} for i in range(n)]
+    d = drivers_block(sr, am, {"M": "m"}, tmp_path)
+    m = d["per_model"][0]
+    assert d["has_features"] and m["n_features_tested"] == 2                     # the constant feature is skipped
+    top = m["features"][0]
+    assert top["feature"] == "Flow Duration" and abs(top["rho_latency"] - 1.0) < 1e-9
+    sc = m["input_scaling"]
+    assert abs(sc["slope_s_per_1k_tokens"] - 2.0) < 1e-9 and abs(sc["r"] - 1.0) < 1e-9     # +0.1 s per 50 tokens
+    assert sc["min_tokens"] == 1000 and len(sc["points"]) == n
+    assert "features" not in drivers_block(sr, am, {"M": "m"}, tmp_path / "missing")["per_model"][0]

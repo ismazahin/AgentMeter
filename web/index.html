@@ -400,6 +400,12 @@
   svg.frontier .grid { stroke: var(--border); stroke-width: 1; }
   svg.frontier .ax { fill: var(--muted-2); font-size: 11px; }
   svg.frontier .lbl { fill: var(--text); font-size: 12px; }
+  svg.frontier .pt { opacity: .75; }
+  svg.frontier .fit { stroke-width: 2; }
+  .rho { display: inline-flex; align-items: center; gap: 8px; min-width: 150px; }
+  .rho-track { position: relative; width: 90px; height: 8px; background: var(--surface-2); border-radius: 4px; }
+  .rho-track::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--muted-2); }
+  .rho-fill { position: absolute; top: 0; bottom: 0; background: var(--muted-2); border-radius: 4px; }
   svg.frontier .front { fill: none; stroke: var(--muted-2); stroke-width: 2; stroke-dasharray: 6 4; }
   svg.frontier circle { stroke: var(--surface); stroke-width: 2; }
   svg.frontier circle.beaten { opacity: .55; }
@@ -2543,7 +2549,7 @@
   var SECTIONS = {
     overview: {}, reliability: {}, agents: {}, cost: {}, data: {},
     ranking: { subs: [["scores", "Scores"], ["weighting", "Weighting"], ["robustness", "Robustness"], ["tradeoffs", "Trade-offs"], ["guide", "Model Guide"]] },
-    performance: { subs: [["comparison", "Comparison"], ["latency", "Latency"], ["gpu", "GPU & Throughput"], ["statistics", "Statistics"]] },
+    performance: { subs: [["comparison", "Comparison"], ["latency", "Latency"], ["capacity", "Capacity"], ["drivers", "What drives it"], ["gpu", "GPU & Throughput"], ["statistics", "Statistics"]] },
     recommendations: { subs: [["limits", "Your limits"], ["context", "Model context"], ["guidance", "Deployment guidance"]] }
   };
   // sections of the embedded analysis page (web/analysis.html data-part) shown under a view
@@ -2737,14 +2743,14 @@
     $("spanel-ranking").innerHTML = lead("ranking") + pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
         'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", rankStabilityCard(res) + stabilityCard(res)) + pane("tradeoffs", frontierCard(res)) + pane("guide", "");
     $("spanel-reliability").innerHTML = lead("reliability") + pane("main", reliabilityCard(res) + consistencyCard(res) + failureCard(res));
-    $("spanel-performance").innerHTML = lead("performance") + pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
+    $("spanel-performance").innerHTML = lead("performance") + pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("capacity", capacityCard(res) + coldStartCard(res)) + pane("drivers", driversCard(res) + scalingCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
     $("spanel-agents").innerHTML = lead("agents") + pane("main", agentsTab(res));
     $("spanel-cost").innerHTML = lead("cost") + pane("main", costCard(res) + gpuTimelineCard(res) + projectionCard(res) + correctCard(res));
     $("spanel-recommendations").innerHTML = lead("recommendations") + pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
     $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
     resetEmbed();
     wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); SAME_SETUP = {};       // fresh per render: a later session on these flows must show up
-    wireRepeat(res, job); wireNotes(job); wireChanged(job); wireFrontier(res);
+    wireRepeat(res, job); wireNotes(job); wireChanged(job); wireFrontier(res); wireCapacity(res);
     addExports($("session-body"));
   }
 
@@ -3079,6 +3085,91 @@
       pm.map(function (m) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtPct(m.p_first) + '</td><td class="num">' + fmtNum(m.mean_rank, 2) + '</td><td class="num">' + m.rank_p5 + '–' + m.rank_p95 +
         '</td><td class="num">' + pl(m.p_lowest.latency) + '</td><td class="num">' + pl(m.p_lowest.tokens) + '</td><td class="num">' + pl(m.p_lowest.vram) + '</td></tr>'; }).join("") +
       '</tbody></table></div><details class="info"><summary>Method</summary><p class="small muted">' + esc(rs.method) + ' ' + esc(rs.note) + '</p></details></div>';
+  }
+  // ---------- Analysis expansion, phase 3: capacity, cold start, what drives latency ----------
+  function capacityCard(res) {
+    if (!window.INSIGHTS || !(res.latency_trend || {}).per_model) return '<div class="card"><p class="muted">This session predates the per-flow latency record.</p></div>';
+    var means = (res.per_model || []).map(function (m) { return (((m.efficiency || {}).end_to_end) || {}).mean_latency_s; }).filter(function (x) { return x; });
+    var def = means.length ? Math.max(1, Math.round(0.6 * 60 / Math.max.apply(null, means))) : 60;     // ~60% of the slowest model's capacity
+    return '<form class="card" id="cap-card" novalidate><h2>Can it keep up?</h2><p class="muted small" style="margin-top:0">Enter how many flows arrive per minute. One GPU answers one flow at a time (as measured); the simulation shows whether a queue builds up and how long flows wait before their answer.</p>' +
+      '<div class="row" style="margin-top:0"><div class="field"><label for="cap-rate">Flows arriving per minute</label><input id="cap-rate" type="number" min="0.1" step="any" value="' + def + '"></div></div>' +
+      '<div id="cap-out"></div></form>';
+  }
+  function drawCapacity(res) {
+    var out = $("cap-out"), inp = $("cap-rate");
+    if (!out || !inp) return;
+    var rate = +inp.value;
+    if (!(rate > 0)) { out.innerHTML = '<p class="muted small">Enter a rate above 0.</p>'; return; }
+    var q = INSIGHTS.queueSim(res, rate);
+    out.innerHTML = '<div class="table-wrap"><table id="cap-table"><thead><tr><th>Model</th><th class="num">Capacity / min</th><th class="num">GPU busy</th><th>Keeps up?</th><th class="num">Mean wait</th><th class="num">p95 wait</th><th class="num">Longest queue</th></tr></thead><tbody>' +
+      q.models.map(function (m) {
+        if (!m.measured) return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td colspan="6" class="muted">no per-flow latencies</td></tr>';
+        return '<tr data-keeps="' + m.keeps_up + '"><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtNum(m.capacity_per_min, 1) + '</td><td class="num">' + fmtPct(Math.min(1, m.utilisation)) +
+          '</td><td>' + (m.keeps_up ? '<span class="chip ok">✓ yes</span>' : '<span class="chip bad">✗ no</span> <span class="small">backlog grows by ' + fmtNum(m.backlog_per_hour) + ' flows/hour</span>') +
+          '</td><td class="num">' + fmtTime(m.mean_wait_s) + '</td><td class="num">' + fmtTime(m.p95_wait_s) + '</td><td class="num">' + fmtNum(m.max_queue) + ' flows</td></tr>';
+      }).join("") + '</tbody></table></div><p class="small muted">' + esc(q.method) + ' Above about 80% busy, waits grow quickly. A real deployment may batch flows (see load scaling under GPU &amp; Throughput).</p>';
+  }
+  function wireCapacity(res) {
+    var inp = $("cap-rate");
+    if (!inp) return;
+    inp.addEventListener("input", function () { drawCapacity(res); });
+    $("cap-card").addEventListener("submit", function (ev) { ev.preventDefault(); });
+    drawCapacity(res);
+  }
+  function coldStartCard(res) {
+    var cs = res.cold_start;
+    if (!cs) return "";
+    return '<div class="card" id="cold-start"><h2>Cold start</h2><p class="muted small" style="margin-top:0">How long loading each model took before its first flow, and whether that first flow was slower than the rest. It matters when the GPU restarts or models are swapped often.</p>' +
+      '<div class="table-wrap"><table id="cold-start-table"><thead><tr><th>Model</th><th class="num">Load time</th><th class="num">First flow</th><th class="num">Median of the rest</th><th class="num">First-flow penalty</th></tr></thead><tbody>' +
+      cs.per_model.map(function (m) {
+        return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + (m.load_s == null ? '<span class="muted">not recorded</span>' : fmtTime(m.load_s)) + '</td><td class="num">' + fmtTime(m.first_flow_s) +
+          '</td><td class="num">' + fmtTime(m.median_rest_s) + '</td><td class="num">' + (m.first_flow_penalty_s == null ? "—" : (m.first_flow_penalty_s >= 0 ? "+" : "−") + fmtTime(Math.abs(m.first_flow_penalty_s)) +
+          (m.first_flow_ratio ? ' <span class="muted small">(' + fmtNum(m.first_flow_ratio, 1) + '×)</span>' : "")) + '</td></tr>';
+      }).join("") + '</tbody></table></div><p class="small muted">' + esc(cs.note) + '</p></div>';
+  }
+  function driversCard(res) {
+    var d = res.drivers;
+    if (!d) return '<div class="card"><p class="muted">This session predates the driver analysis.</p></div>';
+    var rho = function (v) {
+      if (v == null) return '<span class="muted">—</span>';
+      var w = Math.min(50, Math.abs(v) * 50);
+      return '<span class="rho" title="' + esc(fmtNum(v, 2)) + '"><span class="rho-track"><span class="rho-fill" style="' + (v < 0 ? "right:50%" : "left:50%") + ';width:' + w.toFixed(1) + '%"></span></span><span class="val">' + (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v), 2) + '</span></span>';
+    };
+    var body = d.per_model.map(function (m) {
+      if (!m.features || !m.features.length) return '<h3>' + esc(short(m.model)) + '</h3><p class="muted small">' + (d.has_features ? "Not enough flows or feature variation to correlate." : "The flow features of this session were not kept.") + '</p>';
+      return '<h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + ' <span class="muted small">' + m.n_flows + ' flows, ' + m.n_features_tested + ' features tested</span></h3>' +
+        '<div class="table-wrap"><table class="drivers-table"><thead><tr><th>Flow feature</th><th>With latency</th><th>With tokens</th><th class="num">p (latency)</th></tr></thead><tbody>' +
+        m.features.map(function (f) { return '<tr><td>' + esc(f.feature) + '</td><td>' + rho(f.rho_latency) + '</td><td>' + rho(f.rho_tokens) + '</td><td class="num">' + (f.p_latency == null ? "—" : (+f.p_latency).toPrecision(2)) + '</td></tr>'; }).join("") +
+        '</tbody></table></div>';
+    }).join("");
+    return '<div class="card" id="drivers-card"><h2>What makes a flow slow?</h2><p class="muted small" style="margin-top:0">Which flow features go together with a longer answer time or more tokens (Spearman correlation: +1 = always more, −1 = always less, 0 = no link). Correlation, not cause.</p>' + body + '</div>';
+  }
+  function scalingCard(res) {
+    var d = res.drivers;
+    if (!d) return "";
+    var ms = d.per_model.filter(function (m) { return m.input_scaling; });
+    if (!ms.length) return '<div class="card" id="scaling-card"><h2>Prompt size and latency</h2><p class="muted small">The prompt size hardly varied between flows in this session, so there is no slope to measure.</p></div>';
+    var W = 640, H = 280, L = 70, R = 20, T = 14, B = 42;
+    // x: the measured range of prompt sizes (padded), not from 0 — the spread is the point
+    var lo = Math.min.apply(null, ms.map(function (m) { return m.input_scaling.min_tokens; })), hi = Math.max.apply(null, ms.map(function (m) { return m.input_scaling.max_tokens; }));
+    var pad = (hi - lo) * 0.06 || Math.max(1, hi * 0.02), x0d = Math.max(0, lo - pad), mx = hi + pad;
+    var my = Math.max.apply(null, ms.map(function (m) { return Math.max.apply(null, m.input_scaling.points.map(function (p) { return p[1]; })); })) * 1.1 || 1;
+    var X = function (v) { return L + (W - L - R) * (v - x0d) / (mx - x0d); }, Y = function (v) { return T + (H - T - B) * (1 - v / my); };
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="frontier" role="img" aria-label="Latency against input tokens per flow">' +
+      [0, 0.5, 1].map(function (f) { return '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(my * f) + '" y2="' + Y(my * f) + '"/><text class="ax" x="' + (L - 6) + '" y="' + (Y(my * f) + 4) + '" text-anchor="end">' + esc(fmtTime(my * f)) + '</text>' +
+        '<text class="ax" x="' + X(x0d + (mx - x0d) * f) + '" y="' + (H - B + 16) + '" text-anchor="middle">' + fmtNum(x0d + (mx - x0d) * f) + '</text>'; }).join("") +
+      '<text class="ax" x="' + ((W + L) / 2) + '" y="' + (H - 4) + '" text-anchor="middle">Input tokens per flow (all agents)</text>' +
+      ms.map(function (m) {
+        var s = m.input_scaling, c = modelColor(m.model);
+        var x0 = s.min_tokens, x1 = s.max_tokens;
+        return m.input_scaling.points.map(function (p) { return '<circle class="pt" cx="' + X(p[0]) + '" cy="' + Y(p[1]) + '" r="3" style="fill:' + c + '"/>'; }).join("") +
+          '<line class="fit" x1="' + X(x0) + '" y1="' + Y(s.intercept_s + s.slope_s_per_1k_tokens * x0 / 1000) + '" x2="' + X(x1) + '" y2="' + Y(s.intercept_s + s.slope_s_per_1k_tokens * x1 / 1000) + '" style="stroke:' + c + '"/>';
+      }).join("") + '</svg>';
+    return '<div class="card" id="scaling-card"><h2>Prompt size and latency</h2><p class="muted small" style="margin-top:0">Each dot is a flow; the line is the best straight fit. Its slope says how much time 1,000 more input tokens add, which shows what longer feature lists or chattier hand-offs would cost.</p>' +
+      legendHtml(ms.map(function (m) { return m.model; })) + svg +
+      '<div class="table-wrap"><table id="scaling-table"><thead><tr><th>Model</th><th class="num">+ time per 1,000 input tokens</th><th class="num">Fit (r)</th><th class="num">Input tokens per flow</th></tr></thead><tbody>' +
+      ms.map(function (m) { var s = m.input_scaling; return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + (s.slope_s_per_1k_tokens < 0 ? "−" + fmtTime(-s.slope_s_per_1k_tokens) : "+" + fmtTime(s.slope_s_per_1k_tokens)) + '</td><td class="num">' + fmtNum(s.r, 2) + '</td><td class="num">' + fmtNum(s.min_tokens) + '–' + fmtNum(s.max_tokens) + '</td></tr>'; }).join("") +
+      '</tbody></table></div></div>';
   }
   // Output Reliability: is the pipeline's output usable? A validity check of the output, not a
   // detection score — nothing here enters a score, rank or verdict.

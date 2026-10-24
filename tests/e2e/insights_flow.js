@@ -74,6 +74,17 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     await p.selectOption('#frontier-y', 'tokens'); await p.waitForTimeout(200);
     log(/Tokens per flow/.test(await p.textContent('#rank-frontier-table thead')), 'trade-offs: the second axis can be changed (tokens)');
 
+    // Analysis expansion, phase 3 — capacity (queue simulation), cold start, what drives latency
+    await tab(p, csv, 'performance/capacity', '#cap-table');
+    log((await p.$$('#cap-table tbody tr')).length === 2 && (await p.$$('#cap-table tbody tr[data-keeps="true"]')).length === 2, 'capacity: at the suggested rate both models keep up');
+    const cap = Number((await p.textContent('#cap-table tbody tr td:nth-child(2)')).replace(/,/g, ''));
+    await p.fill('#cap-rate', String(Math.ceil(cap * 3))); await p.waitForTimeout(300);
+    log((await p.$$('#cap-table tbody tr[data-keeps="false"]')).length >= 1 && /backlog grows/.test(await p.textContent('#cap-table')), 'capacity: three times the capacity -> falls behind, backlog per hour shown');
+    log((await p.$$('#cold-start-table tbody tr')).length === 2 && !/not recorded/.test(await p.textContent('#cold-start-table')), 'capacity: cold start — load time and first-flow penalty per model');
+    await tab(p, csv, 'performance/drivers', '#drivers-card');
+    log((await p.$$('#drivers-card .drivers-table')).length === 2 && (await p.$$('#drivers-card .drivers-table tbody tr')).length >= 2, 'drivers: the flow features that go with latency, per model');
+    log(!!(await p.$('#scaling-card')), 'drivers: prompt size and latency card (a slope, or why there is none)');
+
     // Phase 2 — Ranking -> Robustness: weight range in which #1 stays first
     await tab(p, csv, 'ranking/robustness', '#svc-stability');
     log((await p.$$('#svc-stability .stab-row')).length === 3 && (await p.$$('#svc-stability .stab-mark')).length === 3,
@@ -253,7 +264,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;
-    for (const t of ['overview', 'ranking/robustness', 'ranking/tradeoffs', 'reliability', 'performance/latency', 'performance/statistics', 'agents', 'cost', 'recommendations/limits', 'performance/gpu']) {
+    for (const t of ['overview', 'ranking/robustness', 'ranking/tradeoffs', 'performance/capacity', 'performance/drivers', 'reliability', 'performance/latency', 'performance/statistics', 'agents', 'cost', 'recommendations/limits', 'performance/gpu']) {
       await tab(p, csv, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }

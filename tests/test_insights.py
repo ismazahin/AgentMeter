@@ -422,3 +422,20 @@ def test_efficiency_frontier_marks_who_is_beaten_on_both():
     assert pts[A]["frontier"] and pts[B]["frontier"]                           # faster vs fewer tokens: both on it
     assert not pts["org/model-c"]["frontier"] and set(pts["org/model-c"]["dominated_by"]) == {A, B}
     assert call("efficiencyFrontier", s, "nonsense")["y"] == "memory"          # falls back to the first available
+
+
+# ---------------------------------------------------------------- analysis expansion, phase 3
+def _trend(lat_a, lat_b):
+    return {"latency_trend": {"per_model": [{"model": A, "points": [[i + 1, x, x] for i, x in enumerate(lat_a)]},
+                                            {"model": B, "points": [[i + 1, x, x] for i, x in enumerate(lat_b)]}]}}
+
+
+def test_queue_simulation_capacity_and_backlog():
+    s = _trend([2.0] * 20, [10.0] * 20)                     # A: 30 flows/min, B: 6 flows/min
+    q = call("queueSim", s, 12)                             # 12 flows/min = 0.2 per second
+    a, b = q["models"]
+    assert abs(a["capacity_per_min"] - 30) < 1e-9 and abs(a["utilisation"] - 0.4) < 1e-9 and a["keeps_up"] is True
+    assert b["keeps_up"] is False and abs(b["backlog_per_hour"] - (0.2 - 0.1) * 3600) < 1e-9
+    assert a["mean_wait_s"] < 2.0 < b["mean_wait_s"] and b["max_queue"] > a["max_queue"]
+    assert call("queueSim", s, 12) == q                      # seeded: reproducible
+    assert call("queueSim", {"latency_trend": {"per_model": [{"model": A, "points": []}]}}, 12)["models"][0]["measured"] is False

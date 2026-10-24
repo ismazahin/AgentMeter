@@ -508,6 +508,77 @@
              }) };
   }
 
+  // ---- Overview: efficiency scorecard (each model against the best of this session) ----------
+  var SCORE_DIMS = [["mean_latency_s", "Speed (mean per flow)", "s"], ["p95_latency_s", "Slow tail (p95)", "s"],
+                    ["memory_mb", "GPU memory", "MB"], ["tokens", "Tokens per flow", "tokens"],
+                    ["cost_per_1k", "Cost per 1,000 flows", "USD"], ["valid_rate", "Valid answers", "share"]];
+  var SAME_BAND = 0.05;          // within 5% of the best counts as "about the best"
+  function scorecard(res) {
+    var mem = {}, ce = {}, rl = {};
+    ((res.memory || {}).per_model || []).forEach(function (r) { mem[bare(r.model)] = r; });
+    ((res.cost_energy || {}).per_model || []).forEach(function (r) { ce[bare(r.model)] = r; });
+    ((res.output_reliability || {}).per_model || []).forEach(function (r) { rl[bare(r.model)] = r; });
+    var models = (res.per_model || []).map(function (m) {
+      var e = ((m.efficiency || {}).end_to_end) || {}, k = bare(m.model), mm = mem[k] || {};
+      return { model: k, v: { mean_latency_s: num(e.mean_latency_s), p95_latency_s: num(e.p95_latency_s),
+        memory_mb: num(mm.total_peak_mb) != null ? num(mm.total_peak_mb) : num(e.mean_peak_vram_mb),
+        tokens: num(e.mean_tokens_per_flow), cost_per_1k: num((ce[k] || {}).cost_per_1k_flows_usd), valid_rate: num((rl[k] || {}).valid_rate) } };
+    });
+    var dims = SCORE_DIMS.map(function (d) {
+      var higher = d[0] === "valid_rate", vals = models.map(function (m) { return m.v[d[0]]; }).filter(function (x) { return x != null; });
+      var best = !vals.length ? null : higher ? Math.max.apply(null, vals) : Math.min.apply(null, vals);
+      return { key: d[0], label: d[1], unit: d[2], best: best, cells: models.map(function (m) {
+        var x = m.v[d[0]];
+        if (x == null || best == null) return { model: m.model, value: x, grade: "no_data" };
+        var gap = higher ? best - x : (best ? (x - best) / best : 0);      // share points for validity, relative otherwise
+        return { model: m.model, value: x, gap: gap, grade: gap <= (higher ? 0.005 : SAME_BAND) ? "best" : gap <= (higher ? 0.05 : 0.25) ? "close" : "behind" };
+      }) };
+    });
+    return { models: models.map(function (m) { return m.model; }), dims: dims, band: SAME_BAND };
+  }
+
+  // ---- Overview: what changed since the last run of the same models on the same setup -------
+  var CHANGE_METRICS = [["mean_latency_s", "Latency per flow", "s"], ["p95_latency_s", "p95 latency", "s"], ["mean_tokens_per_flow", "Tokens per flow", "tokens"],
+                        ["total_peak_mb", "Total peak VRAM", "MB"], ["cost_per_1k_flows_usd", "Cost per 1,000 flows", "USD"], ["wh_per_flow", "Energy per flow", "Wh"]];
+  function whatChanged(merged, sessionId) {
+    var runs = (merged && merged.runs) || [], rows = {};
+    ((merged && merged.rows) || []).forEach(function (r) { rows[r.metric] = r.values || []; });
+    var mine = runs.map(function (r, i) { return [r, i]; }).filter(function (x) { return x[0].session === sessionId; });
+    var out = mine.map(function (x) {
+      var cur = x[0], ci = x[1], prev = null;
+      runs.forEach(function (r, i) {
+        if (r.model === cur.model && r.session !== sessionId && r.created_at && cur.created_at && r.created_at < cur.created_at &&
+            (!prev || r.created_at > prev[0].created_at)) prev = [r, i];
+      });
+      if (!prev) return { model: bare(cur.model), previous: null, changes: [] };
+      var changes = CHANGE_METRICS.filter(function (d) { return rows[d[0]]; }).map(function (d) {
+        var now = num(rows[d[0]][ci]), before = num(rows[d[0]][prev[1]]);
+        if (now == null || before == null) return null;
+        var pct = before ? (now - before) / before : null;
+        return { metric: d[0], label: d[1], unit: d[2], now: now, before: before, pct: pct,
+                 direction: pct == null || Math.abs(pct) < SAME_BAND ? "same" : pct < 0 ? "lower" : "higher" };
+      }).filter(Boolean);
+      return { model: bare(cur.model), previous: prev[0].session, previous_at: prev[0].created_at, changes: changes };
+    });
+    return { band: SAME_BAND, models: out };
+  }
+
+  // ---- Ranking: efficiency frontier (latency vs a second cost, both lower is better) ----------
+  var FRONTIER_Y = { memory: "GPU memory (MB)", tokens: "Tokens per flow", cost: "Cost per 1,000 flows (USD)" };
+  function efficiencyFrontier(res, ykey) {
+    var sc = scorecard(res), get = function (k) { return sc.dims.filter(function (d) { return d.key === k; })[0]; };
+    var ymap = { memory: "memory_mb", tokens: "tokens", cost: "cost_per_1k" };
+    var avail = Object.keys(ymap).filter(function (k) { return get(ymap[k]).cells.some(function (c) { return c.value != null; }); });
+    if (!ykey || avail.indexOf(ykey) < 0) ykey = avail[0] || "tokens";
+    var xs = get("mean_latency_s").cells, ys = get(ymap[ykey]).cells;
+    var pts = xs.map(function (c, i) { return { model: c.model, x: c.value, y: ys[i].value }; }).filter(function (p) { return p.x != null && p.y != null; });
+    pts.forEach(function (p) {
+      p.frontier = !pts.some(function (q) { return q !== p && q.x <= p.x && q.y <= p.y && (q.x < p.x || q.y < p.y); });
+      p.dominated_by = pts.filter(function (q) { return q !== p && q.x <= p.x && q.y <= p.y && (q.x < p.x || q.y < p.y); }).map(function (q) { return q.model; });
+    });
+    return { y: ykey, y_label: FRONTIER_Y[ykey], available: avail, points: pts };
+  }
+
   // ---- one plain sentence at the top of each session tab (restates stored numbers only) ----
   function tabSummaries(res) {
     var out = {}, rel = res.relative_comparison, pm = res.per_model || [];
@@ -564,7 +635,7 @@
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
-              workloadProjection: workloadProjection, costPerValid: costPerValid, deploymentFit: deploymentFit,
+              workloadProjection: workloadProjection, costPerValid: costPerValid, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, repeatability: repeatability,
               loadScaling: loadScaling, runEstimate: runEstimate, sampleSize: sampleSize, tabSummaries: tabSummaries };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

@@ -401,6 +401,83 @@ def flows_file(db: str | Path, run_id: str, label_of: dict[str, str], labelled: 
             "text_chars": FLOW_TEXT_CHARS, "flows": list(flows.values())}
 
 
+RANK_BOOT = 500
+
+
+def rank_stability_block(sr: list[dict], am: list[dict], label_of: dict[str, str],
+                         scoring: Optional[dict[str, Any]], n_boot: int = RANK_BOOT, seed: int = BOOT_SEED) -> dict[str, Any]:
+    """How sure is the ranking? Resample the session's flows with replacement (the same flows for
+    every model: a paired bootstrap), recompute each model's efficiency-only SAW on every resample
+    (same targets and weights as the stored score) and count how often each model comes first.
+    Also, per efficiency metric, how often each model has the lowest mean."""
+    models = list(label_of)
+    if len(models) < 2 or not scoring:
+        return {"skipped": "rank stability needs two or more models"}
+    from .scoring import efficiency_only_scoring
+    eff = efficiency_only_scoring(scoring)
+    w, t = eff["weights"], eff.get("targets") or {}
+    tok: dict[tuple, float] = {}
+    for r in am:
+        k = (r["model"], r["scenario_id"])
+        tok[k] = tok.get(k, 0.0) + (r["input_tokens"] or 0) + (r["output_tokens"] or 0)
+    rows = {(r["model"], r["scenario_id"]): r for r in sr}
+    sids = sorted({sid for (m, sid) in rows if all((label_of[x], sid) in rows for x in models)})
+    if len(sids) < 5:
+        return {"skipped": "too few flows measured by every model"}
+    def col(m, key):
+        return np.array([np.nan if rows[(label_of[m], s_)][key] is None else float(rows[(label_of[m], s_)][key]) for s_ in sids])
+    lat = {m: col(m, "scenario_total_time_s") for m in models}
+    vram = {m: col(m, "scenario_peak_vram_mb") for m in models}
+    tk = {m: np.array([tok.get((label_of[m], s_), 0.0) for s_ in sids]) for m in models}
+    has_vram = all(not np.isnan(vram[m]).all() for m in models)
+
+    def norm(v, target):
+        return 0.0 if not v or not target or np.isnan(v) else float(min(1.0, max(0.0, target / v)))
+
+    rng = np.random.default_rng(seed)
+    n = len(sids)
+    first = {m: 0.0 for m in models}
+    ranks = {m: [] for m in models}
+    best = {k: {m: 0.0 for m in models} for k in ("latency", "vram", "tokens")}
+    top_ties = 0
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, n)
+        score, means = {}, {}
+        for m in models:
+            ml, mt = float(np.mean(lat[m][idx])), float(np.mean(tk[m][idx]))
+            mv = float(np.nanmean(vram[m][idx])) if has_vram else float("nan")
+            means[m] = {"latency": ml, "vram": mv, "tokens": mt}
+            score[m] = (w.get("latency", 0) * norm(ml, t.get("latency_s")) + w.get("tokens", 0) * norm(mt, t.get("tokens_total"))
+                        + (w.get("vram", 0) * norm(mv, t.get("vram_mb")) if has_vram else 0.0))
+        top = max(score.values())
+        leaders = [m for m in models if abs(score[m] - top) < 1e-12]
+        if len(leaders) > 1:
+            top_ties += 1
+        for m in leaders:
+            first[m] += 1.0 / len(leaders)
+        for m in models:
+            ranks[m].append(1 + sum(1 for o in models if score[o] > score[m] + 1e-12))
+        for k in best:
+            if k == "vram" and not has_vram:
+                continue
+            lo = min(means[x][k] for x in models)
+            ws = [m for m in models if means[m][k] <= lo + 1e-15]
+            for m in ws:
+                best[k][m] += 1.0 / len(ws)
+    per = [{"model": m, "p_first": first[m] / n_boot, "mean_rank": float(np.mean(ranks[m])),
+            "rank_p5": int(np.percentile(ranks[m], 5)), "rank_p95": int(np.percentile(ranks[m], 95)),
+            "p_lowest": {k: (best[k][m] / n_boot if (k != "vram" or has_vram) else None) for k in best}}
+           for m in models]
+    return {"n_boot": n_boot, "seed": seed, "n_flows": n, "share_top_tied": top_ties / n_boot,
+            "weights": {k: w.get(k) for k in ("latency", "vram", "tokens")}, "per_model": per,
+            "method": (f"Paired bootstrap: {n_boot} resamples of the {n} flows (with replacement, the same flows for "
+                       f"every model, seed {seed}); each resample's efficiency-only SAW uses the stored targets and "
+                       "weights. A tie at the top splits the count. p_lowest: share of resamples where the model has "
+                       "the lowest mean of that metric."),
+            "note": ("The absolute SAW clamps at the study targets: models that all beat a target score the same "
+                     "on it, so the top can tie in many resamples even when one model is faster (see p_lowest).")}
+
+
 def read_texts(db: str | Path, run_id: str) -> dict[tuple, Optional[str]]:
     """{(db model, scenario, agent): answer text} — empty for runs from before texts were kept."""
     con = sqlite3.connect(f"file:{Path(db)}?mode=ro", uri=True)
@@ -893,6 +970,7 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     payload["output_reliability"] = reliability_block(
         sr, am, label_of, budgets, label_agent(pl) or "decide", verdict, list(config_data.get("classes") or []),
         read_texts(db_path, run_id), bool((payload.get("session") or {}).get("accuracy_available")))
+    payload["rank_stability"] = rank_stability_block(sr, am, label_of, config_data.get("scoring"))
     payload["latency_distribution"] = latency_block(sr, label_of)
     payload["latency_trend"] = latency_trend_block(sr, label_of)
     payload["effect_sizes"] = effect_block(sr, am, label_of, payload.get("statistics"))

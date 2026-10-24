@@ -396,6 +396,13 @@
   .pl-item p { margin: 4px 0 0; }
   @media (max-width: 720px) { .pl-fields { grid-template-columns: 1fr 1fr; } }
   @media (max-width: 420px) { .pl-fields { grid-template-columns: 1fr; } .pl-tools { margin-left: 0; } }
+  svg.frontier { width: 100%; height: auto; max-width: 720px; display: block; }
+  svg.frontier .grid { stroke: var(--border); stroke-width: 1; }
+  svg.frontier .ax { fill: var(--muted-2); font-size: 11px; }
+  svg.frontier .lbl { fill: var(--text); font-size: 12px; }
+  svg.frontier .front { fill: none; stroke: var(--muted-2); stroke-width: 2; stroke-dasharray: 6 4; }
+  svg.frontier circle { stroke: var(--surface); stroke-width: 2; }
+  svg.frontier circle.beaten { opacity: .55; }
   .pl-view { margin: 8px 0 0; padding-left: 22px; display: grid; gap: 10px; }
   .pl-view p { margin: 2px 0 0; }
   .pl-instr { white-space: pre-wrap; }
@@ -2532,13 +2539,13 @@
   // and sub-view has its own link: #/session/<id>/<section>[/<view>].
   var SECTIONS = {
     overview: {}, reliability: {}, agents: {}, cost: {}, data: {},
-    ranking: { subs: [["scores", "Scores"], ["weighting", "Weighting"], ["robustness", "Robustness"], ["guide", "Model Guide"]] },
+    ranking: { subs: [["scores", "Scores"], ["weighting", "Weighting"], ["robustness", "Robustness"], ["tradeoffs", "Trade-offs"], ["guide", "Model Guide"]] },
     performance: { subs: [["comparison", "Comparison"], ["latency", "Latency"], ["gpu", "GPU & Throughput"], ["statistics", "Statistics"]] },
     recommendations: { subs: [["limits", "Your limits"], ["context", "Model context"], ["guidance", "Deployment guidance"]] }
   };
   // sections of the embedded analysis page (web/analysis.html data-part) shown under a view
   var EMBED_PARTS = {
-    "ranking/scores": ["highlights", "saw"], "ranking/weighting": ["weights"], "ranking/robustness": ["robustness"],
+    "ranking/scores": ["highlights", "saw"], "ranking/weighting": ["weights"],
     "ranking/guide": ["modelctx", "faq", "glossary"],
     "performance/comparison": ["perclass"], "performance/latency": ["cov", "prefill"],
     "performance/gpu": ["throughput"], "performance/statistics": ["stats"],
@@ -2725,7 +2732,7 @@
     LC = {};                                         // line charts of this session (wired after render)
     $("spanel-overview").innerHTML = pane("main", overviewTab(res) + notesCard(job));
     $("spanel-ranking").innerHTML = lead("ranking") + pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
-        'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", stabilityCard(res)) + pane("guide", "");
+        'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", rankStabilityCard(res) + stabilityCard(res)) + pane("tradeoffs", frontierCard(res)) + pane("guide", "");
     $("spanel-reliability").innerHTML = lead("reliability") + pane("main", reliabilityCard(res) + failureCard(res));
     $("spanel-performance").innerHTML = lead("performance") + pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
     $("spanel-agents").innerHTML = lead("agents") + pane("main", agentsTab(res));
@@ -2733,7 +2740,8 @@
     $("spanel-recommendations").innerHTML = lead("recommendations") + pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
     $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
     resetEmbed();
-    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); wireRepeat(res, job); wireNotes(job);
+    wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); SAME_SETUP = {};       // fresh per render: a later session on these flows must show up
+    wireRepeat(res, job); wireNotes(job); wireChanged(job); wireFrontier(res);
     addExports($("session-body"));
   }
 
@@ -2858,7 +2866,7 @@
         (real ? 'GPU ' + esc(env.gpu_name || "unknown") + ' · NVIDIA driver ' + esc(env.driver_version || "—") + ' · CUDA ' + esc(env.cuda_runtime_version || "—") + ' · 4-bit NF4' + (env.engine === "vllm" ? ', vLLM engine (continuous batching; per-agent working VRAM and time-to-first-token are not measured with it)' : env.engine ? ", " + esc(env.engine) + " engine" : "") + ', one model at a time.'
           : 'MOCK provider: a deterministic heuristic, not a language model. It shows the flow; the numbers are not model measurements.') + '</p>' +
         (rel && cmp ? '<p class="small muted" id="svc-absolute"><b>Absolute SAW</b> (against fixed L4-study targets): ' + esc(cmp.statement) + '</p>' : "") + '</details></div>');
-    h.push(findingsCard(res), profileCard(res));
+    h.push(findingsCard(res), scorecardCard(res), '<div id="svc-changed-host"></div>', profileCard(res));
     var tip = function (t) { return '<span class="info-i" tabindex="0" title="' + esc(t) + '" aria-label="' + esc(t) + '">i</span>'; };
     var rows = pm.map(function (m) {
       var e = m.efficiency.end_to_end, c = ce[m.model] || {};
@@ -2944,6 +2952,130 @@
         return '<tr><td>' + CRIT_LABEL[row.criterion] + '</td><td class="num">' + r2(row.stored) + '</td><td class="mono">' + esc(row.leader ? short(row.leader) : "tie") + '</td><td class="num">' +
           (row.no_data ? "any (no readings)" : row.stable ? r2(row.stable[0]) + " – " + r2(row.stable[1]) : "—") + '</td></tr>';
       }).join("") + '</tbody></table></div></details></div>';
+  }
+  // ---------- Analysis expansion, phase 1: scorecard, what changed, frontier, rank stability ----------
+  var GRADE = { best: ["best", "ok"], close: ["close", ""], behind: ["behind", "warn"], no_data: ["no data", ""] };
+  function fmtUnit(u, v) { return v == null ? "—" : u === "s" ? fmtTime(v) : u === "MB" ? fmtMB(v) : u === "USD" ? fmtUsd(v) : u === "share" ? fmtPct(v) : u === "Wh" ? fmtWh(v) : fmtNum(v); }
+  function scorecardCard(res) {
+    if (!window.INSIGHTS || (res.per_model || []).length < 1) return "";
+    var sc = INSIGHTS.scorecard(res);
+    var head = '<tr><th>Model</th>' + sc.dims.map(function (d) { return '<th class="num">' + esc(d.label) + '</th>'; }).join("") + '</tr>';
+    var body = sc.models.map(function (m, i) {
+      return '<tr><td class="mono">' + esc(short(m)) + '</td>' + sc.dims.map(function (d) {
+        var c = d.cells[i], g = GRADE[c.grade];
+        var rel = c.grade === "no_data" || c.grade === "best" || sc.models.length < 2 ? "" :
+          ' <span class="muted small">' + (d.key === "valid_rate" ? "−" + fmtNum(c.gap * 100, 1) + " pts" : "+" + fmtNum(c.gap * 100, 0) + "%") + '</span>';
+        return '<td class="num" data-grade="' + c.grade + '">' + fmtUnit(d.unit, c.value) + rel + (sc.models.length > 1 && c.grade !== "no_data" ? ' <span class="chip ' + g[1] + '">' + g[0] + '</span>' : "") + '</td>';
+      }).join("") + '</tr>';
+    }).join("");
+    return '<div class="card" id="svc-scorecard"><h2>Scorecard</h2><p class="muted small" style="margin-top:0">Each model against the best of this session: <b>best</b> = within ' + (sc.band * 100) +
+      '% of the best, <b>close</b> = within 25% (validity: 5 points), <b>behind</b> = further. Lower is better except valid answers.</p>' +
+      '<div class="table-wrap"><table id="svc-scorecard-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></div>';
+  }
+  // the other sessions on the same flows, GPU and settings (shared by "What changed" and "Repeatability")
+  var SAME_SETUP = {};
+  function sameSetup(id) {
+    if (!SAME_SETUP[id]) SAME_SETUP[id] = api("/api/compare/candidates?session=" + enc(id)).then(function (r) {
+      var others = r.ok ? (r.data.sessions || []).slice(0, 19) : [];
+      if (!r.ok || !others.length) return { ok: r.ok, error: (r.data || {}).error, others: [] };
+      return api("/api/compare/merged?sessions=" + [id].concat(others.map(function (x) { return x.session_id; })).map(enc).join(",")).then(function (m) {
+        return { ok: m.ok, error: (m.data || {}).error, others: others, merged: m.ok ? m.data : null };
+      });
+    });
+    return SAME_SETUP[id];
+  }
+  function wireChanged(job) {
+    var host = $("svc-changed-host"), id = job.job_id;
+    if (!host || !window.INSIGHTS) return;
+    sameSetup(id).then(function (d) {
+      if (SESSION.id !== id) return;
+      var wc = d.merged ? INSIGHTS.whatChanged(d.merged, id) : { models: [] };
+      var any = wc.models.filter(function (m) { return m.previous; });
+      host.innerHTML = '<div class="card" id="svc-changed"><h2>Since the last run on these flows</h2>' + (!any.length
+        ? '<p class="muted small" style="margin-bottom:0">No earlier session ran these models on the same flows, GPU and settings. Run them again later to see what changes.</p>'
+        : '<p class="muted small" style="margin-top:0">Each model against its most recent earlier session on the same flows, GPU and settings. Changes under ' + (wc.band * 100) + '% count as the same.</p>' +
+          '<div class="table-wrap"><table id="svc-changed-table"><thead><tr><th>Model</th><th>Metric</th><th class="num">Before</th><th class="num">Now</th><th class="num">Change</th></tr></thead><tbody>' +
+          any.map(function (m) {
+            return m.changes.map(function (c, i) {
+              var ch = c.direction === "same" ? '<span class="muted">about the same</span>' : (c.pct > 0 ? "+" : "−") + fmtNum(Math.abs(c.pct) * 100, 0) + "% " + (c.direction === "lower" ? "lower" : "higher");
+              return '<tr>' + (i ? '<td></td>' : '<td class="mono">' + esc(short(m.model)) + '<br><a class="small" href="#/session/' + enc(m.previous) + '">' + esc(fmtDate(m.previous_at)) + '</a></td>') +
+                '<td>' + esc(c.label) + '</td><td class="num">' + fmtUnit(c.unit, c.before) + '</td><td class="num">' + fmtUnit(c.unit, c.now) + '</td><td class="num" data-dir="' + c.direction + '">' + ch + '</td></tr>';
+            }).join("");
+          }).join("") + '</tbody></table></div>') + '</div>';
+      addExports(host);
+    });
+  }
+  // Model Ranking > Trade-offs: latency against a second cost; the frontier = not beaten on both
+  function frontierCard(res) {
+    if (!window.INSIGHTS) return "";
+    var fr = INSIGHTS.efficiencyFrontier(res);
+    if (fr.points.length < 2) return '<div class="card" id="rank-frontier"><h2>Efficiency frontier</h2><p class="muted small">Needs two or more models with readings.</p></div>';
+    return '<div class="card" id="rank-frontier"><h2>Efficiency frontier</h2><p class="muted small" style="margin-top:0">Each dot is a model: lower-left is better on both. A model on the frontier is not beaten on both at once; the others are.</p>' +
+      '<div class="row" style="margin-top:0"><div class="field"><label for="frontier-y">Compare latency with</label><select id="frontier-y">' +
+      fr.available.map(function (k) { return '<option value="' + k + '"' + (k === fr.y ? " selected" : "") + '>' + esc({ memory: "GPU memory", tokens: "Tokens per flow", cost: "Cost per 1,000 flows" }[k]) + '</option>'; }).join("") +
+      '</select></div></div><div id="frontier-plot"></div></div>';
+  }
+  function drawFrontier(res) {
+    var host = $("frontier-plot"), sel = $("frontier-y");
+    if (!host) return;
+    var fr = INSIGHTS.efficiencyFrontier(res, sel ? sel.value : null), W = 640, H = 300, L = 70, R = 20, T = 16, B = 44;
+    var mx = Math.max.apply(null, fr.points.map(function (p) { return p.x; })) * 1.12 || 1, my = Math.max.apply(null, fr.points.map(function (p) { return p.y; })) * 1.12 || 1;
+    var X = function (v) { return L + (W - L - R) * v / mx; }, Y = function (v) { return T + (H - T - B) * (1 - v / my); };
+    var yu = { memory: "MB", tokens: "tokens", cost: "USD" }[fr.y];
+    var front = fr.points.filter(function (p) { return p.frontier; }).sort(function (a, b) { return a.x - b.x; });
+    var step = front.map(function (p, i) { return (i ? "L" + X(p.x) + " " + Y(front[i - 1].y) + " " : "M") + X(p.x) + " " + Y(p.y); }).join(" ");
+    var ticks = [0, 0.5, 1].map(function (f) { return f; });
+    host.innerHTML = legendHtml(fr.points.map(function (p) { return p.model; })) + '<svg viewBox="0 0 ' + W + ' ' + H + '" class="frontier" role="img" aria-label="' + esc("Latency against " + fr.y_label + ": " + fr.points.map(function (p) { return short(p.model) + (p.frontier ? " on the frontier" : " beaten"); }).join(", ")) + '">' +
+      ticks.map(function (f) { return '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(my * f) + '" y2="' + Y(my * f) + '"/><text class="ax" x="' + (L - 6) + '" y="' + (Y(my * f) + 4) + '" text-anchor="end">' + esc(fmtUnit(yu, my * f)) + '</text>' +
+        '<text class="ax" x="' + X(mx * f) + '" y="' + (H - B + 16) + '" text-anchor="middle">' + esc(fmtTime(mx * f)) + '</text>'; }).join("") +
+      '<text class="ax" x="' + ((W + L) / 2) + '" y="' + (H - 6) + '" text-anchor="middle">Latency per flow (lower is better)</text>' +
+      '<text class="ax" transform="translate(14 ' + ((H - B + T) / 2) + ') rotate(-90)" text-anchor="middle">' + esc(fr.y_label) + '</text>' +
+      (front.length > 1 ? '<path class="front" d="' + step + '"/>' : "") +
+      labelled(fr.points, X, Y, W - 4).map(function (p) {
+        var t = short(p.model) + ": " + fmtTime(p.x) + ", " + fmtUnit(yu, p.y) + (p.frontier ? " — on the frontier" : " — beaten on both by " + p.dominated_by.map(short).join(", "));
+        return '<g tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"><circle cx="' + X(p.x) + '" cy="' + Y(p.y) + '" r="7" style="fill:' + modelColor(p.model) + '"' + (p.frontier ? "" : ' class="beaten"') + '/>' +
+          (p.lx != null ? '<text class="lbl" x="' + p.lx + '" y="' + p.ly + '">' + esc(short(p.model)) + '</text>' : "") + '</g>';
+      }).join("") + '</svg>' +
+      '<div class="table-wrap"><table id="rank-frontier-table"><thead><tr><th>Model</th><th class="num">Latency / flow</th><th class="num">' + esc(fr.y_label) + '</th><th>On the frontier</th></tr></thead><tbody>' +
+      fr.points.map(function (p) { return '<tr><td class="mono">' + esc(short(p.model)) + '</td><td class="num">' + fmtTime(p.x) + '</td><td class="num">' + fmtUnit(yu, p.y) + '</td><td>' + (p.frontier ? "yes" : "no — beaten by " + esc(p.dominated_by.map(short).join(", "))) + '</td></tr>'; }).join("") +
+      '</tbody></table></div>';
+  }
+  // a direct label above-right of its dot, only where it collides with no other label or dot
+  // (the legend, the hover and the table name every model either way)
+  function labelled(points, X, Y, right) {
+    var placed = [];
+    return points.slice().sort(function (a, b) { return a.x - b.x; }).map(function (p) {
+      var w = 7 * short(p.model).length, lx = X(p.x) + 11 + w > right ? X(p.x) - 11 - w : X(p.x) + 11, ly = Y(p.y) - 11;
+      var hit = placed.some(function (q) { return lx < q.x + q.w + 6 && q.x < lx + w + 6 && Math.abs(q.y - ly) < 15; }) ||
+        points.some(function (q) { return q !== p && X(q.x) > lx - 8 && X(q.x) < lx + w && Math.abs(Y(q.y) - ly) < 14; });
+      if (hit) return Object.assign({}, p, { lx: null });
+      placed.push({ x: lx, y: ly, w: w });
+      return Object.assign({}, p, { lx: lx, ly: ly });
+    });
+  }
+  function wireFrontier(res) {
+    var sel = $("frontier-y");
+    if (sel) sel.addEventListener("change", function () { drawFrontier(res); });
+    drawFrontier(res);
+  }
+  // Model Ranking > Robustness: how sure is the order? (paired bootstrap of the flows)
+  function rankStabilityCard(res) {
+    var rs = res.rank_stability;
+    if (!rs) return "";
+    if (rs.skipped) return '<div class="card" id="rank-boot"><h2>How sure is the ranking?</h2><p class="muted small">' + esc(rs.skipped) + '.</p></div>';
+    var pm = rs.per_model.slice().sort(function (a, b) { return b.p_first - a.p_first; });
+    var pl = function (v) { return v == null ? '<span class="muted">no readings</span>' : fmtPct(v); };
+    return '<div class="card" id="rank-boot"><h2>How sure is the ranking?</h2><p class="muted small" style="margin-top:0">The flows were resampled ' + rs.n_boot + ' times; each time the efficiency score was recomputed. How often each model comes first' +
+      (rs.share_top_tied > 0.2 ? ', and how often the top was a tie (' + fmtPct(rs.share_top_tied) + ')' : "") + ':</p><div class="hbars" id="rank-boot-bars">' +
+      pm.map(function (m) {
+        var t = short(m.model) + ": first in " + fmtPct(m.p_first) + " of resamples; rank " + m.rank_p5 + "–" + m.rank_p95 + " in 90% of them";
+        return '<div class="hbar"><span class="lbl">' + esc(short(m.model)) + '</span><span class="track" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"><span class="fill" style="display:block;width:' + (100 * m.p_first).toFixed(1) +
+          '%;background:' + modelColor(m.model) + '"></span></span><span class="val">' + fmtPct(m.p_first) + '</span></div>';
+      }).join("") + '</div><div class="table-wrap" style="margin-top:10px"><table id="rank-boot-table"><thead><tr><th>Model</th><th class="num">First</th><th class="num">Mean rank</th><th class="num">Rank (90% of resamples)</th>' +
+      '<th class="num">Fastest</th><th class="num">Fewest tokens</th><th class="num">Least working VRAM</th></tr></thead><tbody>' +
+      pm.map(function (m) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtPct(m.p_first) + '</td><td class="num">' + fmtNum(m.mean_rank, 2) + '</td><td class="num">' + m.rank_p5 + '–' + m.rank_p95 +
+        '</td><td class="num">' + pl(m.p_lowest.latency) + '</td><td class="num">' + pl(m.p_lowest.tokens) + '</td><td class="num">' + pl(m.p_lowest.vram) + '</td></tr>'; }).join("") +
+      '</tbody></table></div><details class="info"><summary>Method</summary><p class="small muted">' + esc(rs.method) + ' ' + esc(rs.note) + '</p></details></div>';
   }
   // Output Reliability: is the pipeline's output usable? A validity check of the output, not a
   // detection score — nothing here enters a score, rank or verdict.
@@ -3142,7 +3274,7 @@
     if (!root) return;
     root.querySelectorAll(".card").forEach(function (c) {
       if (c.querySelector(":scope > .exp-bar")) return;
-      var hasT = !!c.querySelector("table"), hasS = !!c.querySelector(".lc svg, .ho svg");
+      var hasT = !!c.querySelector("table"), hasS = !!c.querySelector(".lc svg, .ho svg, svg.frontier");
       if (!hasT && !hasS) return;
       var bar = document.createElement("div");
       bar.className = "exp-bar";
@@ -3183,7 +3315,7 @@
     if (!b) return;
     var card = b.closest(".card");
     if (b.getAttribute("data-exp") === "csv") download(expName(card, "csv"), tableCsv(card.querySelector("table")));
-    else svgPng(card.querySelector(".lc svg, .ho svg"), expName(card, "png"));
+    else svgPng(card.querySelector(".lc svg, .ho svg, svg.frontier"), expName(card, "png"));
   });
   // ---- Agent Analysis: flow explorer (flows_<run>.json; loaded when the tab opens) ----
   var FLOWS = { id: null, data: null, filter: "all", q: "", page: 0, open: null };
@@ -3308,20 +3440,16 @@
     if (!host || !window.INSIGHTS) return;
     var again = '<a class="btn" href="#/new/models?set=' + enc(job.run_name || "") + (CP && job.stored ? "&from=" + enc(id) : "") + '">Benchmark these flows again</a>';
     var head = '<h2>Repeatability across runs</h2><p class="muted small" style="margin-top:0">The same models on the same flows, GPU and settings in other sessions: how much do the numbers move from run to run?</p>';
-    api("/api/compare/candidates?session=" + enc(id)).then(function (r) {
+    sameSetup(id).then(function (d) {
       if (SESSION.id !== id) return;
-      var others = r.ok ? (r.data.sessions || []).slice(0, 19) : [];
-      if (!r.ok || !others.length) {
+      var r = { ok: d.ok, data: { error: d.error } };
+      if (!d.merged) {
         host.innerHTML = '<div class="card" id="svc-repeat">' + head + '<p>' + (r.ok ? "No other session ran on these flows, GPU and settings yet." : "Could not look for other sessions: " + esc((r.data || {}).error || "")) +
           ' Run the same models again to see how stable these numbers are.</p><div class="actions">' + again + '</div></div>';
         return;
       }
-      api("/api/compare/merged?sessions=" + [id].concat(others.map(function (x) { return x.session_id; })).map(enc).join(",")).then(function (m) {
-        if (SESSION.id !== id) return;
-        if (!m.ok) { host.innerHTML = '<div class="card" id="svc-repeat">' + head + '<p class="muted">' + esc((m.data || {}).error || "Comparison unavailable") + '</p></div>'; return; }
-        host.innerHTML = repeatCard(INSIGHTS.repeatability(m.data, id), head, again, id);
-        addExports(host);
-      });
+      host.innerHTML = repeatCard(INSIGHTS.repeatability(d.merged, id), head, again, id);
+      addExports(host);
     });
   }
   function repeatCard(rp, head, again, id) {

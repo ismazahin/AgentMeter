@@ -59,6 +59,21 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log(!(await texts(p, '#svc-findings li')).some(t => /ccuracy/.test(t)) && (await p.$$('#svc-profile .prof-row')).length === 3,
         'overview (PCAP): no accuracy finding; the same 3 efficiency criteria');
 
+    // Analysis expansion, phase 1 — scorecard, what changed, rank stability, efficiency frontier
+    await tab(p, csv, 'overview', '#svc-scorecard');
+    log((await p.$$('#svc-scorecard-table tbody tr')).length === 2 && (await p.$$('#svc-scorecard-table thead th')).length === 7 &&
+        (await p.$$('#svc-scorecard-table td[data-grade="best"]')).length >= 1, 'overview: scorecard grades each model on 6 dimensions');
+    await p.waitForSelector('#svc-changed');
+    log(/No earlier session|Since the last run/.test(await p.textContent('#svc-changed')), 'overview: "Since the last run" card answers (no earlier run yet)');
+    await tab(p, csv, 'ranking/robustness', '#rank-boot');
+    log((await p.$$('#rank-boot-bars .hbar')).length === 2 && (await p.$$('#rank-boot-table tbody tr')).length === 2 && /resampled 500 times/.test(await p.textContent('#rank-boot')),
+        'robustness: bootstrap — how often each model comes first (500 resamples)');
+    await tab(p, csv, 'ranking/tradeoffs', '#frontier-plot svg');
+    log((await p.$$('#frontier-plot circle')).length === 2 && (await p.$$('#rank-frontier-table tbody tr')).length === 2 && /on the frontier|beaten/.test(await hoverText(p, '#frontier-plot g[data-hover] circle')),
+        'trade-offs: efficiency frontier — one dot per model, hover says frontier or beaten');
+    await p.selectOption('#frontier-y', 'tokens'); await p.waitForTimeout(200);
+    log(/Tokens per flow/.test(await p.textContent('#rank-frontier-table thead')), 'trade-offs: the second axis can be changed (tokens)');
+
     // Phase 2 — Ranking -> Robustness: weight range in which #1 stays first
     await tab(p, csv, 'ranking/robustness', '#svc-stability');
     log((await p.$$('#svc-stability .stab-row')).length === 3 && (await p.$$('#svc-stability .stab-mark')).length === 3,
@@ -236,7 +251,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;
-    for (const t of ['overview', 'ranking/robustness', 'reliability', 'performance/latency', 'performance/statistics', 'agents', 'cost', 'recommendations/limits', 'performance/gpu']) {
+    for (const t of ['overview', 'ranking/robustness', 'ranking/tradeoffs', 'reliability', 'performance/latency', 'performance/statistics', 'agents', 'cost', 'recommendations/limits', 'performance/gpu']) {
       await tab(p, csv, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }

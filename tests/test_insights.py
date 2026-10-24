@@ -374,3 +374,51 @@ def test_tab_summaries_restate_stored_numbers():
     out = call("tabSummaries", s)
     assert out["ranking"] == "The two models tie on the SAW score (51.5)."
     assert out["performance"] == "Latency: the models are within the tie range (within 5%)."
+
+
+# ---------------------------------------------------------------- analysis expansion, phase 1
+def _card():
+    return {"per_model": [
+                {"model": A, "efficiency": {"end_to_end": {"mean_latency_s": 1.0, "p95_latency_s": 2.0, "mean_tokens_per_flow": 900}}},
+                {"model": B, "efficiency": {"end_to_end": {"mean_latency_s": 1.03, "p95_latency_s": 3.0, "mean_tokens_per_flow": 600}}}],
+            "memory": {"per_model": [{"model": A, "total_peak_mb": 6000}, {"model": B, "total_peak_mb": None}]},
+            "cost_energy": {"per_model": [{"model": A, "cost_per_1k_flows_usd": 0.5}, {"model": B, "cost_per_1k_flows_usd": None}]},
+            "output_reliability": {"per_model": [{"model": A, "valid_rate": 1.0}, {"model": B, "valid_rate": 0.9}]}}
+
+
+def test_scorecard_grades_each_model_against_the_best():
+    sc = call("scorecard", _card())
+    d = {x["key"]: x for x in sc["dims"]}
+    lat = d["mean_latency_s"]["cells"]
+    assert [c["grade"] for c in lat] == ["best", "best"] and abs(lat[1]["gap"] - 0.03) < 1e-9     # within 5%
+    assert [c["grade"] for c in d["p95_latency_s"]["cells"]] == ["best", "behind"]                 # +50%
+    assert [c["grade"] for c in d["tokens"]["cells"]] == ["behind", "best"]
+    assert d["memory_mb"]["cells"][1]["grade"] == "no_data" and d["memory_mb"]["cells"][0]["grade"] == "best"
+    assert [c["grade"] for c in d["valid_rate"]["cells"]] == ["best", "behind"]                    # 10 points lower
+
+
+def test_what_changed_compares_with_the_latest_earlier_run():
+    merged = {"runs": [{"session": "s1", "model": A, "created_at": "2026-10-01T00:00:00"},
+                       {"session": "s2", "model": A, "created_at": "2026-10-02T00:00:00"},
+                       {"session": "s3", "model": A, "created_at": "2026-10-03T00:00:00"},
+                       {"session": "s3", "model": B, "created_at": "2026-10-03T00:00:00"}],
+              "rows": [{"metric": "mean_latency_s", "values": [1.0, 2.0, 1.5, 3.0]},
+                       {"metric": "mean_tokens_per_flow", "values": [100, 100, 102, 50]}]}
+    wc = call("whatChanged", merged, "s3")
+    a, b = wc["models"]
+    assert a["previous"] == "s2" and b["previous"] is None                     # B never ran before
+    lat = next(c for c in a["changes"] if c["metric"] == "mean_latency_s")
+    assert lat["before"] == 2.0 and lat["now"] == 1.5 and lat["pct"] == -0.25 and lat["direction"] == "lower"
+    tok = next(c for c in a["changes"] if c["metric"] == "mean_tokens_per_flow")
+    assert tok["direction"] == "same"                                          # +2% is inside the 5% band
+
+
+def test_efficiency_frontier_marks_who_is_beaten_on_both():
+    s = _card()
+    s["per_model"].append({"model": "org/model-c", "efficiency": {"end_to_end": {"mean_latency_s": 1.5, "mean_tokens_per_flow": 950}}})
+    fr = call("efficiencyFrontier", s, "tokens")
+    pts = {p["model"]: p for p in fr["points"]}
+    assert fr["y"] == "tokens" and set(fr["available"]) == {"memory", "tokens", "cost"}
+    assert pts[A]["frontier"] and pts[B]["frontier"]                           # faster vs fewer tokens: both on it
+    assert not pts["org/model-c"]["frontier"] and set(pts["org/model-c"]["dominated_by"]) == {A, B}
+    assert call("efficiencyFrontier", s, "nonsense")["y"] == "memory"          # falls back to the first available

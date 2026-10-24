@@ -403,3 +403,21 @@ def test_output_reliability_without_labels_and_with_failures(tmp_path):
     assert m["verdict_consistency"] == {"checked": 2, "agree": 1, "rate": 0.5}
     none = reliability_block(sr, am, {"m": "m"}, {}, "decide", None, ["Benign"], {}, False)["per_model"][0]
     assert none["verdict_consistency"] is None and none["truncated"] == 0
+
+
+# --- rank stability: paired bootstrap of the efficiency-only SAW ----------------------------
+def test_rank_stability_bootstrap():
+    from agentmeter.session.analyses import rank_stability_block
+    scoring = load_config().get("scoring")
+    sr, am = [], []
+    for i in range(30):
+        for m, lat, tok in (("a", 2.0 + (i % 3) * 0.1, 900), ("b", 8.0 + (i % 5) * 0.2, 1500)):
+            sr.append({"model": m, "scenario_id": f"s{i}", "scenario_total_time_s": lat, "scenario_peak_vram_mb": None})
+            am.append({"model": m, "scenario_id": f"s{i}", "input_tokens": tok - 100, "output_tokens": 100})
+    rs = rank_stability_block(sr, am, {"A": "a", "B": "b"}, scoring, n_boot=200)
+    a, b = rs["per_model"]
+    assert rs["n_flows"] == 30 and a["p_first"] == 1.0 and b["p_first"] == 0.0     # A is faster AND leaner everywhere
+    assert a["p_lowest"]["latency"] == 1.0 and a["p_lowest"]["vram"] is None and a["rank_p95"] == 1
+    assert rank_stability_block(sr, am, {"A": "a"}, scoring)["skipped"]
+    again = rank_stability_block(sr, am, {"A": "a", "B": "b"}, scoring, n_boot=200)
+    assert again == rs                                                            # seeded: reproducible

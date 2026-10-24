@@ -33,6 +33,7 @@ import hashlib
 import itertools
 import json
 import math
+import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -478,6 +479,23 @@ def rank_stability_block(sr: list[dict], am: list[dict], label_of: dict[str, str
                      "on it, so the top can tie in many resamples even when one model is faster (see p_lowest).")}
 
 
+def cold_start_block(sr: list[dict], label_of: dict[str, str], loads: dict[str, Optional[dict]]) -> dict[str, Any]:
+    """How long loading each model took, and whether its first flow was slower than the rest
+    (a warm-up the measured mean includes). Model downloads are not part of the load time."""
+    per = []
+    for model, dbm in label_of.items():
+        xs = [float(r["scenario_total_time_s"]) for r in sr if r["model"] == dbm and r["scenario_total_time_s"] is not None]
+        ld = loads.get(model) or {}
+        med = float(np.median(xs[1:])) if len(xs) > 1 else None
+        per.append({"model": model, "load_s": ld.get("load_s"), "engine": ld.get("engine"),
+                    "first_flow_s": xs[0] if xs else None, "median_rest_s": med,
+                    "first_flow_penalty_s": (xs[0] - med) if xs and med is not None else None,
+                    "first_flow_ratio": (xs[0] / med) if xs and med else None})
+    return {"per_model": per, "measured": any(p["load_s"] is not None for p in per),
+            "note": "Load time = loading the weights onto the GPU in a fresh worker (after any first-use "
+                    "download, which is not counted). First-flow penalty = first flow minus the median of the rest."}
+
+
 def read_texts(db: str | Path, run_id: str) -> dict[tuple, Optional[str]]:
     """{(db model, scenario, agent): answer text} — empty for runs from before texts were kept."""
     con = sqlite3.connect(f"file:{Path(db)}?mode=ro", uri=True)
@@ -492,9 +510,19 @@ def read_texts(db: str | Path, run_id: str) -> dict[tuple, Optional[str]]:
 # ---------------------------------------------------------------------------
 # output reliability: is the pipeline's output usable? (not a detection score)
 # ---------------------------------------------------------------------------
+_TECHNIQUE = re.compile(r"\bT\d{4}(?:\.\d{3})?\b")
+
+
+def _technique(text: Optional[str]) -> Optional[str]:
+    m = _TECHNIQUE.search(text or "")
+    return m.group(0) if m else None
+
+
 def reliability_block(sr: list[dict], am: list[dict], label_of: dict[str, str], budgets: dict[str, int],
                       label_agent: str, verdict_agent: Optional[str], classes: list[str],
-                      texts: dict[tuple, Optional[str]], labelled: bool) -> dict[str, Any]:
+                      texts: dict[tuple, Optional[str]], labelled: bool,
+                      mitre: Optional[dict[str, str]] = None,
+                      repeat: Optional[dict[str, Optional[dict]]] = None) -> dict[str, Any]:
     """Per model, per flow: did the pipeline produce a usable answer?
       valid      the label agent's reply is one of the allowed labels AND no agent returned nothing
       truncated  some agent stopped at its token budget (its text may be cut; the answer can still be valid)
@@ -527,11 +555,51 @@ def reliability_block(sr: list[dict], am: list[dict], label_of: dict[str, str], 
         if labelled and n:
             ok = sum(1 for f in flows if f["correct"])
             ref = {"n": n, "match": ok, "rate": ok / n}
+        # format: did the label agent reply with just a label, or did its reply need cleaning?
+        fmt = None
+        raw = [(f["scenario_id"], texts.get((dbm, f["scenario_id"], label_agent))) for f in flows]
+        raw = [(sid, t) for sid, t in raw if t is not None]
+        if raw:
+            low = {c.lower(): c for c in classes}
+            exact = sum(1 for _, t in raw if t.strip().strip(".\"'` ").lower() in low)
+            parsed = sum(1 for _, t in raw if normalize_class(t, classes) != "Unparseable")
+            fmt = {"checked": len(raw), "exact": exact, "exact_rate": exact / len(raw),
+                   "cleaned": parsed - exact, "unparseable": len(raw) - parsed,
+                   "mean_chars": float(np.mean([len(t) for _, t in raw]))}
+        # MITRE: does the verdict agent name the same technique for the same label, and the reference one?
+        mit = None
+        if verdict_agent:
+            ref_ids = {c: _technique(v) for c, v in (mitre or {}).items()}
+            by_label: dict[str, list] = {}
+            for f in valid:
+                t = texts.get((dbm, f["scenario_id"], verdict_agent))
+                if t is not None:
+                    by_label.setdefault(f["predicted_label"], []).append(_technique(t))
+            got = sum(len(v) for v in by_label.values())
+            if got:
+                modal = sum(max(v.count(x) for x in set(v)) for v in by_label.values())
+                named = sum(1 for v in by_label.values() for x in v if x)
+                match = sum(1 for lab, v in by_label.items() for x in v if x == ref_ids.get(lab))
+                mit = {"checked": got, "named": named, "consistent": modal, "consistent_rate": modal / got,
+                       "matches_reference_map": match, "match_rate": match / got,
+                       "per_label": {lab: {"n": len(v), "techniques": {str(x): v.count(x) for x in set(v)}}
+                                     for lab, v in sorted(by_label.items())}}
+        # repeat check (opt-in): the same flows answered a second time by the same loaded model
+        stab = None
+        rc = (repeat or {}).get(model)
+        if rc and rc.get("flows"):
+            measured = {f["scenario_id"]: f["predicted_label"] for f in flows}
+            pairs = [(measured.get(r["scenario_id"]), r.get("predicted")) for r in rc["flows"]
+                     if r.get("predicted") is not None and r["scenario_id"] in measured]
+            if pairs:
+                same = sum(1 for a, b in pairs if a == b)
+                stab = {"checked": len(pairs), "same": same, "rate": same / len(pairs)}
         per.append({"model": model, "n_flows": n,
                     "valid": len(valid), "valid_rate": (len(valid) / n) if n else None,
                     "unparseable": len(unparseable), "empty": len(empty), "truncated": len(capped),
                     "truncated_rate": (len(capped) / n) if n else None,
-                    "verdict_consistency": cons, "reference_agreement": ref})
+                    "verdict_consistency": cons, "reference_agreement": ref,
+                    "format": fmt, "mitre": mit, "answer_stability": stab})
     return {
         "label_agent": label_agent, "verdict_agent": verdict_agent, "labelled": labelled,
         "per_model": per,
@@ -540,6 +608,10 @@ def reliability_block(sr: list[dict], am: list[dict], label_of: dict[str, str], 
             "truncated": "at least one agent stopped at its output-token budget (its text may be cut short)",
             "verdict_consistency": (f"the {verdict_agent} agent names the same class as the {label_agent} agent"
                                     if verdict_agent else "no verdict agent in this pipeline"),
+            "format": f"the {label_agent} agent's reply is exactly one allowed label (else AgentMeter had to clean it up)",
+            "mitre": ("the verdict agent names an ATT&CK technique (T####); consistent = the same technique for the "
+                      "same label; reference map = the configured technique for that label"),
+            "answer_stability": "opt-in repeat check: the first flows answered again by the same model, same answer",
             "reference_agreement": ("share of answers equal to the data set's reference label — a check that the "
                                     "output is meaningful, not a detection score; AgentMeter does not rank detectors"
                                     if labelled else "the flows have no reference labels"),
@@ -967,9 +1039,13 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     payload["agents"] = agents_block(sr, am, label_of, budgets, decide_agent=label_agent(pl) or "decide",
                                      pipeline=describe(pl) if custom else None)
     verdict = next((a["name"] for a in describe(pl) if a["kind"] == "verdict"), None)
+    from ..run.extras import read_all as read_extras
+    labels = {m: label_of[m] for m in label_of}
     payload["output_reliability"] = reliability_block(
         sr, am, label_of, budgets, label_agent(pl) or "decide", verdict, list(config_data.get("classes") or []),
-        read_texts(db_path, run_id), bool((payload.get("session") or {}).get("accuracy_available")))
+        read_texts(db_path, run_id), bool((payload.get("session") or {}).get("accuracy_available")),
+        mitre=dict(config_data.get("mitre") or {}), repeat=read_extras(db_path, run_id, labels, "repeat_check"))
+    payload["cold_start"] = cold_start_block(sr, label_of, read_extras(db_path, run_id, labels, "model_load"))
     payload["rank_stability"] = rank_stability_block(sr, am, label_of, config_data.get("scoring"))
     payload["latency_distribution"] = latency_block(sr, label_of)
     payload["latency_trend"] = latency_trend_block(sr, label_of)

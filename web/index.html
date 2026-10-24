@@ -823,7 +823,7 @@
         <li><b>Data.</b> Open <a href="#/new">New benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for the reference-label check) or a PCAP. Choose how many flows to sample. The result is a <i>prepared set</i>; use <b>Reuse a prepared set</b> next time to skip this step.</li>
         <li><b>Models.</b> Pick one to four open models. Every model runs in 4-bit NF4 on the same GPU, one at a time, so the numbers are comparable. The wizard estimates time and cost from earlier runs.</li>
         <li><b>Agents.</b> Keep the default pipeline (Perceive → Reason → Decide → Act) or build your own: up to 8 agents, from the built-ins, ready-made templates or agents you write. Exactly one agent gives the answer (a <i>label</i> agent); each agent reads the flow and/or earlier agents' answers.</li>
-        <li><b>Options.</b> Tick <b>Load test</b> to also measure how throughput scales with 1, 2 and 4 flows in parallel.</li>
+        <li><b>Options.</b> Tick <b>Load test</b> to also measure how throughput scales with 1, 2 and 4 flows in parallel, and <b>repeat check</b> to answer the first 10 flows twice (does the model give the same answer?).</li>
         <li><b>Run.</b> The session page shows live progress. You can leave it; the run continues on the GPU server. Stop it from the same page if needed.</li>
       </ol>
       <p class="muted small">No GPU connected? The app says so in the top bar. Preparing data and reading old sessions still work; new runs wait for the GPU.</p>
@@ -1008,6 +1008,8 @@
         <dl class="kv small" id="wiz-settings"></dl>
         <label class="check" style="margin-top:10px"><input type="checkbox" id="svc-load-test">
           <span>Also measure load scaling (1, 2 and 4 flows at once)</span></label><span class="info-i" tabindex="0" role="button" data-tip="After the measured flows, each model runs a few extra flows with 1, 2 and 4 in flight at once, to show whether throughput grows with concurrency. Adds time; it is reported separately and never changes a score, rank or verdict.">i</span>
+        <br><label class="check"><input type="checkbox" id="svc-repeat-check">
+          <span>Also answer the first 10 flows a second time (repeat check)</span></label><span class="info-i" tabindex="0" role="button" data-tip="After the measured flows, each model answers its first 10 flows again with the same prompts and settings. Output Reliability then shows how often it gave the same answer. Adds a little time; it never changes a score, rank or verdict.">i</span>
         <div class="row">
           <a class="btn" id="wiz-back" href="#/new">Back</a>
           <button type="button" class="btn primary" id="svc-run" disabled>Run benchmark</button>
@@ -2357,6 +2359,7 @@
     // server uses the prepared set directly when it is already done). Reused sets: run.
     if (WIZ.prep) body.after_prepare = WIZ.prep; else body.run = WIZ.set;
     if ($("svc-load-test").checked) body.load_test = true;
+    if ($("svc-repeat-check").checked) body.repeat_check = true;
     var spec = plSpec(); if (spec) body.pipeline = spec;
     $("svc-run").disabled = true;
     api("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
@@ -2733,7 +2736,7 @@
     $("spanel-overview").innerHTML = pane("main", overviewTab(res) + notesCard(job));
     $("spanel-ranking").innerHTML = lead("ranking") + pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
         'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", rankStabilityCard(res) + stabilityCard(res)) + pane("tradeoffs", frontierCard(res)) + pane("guide", "");
-    $("spanel-reliability").innerHTML = lead("reliability") + pane("main", reliabilityCard(res) + failureCard(res));
+    $("spanel-reliability").innerHTML = lead("reliability") + pane("main", reliabilityCard(res) + consistencyCard(res) + failureCard(res));
     $("spanel-performance").innerHTML = lead("performance") + pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
     $("spanel-agents").innerHTML = lead("agents") + pane("main", agentsTab(res));
     $("spanel-cost").innerHTML = lead("cost") + pane("main", costCard(res) + gpuTimelineCard(res) + projectionCard(res) + correctCard(res));
@@ -3108,6 +3111,24 @@
         '<li><b>Agreement</b> — ' + esc(r.definitions.verdict_consistency) + '.</li>' +
         (r.labelled ? '<li><b>Reference-label check</b> — ' + esc(r.definitions.reference_agreement) + '. A fast pipeline that answers at random would not be a fair efficiency result; this number guards against that.</li>' : "") +
       '</ul></details></div>';
+  }
+  // Output Reliability: are the answers consistent (format, repeat, MITRE)?
+  function consistencyCard(res) {
+    var r = res.output_reliability;
+    if (!r || !r.per_model.some(function (m) { return m.format || m.mitre || m.answer_stability; })) return "";
+    var pm = r.per_model, rep = pm.some(function (m) { return m.answer_stability; });
+    var cell = function (x, rate, a, b) { return !x ? '<span class="muted">—</span>' : fmtPct(x[rate]) + ' <span class="muted small">(' + x[a] + '/' + x[b] + ')</span>'; };
+    return '<div class="card" id="rel-consistency"><h2>Consistency of answers</h2><p class="muted small" style="margin-top:0">Does the pipeline answer in the expected form, give the same answer twice, and name the same ATT&amp;CK technique for the same label? Usable, repeatable output is what makes the timings meaningful.</p>' +
+      '<div class="table-wrap"><table id="rel-consistency-table"><thead><tr><th>Model</th><th class="num">Reply is just a label</th><th class="num">Same answer when repeated</th><th class="num">Same technique per label</th><th class="num">Technique as configured</th></tr></thead><tbody>' +
+      pm.map(function (m) {
+        return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + cell(m.format, "exact_rate", "exact", "checked") + '</td><td class="num">' + cell(m.answer_stability, "rate", "same", "checked") +
+          '</td><td class="num">' + cell(m.mitre, "consistent_rate", "consistent", "checked") + '</td><td class="num">' + cell(m.mitre, "match_rate", "matches_reference_map", "checked") + '</td></tr>';
+      }).join("") + '</tbody></table></div>' +
+      (rep ? "" : '<p class="small muted">“Same answer when repeated” needs the <b>repeat check</b> option when you start a benchmark (it answers the first 10 flows a second time).</p>') +
+      '<details class="info"><summary>What each column means</summary><ul class="small list">' +
+        '<li><b>Reply is just a label</b> — ' + esc(r.definitions.format) + '. Extra text costs tokens and needs cleaning before an analyst tool can use it.</li>' +
+        '<li><b>Same answer when repeated</b> — ' + esc(r.definitions.answer_stability) + '.</li>' +
+        '<li><b>Technique</b> — ' + esc(r.definitions.mitre) + '. “—” when there is no verdict agent or its text was not recorded.</li></ul></details></div>';
   }
   // per agent: where the pipeline's answers go wrong (from the per-agent breakdown)
   function failureCard(res) {

@@ -172,7 +172,8 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
                 provider: Optional[str] = None, fresh: bool = False,
                 environment: Optional[dict[str, Any]] = None, load_test: bool = False,
                 run_id: Optional[str] = None,
-                pipeline: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
+                pipeline: Optional[list[dict[str, Any]]] = None,
+                repeat_check: bool = False) -> dict[str, Any]:
     """Prepare, execute (existing sequential runner), score, and write
     <run_dir>/session_results.json. Returns the results payload."""
     from ..run.runner import run_full
@@ -194,7 +195,7 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
             sampler.idle_window(model_label, ops["idle_sample_s"])
     try:
         result = run_full(config_path=plan["config_path"], fresh=fresh, auto_analyze=False,
-                          before_model=hook, load_test=load_test, run_id=run_id)
+                          before_model=hook, load_test=load_test, run_id=run_id, repeat_check=repeat_check)
     finally:
         energy = sampler.stop() if sampler is not None else None
     payload = score_session(plan, run_id=result.run_id)

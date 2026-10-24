@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import time
 from typing import Optional
 
 from ..config import load_config
@@ -180,6 +181,7 @@ def _run_model_sqlite(
     baseline_vram_mb: Optional[float] = None,
     vram_out: Optional[str] = None,
     load_test: bool = False,
+    repeat_check: bool = False,
 ) -> None:
     """Run one model's scenarios and persist them into the run-full SQLite DB.
 
@@ -224,7 +226,14 @@ def _run_model_sqlite(
             _Path(vram_out).write_text(_json.dumps({"device_vram_before_load_mb": dev_before}))
 
         provider = get_provider(cfg)
+        t_load = time.perf_counter()
         provider.load()
+        load_s = time.perf_counter() - t_load
+        # cold start: how long loading took (own file, never a measured table)
+        from .extras import write as write_extra
+        write_extra(db_path, run_id, label, "model_load",
+                    {"model": label, "load_s": load_s, "engine": getattr(provider, "name", None),
+                     "device_before_load_mb": dev_before})
 
         gpu = GpuProbe()
         # Phase 46 follow-up: the weights footprint right after load (before any scenario).
@@ -288,6 +297,10 @@ def _run_model_sqlite(
             if load_test:
                 from .load_test import out_path, run_load_test
                 run_load_test(cfg, provider, scenarios, label, out_path(db_path, run_id, label))
+            # Optional repeat check (opt-in): the first flows answered a second time.
+            if repeat_check:
+                from .extras import run_repeat_check
+                run_repeat_check(cfg, provider, scenarios, label, db_path, run_id)
         finally:
             release_provider(provider)
 
@@ -318,6 +331,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                         help="sqlite mode: sidecar path to write this worker's before-load reading")
     parser.add_argument("--load-test", action="store_true",
                         help="sqlite mode: after the measured flows, also run the load-scaling step")
+    parser.add_argument("--repeat-check", action="store_true",
+                        help="sqlite mode: after the measured flows, answer the first flows again")
     parser.add_argument("--proj-scenarios", type=int, default=1000)
     parser.add_argument("--proj-models", type=int, default=1)
     args = parser.parse_args(argv)
@@ -353,6 +368,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     _run_model_sqlite(
         cfg, args.model, args.run_id, args.n,
         baseline_vram_mb=args.baseline_vram_mb, vram_out=args.vram_out, load_test=args.load_test,
+        repeat_check=args.repeat_check,
     )
     # Rows are persisted and the provider released; opt-in cache cleanup runs
     # last, before exit, so the next worker downloads into freed space.

@@ -3,7 +3,7 @@ Flask app (scripts/serve.py); access.py (run tokens, CORS, rate limits)
 covers them like every other route.
 
   POST /api/jobs                {run | after_prepare, models[<=4], provider?, base_config?, load_test?,
-                                pipeline?} -> 202 {job}   (pipeline: pipeline/spec.py)
+                                repeat_check?, pipeline?} -> 202 {job}   (pipeline: pipeline/spec.py)
   GET  /api/jobs                ?limit=N  -> recent jobs, newest first
   GET  /api/jobs/<id>           status + live progress + result_ready / result_url
   GET  /api/jobs/<id>/result    session_results.json once done (409 until then)
@@ -119,6 +119,9 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
         load_test = body.get("load_test", False)          # opt-in load-scaling step (run/load_test.py)
         if not isinstance(load_test, bool):
             return fail(JobError("'load_test' must be true or false", "bad_request", 400))
+        repeat_check = body.get("repeat_check", False)    # opt-in: answer the first flows again (run/extras.py)
+        if not isinstance(repeat_check, bool):
+            return fail(JobError("'repeat_check' must be true or false", "bad_request", 400))
         models = body.get("models")
         if not isinstance(models, list):
             return fail(JobError("'models' must be a list of 1 to 4 model ids", "bad_models", 400))
@@ -141,7 +144,7 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
                                  else body.get("base_config"),
                                  environment=environment() if environment else None,
                                  after_prepare=after, meta=runtoken.job_meta(), load_test=load_test,
-                                 pipeline=body.get("pipeline"))
+                                 pipeline=body.get("pipeline"), repeat_check=repeat_check)
         except JobError as e:
             return fail(e)
         return jsonify(with_links(job)), 202

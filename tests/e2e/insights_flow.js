@@ -91,6 +91,8 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
         'reliability: table with failures, Decide/Act agreement and the reference-label check');
     log((await p.$$('#rel-failures-table tbody tr')).length === 8 && !/F1|precision|recall|confusion/i.test(await p.textContent('#spanel-reliability')),
         'reliability: failures per agent (2 models x 4 agents); no detection metrics');
+    log((await p.$$('#rel-consistency-table tbody tr')).length === 2 && /repeat check/.test(await p.textContent('#rel-consistency')),
+        'reliability: consistency of answers (format, repeat, technique); says how to get the repeat check');
     await tab(p, pcap, 'reliability', '#rel-table');
     log(!/Reference-label check/.test(await p.textContent('#rel-table thead')), 'reliability (PCAP): works without labels, no reference-label check');
 

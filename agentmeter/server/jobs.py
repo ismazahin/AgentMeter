@@ -123,7 +123,8 @@ def run_benchmark_job(job: dict[str, Any]) -> str:
 
     run_session(job["run_dir"], job["models"], base_config=job.get("base_config"),
                 provider=job.get("provider"), fresh=False, environment=job.get("environment"),
-                load_test=bool(job.get("load_test")), run_id=job.get("run_id"), pipeline=job.get("pipeline"))
+                load_test=bool(job.get("load_test")), run_id=job.get("run_id"), pipeline=job.get("pipeline"),
+                repeat_check=bool(job.get("repeat_check")))
     # Sessions on one prepared set share its folder, and run_session always writes
     # <run_dir>/session_results.json: keep this session's own copy, so a later run on the same
     # flows never replaces these results (they are what this job reports, uploads and prints).
@@ -382,7 +383,7 @@ class JobManager:
                    environment: Optional[dict[str, Any]] = None,
                    after_prepare: Optional[str] = None,
                    meta: Optional[dict[str, Any]] = None, load_test: bool = False,
-                   pipeline: Any = None) -> dict[str, Any]:
+                   pipeline: Any = None, repeat_check: bool = False) -> dict[str, Any]:
         """Validate, persist as 'queued', enqueue; returns immediately.
 
         Phase 46: `after_prepare=<prepare job id>` queues the benchmark BEHIND that prepare
@@ -391,7 +392,7 @@ class JobManager:
         pipeline = self._pipeline(pipeline)
         if after_prepare and not run:
             return self._create_chained(after_prepare, models, provider, base_config, environment, meta, load_test,
-                                        pipeline)
+                                        pipeline, repeat_check)
         run_dir = Path(run).resolve() if Path(str(run)).is_absolute() else self.resolve_run(run)
         if not (run_dir / "input.json").exists():
             raise JobError(f"prepared run not found: {run_dir}", "run_missing", 404)
@@ -407,7 +408,7 @@ class JobManager:
             "started_at": None, "finished_at": None,
             "attempts": 0, "message": "queued", "error": None, "result_path": None,
             "non_validated": True, "environment": environment, "load_test": bool(load_test),
-            "pipeline": pipeline, **(meta or {}),
+            "repeat_check": bool(repeat_check), "pipeline": pipeline, **(meta or {}),
         }
         return self._created(job)
 
@@ -434,13 +435,14 @@ class JobManager:
     def _create_chained(self, prep_id: str, models: list[str], provider: Optional[str],
                         base_config: Optional[str], environment: Optional[dict[str, Any]],
                         meta: Optional[dict[str, Any]] = None, load_test: bool = False,
-                        pipeline: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
+                        pipeline: Optional[list[dict[str, Any]]] = None,
+                        repeat_check: bool = False) -> dict[str, Any]:
         prep = self._load(prep_id)
         if prep.get("kind") != "prepare":
             raise JobError(f"{prep_id} is not a data-preparation job", "bad_request", 400)
         if prep["status"] == "done" and prep.get("prepared"):
             return self.create_job(prep["prepared"], models, provider, base_config, environment, meta=meta,
-                                   load_test=load_test, pipeline=pipeline)
+                                   load_test=load_test, pipeline=pipeline, repeat_check=repeat_check)
         if prep["status"] in ("failed", "interrupted", "stopped"):
             raise JobError(f"the data preparation {prep['status']}: {prep.get('error') or prep.get('message')}",
                            "prepare_failed", 409)
@@ -465,7 +467,7 @@ class JobManager:
             "started_at": None, "finished_at": None,
             "attempts": 0, "message": "queued — waiting for the data to be prepared", "error": None,
             "result_path": None, "non_validated": True, "environment": environment, "load_test": bool(load_test),
-            "pipeline": pipeline, **(meta or {}),
+            "repeat_check": bool(repeat_check), "pipeline": pipeline, **(meta or {}),
         }
         return self._created(job)
 

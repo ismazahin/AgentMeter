@@ -85,6 +85,7 @@ def _spawn_model_worker(
     baseline_vram_mb: Optional[float] = None,
     vram_out: Optional[str] = None,
     load_test: bool = False,
+    repeat_check: bool = False,
 ) -> int:
     """Spawn ONE per-model worker (sqlite mode) and BLOCK until it exits.
 
@@ -110,6 +111,8 @@ def _spawn_model_worker(
         cmd += ["--vram-out", vram_out]
     if load_test:
         cmd += ["--load-test"]
+    if repeat_check:
+        cmd += ["--repeat-check"]
     global _PROC
     if _STOP.is_set():
         raise Stopped("stopped by a user before the next model started")
@@ -261,6 +264,7 @@ def run_full(
     before_model=None,
     load_test: bool = False,
     run_id: Optional[str] = None,
+    repeat_check: bool = False,
 ) -> RunFullResult:
     """`before_model(model_label)`: optional hook called right before each model's worker
     is spawned, while the GPU is idle (Phase 46 follow-up: idle board-power sampling for
@@ -338,6 +342,7 @@ def run_full(
             rc = _spawn_model_worker(
                 worker_config, model_name, run_id, n,
                 baseline_vram_mb=baseline_vram_mb, vram_out=vram_sidecar, load_test=load_test,
+                repeat_check=repeat_check,
             )
             if rc != 0:
                 # A crashed/killed worker leaves this model incomplete; the run row

@@ -179,6 +179,11 @@ def test_load_test_flag_is_a_boolean_and_stored_on_the_job(env):
     assert ok.status_code == 202 and mgr.get(ok.get_json()["job_id"])["load_test"] is True
     plain = c.post("/api/jobs", json={"run": run, "models": ["a"], "provider": "mock"})
     assert mgr.get(plain.get_json()["job_id"])["load_test"] is False
+    assert mgr.get(plain.get_json()["job_id"])["repeat_check"] is False
+    bad = c.post("/api/jobs", json={"run": run, "models": ["a"], "provider": "mock", "repeat_check": 1})
+    assert bad.status_code == 400 and "repeat_check" in bad.get_json()["error"]
+    rc = c.post("/api/jobs", json={"run": run, "models": ["a"], "provider": "mock", "repeat_check": True})
+    assert mgr.get(rc.get_json()["job_id"])["repeat_check"] is True
 
 
 def test_custom_pipeline_is_validated_and_stored_on_the_job(env):

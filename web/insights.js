@@ -579,6 +579,41 @@
     return { y: ykey, y_label: FRONTIER_Y[ykey], available: avail, points: pts };
   }
 
+  // ---- Performance -> Capacity: can one GPU keep up with a flow rate? (queue simulation) ------
+  // One server (one GPU running one flow at a time, as measured), first come first served.
+  // Arrivals: Poisson at the given rate; service times: drawn from this session's measured
+  // per-flow latencies (latency_trend points). Seeded, so the same inputs give the same answer.
+  function _rng(seed) {
+    var a = seed >>> 0;
+    return function () { a = (a + 0x6D2B79F5) >>> 0; var t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  function queueSim(res, flowsPerMin, opts) {
+    opts = opts || {};
+    var n = opts.arrivals || 5000, lam = (+flowsPerMin || 0) / 60;
+    var models = (((res.latency_trend || {}).per_model) || []).map(function (m) {
+      var svc = (m.points || []).map(function (p) { return num(p[1]); }).filter(function (x) { return x != null && x >= 0; });
+      if (!svc.length || !lam) return { model: bare(m.model), measured: svc.length > 0 };
+      var mean = svc.reduce(function (a, b) { return a + b; }, 0) / svc.length, rho = lam * mean;
+      var r = _rng(4646), t = 0, free = 0, waits = [], backlog = 0, maxQ = 0, ends = [];
+      for (var i = 0; i < n; i++) {
+        t += -Math.log(1 - r()) / lam;                                   // next arrival
+        var start = Math.max(t, free), s = svc[Math.floor(r() * svc.length)];
+        free = start + s; waits.push(start - t); ends.push(free);
+        while (ends.length && ends[0] <= t) ends.shift();               // finished before this arrival
+        maxQ = Math.max(maxQ, ends.length - 1);
+      }
+      var sorted = waits.slice().sort(function (a, b) { return a - b; });
+      var q = function (p) { return sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))]; };
+      backlog = rho >= 1 ? (lam - 1 / mean) * 3600 : 0;
+      return { model: bare(m.model), measured: true, mean_service_s: mean, capacity_per_min: 60 / mean, utilisation: rho,
+               keeps_up: rho < 1, mean_wait_s: waits.reduce(function (a, b) { return a + b; }, 0) / n, p95_wait_s: q(0.95),
+               max_queue: maxQ, backlog_per_hour: backlog };
+    });
+    return { flows_per_min: +flowsPerMin || 0, arrivals: n, models: models,
+             method: "One GPU, one flow at a time (as measured), first come first served; Poisson arrivals at the given rate; " +
+                     "service times drawn from this session's per-flow latencies; " + n + " simulated arrivals, fixed seed." };
+  }
+
   // ---- one plain sentence at the top of each session tab (restates stored numbers only) ----
   function tabSummaries(res) {
     var out = {}, rel = res.relative_comparison, pm = res.per_model || [];
@@ -635,7 +670,7 @@
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
-              workloadProjection: workloadProjection, costPerValid: costPerValid, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
+              workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, repeatability: repeatability,
               loadScaling: loadScaling, runEstimate: runEstimate, sampleSize: sampleSize, tabSummaries: tabSummaries };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

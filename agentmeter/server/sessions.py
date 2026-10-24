@@ -274,7 +274,8 @@ def compare_s(sa: dict, sb: dict) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Merged compare: every session on the SAME SETUP (same flows hash, same GPU, same settings)
 # ---------------------------------------------------------------------------
-MERGED_EXTRA = [("saw_composite_100", "SAW composite (stored, fixed targets)", "score", False)]
+MERGED_EXTRA = [("saw_composite_100", "SAW composite (stored, fixed targets)", "score", False),
+                ("saw_eff_composite_100", "SAW composite, efficiency only (stored)", "score", False)]
 
 
 def setup_key(s: dict) -> Optional[tuple]:

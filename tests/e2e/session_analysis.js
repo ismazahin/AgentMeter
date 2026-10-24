@@ -38,8 +38,14 @@ async function embedded(p, job, labelled, nModels, tag) {
   await fr.waitForSelector('#saw-body tr', { timeout: 20000 });
   log((await fr.$$('#saw-body tr')).length === nModels, tag + ': embedded Overview ranks the session\'s ' + nModels + ' model(s)');
   log(/Session analysis \(non-validated\)/.test(await fr.textContent('#ov-title')), tag + ': labelled Session analysis (non-validated)');
-  const noAcc = await fr.evaluate(() => document.body.classList.contains('no-accuracy'));
-  log(noAcc === !labelled, tag + ': accuracy panels ' + (labelled ? 'shown (labelled)' : 'hidden (unlabelled)'));
+  const cls = await fr.evaluate(() => [document.body.classList.contains('no-accuracy'), document.body.classList.contains('eff-view')]);
+  log(cls[0] && cls[1] === labelled, tag + ': efficiency view — accuracy panels hidden' + (labelled ? ', no "not measured" notes (labelled)' : ''));
+  const accCol = await fr.evaluate(() => { const th = document.querySelector('#saw th:nth-child(3)'); return th ? getComputedStyle(th).display : 'none'; });
+  log(accCol === 'none', tag + ': the embedded SAW table has no accuracy column');
+  if (labelled) {
+    const miss = await fr.$$eval('.acc-missing', els => els.filter(e => e.offsetParent !== null).length);
+    log(miss === 0, tag + ': nothing reads "accuracy not measured" on labelled data');
+  }
   if (!labelled) {
     const miss = await fr.$$eval('.acc-missing', els => els.filter(e => e.offsetParent !== null).map(e => e.textContent).join(' '));
     log(/not measured for unlabelled input/i.test(miss), tag + ': "accuracy not measured for unlabelled input"');

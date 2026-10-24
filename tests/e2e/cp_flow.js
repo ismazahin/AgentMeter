@@ -171,7 +171,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.check('#set-models input[value="microsoft/Phi-3-mini-4k-instruct"]'); await p.check('#set-models input[value="Qwen/Qwen2.5-7B-Instruct"]');
     await p.fill('#set-flows', '4'); await p.fill('#set-tz', 'Asia/Kuala_Lumpur');
     await p.click('#set-preset-add');
-    await p.fill('#pre-name-0', 'speed first'); await p.fill('#pre-accuracy-0', '0'); await p.fill('#pre-latency-0', '0.7'); await p.fill('#pre-vram-0', '0.2'); await p.fill('#pre-tokens-0', '0.1');
+    await p.fill('#pre-name-0', 'speed first'); await p.fill('#pre-latency-0', '0.7'); await p.fill('#pre-vram-0', '0.2'); await p.fill('#pre-tokens-0', '0.1');
     await p.check('#set-theme-dark');
     await p.click('#set-save'); await p.waitForFunction(() => /Saved/.test(document.getElementById('set-saved').textContent));
     await p.reload(); await p.waitForSelector('#view-settings:not([hidden])'); await p.waitForSelector('#set-account:not([hidden])');
@@ -202,7 +202,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     const st = await workerJson('/api/sessions/' + job1, (await loginApi('admin', 'admin-password-123')).access_token);
     log(st.status === 'Demo' && st.has_results && st.owner === 'alice', 'stored in the control plane: status Demo, results, owner alice');
     await p.click('#stab-ranking'); await p.click('#ssub-weighting'); await p.waitForSelector('#svc-weights-used');
-    log(/Stored scores use:/.test(await p.textContent('#svc-weights-used')), 'Model Ranking › Weighting shows the SAW weights the stored scores used');
+    log(/The score uses:/.test(await p.textContent('#svc-weights-used')) && !/accuracy \d/.test(await p.textContent('#svc-weights-used')), 'Model Ranking › Weighting shows the efficiency-only SAW weights');
     await p.selectOption('#svc-preset', '0');
     log(/speed first/.test(await p.textContent('#svc-preset-weights')) && await p.$$eval('#svc-preset-table tbody tr', r => r.length) === 2,
         'a preset re-ranks in the view only, naming its weights');

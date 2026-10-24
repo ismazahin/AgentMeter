@@ -266,7 +266,8 @@ export function evaluateFacts(facts: Record<string, any>[], limits?: Record<stri
 }
 
 // --- merged compare: every session on the SAME SETUP (port of sessions.py comparable_s / compare_many_s) ---
-export const MERGED_EXTRA: [string, string, string, boolean][] = [["saw_composite_100", "SAW composite (stored, fixed targets)", "score", false]];
+export const MERGED_EXTRA: [string, string, string, boolean][] = [["saw_composite_100", "SAW composite (stored, fixed targets)", "score", false],
+  ["saw_eff_composite_100", "SAW composite, efficiency only (stored)", "score", false]];
 
 export function setupKey(s: Summary): string | null {
   const i = s.identity || {};

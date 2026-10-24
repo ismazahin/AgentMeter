@@ -9,6 +9,9 @@
  */
 (function (global) {
   var CRIT = ["accuracy", "latency", "vram", "tokens"];
+  // A benchmark session is scored on resource efficiency only: agreement with the reference
+  // labels is a validity check of the output (output_reliability), never a scored criterion.
+  var ECRIT = ["latency", "vram", "tokens"];
 
   function bare(m) { return String(m || "").replace(/^mock:/, ""); }
   function short(m) { return bare(m).split("/").pop(); }
@@ -34,16 +37,16 @@
   }
 
   // ---- Overview: per-criterion profile ----------------------------------------------
-  // The four SAW criteria, normalised against the study targets (1 = meets the target),
-  // per model. A criterion with no readings for any model is flagged, not drawn as 0.
+  // The three efficiency criteria of the SAW score, normalised against the study targets
+  // (1 = meets the target), per model. A criterion with no readings for any model is flagged, not drawn as 0.
   function criteriaProfile(res) {
-    var p8 = res.phase8 || {}, lab = !!(res.session || {}).accuracy_available;
+    var p8 = res.phase8 || {};
     var rows = (p8.normalised || []).map(function (n) {
       var s = {};
-      CRIT.forEach(function (k) { s[k] = num(n[k]); });
+      ECRIT.forEach(function (k) { s[k] = num(n[k]); });
       return { model: bare(n.model), scores: s };
     });
-    return { criteria: CRIT.slice(), rows: rows, missing: missingCriteria(res), targets: p8.targets || {} };
+    return { criteria: ECRIT.slice(), rows: rows, missing: missingCriteria(res), targets: p8.targets || {} };
   }
 
   // ---- Overview: key findings ------------------------------------------------------
@@ -95,14 +98,13 @@
     } else if (res.cost_energy) {
       out.push({ key: "cost", text: "Cost and energy were not measured in this run: " + ((((res.cost_energy || {}).per_model || [])[0] || {}).cost_reason || "no GPU") + "." });
     }
-    if ((res.session || {}).accuracy_available) {
-      var acc = pm.map(function (m) { return { model: m.model, a: num((m.accuracy || {}).accuracy) }; }).filter(function (x) { return x.a != null; })
-        .sort(function (a, b) { return b.a - a.a; });
-      if (acc.length > 1 && Math.abs(acc[0].a - acc[acc.length - 1].a) < 1e-9) {
-        out.push({ key: "accuracy", text: "Accuracy (context): the models tie at " + pct(acc[0].a) + "." });
-      } else if (acc.length) {
-        out.push({ key: "accuracy", text: "Accuracy (context): " + short(acc[0].model) + " is highest at " + pct(acc[0].a) + "." });
-      }
+    var rl = ((res.output_reliability || {}).per_model || []).filter(function (m) { return num(m.valid_rate) != null; })
+      .sort(function (a, b) { return a.valid_rate - b.valid_rate; });
+    if (rl.length && rl.every(function (m) { return m.valid_rate === 1; })) {
+      out.push({ key: "valid", text: "Output validity: every model gave a usable answer for every flow." });
+    } else if (rl.length) {
+      out.push({ key: "valid", text: "Output validity: " + short(rl[0].model) + " gave a usable answer for " + pct(rl[0].valid_rate) +
+        " of flows (" + (rl[0].n_flows - rl[0].valid) + " without one) — see Output Reliability." });
     }
     return out;
   }
@@ -114,9 +116,9 @@
   // t with their leader, and the stable interval around the stored weight.
   var EPS = 1e-9;
   function weightStability(res, weights) {
-    var p8 = res.phase8 || {}, lab = !!(res.session || {}).accuracy_available;
-    var w0 = {}, tot = 0;
-    CRIT.forEach(function (k) { w0[k] = (k === "accuracy" && !lab) ? 0 : Math.max(0, +((weights || p8.weights || {})[k]) || 0); tot += w0[k]; });
+    var p8 = res.phase8 || {};
+    var w0 = {}, tot = 0;      // efficiency only: the accuracy weight is 0, the others renormalised
+    CRIT.forEach(function (k) { w0[k] = k === "accuracy" ? 0 : Math.max(0, +((weights || p8.weights || {})[k]) || 0); tot += w0[k]; });
     CRIT.forEach(function (k) { w0[k] = tot ? w0[k] / tot : 0.25; });
     var models = (p8.normalised || []).map(function (n) { var s = {}; CRIT.forEach(function (k) { s[k] = num(n[k]) || 0; }); return { model: bare(n.model), s: s }; });
     function leaderAt(k, t) {
@@ -128,7 +130,7 @@
       });
       return tie ? null : best;          // null: the top place is a tie at this weight
     }
-    var crits = CRIT.filter(function (k) { return lab || k !== "accuracy"; }), miss = missingCriteria(res);
+    var crits = ECRIT, miss = missingCriteria(res);
     var rows = crits.map(function (k) {
       var noData = miss[k], STEPS = 1000, segs = [];
       for (var i = 0; i <= STEPS; i++) {
@@ -302,19 +304,21 @@
       }) };
   }
 
-  // ---- Cost & Energy: what one correct answer costs (labelled runs; accuracy as context) ------
-  function costPerCorrect(res) {
-    if (!(res.session || {}).accuracy_available) return null;
+  // ---- Cost & Energy: what one VALID answer costs (flows without a usable answer are paid for too) ----
+  function costPerValid(res) {
+    var orl = {};
+    ((res.output_reliability || {}).per_model || []).forEach(function (r) { orl[bare(r.model)] = r; });
+    if (!Object.keys(orl).length) return null;
     var ce = {};
     ((res.cost_energy || {}).per_model || []).forEach(function (r) { ce[bare(r.model)] = r; });
     return (res.per_model || []).map(function (m) {
-      var a = num((m.accuracy || {}).accuracy), lat = num((((m.efficiency || {}).end_to_end) || {}).mean_latency_s), c = ce[bare(m.model)] || {};
-      var ok = a != null && a > 0;
-      return { model: bare(m.model), accuracy: a,
-               gpu_s_per_correct: ok && lat != null ? lat / a : null,
-               usd_per_1k_correct: ok && c.cost_per_1k_flows_usd != null ? c.cost_per_1k_flows_usd / a : null,
-               wh_per_correct: ok && c.wh_per_flow != null ? c.wh_per_flow / a : null,
-               flows_per_correct: ok ? 1 / a : null };
+      var r = orl[bare(m.model)] || {}, v = num(r.valid_rate), lat = num((((m.efficiency || {}).end_to_end) || {}).mean_latency_s), c = ce[bare(m.model)] || {};
+      var ok = v != null && v > 0;
+      return { model: bare(m.model), valid_rate: v,
+               gpu_s_per_valid: ok && lat != null ? lat / v : null,
+               usd_per_1k_valid: ok && c.cost_per_1k_flows_usd != null ? c.cost_per_1k_flows_usd / v : null,
+               wh_per_valid: ok && c.wh_per_flow != null ? c.wh_per_flow / v : null,
+               flows_per_valid: ok ? 1 / v : null };
     });
   }
 
@@ -386,7 +390,7 @@
   // often the faster model of this session was also the faster one in the other sessions.
   var REPEAT_METRICS = [["mean_latency_s", "Mean latency per flow", "s"], ["p95_latency_s", "p95 latency", "s"],
     ["mean_tokens_per_flow", "Tokens per flow", "tokens"], ["total_peak_mb", "Total peak VRAM", "MB"],
-    ["wh_per_flow", "Energy per flow", "Wh"], ["accuracy", "Accuracy (context)", "share"], ["saw_composite_100", "SAW score", "points"]];
+    ["wh_per_flow", "Energy per flow", "Wh"], ["saw_composite_100", "SAW score", "points"]];
   function repeatability(merged, sessionId) {
     var runs = (merged && merged.runs) || [], rows = {};
     ((merged && merged.rows) || []).forEach(function (r) { rows[r.metric] = r.values || []; });
@@ -507,8 +511,8 @@
   // ---- one plain sentence at the top of each session tab (restates stored numbers only) ----
   function tabSummaries(res) {
     var out = {}, rel = res.relative_comparison, pm = res.per_model || [];
-    // ranking: the stored SAW leader and how robust that is
-    var saw = pm.map(function (m) { return { model: m.model, v: num((m.saw || {}).composite_100) }; }).filter(function (x) { return x.v != null; })
+    // ranking: the stored efficiency-only SAW leader and how robust that is
+    var saw = pm.map(function (m) { return { model: m.model, v: num((m.saw_efficiency_only || m.saw || {}).composite_100) }; }).filter(function (x) { return x.v != null; })
       .sort(function (a, b) { return b.v - a.v; });
     if (saw.length > 1) {
       var tie = Math.abs(saw[0].v - saw[1].v) < 0.05;
@@ -517,15 +521,13 @@
         : short(saw[0].model) + " ranks first on the SAW score (" + saw[0].v.toFixed(1) + " vs " + saw[1].v.toFixed(1) + "); " +
           (flips.length ? "moving the " + flips.join(" or ") + " weight far enough can change that." : "no single weight change overturns it.");
     } else if (saw.length) out.ranking = "Single-model run: " + short(saw[0].model) + " scores " + saw[0].v.toFixed(1) + " on the SAW score.";
-    // accuracy (context)
-    var cm = classMetrics(res);
-    if (cm.available) {
-      var best = cm.models.slice().sort(function (a, b) { return (b.macro.f1 || 0) - (a.macro.f1 || 0); })[0];
-      var hard = best.classes.slice().sort(function (a, b) { return (a.f1 || 0) - (b.f1 || 0); })[0];
-      var tied = cm.models.length > 1 && cm.models.every(function (m) { return Math.abs((m.macro.f1 || 0) - (best.macro.f1 || 0)) < 0.005; });
-      out.accuracy = "Context only: " + (cm.models.length === 1 ? short(best.model) + " has macro F1 " :
-        tied ? "the models tie on macro F1 (" : short(best.model) + " has the higher macro F1 (") + (best.macro.f1 || 0).toFixed(2) + (cm.models.length === 1 ? "" : ")") +
-        "; the hardest class " + (tied ? "is " : "for it is ") + hard.cls + " (F1 " + (hard.f1 || 0).toFixed(2) + ").";
+    // output reliability: did every flow end with a usable answer?
+    var rl = ((res.output_reliability || {}).per_model || []).filter(function (m) { return num(m.valid_rate) != null; });
+    if (rl.length) {
+      var worst = rl.slice().sort(function (a, b) { return a.valid_rate - b.valid_rate; })[0];
+      out.reliability = rl.every(function (m) { return m.valid_rate === 1; })
+        ? "Every flow ended with a usable answer for " + (rl.length === 1 ? short(rl[0].model) : "every model") + ": the timings measure complete work."
+        : "Lowest share of usable answers: " + short(worst.model) + " at " + pct(worst.valid_rate) + " — check where answers fail before trusting its timings.";
     }
     // performance: the measured latency comparison
     var lat = rel && (rel.metrics || []).filter(function (m) { return m.metric === "mean_latency_s"; })[0];
@@ -562,7 +564,7 @@
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
-              workloadProjection: workloadProjection, costPerCorrect: costPerCorrect, deploymentFit: deploymentFit,
+              workloadProjection: workloadProjection, costPerValid: costPerValid, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, repeatability: repeatability,
               loadScaling: loadScaling, runEstimate: runEstimate, sampleSize: sampleSize, tabSummaries: tabSummaries };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

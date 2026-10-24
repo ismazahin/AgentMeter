@@ -38,7 +38,8 @@ def test_clear_winner_with_percentages_and_sentence():
                                        "rule": "dominance: wins at least one efficiency metric and loses none"}
     assert r["verdict"].startswith("A is more resource-efficient than B: 50.0% lower latency, "
                                    "20.0% less VRAM, 10.0% fewer tokens per flow.")
-    assert "Accuracy: A is higher by 10.0 percentage points (A 80.0% vs B 70.0%)." in r["verdict"]
+    assert r["verdict"].endswith("Validity check (answers matching the data set's reference label): A 80.0%, B 70.0%.")
+    assert "accura" not in r["verdict"].lower() and "higher" not in r["verdict"]   # a validity line, not a ranking
     # honest caveats: like-for-like note, A100 != L4, plus the session's own caveats
     assert any("same hardware and the same flows" in c for c in r["caveats"])
     assert any("NVIDIA A100" in c and "not comparable" in c for c in r["caveats"])
@@ -51,7 +52,7 @@ def test_near_identical_models_tie_instead_of_a_false_winner():
         assert metric(r, key)["winner"] == "tie", key
     assert r["efficiency_verdict"]["verdict"] == "tie" and r["efficiency_verdict"]["model"] is None
     assert r["verdict"].startswith("A and B are tied on resource efficiency")
-    assert "Accuracy: tie" in r["verdict"]
+    assert "Validity check (answers matching the data set's reference label): A 80.0%, B 81.0%." in r["verdict"]
 
 
 def test_thresholds_are_the_documented_ones():
@@ -74,14 +75,14 @@ def test_mixed_efficiency_and_trade_off_with_accuracy_are_spelled_out():
     assert r["efficiency_verdict"]["verdict"] == "mixed" and r["efficiency_verdict"]["model"] is None
     assert "A has 50.0% lower latency; B has 33.3% fewer tokens per flow" in r["verdict"]
     t = rel(pm(1.0, 1000, acc=0.50), pm(2.0, 1000, acc=0.90))
-    assert "Trade-off: A is more efficient, B is more accurate." in t["verdict"]
+    assert "Trade-off" not in t["verdict"] and "more accurate" not in t["verdict"]     # no detection trade-off claimed
 
 
 def test_unlabelled_is_efficiency_only_and_vram_can_be_unavailable():
     r = rel(pm(1.0, 1000), pm(1.5, 1000), labelled=False)
     assert r["accuracy_included"] is False and r["accuracy_verdict"] is None
     assert all(m["metric"] != "accuracy" for m in r["metrics"])
-    assert "Accuracy: not available (no ground-truth labels) — efficiency only." in r["verdict"]
+    assert "No reference labels in this data: efficiency only." in r["verdict"]
     vram = metric(r, "mean_peak_vram_mb")
     assert vram["available"] is False and vram["winner"] is None
     assert "(mean peak working VRAM: not available)" in r["verdict"]
@@ -123,7 +124,7 @@ def test_three_models_one_beats_every_other():
     assert r["verdict"].startswith("A is more resource-efficient than each of the other 2 models. Best per metric: lower latency: A (50.0% ahead of B)")
     acc = metric(r, "accuracy")
     assert (acc["winner"], acc["runner_up"], acc["diff_pp"]) == ("A", "C", 10.0)
-    assert "Accuracy: A is highest, 10.0 points ahead of C (A 90.0%, C 80.0%, B 70.0%)." in r["verdict"]
+    assert "Validity check (answers matching the data set's reference label): A 90.0%, B 70.0%, C 80.0%." in r["verdict"]
     # every pair is the ordinary 2-model comparison
     ab = next(p for p in r["pairs"] if p["models"] == ["A", "B"])
     assert ab["efficiency_verdict"]["model"] == "A" and "pairs" not in ab
@@ -135,7 +136,7 @@ def test_four_models_mixed_when_nobody_beats_all():
     assert ev["verdict"] == "mixed" and ev["model"] is None
     assert ev["wins"] == {"A": ["mean_latency_s"], "B": ["mean_tokens_per_flow"], "C": [], "D": []}
     assert r["verdict"].startswith("Mixed efficiency across the 4 models: no model beats every other one.")
-    assert "Accuracy: not available" in r["verdict"] and len(r["pairs"]) == 6
+    assert "No reference labels" in r["verdict"] and len(r["pairs"]) == 6
     assert [x["model"] for x in r["ranking"]][-1] == "D"
 
 

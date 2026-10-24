@@ -758,7 +758,7 @@
     <div class="page-head"><div>
       <h1 id="h-offline">Benchmark the resource efficiency of LLMs on your network flows</h1>
       <p>AgentMeter <b>measures</b> how efficiently open-source language models run a fixed 4-agent analysis task:
-        latency, GPU memory, tokens, cost and energy — plus accuracy as context when your data has labels. It is a
+        latency, GPU memory, tokens, cost and energy — plus a check that every answer is usable. It is a
         measurement tool, not a threat-detection product, and it makes no security decision about your network.</p>
     </div></div>
     <div class="notice error" id="svc-offline-notice" role="alert">
@@ -785,7 +785,7 @@
         <li><b>Data.</b> Upload a CSV (CIC-IDS2017 flows, with labels) or a PCAP. AgentMeter samples the flows you ask for and keeps them as a <i>prepared set</i> you can reuse.</li>
         <li><b>Models.</b> Pick one to four open models (4-bit). The wizard estimates the time and cost from earlier runs.</li>
         <li><b>Run.</b> Each flow goes through the agents — by default Perceive, Reason, Decide, Act, or your own pipeline — one model at a time, on the same GPU.</li>
-        <li><b>Read.</b> Each session tab opens with a one-line summary; tables download as CSV, line charts and diagrams as PNG. Accuracy is context: AgentMeter measures efficiency.</li>
+        <li><b>Read.</b> Each session tab opens with a one-line summary; tables download as CSV, line charts and diagrams as PNG. Reference labels only check that the output is valid: AgentMeter measures efficiency.</li>
       </ol>
     </div>
     <div id="home-empty" class="card empty" hidden>
@@ -804,7 +804,7 @@
   <section id="view-help" class="view" hidden aria-labelledby="h-help">
     <div class="page-head"><div>
       <h1 id="h-help">How to use AgentMeter</h1>
-      <p>AgentMeter measures how efficiently open LLMs run a 4-agent SOC triage pipeline on your own network flows: speed, GPU memory, tokens, cost and energy. Accuracy is shown as context.</p>
+      <p>AgentMeter measures how efficiently open LLMs run a 4-agent SOC triage pipeline on your own network flows: speed, GPU memory, tokens, cost and energy. Classifying the flows is the workload the agents perform, not what is being evaluated: the output is only checked for validity.</p>
     </div></div>
     <nav class="card help-toc" aria-label="On this page">
       <a href="#help-run">Run a benchmark</a><a href="#help-read">Read a session</a><a href="#help-tabs">What each tab answers</a>
@@ -813,7 +813,7 @@
     <div class="card" id="help-run">
       <h2>1. Run a benchmark</h2>
       <ol class="guide-steps">
-        <li><b>Data.</b> Open <a href="#/new">New benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for accuracy) or a PCAP. Choose how many flows to sample. The result is a <i>prepared set</i>; use <b>Reuse a prepared set</b> next time to skip this step.</li>
+        <li><b>Data.</b> Open <a href="#/new">New benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for the reference-label check) or a PCAP. Choose how many flows to sample. The result is a <i>prepared set</i>; use <b>Reuse a prepared set</b> next time to skip this step.</li>
         <li><b>Models.</b> Pick one to four open models. Every model runs in 4-bit NF4 on the same GPU, one at a time, so the numbers are comparable. The wizard estimates time and cost from earlier runs.</li>
         <li><b>Agents.</b> Keep the default pipeline (Perceive → Reason → Decide → Act) or build your own: up to 8 agents, from the built-ins, ready-made templates or agents you write. Exactly one agent gives the answer (a <i>label</i> agent); each agent reads the flow and/or earlier agents' answers.</li>
         <li><b>Options.</b> Tick <b>Load test</b> to also measure how throughput scales with 1, 2 and 4 flows in parallel.</li>
@@ -835,7 +835,7 @@
       <div class="table-wrap"><table id="help-tabs-table"><thead><tr><th>Tab</th><th>The question it answers</th></tr></thead><tbody>
         <tr><td>Overview</td><td>Which model is more efficient, by how much, and what should I know before trusting it?</td></tr>
         <tr><td>Model Ranking</td><td>How do the models score overall (SAW), and does the order hold if I care about different things?</td></tr>
-        <tr><td>Accuracy</td><td>Which attack classes does each model get right or miss? (Needs labelled flows; context, not the ranking.)</td></tr>
+        <tr><td>Output Reliability</td><td>Did every flow end with a usable answer, and where do answers fail (empty, cut off, not a label)? With labelled data, a reference-label check shows the output is not noise.</td></tr>
         <tr><td>Performance</td><td>How fast and how steady is each model, how much GPU does it use, and are the differences real or noise?</td></tr>
         <tr><td>Agent Analysis</td><td>Which agent (by default Perceive, Reason, Decide, Act) uses the time and tokens, what each one passes on, and what did they say for a given flow?</td></tr>
         <tr><td>Cost &amp; Energy</td><td>What would it cost per 1,000 flows and per day at my volume, and how much energy does it use?</td></tr>
@@ -856,10 +856,10 @@
       <dl class="help-dl">
         <dt>Flow</dt><dd>One network connection summarised as features (duration, packets, bytes, flags…). Each flow goes through the pipeline once.</dd>
         <dt>Prepared set</dt><dd>The sampled, cleaned flows from one upload. Reusing it keeps two runs on exactly the same data.</dd>
-        <dt>SAW score</dt><dd>Simple Additive Weighting: each criterion (accuracy, latency, VRAM, tokens) is scaled 0–1 and combined with weights into one score out of 100.</dd>
+        <dt>SAW score</dt><dd>Simple Additive Weighting: each efficiency criterion (latency, VRAM, tokens) is scaled 0–1 against a target and combined with weights into one score out of 100.</dd>
         <dt>p95 latency</dt><dd>95% of flows finished faster than this. It shows the slow tail that an analyst queue actually feels.</dd>
         <dt>VRAM</dt><dd>GPU memory. <i>Total peak</i> includes the model weights; <i>working</i> is what the agent calls add on top.</dd>
-        <dt>Label agent</dt><dd>The one agent in a pipeline that gives the answer: an attack class from the allowed list (Decide in the default pipeline). Accuracy is scored on its answer.</dd>
+        <dt>Label agent</dt><dd>The one agent in a pipeline that gives the answer: an attack class from the allowed list (Decide in the default pipeline). The reliability check reads its answer.</dd>
         <dt>Hand-off tokens</dt><dd>Earlier agents' output that a later agent's prompt re-sends: the overhead of splitting the work into agents.</dd>
         <dt>4-bit NF4</dt><dd>The quantisation every model runs in, so a 7B model fits on one GPU and all models are measured the same way.</dd>
         <dt>Demo (mock)</dt><dd>A run without a real model, to try the app. Its numbers are not measurements.</dd>
@@ -867,7 +867,7 @@
     </div>
     <div class="card" id="help-faq">
       <h2>6. Common questions</h2>
-      <details class="info"><summary>Why is the Accuracy tab greyed out?</summary><p class="small">The flows have no labels (a PCAP, or a CSV without a Label column), so the run measures efficiency only.</p></details>
+      <details class="info"><summary>Is AgentMeter a threat detector?</summary><p class="small">No. Classifying the flows is the realistic SOC workload the agents perform; AgentMeter measures what that work costs (time, GPU memory, tokens, money, energy). The answers are only checked for validity (Output Reliability) so a fast but unusable pipeline is never called efficient. Without labels (a PCAP) the reference-label check is skipped; everything else works.</p></details>
       <details class="info"><summary>Why does my result say "could not be tested" or "tie"?</summary><p class="small">With few flows, a difference can be noise. Performance → Statistics shows how many flows you need for a clear answer.</p></details>
       <details class="info"><summary>Why are cost or energy "not measured"?</summary><p class="small">Cost needs the GPU's hourly price: the live Vast.ai price, or <span class="mono">AGENTMETER_GPU_USD_PER_HOUR</span> on the GPU server. Energy needs the GPU's power reading, which some cloud GPUs do not expose. Demo runs measure neither.</p></details>
       <details class="info"><summary>Can I bring back the first-visit tips?</summary><p class="small">Yes: <button type="button" class="btn small-btn" id="help-guides-reset">Show the tips again</button> <span class="muted" id="help-guides-done" role="status"></span></p></details>
@@ -895,7 +895,7 @@
         <div id="src-file" role="tabpanel" aria-labelledby="tab-src-file">
           <label class="drop" id="svc-drop" for="svc-file">
             <strong>Choose a .csv, .pcap or .pcapng file</strong>
-            <span class="muted">CSV with labels: efficiency + accuracy · PCAP or CSV without labels: efficiency only</span><br>
+            <span class="muted">CSV with labels: efficiency + reference-label check · PCAP or CSV without labels: efficiency + validity only</span><br>
             <span class="muted small">CSV: CICFlowMeter flow exports — CIC-IDS2017, CSE-CIC-IDS2018, CIC-DDoS2019, CICFlowMeter V3/V4, Python CICFlowMeter</span><br>
             <span class="muted small" id="svc-limits">Maximum upload: 90 MB — use Import from a link for larger files</span>
             <input type="file" id="svc-file" name="file" accept=".csv,.pcap,.pcapng">
@@ -1065,7 +1065,7 @@
         <div class="guide-head"><h2>How to read a session</h2><button type="button" class="btn" id="session-guide-hide">Got it</button></div>
         <ul class="guide-steps">
           <li><b>Overview</b> — the verdict, key findings and your notes. <b>Model Ranking</b> — the SAW score, its weights and how robust the order is.</li>
-          <li><b>Accuracy</b> (context) — per-class precision, recall, F1 and mix-ups. <b>Performance</b> — latency, GPU and the statistics behind the verdict.</li>
+          <li><b>Output Reliability</b> — did every flow end with a usable answer, and where answers fail. <b>Performance</b> — latency, GPU and the statistics behind the verdict.</li>
           <li><b>Agent Analysis</b> — where time and tokens go inside the agent pipeline. <b>Cost &amp; Energy</b> — per 1,000 flows, projected to your volume.</li>
           <li><b>Recommendations</b> — does a model fit your limits? <b>Data &amp; Exports</b> — the report, raw results and the flows. Cards with a table or chart have CSV/PNG downloads.</li>
         </ul>
@@ -1073,7 +1073,7 @@
       <div class="tabs stabs" role="tablist" aria-label="Session sections" id="session-tabs">
         <a role="tab" href="#" data-tab="overview" id="stab-overview" aria-controls="spanel-overview">Overview</a>
         <a role="tab" href="#" data-tab="ranking" id="stab-ranking" aria-controls="spanel-ranking">Model Ranking</a>
-        <a role="tab" href="#" data-tab="accuracy" id="stab-accuracy" aria-controls="spanel-accuracy">Accuracy</a>
+        <a role="tab" href="#" data-tab="reliability" id="stab-reliability" aria-controls="spanel-reliability">Output Reliability</a>
         <a role="tab" href="#" data-tab="performance" id="stab-performance" aria-controls="spanel-performance">Performance</a>
         <a role="tab" href="#" data-tab="agents" id="stab-agents" aria-controls="spanel-agents">Agent Analysis</a>
         <a role="tab" href="#" data-tab="cost" id="stab-cost" aria-controls="spanel-cost">Cost &amp; Energy</a>
@@ -1083,7 +1083,7 @@
       <div class="subtabs-bar" role="tablist" aria-label="Views in this section" id="session-subtabs" hidden></div>
       <div role="tabpanel" id="spanel-overview" aria-labelledby="stab-overview"></div>
       <div role="tabpanel" id="spanel-ranking" aria-labelledby="stab-ranking" hidden></div>
-      <div role="tabpanel" id="spanel-accuracy" aria-labelledby="stab-accuracy" hidden></div>
+      <div role="tabpanel" id="spanel-reliability" aria-labelledby="stab-reliability" hidden></div>
       <div role="tabpanel" id="spanel-performance" aria-labelledby="stab-performance" hidden></div>
       <div role="tabpanel" id="spanel-agents" aria-labelledby="stab-agents" hidden></div>
       <div role="tabpanel" id="spanel-cost" aria-labelledby="stab-cost" hidden></div>
@@ -1119,8 +1119,7 @@
         <fieldset style="border:0;padding:0;margin:0">
           <legend class="small" style="font-weight:600;margin-bottom:6px">Rank by</legend>
           <div class="seg-opts" id="lb-sort">
-            <label><input type="radio" name="lb-sort" value="saw" checked> SAW score</label>
-            <label><input type="radio" name="lb-sort" value="efficiency"> Efficiency score</label>
+            <label><input type="radio" name="lb-sort" value="efficiency" checked> SAW score (efficiency)</label>
             <label><input type="radio" name="lb-sort" value="latency"> Latency</label>
             <label><input type="radio" name="lb-sort" value="vram"> Working VRAM</label>
             <label><input type="radio" name="lb-sort" value="total_vram"> Total peak VRAM</label>
@@ -1137,9 +1136,7 @@
         <fieldset style="border:0;padding:0;margin:0">
           <legend class="small" style="font-weight:600;margin-bottom:6px">Count wins by</legend>
           <div class="seg-opts" id="lb-by">
-            <label><input type="radio" name="lb-by" value="saw" checked> SAW score</label>
-            <label><input type="radio" name="lb-by" value="efficiency"> Efficiency score</label>
-            <label><input type="radio" name="lb-by" value="accuracy"> Accuracy</label>
+            <label><input type="radio" name="lb-by" value="efficiency" checked> SAW score (efficiency)</label>
           </div>
         </fieldset>
         <label class="check" style="margin-top:10px"><input type="checkbox" id="lb-demo"> Include demo sessions</label>
@@ -1183,7 +1180,7 @@
       </div>
       <hr class="sep">
       <h2>SAW weight presets</h2>
-      <p class="muted small">Presets re-rank in the view only; stored scores never change.<span class="info-i" tabindex="0" role="button" data-tip="Every view shows which weights it uses. Weights: accuracy, latency, VRAM, tokens (they are scaled to sum to 1).">i</span></p>
+      <p class="muted small">Presets re-rank in the view only; stored scores never change.<span class="info-i" tabindex="0" role="button" data-tip="Every view shows which weights it uses. Weights: latency, VRAM, tokens (scaled to sum to 1). Agreement with reference labels is a validity check, not a weight.">i</span></p>
       <div id="set-presets"></div>
       <div class="actions"><button type="button" class="btn" id="set-preset-add">Add a preset</button></div>
       <div id="set-error" class="notice error" role="alert" hidden></div>
@@ -1269,7 +1266,7 @@
   </section>
 </main>
 
-<footer><div class="wrap">AgentMeter measures how efficiently LLMs run: speed, memory, tokens, cost, energy. Accuracy is context only; it isn't a threat detector.</div></footer>
+<footer><div class="wrap">AgentMeter measures how efficiently LLMs run: speed, memory, tokens, cost, energy. The flows are its workload; it isn't a threat detector.</div></footer>
 
 <script src="report.js"></script>
 <script src="insights.js"></script>
@@ -1984,7 +1981,7 @@
     });
   }
   function modeChip(acc) {
-    return acc ? '<span class="chip ok">Labelled → efficiency + accuracy (context)</span>' : '<span class="chip warn">Unlabelled → efficiency only</span>';
+    return acc ? '<span class="chip ok">Labelled → efficiency + reference-label check</span>' : '<span class="chip warn">Unlabelled → efficiency + validity only</span>';
   }
   function distTable(s) {
     var cc = s.class_counts || {}, pool = cc.in_pool || s.class_distribution || {}, sel = s.label_distribution_selected || {};
@@ -2023,7 +2020,7 @@
       (samp.description ? '<p id="svc-sampling" class="small"><b>Sampling:</b> ' + esc(samp.description) + '.</p>' : "") +
       '<details><summary>Data summary</summary><div class="grid two" style="margin-top:10px"><dl class="kv" id="svc-counts">' +
       counts.map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("") + '</dl><div>' +
-      (csv && s.accuracy_available ? distTable(s) : '<p class="muted small">No ground-truth labels — the run measures efficiency only.</p>') + '</div></div></details>' +
+      (csv && s.accuracy_available ? distTable(s) : '<p class="muted small">No reference labels — the run measures efficiency; answers are still checked for validity.</p>') + '</div></div></details>' +
       '<details><summary>Flow-selection rules (' + (s.rules_fired || []).length + ' fired)</summary><div class="table-wrap"><table id="svc-rules-table"><thead><tr><th>Rule</th><th>Type</th><th>Result</th><th class="num">Flows admitted</th></tr></thead><tbody>' +
       rules + '</tbody></table></div></details>' +
       '<div class="actions" id="wiz-downloads"><span class="small muted" style="align-self:center">Prepared set <span class="mono" id="svc-set-id-value">' + esc(s.prepared_set) + '</span>:</span>' +
@@ -2157,7 +2154,7 @@
     $("wiz-settings").innerHTML = [
       ["Provider", HEALTH && HEALTH.provider === "real" ? "Real GPU · 4-bit NF4" + (HEALTH.engine === "vllm" ? " · vLLM engine" : "") : "Demo (no GPU)"],
       ["Flows", s ? fmtNum(s.rows_selected) : "from step 1 (" + ($("svc-max-flows").value || 50) + " max)"],
-      ["Evaluation", s ? (s.accuracy_available ? "efficiency + accuracy (context)" : "efficiency only") : "known when the data is ready"],
+      ["Evaluation", s ? (s.accuracy_available ? "efficiency, with a reference-label validity check" : "efficiency (no reference labels)") : "known when the data is ready"],
       ["Agents", PL.custom && !plIsDefault() ? plChain() + " (your own pipeline, " + PL.agents.length + " agents)" : "Perceive → Reason → Decide → Act (default)"]
     ].concat(estimateLine()).concat(downloadLine()).map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("");
   }
@@ -2534,20 +2531,20 @@
   // Session sections (workflow order) and the sub-views of the two data-heavy ones. Each section
   // and sub-view has its own link: #/session/<id>/<section>[/<view>].
   var SECTIONS = {
-    overview: {}, accuracy: {}, agents: {}, cost: {}, data: {},
-    ranking: { subs: [["scores", "Scores"], ["weighting", "Weighting"], ["robustness", "Robustness"], ["pareto", "Pareto & Trade-offs"], ["guide", "Model Guide"]] },
+    overview: {}, reliability: {}, agents: {}, cost: {}, data: {},
+    ranking: { subs: [["scores", "Scores"], ["weighting", "Weighting"], ["robustness", "Robustness"], ["guide", "Model Guide"]] },
     performance: { subs: [["comparison", "Comparison"], ["latency", "Latency"], ["gpu", "GPU & Throughput"], ["statistics", "Statistics"]] },
     recommendations: { subs: [["limits", "Your limits"], ["context", "Model context"], ["guidance", "Deployment guidance"]] }
   };
   // sections of the embedded analysis page (web/analysis.html data-part) shown under a view
   var EMBED_PARTS = {
     "ranking/scores": ["highlights", "saw"], "ranking/weighting": ["weights"], "ranking/robustness": ["robustness"],
-    "ranking/pareto": ["pareto"], "ranking/guide": ["modelctx", "faq", "glossary"], "accuracy": ["accuracy"],
+    "ranking/guide": ["modelctx", "faq", "glossary"],
     "performance/comparison": ["perclass"], "performance/latency": ["cov", "prefill"],
     "performance/gpu": ["throughput"], "performance/statistics": ["stats"],
     "recommendations/guidance": ["ds-rec", "ds-optim"]
   };
-  var LEGACY_TAB = { summary: "overview", detailed: "ranking", recommendation: "recommendations", downloads: "data" };
+  var LEGACY_TAB = { summary: "overview", detailed: "ranking", recommendation: "recommendations", downloads: "data", accuracy: "reliability" };
   var sessionTabs = Array.prototype.slice.call(document.querySelectorAll("#session-tabs [role=tab]"));
   var SUB_MEMORY = {};
   tablist($("session-tabs"), function (t) {
@@ -2688,7 +2685,6 @@
     if (!SECTIONS[k]) k = "overview";
     var subs = SECTIONS[k].subs, sub = null;
     if (subs) sub = subs.some(function (x) { return x[0] === parts[1]; }) ? parts[1] : (SUB_MEMORY[k] || subs[0][0]);
-    if (k === "accuracy" && SESSION.res && !(SESSION.res.session || {}).accuracy_available) k = "overview";
     return { tab: k, sub: sub };
   }
   function showSessionTab(tab) {
@@ -2714,15 +2710,12 @@
     $("h-session").textContent = (res.per_model || []).map(function (m) { return short(m.model); }).join(" vs ") || job.job_id;
     $("session-chips").innerHTML = '<span class="chip ' + (real ? "ok" : "warn") + '">' + (real ? "GPU: " + esc(env.gpu_name || "unknown") : "Demo (no GPU)") + '</span>' +
       '<span class="chip">' + fmtNum(s.n_flows) + ' flows</span><span class="chip">' + esc((s.source_type || "").toUpperCase()) + '</span>' +
-      '<span class="chip">' + (s.accuracy_available ? "labelled" : "unlabelled · efficiency only") + '</span>' +
+      '<span class="chip">' + (s.accuracy_available ? "labelled" : "no reference labels") + '</span>' +
       '<span class="chip mono" title="Session id ' + esc(job.job_id) + '">' + esc(shortId(job.job_id)) + '</span>' +
       (job.owner ? '<span class="chip" title="Started by">' + esc(job.owner) + '</span>' : "");
     setDl($("svc-dl-pdf"), pdfPath(job), "agentmeter_report_" + job.job_id + ".pdf");
     $("svc-dl-pdf").hidden = false;
     $("session-body").hidden = false;
-    var acc = $("stab-accuracy");
-    acc.setAttribute("aria-disabled", s.accuracy_available ? "false" : "true");
-    acc.title = s.accuracy_available ? "" : "No labels in this data — efficiency only";
     var base = "#/session/" + enc(job.job_id) + "/";
     if (window.INSIGHTS) setModelSlots(res);
     setAgentSlots(res);
@@ -2732,8 +2725,8 @@
     LC = {};                                         // line charts of this session (wired after render)
     $("spanel-overview").innerHTML = pane("main", overviewTab(res) + notesCard(job));
     $("spanel-ranking").innerHTML = lead("ranking") + pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
-        'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", stabilityCard(res)) + pane("pareto", "") + pane("guide", "");
-    $("spanel-accuracy").innerHTML = lead("accuracy") + pane("main", classMetricsCard(res));
+        'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", stabilityCard(res)) + pane("guide", "");
+    $("spanel-reliability").innerHTML = lead("reliability") + pane("main", reliabilityCard(res) + failureCard(res));
     $("spanel-performance").innerHTML = lead("performance") + pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
     $("spanel-agents").innerHTML = lead("agents") + pane("main", agentsTab(res));
     $("spanel-cost").innerHTML = lead("cost") + pane("main", costCard(res) + gpuTimelineCard(res) + projectionCard(res) + correctCard(res));
@@ -2755,12 +2748,12 @@
   }
   // SAW weights: the ones the stored scores used, and (view only) a user's preset
   function weightsText(w) {
-    return ["accuracy", "latency", "vram", "tokens"].filter(function (k) { return w && w[k] != null; })
+    return ["latency", "vram", "tokens"].filter(function (k) { return w && w[k] != null; })
       .map(function (k) { return k + " " + Number(w[k]).toFixed(2); }).join(" · ");
   }
   function presetRank(res, preset) {
-    var p8 = res.phase8 || {}, lab = !!(res.session || {}).accuracy_available, w = Object.assign({}, preset.weights);
-    if (!lab) w.accuracy = 0;                                // unlabelled: accuracy has no score (as stored SAW does)
+    var p8 = res.phase8 || {}, w = Object.assign({}, preset.weights);
+    w.accuracy = 0;                       // sessions rank on efficiency only; reference labels are a validity check
     var tot = ["accuracy", "latency", "vram", "tokens"].reduce(function (a, k) { return a + (+w[k] || 0); }, 0) || 1;
     Object.keys(w).forEach(function (k) { w[k] = (+w[k] || 0) / tot; });
     var rows = (p8.normalised || []).map(function (n) {
@@ -2770,9 +2763,9 @@
     return { weights: w, rows: rows };
   }
   function weightsCard(res) {
-    var p8 = res.phase8 || {}, presets = (SETTINGS && SETTINGS.weight_presets) || [];
-    return '<div class="card" id="svc-weights-card"><h2>SAW weights</h2><p class="small" id="svc-weights-used"><b>Stored scores use:</b> ' +
-      esc(weightsText(p8.weights) || "not recorded") + ' <span class="muted">(' + esc((res.notes || {}).saw_mode || "") + ')</span></p>' +
+    var p8 = res.phase8 || {}, presets = (SETTINGS && SETTINGS.weight_presets) || [], ew = (res.phase8_efficiency_only || {}).weights || p8.weights;
+    return '<div class="card" id="svc-weights-card"><h2>SAW weights</h2><p class="small" id="svc-weights-used"><b>The score uses:</b> ' +
+      esc(weightsText(ew) || "not recorded") + ' <span class="muted">(efficiency only: latency, VRAM and tokens; agreement with reference labels is a validity check under Output Reliability, not a criterion)</span></p>' +
       (presets.length ? '<div class="row"><div class="field"><label for="svc-preset">Re-rank with one of your presets (view only)</label><select id="svc-preset"><option value="">— stored weights —</option>' +
         presets.map(function (p, i) { return '<option value="' + i + '">' + esc(p.name) + '</option>'; }).join("") + '</select></div></div><div id="svc-preset-view"></div>'
         : '<p class="muted small">Add weight presets in Settings to re-rank here (view only).</p>') +
@@ -2793,6 +2786,7 @@
   }
 
   // Overview: headline, number tiles, per-model table, "Good to know" labels
+  function sawE(m) { return m.saw_efficiency_only || m.saw || {}; }
   function gpuShort(n) { return String(n || "").replace(/^NVIDIA\s+/, "").replace(/^GeForce\s+/, ""); }
   function headline(rel, pm) {
     if (!rel) return short((pm[0] || {}).model) + ": single-model run";
@@ -2812,10 +2806,10 @@
       var w = !m.available ? "not measured" : m.winner === "tie" ? "within the tie range" : short(m.winner) + (m.runner_up ? " vs " + short(m.runner_up) : "");
       return '<div class="tile" data-metric="' + esc(m.metric) + '"><div class="k">' + TILE[m.metric][0] + '</div><div class="v">' + esc(v) + '</div><div class="w">' + esc(w) + '</div></div>';
     });
-    var acc = rel.metrics.filter(function (m) { return m.metric === "accuracy"; })[0];
-    t.push('<div class="tile" data-metric="accuracy"><div class="k">Accuracy <span class="muted">(context)</span></div><div class="v">' +
-      (!lab || !acc ? "—" : acc.winner === "tie" ? "Tie" : "+" + acc.diff_pp + " pp") + '</div><div class="w">' +
-      esc(!lab || !acc ? "no labels" : acc.winner === "tie" ? "within " + rel.thresholds.accuracy_tie_pp + " pp" : short(acc.winner) + (acc.runner_up ? " vs " + short(acc.runner_up) : "")) + '</div></div>');
+    var orl = (res.output_reliability || {}).per_model || [];
+    var low = orl.slice().sort(function (a, b) { return (a.valid_rate || 0) - (b.valid_rate || 0); })[0];
+    t.push('<div class="tile" data-metric="valid"><div class="k">Valid answers</div><div class="v">' + (low ? fmtPct(low.valid_rate) : "—") + '</div><div class="w">' +
+      esc(!low ? "not recorded" : orl.every(function (m) { return m.valid_rate === 1; }) ? "every model, every flow" : "lowest: " + short(low.model)) + '</div></div>');
     return '<div class="tiles" id="svc-tiles">' + t.join("") + '</div>';
   }
   // the stored caveat sentences, shown as short labels (each opens its full sentence)
@@ -2853,6 +2847,7 @@
     var lab = !!s.accuracy_available, h = [];
     var ce = {}; ((res.cost_energy || {}).per_model || []).forEach(function (r) { ce[r.model] = r; });
     var mm = {}; ((res.memory || {}).per_model || []).forEach(function (r) { mm[r.model] = r; });
+    var vr = {}; ((res.output_reliability || {}).per_model || []).forEach(function (r) { vr[r.model] = r; });
     var real = env.provider === "real";
     h.push('<div class="card" id="svc-verdict-card"><h2 class="headline" id="svc-headline">' + esc(headline(rel, pm)) + '</h2>' + tiles(res) +
       '<p id="svc-env" class="small" style="margin:6px 0 0">' + (real ? '<span class="chip ok">Real GPU · ' + esc(gpuShort(env.gpu_name) || "unknown") + '</span>'
@@ -2872,14 +2867,14 @@
         '</td><td class="num">' + ((mm[m.model] || {}).total_peak_mb != null ? fmtMB(mm[m.model].total_peak_mb) : '<span class="muted">' + esc((mm[m.model] || {}).status || "—") + '</span>') +
         '</td><td class="num">' + (c.cost_per_1k_flows_usd != null ? fmtUsd(c.cost_per_1k_flows_usd) : '<span class="muted">' + esc(c.cost_status || "—") + '</span>') +
         '</td><td class="num">' + (c.wh_per_flow != null ? fmtWh(c.wh_per_flow) : '<span class="muted">' + esc(c.energy_status || "—") + '</span>') + '</td>' +
-        (lab ? '<td class="num">' + fmtPct(m.accuracy && m.accuracy.accuracy) + '</td>' : "") +
-        '<td class="num">' + esc(m.saw.composite_100) + ' <span class="muted">' + esc(m.saw.tier) + '</span></td></tr>';
+        '<td class="num">' + (vr[m.model] ? fmtPct(vr[m.model].valid_rate) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="num">' + esc(sawE(m).composite_100) + ' <span class="muted">' + esc(sawE(m).tier) + '</span></td></tr>';
     }).join("");
     h.push('<div class="card"><h2>Per model</h2><div class="table-wrap"><table id="svc-models-table"><thead><tr><th>Model</th><th class="num">Latency / flow</th><th class="num">p95</th><th class="num">Tokens / flow</th>' +
       '<th class="num">Working VRAM' + tip("Excludes the model weights: the memory the agent calls add") + '</th><th class="num">Total peak VRAM' + tip("Model weights + working memory") + '</th>' +
       '<th class="num">Cost / 1k flows</th><th class="num">Energy / flow</th>' +
-      (lab ? '<th class="num">Accuracy (context)</th>' : "") + '<th class="num">SAW' + (lab ? "" : " (efficiency)") + '</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
-      '<p class="muted small">Accuracy is context only.' + tip("AgentMeter measures efficiency; it does not rank threat detectors.") + '</p></div>');
+      '<th class="num">Valid answers' + tip("Share of flows with a usable answer (see Output Reliability)") + '</th><th class="num">SAW (efficiency)</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<p class="muted small">The SAW score uses latency, VRAM and tokens only.' + tip("AgentMeter measures how efficiently LLMs run the SOC workload; the reference labels only check that the output is valid.") + '</p></div>');
     var items = caveatItems((rel ? rel.caveats : s.caveats) || []);
     h.push('<div class="card" id="svc-caveats-card"><h2>Good to know</h2><div class="gtk" id="svc-caveats">' +
       items.map(function (x, i) { return '<button type="button" data-cav="' + i + '" aria-expanded="false" aria-controls="svc-cav-detail">' + esc(x.label) + '</button>'; }).join("") +
@@ -2910,14 +2905,14 @@
     var pr = INSIGHTS.criteriaProfile(res), names = pr.rows.map(function (r) { return r.model; });
     if (!pr.rows.length) return "";
     var body = pr.criteria.map(function (k) {
-      return '<div class="prof-row" data-crit="' + k + '"><span class="lbl">' + CRIT_LABEL[k] + (pr.missing[k] ? '<small>' + (k === "accuracy" ? "no labels" : "no readings") + '</small>' : "") + '</span><div class="prof-bars">' +
+      return '<div class="prof-row" data-crit="' + k + '"><span class="lbl">' + CRIT_LABEL[k] + (pr.missing[k] ? '<small>no readings</small>' : "") + '</span><div class="prof-bars">' +
         pr.rows.map(function (r, i) {
           var v = r.scores[k], na = pr.missing[k] || v == null;
           var txt = short(r.model) + " · " + CRIT_LABEL[k] + ": " + (na ? "not measured" : v.toFixed(2) + " of 1.00 (target)");
           return '<div class="ibar' + (na ? " na" : "") + '" tabindex="0" data-hover="' + esc(txt) + '" aria-label="' + esc(txt) + '"><span class="track"><span class="fill" style="--c:' + modelColor(r.model) + ';width:' + (na ? 0 : Math.min(100, 100 * v)) + '%"></span><span class="tgt" style="left:100%"></span></span><span class="val">' + (na ? "n/a" : v.toFixed(2)) + '</span></div>';
         }).join("") + '</div></div>';
     }).join("");
-    return '<div class="card" id="svc-profile"><h2>Criteria profile</h2><p class="muted small" style="margin-top:0">Each criterion scored against the study target: 1.00 (dashed line) meets the target. These are the four inputs of the SAW score.</p>' +
+    return '<div class="card" id="svc-profile"><h2>Criteria profile</h2><p class="muted small" style="margin-top:0">Each criterion scored against the study target: 1.00 (dashed line) meets the target. These are the three inputs of the SAW score (efficiency only).</p>' +
       legendHtml(names) + '<div class="prof" role="group" aria-label="Criteria profile">' + body + '</div>' +
       '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-profile-table"><thead><tr><th>Model</th>' +
       pr.criteria.map(function (k) { return '<th class="num">' + CRIT_LABEL[k] + '</th>'; }).join("") + '</tr></thead><tbody>' +
@@ -2950,51 +2945,54 @@
           (row.no_data ? "any (no readings)" : row.stable ? r2(row.stable[0]) + " – " + r2(row.stable[1]) : "—") + '</td></tr>';
       }).join("") + '</tbody></table></div></details></div>';
   }
-  // Accuracy: precision / recall / F1 per class and the most common mix-ups (from the confusion matrices)
-  function classMetricsCard(res) {
-    if (!window.INSIGHTS) return "";
-    var cm = INSIGHTS.classMetrics(res);
-    if (!cm.available) return "";
-    var f2 = function (v) { return v == null ? "—" : v.toFixed(2); };
-    var classes = cm.models[0].classes.map(function (c) { return c.cls; }), names = cm.models.map(function (m) { return m.model; });
-    var by = function (m, c) { return m.classes.filter(function (x) { return x.cls === c; })[0] || {}; };
-    var dotRow = function (label, sub, vals) {
-      return '<div class="dot-row"><span class="lbl">' + esc(label) + (sub ? '<small>' + esc(sub) + '</small>' : "") + '</span><div class="dot-track">' +
-        vals.map(function (v) {
-          // one lane per model (session slot), so equal values never hide a dot
-          var lane = vals.length > 1 ? (MODEL_SLOT[v.model] ? 7 : -7) : 0;
-          return v.value == null ? "" : '<span class="dot" tabindex="0" style="left:' + (100 * v.value) + '%;margin-top:' + (lane - 6) + 'px;--c:' + modelColor(v.model) + '" data-hover="' + esc(v.text) + '" aria-label="' + esc(v.text) + '"></span>';
-        }).join("") + '</div></div>';
-    };
-    var rows = classes.map(function (c) {
-      return dotRow(c, by(cm.models[0], c).support + " flows", cm.models.map(function (m) {
-        var x = by(m, c);
-        return { model: m.model, value: x.f1, text: short(m.model) + " · " + c + ": F1 " + f2(x.f1) + " (precision " + (x.precision == null ? "never predicted" : f2(x.precision)) + ", recall " + f2(x.recall) + ")" };
-      }));
-    }).join("") + dotRow("Macro average", "all classes", cm.models.map(function (m) {
-      return { model: m.model, value: m.macro.f1, text: short(m.model) + " · macro F1 " + f2(m.macro.f1) + " (precision " + f2(m.macro.precision) + ", recall " + f2(m.macro.recall) + ")" };
-    }));
-    var head = '<tr><th rowspan="2">Class</th><th class="num" rowspan="2">Flows</th>' + cm.models.map(function (m) { return '<th colspan="3" class="num">' + esc(short(m.model)) + '</th>'; }).join("") + '</tr><tr>' +
-      cm.models.map(function () { return '<th class="num">Precision</th><th class="num">Recall</th><th class="num">F1</th>'; }).join("") + '</tr>';
-    var body = classes.map(function (c) {
-      return '<tr><td>' + esc(c) + '</td><td class="num">' + by(cm.models[0], c).support + '</td>' + cm.models.map(function (m) {
-        var x = by(m, c);
-        return '<td class="num">' + (x.precision == null ? '<span class="muted" title="never predicted">—</span>' : f2(x.precision)) + '</td><td class="num">' + f2(x.recall) + '</td><td class="num"><b>' + f2(x.f1) + '</b></td>';
-      }).join("") + '</tr>';
-    }).join("") + '<tr class="total"><td>Macro average</td><td></td>' + cm.models.map(function (m) {
-      return '<td class="num">' + f2(m.macro.precision) + '</td><td class="num">' + f2(m.macro.recall) + '</td><td class="num"><b>' + f2(m.macro.f1) + '</b></td>';
-    }).join("") + '</tr>';
-    var mix = cm.models.map(function (m) {
-      return '<div class="mix"><h3>' + esc(short(m.model)) + '</h3>' + (m.mixups.length ? '<ol class="list">' + m.mixups.map(function (x) {
-        return '<li><b>' + esc(x.truth) + '</b> answered as <b>' + esc(x.predicted) + '</b>: ' + x.count + ' of ' + Math.round(x.count / x.share) + ' (' + fmtPct(x.share) + ')</li>';
-      }).join("") + '</ol>' : '<p class="muted small">No mix-ups.</p>') +
-        '<p class="small muted">Unparseable answers: ' + m.unparseable + ' of ' + m.n + (m.unparseable ? ' (' + fmtPct(m.unparseable / m.n) + ') — counted as misses' : "") + '</p></div>';
+  // Output Reliability: is the pipeline's output usable? A validity check of the output, not a
+  // detection score — nothing here enters a score, rank or verdict.
+  function reliabilityCard(res) {
+    var r = res.output_reliability;
+    if (!r) return '<div class="card" id="rel-card"><h2>Valid answers</h2><p class="muted small">This session predates the output-reliability check; the per-agent failures below still apply.</p></div>';
+    var pm = r.per_model.slice().sort(function (a, b) { return (MODEL_SLOT[INSIGHTS.bare(a.model)] || 0) - (MODEL_SLOT[INSIGHTS.bare(b.model)] || 0); });
+    var cnt = function (k, m) { return m[k] ? '<b>' + fmtNum(m[k]) + '</b>' : '<span class="muted">0</span>'; };
+    var bars = pm.map(function (m) {
+      var t = short(m.model) + ": " + fmtPct(m.valid_rate) + " valid (" + m.valid + " of " + m.n_flows + " flows)";
+      return '<div class="hbar"><span class="lbl">' + esc(short(m.model)) + '</span><span class="track" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"><span class="fill" style="display:block;width:' +
+        (100 * (m.valid_rate || 0)).toFixed(1) + '%;background:' + modelColor(m.model) + '"></span></span><span class="val">' + fmtPct(m.valid_rate) + ' <span class="muted small">(' + m.valid + '/' + m.n_flows + ')</span></span></div>';
     }).join("");
-    return '<div class="card" id="svc-class-metrics"><h2>Precision, recall and F1 by class</h2><p class="muted small" style="margin-top:0">F1 balances how often a label is right when given (precision) against how many flows of that class are found (recall). Context only: AgentMeter measures efficiency, not detection quality.</p>' +
-      legendHtml(names) + '<div class="dot-axis"><span></span><div><span>0</span><span>0.5</span><span>1</span></div></div><div class="dots">' + rows + '</div>' +
-      '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-class-metrics-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div>' +
-      '<p class="muted small">"—": the model never gave this label, so precision is undefined (counted as 0 in the macro average).</p></details></div>' +
-      '<div class="card" id="svc-mixups"><h2>Most common mix-ups</h2><p class="muted small" style="margin-top:0">The true class and the label the model gave instead, largest first (up to 5).</p><div class="mix-grid">' + mix + '</div></div>';
+    var cons = function (m) {
+      var c = m.verdict_consistency;
+      return !r.verdict_agent ? '<span class="muted">no verdict agent</span>' : !c ? '<span class="muted">not recorded</span>' : fmtPct(c.rate) + ' <span class="muted small">(' + c.agree + '/' + c.checked + ')</span>';
+    };
+    return '<div class="card" id="rel-card"><h2>Valid answers</h2><p class="muted small" style="margin-top:0">Each flow should end with one usable answer: a label from the allowed list from the <b>' + esc(agName(r.label_agent)) +
+      '</b> agent, and no agent returning nothing. This checks that the output can be used downstream; it is not a detection score and enters no score or ranking.</p>' +
+      '<div class="hbars" id="rel-bars">' + bars + '</div>' +
+      '<div class="table-wrap" style="margin-top:12px"><table id="rel-table"><thead><tr><th>Model</th><th class="num">Valid answers</th><th class="num">Not a label</th><th class="num">Empty answer</th><th class="num">Hit token budget</th><th>' +
+        (r.verdict_agent ? esc(agName(r.verdict_agent)) + ' agrees with ' + esc(agName(r.label_agent)) : "Verdict consistency") + '</th>' + (r.labelled ? '<th class="num">Reference-label check</th>' : "") + '</tr></thead><tbody>' +
+      pm.map(function (m) {
+        return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtPct(m.valid_rate) + '</td><td class="num">' + cnt("unparseable", m) + '</td><td class="num">' + cnt("empty", m) +
+          '</td><td class="num">' + cnt("truncated", m) + '</td><td>' + cons(m) + '</td>' + (r.labelled ? '<td class="num">' + (m.reference_agreement ? fmtPct(m.reference_agreement.rate) : "—") + '</td>' : "") + '</tr>';
+      }).join("") + '</tbody></table></div>' +
+      '<details class="info"><summary>What each column means</summary><ul class="small list">' +
+        '<li><b>Valid answers</b> — ' + esc(r.definitions.valid) + '.</li>' +
+        '<li><b>Hit token budget</b> — ' + esc(r.definitions.truncated) + '. The answer can still be valid.</li>' +
+        '<li><b>Agreement</b> — ' + esc(r.definitions.verdict_consistency) + '.</li>' +
+        (r.labelled ? '<li><b>Reference-label check</b> — ' + esc(r.definitions.reference_agreement) + '. A fast pipeline that answers at random would not be a fair efficiency result; this number guards against that.</li>' : "") +
+      '</ul></details></div>';
+  }
+  // per agent: where the pipeline's answers go wrong (from the per-agent breakdown)
+  function failureCard(res) {
+    var ag = res.agents;
+    if (!ag) return "";
+    var rows = [];
+    ag.per_model.forEach(function (m) {
+      m.agents.forEach(function (a) {
+        var f = a.failures || {};
+        rows.push('<tr><td class="mono">' + esc(short(m.model)) + '</td><td><span class="legend"><span style="--c:' + agColor(a.agent) + '">' + esc(agName(a.agent)) + '</span></span></td><td class="num">' + fmtNum(f.empty_output) +
+          '</td><td class="num">' + (f.hit_token_cap == null ? '<span class="muted">no budget</span>' : fmtNum(f.hit_token_cap) + ' <span class="muted small">(budget ' + f.token_cap + ')</span>') +
+          '</td><td class="num">' + (f.unparseable_label == null ? '<span class="muted">—</span>' : fmtNum(f.unparseable_label)) + '</td><td class="num">' + fmtPct(a.failure_rate) + '</td></tr>');
+      });
+    });
+    return '<div class="card" id="rel-failures"><h2>Where answers fail</h2><p class="muted small" style="margin-top:0">Per agent: empty answers, answers stopped at the agent\'s output-token budget, and label replies that match no allowed label. A high rate points at a prompt or budget to fix before trusting the timings.</p>' +
+      '<div class="table-wrap"><table id="rel-failures-table"><thead><tr><th>Model</th><th>Agent</th><th class="num">Empty</th><th class="num">At token budget</th><th class="num">Not a label</th><th class="num">Failure rate</th></tr></thead><tbody>' +
+      rows.join("") + '</tbody></table></div></div>';
   }
   function wireOverview(res) {
     var box = $("svc-caveats"), det = $("svc-cav-detail"), texts = $("svc-cav-texts");
@@ -3012,11 +3010,10 @@
     var rel = res.relative_comparison, pm = res.per_model, names = pm.map(function (m) { return m.model; });
     if (!rel) return '<div class="card"><h2>Head-to-head</h2><p class="muted">Single-model run: there is no second model to compare with.</p></div>';
     var multi = names.length > 2;
-    var rr = rel.metrics.map(function (m) {
-      var isAcc = m.metric === "accuracy";
-      var f = isAcc ? fmtPct : m.metric === "mean_latency_s" ? fmtTime : m.metric === "mean_peak_vram_mb" ? fmtMB : function (v) { return fmtNum(v); };
+    var rr = rel.metrics.filter(function (m) { return m.metric !== "accuracy"; }).map(function (m) {
+      var f = m.metric === "mean_latency_s" ? fmtTime : m.metric === "mean_peak_vram_mb" ? fmtMB : function (v) { return fmtNum(v); };
       var res2 = !m.available ? '<span class="muted">not available</span>' : m.winner === "tie" ? (multi ? "no clear best" : "tie") + ' <span class="muted">(' + esc(m.note || "") + ')</span>'
-        : esc(short(m.winner)) + ' — ' + (isAcc ? m.diff_pp + " pp higher" : m.pct_better + "% better") + (m.runner_up ? " than " + esc(short(m.runner_up)) : "");
+        : esc(short(m.winner)) + ' — ' + m.pct_better + "% better" + (m.runner_up ? " than " + esc(short(m.runner_up)) : "");
       return '<tr><td>' + esc(m.label) + (m.metric === "mean_peak_vram_mb" ? ' <span class="muted small">(excludes model weights)</span>' : "") + '</td>' +
         names.map(function (n) { return '<td class="num">' + f(m.values[n]) + '</td>'; }).join("") + '<td>' + res2 + '</td></tr>';
     }).join("");
@@ -3029,7 +3026,7 @@
       '<ol class="small" id="svc-pair-ranking">' + rel.ranking.map(function (r) { return '<li><b>' + esc(short(r.model)) + '</b> — ' + r.pair_wins + ' pair win' + (r.pair_wins === 1 ? "" : "s") + ', ' + r.pair_losses + ' loss' + (r.pair_losses === 1 ? "" : "es") + '</li>'; }).join("") + '</ol>';
     return '<div class="card"><h2>' + (multi ? "All " + names.length + " models" : "Head-to-head") + '</h2><p class="muted small">Fair comparison: same flows, same GPU.' +
       '<span class="info-i" tabindex="0" title="Ties: within ' + (rel.thresholds.efficiency_tie_rel * 100) + '% (latency and VRAM also need p < ' + rel.thresholds.significance_alpha +
-      '); accuracy within ' + rel.thresholds.accuracy_tie_pp + ' pp.">i</span></p>' +
+      ').">i</span></p>' +
       '<div class="table-wrap"><table id="svc-relative-table"><thead><tr><th>Metric</th>' + names.map(function (n) { return '<th class="num">' + esc(short(n)) + '</th>'; }).join("") + '<th>' + (multi ? "Best" : "Result") + '</th></tr></thead><tbody>' + rr + '</tbody></table></div>' + pairs + '</div>';
   }
   function costCard(res) {
@@ -3422,20 +3419,21 @@
     f.addEventListener("submit", function (ev) { ev.preventDefault(); });
     draw();
   }
-  // Cost & Energy: what one correct answer costs (accuracy as context)
+  // Cost & Energy: what one VALID answer costs (flows that end without a usable answer are paid for too)
   function correctCard(res) {
-    var rows = window.INSIGHTS && INSIGHTS.costPerCorrect(res);
+    var rows = window.INSIGHTS && INSIGHTS.costPerValid(res);
     if (!rows || !rows.length) return "";
-    var mx = Math.max.apply(null, rows.map(function (r) { return r.gpu_s_per_correct || 0; })) || 1;
-    return '<div class="card" id="cost-correct"><h2>Cost per correct answer</h2><p class="muted small" style="margin-top:0">A cheap model that is often wrong can cost more per useful answer. GPU time per correct answer = time per flow ÷ accuracy (lower is better). Accuracy is context; this re-reads the stored numbers.</p>' +
+    var mx = Math.max.apply(null, rows.map(function (r) { return r.gpu_s_per_valid || 0; })) || 1;
+    return '<div class="card" id="cost-valid"><h2>Cost per valid answer</h2><p class="muted small" style="margin-top:0">A flow that ends without a usable answer still costs GPU time. GPU time per valid answer = time per flow ÷ share of valid answers (lower is better; see Output Reliability).</p>' +
       rows.map(function (r) {
-        var t = short(r.model) + ": " + (r.gpu_s_per_correct == null ? "no correct answers" : fmtTime(r.gpu_s_per_correct) + " of GPU time per correct answer (" + fmtNum(r.flows_per_correct, 1) + " flows per correct one)");
-        return '<div class="cat-row"><span class="lbl">' + esc(short(r.model)) + '<small>accuracy ' + fmtPct(r.accuracy) + '</small></span><div class="cat-track"><div class="proj-bar" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '" style="width:' + (r.gpu_s_per_correct == null ? 0 : 100 * r.gpu_s_per_correct / mx) + '%;--c:' + modelColor(r.model) + '"></div></div><span class="val">' + (r.gpu_s_per_correct == null ? "—" : fmtTime(r.gpu_s_per_correct)) + '</span></div>';
+        var t = short(r.model) + ": " + (r.gpu_s_per_valid == null ? "no valid answers" : fmtTime(r.gpu_s_per_valid) + " of GPU time per valid answer (" + fmtNum(r.flows_per_valid, 2) + " flows per valid one)");
+        return '<div class="cat-row"><span class="lbl">' + esc(short(r.model)) + '<small>valid ' + fmtPct(r.valid_rate) + '</small></span><div class="cat-track"><div class="proj-bar" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '" style="width:' +
+          (r.gpu_s_per_valid == null ? 0 : (100 * r.gpu_s_per_valid / mx).toFixed(1)) + '%;background:' + modelColor(r.model) + '"></div></div><span class="val">' + (r.gpu_s_per_valid == null ? "—" : fmtTime(r.gpu_s_per_valid)) + '</span></div>';
       }).join("") +
-      '<div class="table-wrap" style="margin-top:10px"><table id="cost-correct-table"><thead><tr><th>Model</th><th class="num">Accuracy</th><th class="num">Flows per correct answer</th><th class="num">GPU time / correct</th><th class="num">Cost / 1,000 correct</th><th class="num">Energy / correct</th></tr></thead><tbody>' +
+      '<div class="table-wrap" style="margin-top:10px"><table id="cost-valid-table"><thead><tr><th>Model</th><th class="num">Valid answers</th><th class="num">Flows per valid answer</th><th class="num">GPU time / valid</th><th class="num">Cost / 1,000 valid</th><th class="num">Energy / valid</th></tr></thead><tbody>' +
       rows.map(function (r) {
-        return '<tr><td class="mono">' + esc(short(r.model)) + '</td><td class="num">' + fmtPct(r.accuracy) + '</td><td class="num">' + fmtNum(r.flows_per_correct, 2) + '</td><td class="num">' + fmtTime(r.gpu_s_per_correct) +
-          '</td><td class="num">' + (r.usd_per_1k_correct == null ? '<span class="muted">not measured</span>' : fmtUsd(r.usd_per_1k_correct)) + '</td><td class="num">' + (r.wh_per_correct == null ? '<span class="muted">not measured</span>' : fmtWh(r.wh_per_correct)) + '</td></tr>';
+        return '<tr><td class="mono">' + esc(short(r.model)) + '</td><td class="num">' + fmtPct(r.valid_rate) + '</td><td class="num">' + fmtNum(r.flows_per_valid, 2) + '</td><td class="num">' + fmtTime(r.gpu_s_per_valid) +
+          '</td><td class="num">' + (r.usd_per_1k_valid == null ? '<span class="muted">not measured</span>' : fmtUsd(r.usd_per_1k_valid)) + '</td><td class="num">' + (r.wh_per_valid == null ? '<span class="muted">not measured</span>' : fmtWh(r.wh_per_valid)) + '</td></tr>';
       }).join("") + '</tbody></table></div></div>';
   }
   function memoryCard(res) {
@@ -3892,12 +3890,11 @@
     if (!a || !rest.length) { showError($("cmp-error"), { error: "Pick a session and at least one session to compare it with." }); return; }
     location.hash = "#/compare?sessions=" + [a].concat(rest).map(enc).join(",");
   });
-  var CMP_TABS = [["overview", "Overview"], ["performance", "Performance"], ["cost", "Cost & Energy"], ["accuracy", "Accuracy"]];
+  var CMP_TABS = [["overview", "Overview"], ["performance", "Performance"], ["cost", "Cost & Energy"]];
   var CMP_GROUPS = {
     performance: ["mean_latency_s", "median_latency_s", "p95_latency_s", "p99_latency_s", "mean_peak_vram_mb", "max_peak_vram_mb", "total_peak_mb",
                   "weights_mb", "mean_tokens_per_flow", "mean_input_tokens_per_flow", "mean_output_tokens_per_flow", "handoff_share_of_total", "throughput_flows_per_s"],
-    cost: ["cost_per_1k_flows_usd", "wh_per_flow", "wh_per_1k_flows", "wh_per_flow_net_idle"],
-    accuracy: ["accuracy", "saw_composite_100"]
+    cost: ["cost_per_1k_flows_usd", "wh_per_flow", "wh_per_1k_flows", "wh_per_flow_net_idle"]
   };
   function runMerged(ids) {
     $("cmp-result").innerHTML = '<p class="muted">Loading…</p>';
@@ -3944,22 +3941,21 @@
       return b.length === 1 ? cols[b[0]].head : vals.filter(function (v) { return v != null; }).length > 1 ? "Tie" : "—";
     };
     var t = [["Fastest", pick("mean_latency_s", true)], ["Least working VRAM", pick("mean_peak_vram_mb", true)],
-             ["Fewest tokens", pick("mean_tokens_per_flow", true)], ["Top SAW score", pick("saw_composite_100", false)]];
+             ["Fewest tokens", pick("mean_tokens_per_flow", true)], ["Top SAW score (efficiency)", pick("saw_eff_composite_100", false)]];
     return '<div class="tiles" id="cmp-tiles">' + t.map(function (x) { return '<div class="tile"><div class="k">' + x[0] + '</div><div class="v" style="font-size:18px">' + esc(x[1]) + '</div></div>'; }).join("") + '</div>';
   }
   function renderMerged() {
     var d = CMP.data, st = d.setup, multi = d.by_model.some(function (m) { return m.n_runs > 1; });
-    var tabs = CMP_TABS.filter(function (t) { return t[0] !== "accuracy" || d.labelled; });
+    var tabs = CMP_TABS;
     if (!tabs.some(function (t) { return t[0] === CMP.tab; })) CMP.tab = "overview";
     var body;
     if (CMP.tab === "overview") {
       var cols = cmpCols();
       body = cmpTiles() + '<div class="card"><h2>' + (CMP.mode === "mean" ? "Models" : "Runs") + '</h2>' +
-        cmpTable("cmp-overview-table", ["mean_latency_s", "mean_peak_vram_mb", "mean_tokens_per_flow", "cost_per_1k_flows_usd", "saw_composite_100"].concat(d.labelled ? ["accuracy"] : [])) +
+        cmpTable("cmp-overview-table", ["mean_latency_s", "mean_peak_vram_mb", "mean_tokens_per_flow", "cost_per_1k_flows_usd", "saw_eff_composite_100"]) +
         (CMP.mode === "runs" ? '<p class="small muted">Sessions: ' + d.sessions.map(function (sid) { return '<a href="#/session/' + enc(sid) + '" title="' + esc(sid) + '">' + esc(shortId(sid)) + '</a>'; }).join(" · ") + '</p>' : "") + '</div>';
     } else {
-      body = '<div class="card">' + cmpTable("cmp-" + CMP.tab + "-table", CMP_GROUPS[CMP.tab]) +
-        (CMP.tab === "accuracy" ? '<p class="muted small">Accuracy is context only.' + infoI("AgentMeter measures efficiency; it does not rank threat detectors.") + '</p>' : "") + '</div>';
+      body = '<div class="card">' + cmpTable("cmp-" + CMP.tab + "-table", CMP_GROUPS[CMP.tab]) + '</div>';
     }
     $("cmp-result").innerHTML =
       '<div class="validity ok" id="cmp-validity" role="status"><strong>Like-for-like comparison</strong> · ' + d.sessions.length + ' sessions · same flows (' +
@@ -3978,7 +3974,7 @@
   }
 
   // ---------- LEADERBOARD ----------
-  var LB_COLS = [["saw_composite_100", "SAW score", function (v) { return fmtNum(v, 1); }], ["mean_latency_s", "Latency / flow", fmtTime], ["mean_peak_vram_mb", "Working VRAM", fmtMB], ["total_peak_mb", "Total peak VRAM", fmtMB],
+  var LB_COLS = [["saw_eff_composite_100", "SAW (efficiency)", function (v) { return fmtNum(v, 1); }], ["mean_latency_s", "Latency / flow", fmtTime], ["mean_peak_vram_mb", "Working VRAM", fmtMB], ["total_peak_mb", "Total peak VRAM", fmtMB],
                  ["mean_tokens_per_flow", "Tokens / flow", function (v) { return fmtNum(v); }], ["cost_per_1k_flows_usd", "Cost / 1k flows", fmtUsd], ["wh_per_flow", "Energy / flow", fmtWh]];
   var LB = { tab: "setup" };
   function lbTab(t) {
@@ -3992,7 +3988,7 @@
   }
   function loadLeaderboard() { if (LB.tab === "overall") loadOverall(); else loadPerSetup(); }
   function loadPerSetup() {
-    var sort = (document.querySelector('input[name="lb-sort"]:checked') || {}).value || "saw";
+    var sort = (document.querySelector('input[name="lb-sort"]:checked') || {}).value || "efficiency";
     $("lb-groups").innerHTML = '<p class="muted">Loading…</p>';
     api("/api/leaderboard?view=per_setup&sort=" + enc(sort)).then(function (r) {
       if (!r.ok) { $("lb-groups").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
@@ -4012,15 +4008,15 @@
       }).join("");
     });
   }
-  var LB_BY = { saw: "SAW score", efficiency: "efficiency score", accuracy: "accuracy" };
+  var LB_BY = { efficiency: "SAW score (efficiency)" };
   function loadOverall() {
-    var by = (document.querySelector('input[name="lb-by"]:checked') || {}).value || "saw";
+    var by = (document.querySelector('input[name="lb-by"]:checked') || {}).value || "efficiency";
     $("lb-overall").innerHTML = '<p class="muted">Loading…</p>';
     api("/api/leaderboard?view=overall&by=" + enc(by) + ($("lb-demo").checked ? "&demo=1" : "")).then(function (r) {
       if (!r.ok) { $("lb-overall").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
       var d = r.data, rows = d.rows || [];
       if (!rows.length) {
-        $("lb-overall").innerHTML = '<div class="card empty" id="lb-overall-empty"><p>' + (by === "accuracy" ? "No labelled setup has two or more models yet." : "No setup has two or more models yet.") +
+        $("lb-overall").innerHTML = '<div class="card empty" id="lb-overall-empty"><p>' + "No setup has two or more models yet." +
           '</p><p class="muted small">Benchmark at least two models on the same flows.</p><a class="btn primary" href="#/new">New benchmark</a></div>';
         return;
       }
@@ -4030,7 +4026,7 @@
           rows[0].wins + ' of ' + rows[0].setups + ' setup' + (rows[0].setups === 1 ? "" : "s") + '.' + infoI(d.rule) + '</p>' +
           '<p class="muted small" style="margin-bottom:0">Counted over ' + d.n_setups + ' setup' + (d.n_setups === 1 ? "" : "s") + ' with 2+ models' +
           (d.n_setups_single_model ? ' (' + d.n_setups_single_model + ' with one model skipped)' : "") + '.' +
-          (by === "accuracy" ? ' Accuracy is context only.' : ' Measures efficiency, not threat detection.') + '</p></div>' +
+          ' Ranked on resource efficiency (latency, VRAM, tokens).</p></div>' +
         '<div class="card"><div class="table-wrap"><table class="lb-table" id="lb-overall-table"><thead><tr><th class="num">Rank</th><th>Model</th><th class="num">Wins</th><th class="num">Win rate</th>' +
           '<th class="num">Rivals beaten' + infoI("The share of other models it placed above, averaged over its setups.") + '</th><th class="num">Setups</th><th class="num">Sessions</th></tr></thead><tbody>' +
           rows.map(function (x) {
@@ -4095,7 +4091,7 @@
     $("set-presets").innerHTML = list.map(function (p, i) {
       var w = p.weights || {};
       return '<div class="preset" data-i="' + i + '"><div class="field name"><label for="pre-name-' + i + '">Name</label><input type="text" id="pre-name-' + i + '" data-k="name" value="' + esc(p.name || "") + '" maxlength="40"></div>' +
-        ["accuracy", "latency", "vram", "tokens"].map(function (k) {
+        ["latency", "vram", "tokens"].map(function (k) {
           return '<div class="field"><label for="pre-' + k + '-' + i + '">' + k + '</label><input id="pre-' + k + '-' + i + '" data-k="' + k + '" type="number" min="0" max="1" step="0.05" value="' + esc(w[k] != null ? w[k] : 0.25) + '"></div>';
         }).join("") + '<button type="button" class="btn small-btn" data-rm="' + i + '">Remove</button></div>';
     }).join("") || '<p class="muted small">No presets yet.</p>';
@@ -4105,7 +4101,7 @@
   }
   function readPresets() {
     return Array.prototype.map.call($("set-presets").querySelectorAll(".preset"), function (row) {
-      var o = { name: "", weights: {} };
+      var o = { name: "", weights: { accuracy: 0 } };     // sessions rank on efficiency only
       row.querySelectorAll("input").forEach(function (inp) { var k = inp.getAttribute("data-k"); if (k === "name") o.name = inp.value.trim(); else o.weights[k] = +inp.value || 0; });
       return o;
     });
@@ -4113,7 +4109,7 @@
   $("set-preset-add").addEventListener("click", function () {
     var l = readPresets();
     if (l.length >= 5) return;
-    l.push({ name: "Preset " + (l.length + 1), weights: { accuracy: 0.25, latency: 0.25, vram: 0.25, tokens: 0.25 } });
+    l.push({ name: "Preset " + (l.length + 1), weights: { accuracy: 0, latency: 0.35, vram: 0.35, tokens: 0.3 } });
     renderPresets(l);
   });
   function saveSettings(patch) {

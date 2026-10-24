@@ -12174,6 +12174,22 @@
       ]
      },
      {
+      "metric": "saw_eff_composite_100",
+      "label": "SAW composite, efficiency only (stored)",
+      "unit": "score",
+      "lower_is_better": false,
+      "values": [
+       62.63,
+       57.13,
+       62.63,
+       57.13
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
       "metric": "accuracy",
       "label": "Accuracy (context only)",
       "unit": "share",
@@ -12215,6 +12231,7 @@
        "wh_per_1k_flows": 48.415000000000006,
        "wh_per_flow_net_idle": 0.034499999999999996,
        "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "accuracy": 0.2
       }
      },
@@ -12244,6 +12261,7 @@
        "wh_per_1k_flows": 48.415000000000006,
        "wh_per_flow_net_idle": 0.034499999999999996,
        "saw_composite_100": 44.33,
+       "saw_eff_composite_100": 57.13000000000001,
        "accuracy": 0.223
       }
      }
@@ -12623,6 +12641,23 @@
       ]
      },
      {
+      "metric": "saw_eff_composite_100",
+      "label": "SAW composite, efficiency only (stored)",
+      "unit": "score",
+      "lower_is_better": false,
+      "values": [
+       62.63,
+       57.13,
+       62.63,
+       57.13,
+       62.63,
+       68.13
+      ],
+      "best_index": [
+       5
+      ]
+     },
+     {
       "metric": "accuracy",
       "label": "Accuracy (context only)",
       "unit": "share",
@@ -12667,6 +12702,7 @@
        "wh_per_1k_flows": 44.906666666666666,
        "wh_per_flow_net_idle": 0.032,
        "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63,
        "accuracy": 0.2
       }
      },
@@ -12697,6 +12733,7 @@
        "wh_per_1k_flows": 44.906666666666666,
        "wh_per_flow_net_idle": 0.032,
        "saw_composite_100": 46.49666666666666,
+       "saw_eff_composite_100": 60.79666666666667,
        "accuracy": 0.22133333333333335
       }
      }
@@ -13076,6 +13113,23 @@
       ]
      },
      {
+      "metric": "saw_eff_composite_100",
+      "label": "SAW composite, efficiency only (stored)",
+      "unit": "score",
+      "lower_is_better": false,
+      "values": [
+       62.63,
+       68.13,
+       62.63,
+       57.13,
+       62.63,
+       57.13
+      ],
+      "best_index": [
+       1
+      ]
+     },
+     {
       "metric": "accuracy",
       "label": "Accuracy (context only)",
       "unit": "share",
@@ -13120,6 +13174,7 @@
        "wh_per_1k_flows": 44.906666666666666,
        "wh_per_flow_net_idle": 0.032,
        "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63,
        "accuracy": 0.2
       }
      },
@@ -13150,6 +13205,7 @@
        "wh_per_1k_flows": 44.906666666666666,
        "wh_per_flow_net_idle": 0.032,
        "saw_composite_100": 46.49666666666666,
+       "saw_eff_composite_100": 60.79666666666667,
        "accuracy": 0.22133333333333333
       }
      }
@@ -13516,6 +13572,22 @@
       ]
      },
      {
+      "metric": "saw_eff_composite_100",
+      "label": "SAW composite, efficiency only (stored)",
+      "unit": "score",
+      "lower_is_better": false,
+      "values": [
+       62.63,
+       57.13,
+       62.63,
+       57.13
+      ],
+      "best_index": [
+       0,
+       2
+      ]
+     },
+     {
       "metric": "accuracy",
       "label": "Accuracy (context only)",
       "unit": "share",
@@ -13557,6 +13629,7 @@
        "wh_per_1k_flows": 42.1,
        "wh_per_flow_net_idle": 0.03,
        "saw_composite_100": 47.58,
+       "saw_eff_composite_100": 62.63000000000001,
        "accuracy": 0.2
       }
      },
@@ -13586,6 +13659,7 @@
        "wh_per_1k_flows": 42.1,
        "wh_per_flow_net_idle": 0.03,
        "saw_composite_100": 44.33,
+       "saw_eff_composite_100": 57.13000000000001,
        "accuracy": 0.22000000000000003
       }
      }

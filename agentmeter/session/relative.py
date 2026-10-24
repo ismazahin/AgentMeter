@@ -36,6 +36,10 @@ from __future__ import annotations
 from itertools import combinations
 from typing import Any, Optional
 
+# the verdict is about resource efficiency; agreement with the data set's reference label is
+# reported beside it as a validity check of the output (not a detection score, never ranked)
+VALIDITY = "Validity check (answers matching the data set's reference label):"
+NO_LABELS = "No reference labels in this data: efficiency only."
 REL_TIE = 0.02        # efficiency metrics within 2% of each other: tie
 ACC_TIE_PP = 2.0      # accuracy within 2 percentage points: tie
 ALPHA = 0.05          # latency/VRAM winners must also be significant (per-flow Kruskal-Wallis)
@@ -146,15 +150,9 @@ def _pair(a: str, b: str, per_model: dict[str, dict], labelled: bool, caveats: l
         acc = _accuracy_metric(a, b, per_model[a]["accuracy"]["accuracy"],
                                per_model[b]["accuracy"]["accuracy"])
         va, vb = acc["values"][a], acc["values"][b]
-        if acc["winner"] == "tie":
-            sentence += f" Accuracy: tie ({a} {va:.1%} vs {b} {vb:.1%})."
-        else:
-            sentence += (f" Accuracy: {acc['winner']} is higher by {acc['diff_pp']} percentage points "
-                         f"({a} {va:.1%} vs {b} {vb:.1%}).")
-        if winner and acc["winner"] not in ("tie", winner):
-            sentence += (f" Trade-off: {winner} is more efficient, {acc['winner']} is more accurate.")
+        sentence += f" {VALIDITY} {a} {va:.1%}, {b} {vb:.1%}."
     else:
-        sentence += " Accuracy: not available (no ground-truth labels) — efficiency only."
+        sentence += f" {NO_LABELS}"
 
     rel_caveats = [
         "Relative view: both models were measured in this session on the same hardware and the "
@@ -244,15 +242,9 @@ def _multi(models: list[str], per_model: dict[str, dict], labelled: bool, caveat
         (va, best), (vr, runner) = sorted(((v, m) for m, v in vals.items()), reverse=True)[:2]
         acc = _accuracy_metric(best, runner, va, vr)
         acc.update(values=vals, runner_up=runner)
-        listing = ", ".join(f"{m} {v:.1%}" for m, v in sorted(vals.items(), key=lambda kv: -kv[1]))
-        if acc["winner"] == "tie":
-            sentence += f" Accuracy: the top two are within {ACC_TIE_PP:g} points ({listing})."
-        else:
-            sentence += f" Accuracy: {best} is highest, {acc['diff_pp']} points ahead of {runner} ({listing})."
-        if winner and acc["winner"] not in ("tie", winner):
-            sentence += f" Trade-off: {winner} is the most efficient, {acc['winner']} the most accurate."
+        sentence += f" {VALIDITY} " + ", ".join(f"{m} {vals[m]:.1%}" for m in models) + "."
     else:
-        sentence += " Accuracy: not available (no ground-truth labels) — efficiency only."
+        sentence += f" {NO_LABELS}"
 
     rel_caveats = [
         f"Relative view: all {n} models were measured in this session on the same hardware and the same "

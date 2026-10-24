@@ -7,8 +7,9 @@ session's own `relative_comparison.verdict` / `comparison.statement`; the
 recommendation text reuses brief.recommendation() / brief.optimisation_hint(),
 the parity-tested mirror of dashboard/report.js.
 
-Framing: a resource-efficiency benchmark (+ accuracy where labelled), not a
-threat-detection product and not a deployment sign-off.
+Framing: a resource-efficiency benchmark of LLM agents doing a SOC workload (classifying
+network flows), not a threat-detection product and not a deployment sign-off. Scores are
+efficiency-only; agreement with reference labels is reported as a validity check of the output.
 """
 from __future__ import annotations
 
@@ -91,40 +92,37 @@ def recommendation_lines(res: dict[str, Any]) -> dict[str, Any]:
                          "statistically significant.")
     else:
         m = res["per_model"][0]
-        lines.append(f"Single-model run: {m['model']} scored SAW {m['saw']['composite_100']} "
-                     f"({m['saw']['tier']}). Add a second model for a head-to-head comparison.")
+        e = m.get("saw_efficiency_only") or m["saw"]
+        lines.append(f"Single-model run: {m['model']} scored SAW {e['composite_100']} on efficiency "
+                     f"({e['tier']}). Add a second model for a head-to-head comparison.")
 
     # report.js recommendation(): ranked by the head-to-head leader when there is one,
     # otherwise by the SAW table; its headline is used only when SAW has a clear top.
     ranked = None
-    saw_top = (cmp_ or {}).get("saw_top")
+    # the efficiency-only SAW's top (comparison.more_resource_efficient), never the accuracy-weighted one
+    saw_top = ((cmp_ or {}).get("more_resource_efficient") or {}).get("model")
     if lead:
-        rows = (res.get("phase8") or {}).get("saw_table") or []
+        rows = (efficiency_view(res).get("phase8") or {}).get("saw_table") or []
         ranked = [{"model": to_label[lead]}] + [{"model": r["model"]} for r in rows
                                                 if r["model"] != to_label[lead]]
     elif rel and saw_top in (None, "tie"):
         # No clear leader anywhere: rank-1 inside a SAW tie is arbitrary, so give
         # recommendation() no top model -> it names none (same behaviour in report.js).
         ranked = [{"model": None}]
-    rec = brief.recommendation(res, ranked=ranked)
+    rec = brief.recommendation(efficiency_view(res), ranked=ranked)
     if rec["headline"] and (lead or saw_top not in (None, "tie")):
         lines.append(_relabel(rec["headline"], by_label))
 
-    # Accuracy caveat — honest, never softened.
-    if labelled:
-        if rec["allCritical"]:
-            lines.append(_relabel(rec["caveat"], by_label))
-        else:
-            lines.append(rec["caveat"])
-        best = max((m["accuracy"]["accuracy"] for m in res["per_model"]), default=None)
-        target = rec.get("accTarget", 80.0)
-        if best is not None and best * 100 < target:
-            lines.append(f"Highest accuracy on this sample is {best * 100:.1f}% (below the {target:g}% "
-                         "target): this report ranks resource efficiency and is NOT an endorsement of "
-                         "either model as a threat detector.")
-    else:
-        lines.append("No ground-truth labels: accuracy was not measured. This report ranks resource "
-                     "efficiency only and is not an endorsement of detection quality.")
+    lines.append(_relabel(rec["caveat"], by_label) if rec["allCritical"] else rec["caveat"])
+    # Output validity — the workload's answers are checked, never ranked.
+    rl = {m["model"]: m for m in ((res.get("output_reliability") or {}).get("per_model") or [])}
+    if rl:
+        lines.append("Output validity: " + ", ".join(f"{m} {fmt_pct(r.get('valid_rate'))} usable answers" for m, r in rl.items())
+                     + ". Classifying the flows is the workload the agents perform; this report measures what "
+                       "that work costs and does not evaluate threat detection.")
+    if not labelled:
+        lines.append("No reference labels: the reference-label check is skipped; efficiency and validity are "
+                     "measured as usual.")
 
     hint = brief.optimisation_hint(res, to_label.get(lead) if lead else None)
     return {"lines": lines, "hint": _relabel(hint["text"], by_label) if hint["text"] else ""}
@@ -138,15 +136,25 @@ def _relabel(text: str, by_label: dict[str, str]) -> str:
     return text
 
 
+def efficiency_view(res: dict[str, Any]) -> dict[str, Any]:
+    """The session with its stored efficiency-only SAW as `phase8` (as the app shows it)."""
+    e = res.get("phase8_efficiency_only") or {}
+    if not e.get("weights"):
+        return res
+    out = dict(res)
+    out["phase8"] = {**(res.get("phase8") or {}), "weights": e["weights"],
+                     "saw_table": e.get("saw_table") or (res.get("phase8") or {}).get("saw_table")}
+    return out
+
+
 def weights_used_text(res: dict[str, Any]) -> str:
-    """Phase 47: the SAW weights the stored scores were computed with (shown in every view)."""
-    w = (res.get("phase8") or {}).get("weights") or {}
+    """Phase 47: the SAW weights of the scores shown (efficiency only: latency, VRAM, tokens)."""
+    w = (efficiency_view(res).get("phase8") or {}).get("weights") or {}
     if not w:
         return ""
-    parts = " · ".join(f"{k} {float(v):.2f}" for k, v in w.items())
-    basis = (res.get("notes") or {}).get("saw_mode") or ""
-    return (f"SAW weights used for these scores: {parts}" + (f" ({basis})" if basis else "") +
-            ". Weight presets in the app re-rank in the view only; they never change a stored score.")
+    parts = " · ".join(f"{k} {float(v):.2f}" for k, v in w.items() if k != "accuracy")
+    return (f"SAW weights used for these scores: {parts} (efficiency only; agreement with reference labels is a "
+            "validity check, not a criterion). Weight presets in the app re-rank in the view only; they never change a stored score.")
 
 
 def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
@@ -209,8 +217,8 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
     story.append(P("AgentMeter — Benchmark Report", "title"))
     story.append(P(f"Run {run_name}  ·  generated {generated}  ·  session run id {s.get('run_id')}"
                    + (f"  ·  job {job['job_id']}" if job else ""), "sub"))
-    story.append(P("Resource-efficiency benchmark of LLMs on a 4-agent threat-analysis pipeline "
-                   "(+ accuracy where labels exist). Not a threat-detection product. NON-VALIDATED user run.",
+    story.append(P("Resource-efficiency benchmark of LLM agents performing a SOC workload (classifying network "
+                   "flows). The answers are checked for validity, not evaluated as threat detection. NON-VALIDATED user run.",
                    "sub"))
     env = res.get("environment") or {}
     if env:
@@ -233,10 +241,10 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
     fm = s.get("feature_match") or {}
     kv = [
         ["Source", f"{str(s.get('source_type', '')).upper()}  ({input_meta.get('source_file', '-')})"],
-        ["Labels", "Labelled -> accuracy + efficiency" if labelled else "Unlabelled -> efficiency only"],
+        ["Labels", "Labelled -> efficiency + reference-label validity check" if labelled else "Unlabelled -> efficiency + validity"],
         ["Candidate pool (after sampling + validation)", fmt_int(input_meta.get("rows_total"))],
         ["Flows selected and benchmarked", fmt_int(s.get("n_flows"))],
-        ["Class set (scored)" if labelled else "Labels the model chooses from (not scored)",
+        ["Labels the label agent chooses from",
          f"{s.get('class_scheme')}: {', '.join(s.get('class_set') or [])}"],
         ["Feature match", f"{fm.get('status', '-')}" + (f" - {fm['note']}" if fm.get("note") else "")],
         ["Selection mode", str(s.get("selection_mode") or "-").replace("_", " ")],
@@ -278,16 +286,15 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
     story.append(P("Per-metric comparison", "h"))
     if rel:
         rows = [["Metric"] + names + ["Winner" if len(names) == 2 else "Best"]]
-        for m in rel["metrics"]:
-            is_acc = m["metric"] == "accuracy"
-            f = fmt_pct if is_acc else fmt_time if m["metric"] == "mean_latency_s" else \
+        for m in [x for x in rel["metrics"] if x["metric"] != "accuracy"]:       # efficiency metrics only
+            f = fmt_time if m["metric"] == "mean_latency_s" else \
                 fmt_mb if m["metric"] == "mean_peak_vram_mb" else fmt_int
             if not m["available"]:
                 win = "not available"
             elif m["winner"] == "tie":
                 win = "tie" + (f" ({m['note']})" if m.get("note") else "")
             else:
-                win = f"{m['winner']} - " + (f"{m['diff_pp']} pp higher" if is_acc else f"{m['pct_better']}% better")
+                win = f"{m['winner']} - {m['pct_better']}% better"
             label = m["label"] + (" (working VRAM, excludes model weights)" if m["metric"] == "mean_peak_vram_mb" else "")
             if m.get("runner_up") and m["winner"] not in (None, "tie"):
                 win += f" than {m['runner_up']}"
@@ -295,18 +302,18 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
         col = (W - 44 * mm - 40 * mm) / len(names)
         story.append(table(rows, [44 * mm] + [col] * len(names) + [40 * mm]))
     memrows = {r["model"]: r for r in ((res.get("memory") or {}).get("per_model") or [])}
-    hdr = ["Model", "Latency/flow", "p95", "Tokens/flow", "Working VRAM (excl. weights)", "Total peak VRAM"] + \
-          (["Accuracy"] if labelled else []) + ["SAW" + ("" if labelled else " (eff.)"), "SAW eff.-only"]
+    rl = {r["model"]: r for r in ((res.get("output_reliability") or {}).get("per_model") or [])}
+    hdr = ["Model", "Latency/flow", "p95", "Tokens/flow", "Working VRAM (excl. weights)", "Total peak VRAM",
+           "Valid answers", "SAW (efficiency)"]
     rows = [hdr]
     for m in pm:
         e = m["efficiency"]["end_to_end"]
         rows.append([m["model"], fmt_time(e["mean_latency_s"]), fmt_time(e["p95_latency_s"]),
                      fmt_int(e["mean_tokens_per_flow"]), fmt_mb(e["mean_peak_vram_mb"]),
                      fmt_mb((memrows.get(m["model"]) or {}).get("total_peak_mb"))]
-                    + ([fmt_pct(m["accuracy"]["accuracy"])] if labelled else [])
-                    + [f"{m['saw']['composite_100']} {m['saw']['tier']}",
-                       str(m["saw_efficiency_only"]["composite_100"])])
-    widths = [W - (7 + labelled) * 19 * mm] + [19 * mm] * (7 + labelled)
+                    + [fmt_pct((rl.get(m["model"]) or {}).get("valid_rate")),
+                       f"{m['saw_efficiency_only']['composite_100']} {m['saw_efficiency_only']['tier']}"])
+    widths = [W - 7 * 19 * mm] + [19 * mm] * 7
     story.append(Spacer(1, 5))
     story.append(table(rows, widths))
     wu = weights_used_text(res)
@@ -469,27 +476,28 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
         if note:
             story.append(P(note, "p"))
 
-    # --- accuracy (labelled only) ------------------------------------------------------------------
-    if labelled:
-        story.append(P("Accuracy by class", "h"))
-        story.append(P(f"{s.get('class_scheme')} class set. Balanced sample - a per-class view, not real-world "
-                       "prevalence.", "small"))
-        rows = [["Class", "Flows"] + names]
-        for c in s.get("class_set") or []:
-            cells = []
-            sup = None
-            for m in pm:
-                r = next((x for x in m["accuracy"]["per_class"] if x["class"] == c), {})
-                sup = r.get("support", sup)
-                cells.append(fmt_pct(r.get("accuracy")) if r.get("support") else "-")
-            rows.append([c, fmt_int(sup)] + cells)
-        story.append(table(rows, [44 * mm, 16 * mm] + [(W - 60 * mm) / len(names)] * len(names)))
+    # --- output reliability: is the output usable? (a validity check, never a detection score) ------
+    orl = res.get("output_reliability")
+    if orl:
+        story.append(P("Output reliability", "h"))
+        story.append(P("Each flow should end with one usable answer: a label from the allowed list and no empty "
+                       "answer. A validity check of the workload's output, not a detection score.", "small"))
+        rows = [["Model", "Valid answers", "Not a label", "Empty", "Hit token budget", "Verdict agrees"]
+                + (["Reference-label check"] if orl.get("labelled") else [])]
+        for r in orl["per_model"]:
+            c = r.get("verdict_consistency")
+            rows.append([r["model"], fmt_pct(r.get("valid_rate")), fmt_int(r.get("unparseable")), fmt_int(r.get("empty")),
+                         fmt_int(r.get("truncated")), fmt_pct(c["rate"]) if c else "-"]
+                        + ([fmt_pct((r.get("reference_agreement") or {}).get("rate"))] if orl.get("labelled") else []))
+        n = len(rows[0]) - 1
+        story.append(table(rows, [W - n * 22 * mm] + [22 * mm] * n))
 
     # --- caveats ------------------------------------------------------------------------------------
     cav = list((rel or {}).get("caveats") or s.get("caveats") or [])
     story.append(KeepTogether([P("Caveats", "h")] + [P("- " + c, "small") for c in cav] + [
-        P("- Scope: this report measures LLM resource efficiency (and accuracy where labels exist) on a "
-          "threat-analysis task. It is not a threat-detection product and not a deployment sign-off.", "small")]))
+        P("- Scope: this report measures the resource efficiency of LLM agents performing a SOC workload; "
+          "their answers are only checked for validity. It is not a threat-detection product and not a "
+          "deployment sign-off.", "small")]))
 
     def footer(canvas, doc):
         canvas.saveState()

@@ -53,13 +53,20 @@ def recommendation(data: dict, ranked: Optional[list[dict]] = None,
     all_critical = all((r.get("tier") or "") == "Critical" for r in rows)
     headline = (f"Based on your current priorities ({pri_txt}), {top} is the most "
                 f"resource-efficient choice.") if top else ""
-    if all_critical:
+    # efficiency-only scores (accuracy weight 0: a benchmark session) speak of efficiency targets
+    eff_only = not (float(w.get("accuracy") or 0) > 0)
+    if all_critical and eff_only:
+        caveat = (f"All {len(rows)} models fall in the Critical tier on resource efficiency (below the "
+                  "study's latency, memory and token targets), so none meets them as-is"
+                  + (f"; {top} is the best resource-efficient starting point." if top else "."))
+    elif all_critical:
         caveat = (f"All {len(rows)} models fall in the Critical tier (accuracy below the "
                   f"{_js_num(acc_target)}% target), so none is recommended for zero-shot deployment as-is"
                   + (f"; {top} is the best resource-efficient starting point." if top else "."))
     else:
         caveat = ("This is decision support, not a deployment sign-off — check each model's tier "
-                  "and the accuracy target before deploying.")
+                  + ("against your own latency, memory and budget limits before deploying." if eff_only
+                     else "and the accuracy target before deploying."))
     return {"headline": headline, "caveat": caveat, "top": top,
             "allCritical": all_critical, "accTarget": acc_target}
 

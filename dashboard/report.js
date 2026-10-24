@@ -265,13 +265,19 @@
          " is the most resource-efficient choice.")
       : "";
     var caveat;
-    if (allCritical) {
+    // efficiency-only scores (accuracy weight 0: a benchmark session) speak of efficiency targets
+    var effOnly = !(+w.accuracy > 0);
+    if (allCritical && effOnly) {
+      caveat = "All " + rows.length + " models fall in the Critical tier on resource efficiency (below the " +
+        "study's latency, memory and token targets), so none meets them as-is" +
+        (topModel ? ("; " + topModel + " is the best resource-efficient starting point.") : ".");
+    } else if (allCritical) {
       caveat = "All " + rows.length + " models fall in the Critical tier (accuracy below the " +
         accTarget + "% target), so none is recommended for zero-shot deployment as-is" +
         (topModel ? ("; " + topModel + " is the best resource-efficient starting point.") : ".");
     } else {
       caveat = "This is decision support, not a deployment sign-off — check each model's tier " +
-        "and the accuracy target before deploying.";
+        (effOnly ? "against your own latency, memory and budget limits before deploying." : "and the accuracy target before deploying.");
     }
     return { headline: headline, caveat: caveat, top: topModel,
              allCritical: allCritical, accTarget: accTarget };

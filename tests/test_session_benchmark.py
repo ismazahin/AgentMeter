@@ -324,7 +324,7 @@ def test_relative_comparison_sits_beside_the_unchanged_absolute_output(labelled)
     assert {m["metric"] for m in rel["metrics"]} == {"mean_latency_s", "mean_peak_vram_mb",
                                                      "mean_tokens_per_flow", "accuracy"}
     assert rel["efficiency_verdict"]["verdict"] in ("more_efficient", "mixed", "tie")
-    assert rel["verdict"] and "Accuracy:" in rel["verdict"]
+    assert rel["verdict"] and "Validity check" in rel["verdict"] and "Accuracy:" not in rel["verdict"]
     # identical mock models: tokens and accuracy are exactly equal -> ties, never a winner
     tok = next(m for m in rel["metrics"] if m["metric"] == "mean_tokens_per_flow")
     acc = next(m for m in rel["metrics"] if m["metric"] == "accuracy")
@@ -372,3 +372,34 @@ def test_four_models_in_one_session(tmp_path):
     # the PDF report renders with four model columns
     from agentmeter.session.pdf_report import build_report_pdf
     assert build_report_pdf(p, job={"job_id": "job_x", "models": models}, input_meta={}, audit={}, prepared=None)[:4] == b"%PDF"
+
+
+# --- output reliability: a validity check of the output, not a detection score ---------------
+def test_output_reliability_counts_usable_answers(labelled):
+    _, p = labelled
+    rl = p["output_reliability"]
+    assert rl["label_agent"] == "decide" and rl["verdict_agent"] == "act" and rl["labelled"] is True
+    for m, pm in zip(rl["per_model"], p["per_model"]):
+        assert m["model"] == pm["model"] and m["n_flows"] == pm["efficiency"]["n_flows"]
+        assert m["valid_rate"] == 1.0 and m["valid"] == m["n_flows"]                         # mock: every answer usable
+        assert m["valid_rate"] == 1.0 and m["unparseable"] == 0 and m["empty"] == 0
+        # the reference-label check restates the stored correctness, nothing new is scored
+        assert m["reference_agreement"]["rate"] == pm["accuracy"]["accuracy"]
+        assert m["verdict_consistency"]["checked"] == m["n_flows"]
+    assert "not a detection score" in rl["definitions"]["reference_agreement"]
+
+
+def test_output_reliability_without_labels_and_with_failures(tmp_path):
+    from agentmeter.session.analyses import reliability_block
+    sr = [{"model": "m", "scenario_id": f"s{i}", "predicted_label": lab, "correct": None}
+          for i, lab in enumerate(["Benign", "Unparseable", "Benign", "Benign"])]
+    am = [{"model": "m", "scenario_id": f"s{i}", "agent_name": a, "output_tokens": t}
+          for i, (t1, t2) in enumerate([(5, 3), (5, 2), (0, 3), (160, 3)]) for a, t in (("perceive", t1), ("decide", t2))]
+    texts = {("m", "s0", "act"): "Predicted class: Benign", ("m", "s3", "act"): "Predicted class: DoS Hulk"}
+    rl = reliability_block(sr, am, {"m": "m"}, {"perceive": 160}, "decide", "act", ["Benign", "DoS Hulk"], texts, False)
+    m = rl["per_model"][0]
+    assert (m["valid"], m["unparseable"], m["empty"], m["truncated"]) == (2, 1, 1, 1)
+    assert m["valid_rate"] == 0.5 and m["reference_agreement"] is None
+    assert m["verdict_consistency"] == {"checked": 2, "agree": 1, "rate": 0.5}
+    none = reliability_block(sr, am, {"m": "m"}, {}, "decide", None, ["Benign"], {}, False)["per_model"][0]
+    assert none["verdict_consistency"] is None and none["truncated"] == 0

@@ -401,6 +401,75 @@ def flows_file(db: str | Path, run_id: str, label_of: dict[str, str], labelled: 
             "text_chars": FLOW_TEXT_CHARS, "flows": list(flows.values())}
 
 
+def read_texts(db: str | Path, run_id: str) -> dict[tuple, Optional[str]]:
+    """{(db model, scenario, agent): answer text} — empty for runs from before texts were kept."""
+    con = sqlite3.connect(f"file:{Path(db)}?mode=ro", uri=True)
+    try:
+        has = con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='agent_outputs'").fetchone()
+        return {(m, sc, a): t for m, sc, a, t in con.execute(
+            "SELECT model, scenario_id, agent_name, text FROM agent_outputs WHERE run_id=?", (run_id,))} if has else {}
+    finally:
+        con.close()
+
+
+# ---------------------------------------------------------------------------
+# output reliability: is the pipeline's output usable? (not a detection score)
+# ---------------------------------------------------------------------------
+def reliability_block(sr: list[dict], am: list[dict], label_of: dict[str, str], budgets: dict[str, int],
+                      label_agent: str, verdict_agent: Optional[str], classes: list[str],
+                      texts: dict[tuple, Optional[str]], labelled: bool) -> dict[str, Any]:
+    """Per model, per flow: did the pipeline produce a usable answer?
+      valid      the label agent's reply is one of the allowed labels AND no agent returned nothing
+      truncated  some agent stopped at its token budget (its text may be cut; the answer can still be valid)
+      consistent the verdict agent names the same class as the label agent (when there is one and its
+                 text was recorded)
+      reference  share of answers equal to the data set's reference label: a validity check that the
+                 output is not noise — reported as one number, never ranked or scored here."""
+    from ..pipeline.agents import normalize_class
+    per = []
+    for model, dbm in label_of.items():
+        flows = [r for r in sr if r["model"] == dbm]
+        rows: dict[str, list] = {}
+        for r in am:
+            if r["model"] == dbm:
+                rows.setdefault(r["scenario_id"], []).append(r)
+        n = len(flows)
+        unparseable = {f["scenario_id"] for f in flows if f["predicted_label"] == "Unparseable"}
+        empty = {sid for sid, rs in rows.items() if any((r["output_tokens"] or 0) == 0 for r in rs)}
+        capped = {sid for sid, rs in rows.items()
+                  if any(budgets.get(r["agent_name"]) and (r["output_tokens"] or 0) >= budgets[r["agent_name"]] for r in rs)}
+        valid = [f for f in flows if f["scenario_id"] not in unparseable and f["scenario_id"] not in empty]
+        cons = None
+        if verdict_agent:
+            pairs = [(f["predicted_label"], texts.get((dbm, f["scenario_id"], verdict_agent))) for f in valid]
+            pairs = [(p, t) for p, t in pairs if t]
+            if pairs:
+                agree = sum(1 for p, t in pairs if normalize_class(t, classes) == p)
+                cons = {"checked": len(pairs), "agree": agree, "rate": agree / len(pairs)}
+        ref = None
+        if labelled and n:
+            ok = sum(1 for f in flows if f["correct"])
+            ref = {"n": n, "match": ok, "rate": ok / n}
+        per.append({"model": model, "n_flows": n,
+                    "valid": len(valid), "valid_rate": (len(valid) / n) if n else None,
+                    "unparseable": len(unparseable), "empty": len(empty), "truncated": len(capped),
+                    "truncated_rate": (len(capped) / n) if n else None,
+                    "verdict_consistency": cons, "reference_agreement": ref})
+    return {
+        "label_agent": label_agent, "verdict_agent": verdict_agent, "labelled": labelled,
+        "per_model": per,
+        "definitions": {
+            "valid": f"the {label_agent} agent's reply is one of the allowed labels and no agent returned an empty answer",
+            "truncated": "at least one agent stopped at its output-token budget (its text may be cut short)",
+            "verdict_consistency": (f"the {verdict_agent} agent names the same class as the {label_agent} agent"
+                                    if verdict_agent else "no verdict agent in this pipeline"),
+            "reference_agreement": ("share of answers equal to the data set's reference label — a check that the "
+                                    "output is meaningful, not a detection score; AgentMeter does not rank detectors"
+                                    if labelled else "the flows have no reference labels"),
+        },
+    }
+
+
 def latency_trend_block(sr: list[dict], label_of: dict[str, str]) -> dict[str, Any]:
     """Latency per flow in execution order (rowid), a rolling median and a drift test, per model."""
     per = []
@@ -820,6 +889,10 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     custom = bool(pl.get("custom"))
     payload["agents"] = agents_block(sr, am, label_of, budgets, decide_agent=label_agent(pl) or "decide",
                                      pipeline=describe(pl) if custom else None)
+    verdict = next((a["name"] for a in describe(pl) if a["kind"] == "verdict"), None)
+    payload["output_reliability"] = reliability_block(
+        sr, am, label_of, budgets, label_agent(pl) or "decide", verdict, list(config_data.get("classes") or []),
+        read_texts(db_path, run_id), bool((payload.get("session") or {}).get("accuracy_available")))
     payload["latency_distribution"] = latency_block(sr, label_of)
     payload["latency_trend"] = latency_trend_block(sr, label_of)
     payload["effect_sizes"] = effect_block(sr, am, label_of, payload.get("statistics"))

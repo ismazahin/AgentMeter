@@ -149,7 +149,7 @@ async function frameOf(p) {
 
   // 6. session sections (CSV, 2 models)
   const stabs = await p.$$eval('#session-tabs [role=tab]', ts => ts.map(t => t.textContent.trim()));
-  log(stabs.join('|') === 'Overview|Model Ranking|Accuracy|Performance|Agent Analysis|Cost & Energy|Recommendations|Data & Exports', 'session sections: ' + stabs.join(', '));
+  log(stabs.join('|') === 'Overview|Model Ranking|Output Reliability|Performance|Agent Analysis|Cost & Energy|Recommendations|Data & Exports', 'session sections: ' + stabs.join(', '));
   const chips = await p.textContent('#session-chips');
   log(/Demo \(no GPU\)/.test(chips) && /10 flows/.test(chips) && /CSV/.test(chips), 'session chips: GPU, flows, input type');
   log(await p.isVisible('#svc-dl-pdf') && await p.isVisible('#session-compare'), 'Download PDF + Compare buttons');
@@ -187,10 +187,11 @@ async function frameOf(p) {
   await p.waitForSelector('#spanel-recommendations [data-pane="limits"]:not([hidden])');
   log(/\/recommendations\/limits$/.test(await p.evaluate(() => location.hash)), '"Evaluate for my workload" opens Recommendations › Your limits');
 
-  await tab(p, 'accuracy');
-  fr = await frameOf(p);
-  await fr.waitForFunction(() => [...document.querySelectorAll('[data-part="accuracy"].part-on')].some(x => x.offsetParent), null, { timeout: 10000 });
-  log(true, 'Accuracy: the accuracy detail (embedded)');
+  await tab(p, 'reliability');
+  await p.waitForSelector('#rel-table');
+  log((await p.$$('#rel-table tbody tr')).length === 2 && /Reference-label check/.test(await p.textContent('#rel-table thead')) && !!(await p.$('#rel-failures-table')),
+      'Output Reliability: valid answers per model, a reference-label check (labelled), failures per agent');
+  log(!(await p.$('#spanel-reliability iframe')) && !/precision|recall|F1/.test(await p.textContent('#spanel-reliability')), 'Output Reliability: no detection metrics (precision, recall, F1)');
 
   await tab(p, 'performance');
   log(/\/performance\/comparison$/.test(await p.evaluate(() => location.hash)) && !!(await p.$('#svc-relative-table')), 'Performance › Comparison: head-to-head');
@@ -244,10 +245,9 @@ async function frameOf(p) {
 
   // PCAP session: accuracy hidden, efficiency only
   await p.goto(BASE + '/#/session/' + job2); await p.waitForSelector('#session-body:not([hidden])');
-  log(/unlabelled · efficiency only/.test(await p.textContent('#session-chips')) && !/Accuracy/.test(await p.textContent('#svc-models-table thead')), 'PCAP session: efficiency only, no accuracy column');
-  log(await p.getAttribute('#stab-accuracy', 'aria-disabled') === 'true' && /No labels/.test(await p.getAttribute('#stab-accuracy', 'title')), 'PCAP session: Accuracy greyed out ("No labels in this data")');
-  await p.goto(BASE + '/#/session/' + job2 + '/accuracy'); await p.waitForSelector('#spanel-overview:not([hidden])');
-  log(true, 'PCAP session: a link to Accuracy falls back to Overview');
+  log(/no reference labels/.test(await p.textContent('#session-chips')) && !/Accuracy/.test(await p.textContent('#svc-models-table thead')), 'PCAP session: efficiency only, no accuracy column');
+  await p.goto(BASE + '/#/session/' + job2 + '/accuracy'); await p.waitForSelector('#spanel-reliability:not([hidden]) #rel-table');
+  log(!/Reference-label check/.test(await p.textContent('#rel-table thead')), 'PCAP session: an old Accuracy link opens Output Reliability, without the reference-label check');
   log(/single-model/.test(await p.textContent('#svc-headline')), 'PCAP 1-model session: headline says single-model run');
   await tab(p, 'performance', 'statistics');
   log(/single-model|two models/i.test(await p.textContent('#stats-effects-card')), 'PCAP 1-model session: effect sizes explain they need two models');
@@ -282,8 +282,7 @@ async function frameOf(p) {
   }
   await p.click('#ctab-performance');
   log(!!(await p.$('#cmp-performance-table')), 'Compare › Performance');
-  await p.click('#ctab-accuracy');
-  log(/context/.test(await p.textContent('#cmp-accuracy-table')), 'Compare › Accuracy (context)');
+  log(!(await p.$('#ctab-accuracy')) && /SAW \(efficiency\)|efficiency only/i.test(await p.textContent('#cmp-result')), 'Compare: no accuracy tab; the SAW shown is efficiency-only');
   await p.screenshot({ path: S + '/09-compare-like.png', fullPage: true });
   await p.goto(BASE + '/#/compare?a=' + job2); await p.waitForSelector('#cmp-none');
   log(/No other session uses the same flows/.test(await p.textContent('#cmp-none')) && /Benchmark these flows again/.test(await p.textContent('#cmp-none')),
@@ -312,9 +311,8 @@ async function frameOf(p) {
   await p.check('#lb-demo'); await p.waitForSelector('#lb-overall-table');
   const ov = await p.$$eval('#lb-overall-table tbody tr', r => r.map(x => x.children[2].textContent));
   log(ov.length === 2 && ov.some(w => Number(w) > 0), 'Leaderboard Overall (demo included): wins counted per model (' + ov + ')');
-  log(/Most often #1 by SAW score/.test(await p.textContent('#lb-overall-head')), 'Leaderboard Overall: names the model most often #1');
-  await p.check('#lb-by input[value="efficiency"]'); await p.waitForFunction(() => /efficiency score/.test((document.getElementById('lb-overall-head') || {}).textContent || ''));
-  log(true, 'Leaderboard Overall: count wins by efficiency score');
+  log(/Most often #1 by SAW score \(efficiency\)/.test(await p.textContent('#lb-overall-head')), 'Leaderboard Overall: names the model most often #1 on efficiency');
+  log((await p.$$('#lb-by input')).length === 1, 'Leaderboard Overall: wins are counted on efficiency only (no accuracy option)');
   await p.screenshot({ path: S + '/11b-leaderboard-overall.png', fullPage: true });
   await p.click('#lbtab-setup'); await p.waitForSelector('#lb-table-0');
   await p.click('.lb-group .lb-compare'); await p.waitForSelector('#cmp-validity');

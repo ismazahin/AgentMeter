@@ -5,7 +5,7 @@
   * GET /api/jobs/<id>/report.pdf returns a real PDF whose text carries the input
     summary, rule-base, per-metric winners, verdict, recommendation and caveats,
     with numbers taken verbatim from session_results.json.
-  * Unlabelled (PCAP) -> efficiency only, no accuracy section. Unfinished -> 409.
+  * Unlabelled (PCAP) -> efficiency + validity, no reference-label check. Unfinished -> 409.
 """
 from __future__ import annotations
 
@@ -94,10 +94,11 @@ def test_labelled_report_is_a_pdf_with_every_section(labelled):
     t = pdf_text(r.data)
     for section in ("AgentMeter — Benchmark Report", "Input", "Flow selection (rule-base)",
                     "Models evaluated", "Per-metric comparison", "Verdict", "Recommendation",
-                    "Accuracy by class", "Caveats"):
+                    "Output reliability", "Caveats"):
         assert section in t, section
     assert jid in t and res["session"]["run_id"] in t
-    assert "Labelled -> accuracy + efficiency" in t
+    assert "Labelled -> efficiency + reference-label validity check" in t
+    assert "Accuracy by class" not in t and "not evaluated as threat detection" in t
     assert "DEMO RUN — mock provider" in t and "NON-VALIDATED" in t
     assert "class_balance" in t and "fill_remaining" in t                  # the rule-base is shown
 
@@ -111,9 +112,11 @@ def test_numbers_match_session_results_verbatim(labelled):
         e = m["efficiency"]["end_to_end"]
         assert fmt_time(e["mean_latency_s"]) in t
         assert fmt_int(e["mean_tokens_per_flow"]) in t
-        assert fmt_pct(m["accuracy"]["accuracy"]) in t
-        assert f"{m['saw']['composite_100']} {m['saw']['tier']}" in t      # SAW composite verbatim
-        assert str(m["saw_efficiency_only"]["composite_100"]) in t
+        e = m["saw_efficiency_only"]
+        assert f"{e['composite_100']} {e['tier']}" in t                    # efficiency-only SAW verbatim
+        assert fmt_pct(m["accuracy"]["accuracy"]) in t                     # reference-label check, as stored
+    for r in res["output_reliability"]["per_model"]:
+        assert fmt_pct(r["valid_rate"]) in t
     # per-metric winners are the session's own (tie / winner + how much)
     for m in res["relative_comparison"]["metrics"]:
         if m["available"] and m["winner"] == "tie":
@@ -135,8 +138,8 @@ def test_recommendation_is_honest_about_accuracy_and_ties(labelled):
     if res["relative_comparison"]["efficiency_verdict"]["verdict"] == "tie":
         assert "equally resource-efficient" in t
         assert "best resource-efficient starting point" not in t           # no arbitrary leader
-    assert "NOT an endorsement" in t or "decision support" in t
-    assert "not a threat-detection product" in t
+    assert "decision support" in t or "best resource-efficient starting point" in t
+    assert "not a threat-detection product" in t and "does not evaluate threat detection" in t
 
 
 def test_unfinished_job_gets_a_clear_error(service, tmp_path):
@@ -181,12 +184,12 @@ def test_pcap_report_is_efficiency_only(service):
     r = service[0].get(f"/api/jobs/{jid}/report.pdf")
     assert r.status_code == 200
     t = pdf_text(r.data)
-    assert "Unlabelled -> efficiency only" in t
-    assert "Accuracy by class" not in t and "accuracy on this sample" not in t
-    assert "No ground-truth labels: accuracy was not measured" in t
-    assert "Accuracy: not available (no ground-truth labels)" in t        # the session's own verdict
+    assert "Unlabelled -> efficiency + validity" in t
+    assert "Accuracy by class" not in t and "Reference-label check" not in t
+    assert "No reference labels: the reference-label check is skipped" in t
+    assert "No reference labels in this data: efficiency only." in t      # the session's own verdict
     assert "PCAP features are approximate" in t
-    assert "SAW (eff.)" in t                                              # efficiency-only SAW labelled
+    assert "SAW (efficiency)" in t and "Output reliability" in t
 
 
 # --- single model + robustness ----------------------------------------------------------------------
@@ -197,10 +200,8 @@ def test_other_attack_report_shows_all_six_classes(service):
     assert res["session"]["class_scheme"] == "6-class" and "Other Attack" in res["session"]["class_set"]
     t = pdf_text(service[0].get(f"/api/jobs/{jid}/report.pdf").data)
     six = ("Benign", "Brute Force", "DoS Hulk", "Port Scanning", "Volumetric DDoS", "Other Attack")
-    row = t[t.index("Class set (scored)"):t.index("Feature match")]          # input class-set row
+    row = t[t.index("Labels the label agent chooses from"):t.index("Feature match")]   # input class-set row
     assert "6-class" in row and all(c in row for c in six)
-    acc = t[t.index("Accuracy by class"):t.index("Caveats")]                # accuracy-by-class table
-    assert "6-class class set" in acc and all(c in acc for c in six)
     assert "6-class run: 'Other Attack'" in t[t.index("Caveats"):]          # caveat names the 6th class
 
 

@@ -57,7 +57,7 @@ async function run(p, idx) {
   await upload(p, REPO + '/data/sample_csv/cicids2017_sample.csv', 12);
   log(await ready(p) === 'Ready', 'prepared in the background -> Ready');
   const sum = await p.textContent('#svc-summary-card');
-  log(/Labelled → efficiency \+ accuracy/.test(sum), 'summary: labelled -> efficiency + accuracy (context)');
+  log(/Labelled → efficiency \+ reference-label check/.test(sum), 'summary: labelled -> efficiency + reference-label check');
   await p.click('#svc-summary-card summary');
   log((await p.$$('#svc-class-table tbody tr')).length === 5, 'summary: 5-class table (in file / pool / selected)');
   log(/12 of 40/.test(await p.textContent('#svc-counts')), 'summary: flows selected 12 of 40');
@@ -90,8 +90,8 @@ async function run(p, idx) {
   await p.waitForFunction(j => location.hash.indexOf('#/session/' + j) === 0, job1, { timeout: 180000 });
   await p.waitForSelector('#session-body:not([hidden])', { timeout: 30000 });
   log(true, 'reload during the run re-attached and landed on the session');
-  log((await p.$$('#svc-models-table tbody tr')).length === 2 && /Accuracy/.test(await p.textContent('#svc-models-table thead')),
-      'session: 2 models, accuracy shown as context');
+  log((await p.$$('#svc-models-table tbody tr')).length === 2 && /Valid answers/.test(await p.textContent('#svc-models-table thead')) && !/Accuracy/.test(await p.textContent('#svc-models-table thead')),
+      'session: 2 models, valid answers shown (no accuracy column)');
   await p.click('#session-tabs [data-tab="data"]'); await p.waitForSelector('#svc-downloads a');
   log((await p.$$eval('#svc-downloads a', as => as.map(a => a.textContent))).join(',') === 'features.csv,labels.csv,manifest.json',
       'session Downloads: prepared-set files');
@@ -125,7 +125,7 @@ async function run(p, idx) {
   // 5. PCAP -> efficiency only, no labels.csv
   await upload(p, REPO + '/data/sample_pcaps/sample_small.pcap', 8);
   await ready(p);
-  log(/Unlabelled → efficiency only/.test(await p.textContent('#svc-summary-card')) && !(await p.$('#svc-class-table')), 'PCAP prepared set: efficiency only');
+  log(/Unlabelled → efficiency \+ validity only/.test(await p.textContent('#svc-summary-card')) && !(await p.$('#svc-class-table')), 'PCAP prepared set: efficiency + validity only');
   log((await p.$$eval('#wiz-downloads a', as => as.map(a => a.textContent))).join(',') === 'features.csv,manifest.json', 'PCAP set has no labels.csv');
   await run(p, [2, 3]);
   log(!/Accuracy/.test(await p.textContent('#svc-models-table thead')), 'PCAP session: efficiency only');

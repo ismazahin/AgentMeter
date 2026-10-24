@@ -555,6 +555,7 @@
   .acc-missing { display: none; }
   body.no-accuracy .acc-only { display: none !important; }
   body.no-accuracy .acc-missing { display: block; }
+  body.eff-view .acc-missing { display: none !important; }   /* labelled session in the efficiency view: nothing "missing" */
   body.no-accuracy #saw th:nth-child(3), body.no-accuracy #saw td:nth-child(3),
   body.no-accuracy #cf-table th:nth-child(2), body.no-accuracy #cf-table td:nth-child(2) { display: none; }
   .session-panel { margin-top: 14px; border-left: 3px solid var(--critical); }
@@ -3612,6 +3613,14 @@
     _detailSubRevealed = {};
   }
 
+  // the session's stored efficiency-only SAW (accuracy weight 0, the rest renormalised) as the page's SAW
+  function efficiencyView(d) {
+    var e = d.phase8_efficiency_only;
+    if (!e || !e.weights) return d;
+    var out = Object.assign({}, d);
+    out.phase8 = Object.assign({}, d.phase8, { weights: e.weights, saw_table: e.saw_table || d.phase8.saw_table });
+    return out;
+  }
   function validate(d) {
     if (!d || !d.phase8 || !Array.isArray(d.phase8.normalised)) {
       throw new Error("Not an AgentMeter analysis.json (missing phase8.normalised).");
@@ -3777,7 +3786,10 @@
   }
   if (SESSION_ID) {
     sessionResults(SESSION_ID).then(function (d) {
-      if (!(d.session && d.session.accuracy_available)) document.body.classList.add("no-accuracy");
+      // A benchmark session is ranked on resource efficiency only (latency, VRAM, tokens): agreement with
+      // the reference labels is a validity check (app: Output Reliability), never a scored criterion here.
+      document.body.classList.add("no-accuracy");
+      if (d.session && d.session.accuracy_available) { document.body.classList.add("eff-view"); d = efficiencyView(d); }
       load(validate(d), "session", "job " + SESSION_ID + " · " + ((d.session && d.session.run_dir) || "").split("/").slice(-1)[0]);
       renderSessionPanel(d, SESSION_ID);
       MODELCTX.load();

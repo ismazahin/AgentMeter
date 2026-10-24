@@ -49,34 +49,35 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     // Phase 1 — Overview: key findings + criteria profile
     await tab(p, csv, 'overview', '#svc-findings');
     const f = await p.$$eval('#svc-findings li', ls => ls.map(l => l.getAttribute('data-finding')));
-    log(['gap', 'tail', 'agent', 'overhead', 'cost', 'accuracy'].every(k => f.includes(k)), 'overview: key findings cover gap, tail, agent, overhead, cost, accuracy (' + f.join(',') + ')');
-    log((await p.$$('#svc-profile .prof-row')).length === 4 && (await p.$$('#svc-profile .prof-row[data-crit="latency"] .ibar')).length === 2,
-        'overview: criteria profile has 4 criteria x 2 models');
+    log(['gap', 'tail', 'agent', 'overhead', 'cost', 'valid'].every(k => f.includes(k)) && !f.includes('accuracy'), 'overview: key findings cover gap, tail, agent, overhead, cost, validity — no accuracy (' + f.join(',') + ')');
+    log((await p.$$('#svc-profile .prof-row')).length === 3 && (await p.$$('#svc-profile .prof-row[data-crit="latency"] .ibar')).length === 2 && !(await p.$('#svc-profile .prof-row[data-crit="accuracy"]')),
+        'overview: criteria profile has the 3 efficiency criteria x 2 models');
     log(/no readings/.test(await p.textContent('#svc-profile .prof-row[data-crit="vram"]')), 'overview: VRAM without readings is labelled, not drawn as a score');
     log(/Latency: 1\.00 of 1\.00/.test(await hoverText(p, '#svc-profile .prof-row[data-crit="latency"] .ibar')), 'overview: hovering a profile bar shows its value');
     log((await p.$$('#svc-profile-table tbody tr')).length === 2, 'overview: profile has a table view');
     await tab(p, pcap, 'overview', '#svc-findings');
-    log(!(await texts(p, '#svc-findings li')).some(t => /Accuracy/.test(t)) && /no labels/.test(await p.textContent('#svc-profile .prof-row[data-crit="accuracy"]')),
-        'overview (PCAP): no accuracy finding; profile says "no labels"');
+    log(!(await texts(p, '#svc-findings li')).some(t => /ccuracy/.test(t)) && (await p.$$('#svc-profile .prof-row')).length === 3,
+        'overview (PCAP): no accuracy finding; the same 3 efficiency criteria');
 
     // Phase 2 — Ranking -> Robustness: weight range in which #1 stays first
     await tab(p, csv, 'ranking/robustness', '#svc-stability');
-    log((await p.$$('#svc-stability .stab-row')).length === 4 && (await p.$$('#svc-stability .stab-mark')).length === 4,
-        'robustness: one strip per criterion, each with the stored-weight marker');
+    log((await p.$$('#svc-stability .stab-row')).length === 3 && (await p.$$('#svc-stability .stab-mark')).length === 3,
+        'robustness: one strip per efficiency criterion (latency, VRAM, tokens), each with the stored-weight marker');
     const stab = await texts(p, '#svc-stability .stab-text');
-    log(/no readings/i.test(stab[2]) && stab.every(t => /tie|stays first|no readings/i.test(t)), 'robustness: every strip says who stays first, a tie, or no readings');
-    log((await p.$$('#svc-stability-table tbody tr')).length === 4, 'robustness: table view');
+    log(/no readings/i.test(stab[1]) && stab.every(t => /tie|stays first|no readings/i.test(t)), 'robustness: every strip says who stays first, a tie, or no readings');
+    log((await p.$$('#svc-stability-table tbody tr')).length === 3, 'robustness: table view');
     await tab(p, pcap, 'ranking/robustness', '#svc-stability');
     log(/Single-model run/.test(await p.textContent('#svc-stability')), 'robustness (1 model): says there is no ranking to change');
 
-    // Phase 3 — Accuracy: precision / recall / F1 per class + mix-ups
-    await tab(p, csv, 'accuracy', '#svc-class-metrics');
-    log((await p.$$('#svc-class-metrics .dot-row')).length === 6 && (await p.$$('#svc-class-metrics .dot-row:first-child .dot')).length === 2,
-        'accuracy: F1 per class (5 classes + macro) with one dot per model');
-    log(/F1 \d\.\d\d \(precision/.test(await hoverText(p, '#svc-class-metrics .dot')), 'accuracy: hovering a dot shows F1, precision and recall');
-    log((await p.$$('#svc-class-metrics-table tbody tr')).length === 6, 'accuracy: table view with macro average');
-    log((await p.$$('#svc-mixups .mix')).length === 2 && /answered as/.test(await p.textContent('#svc-mixups')) && /Unparseable answers: \d+ of 40/.test(await p.textContent('#svc-mixups')),
-        'accuracy: most common mix-ups and unparseable answers per model');
+    // Output Reliability (replaces the accuracy view): usable answers, failures, a reference-label check
+    await tab(p, csv, 'reliability', '#rel-table');
+    log((await p.$$('#rel-bars .hbar')).length === 2 && /valid \(\d+ of 40 flows\)/.test(await hoverText(p, '#rel-bars .track')), 'reliability: one valid-answer bar per model; hover shows the count');
+    log((await p.$$('#rel-table tbody tr')).length === 2 && /Act agrees with decide|act agrees with decide/i.test(await p.textContent('#rel-table thead')) && /Reference-label check/.test(await p.textContent('#rel-table thead')),
+        'reliability: table with failures, Decide/Act agreement and the reference-label check');
+    log((await p.$$('#rel-failures-table tbody tr')).length === 8 && !/F1|precision|recall|confusion/i.test(await p.textContent('#spanel-reliability')),
+        'reliability: failures per agent (2 models x 4 agents); no detection metrics');
+    await tab(p, pcap, 'reliability', '#rel-table');
+    log(!/Reference-label check/.test(await p.textContent('#rel-table thead')), 'reliability (PCAP): works without labels, no reference-label check');
 
     // Phase 4 — Performance: latency histogram small multiples + effect-size charts
     await tab(p, csv, 'performance/latency', '#stats-histogram');
@@ -110,9 +111,9 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     const pr = await p.$$eval('#proj-table tbody tr', rs => rs.map(r => [...r.cells].map(c => c.textContent.trim())));
     log(pr.length === 2 && pr.every(r => /^\$\d/.test(r[4]) && /^\$\d/.test(r[5])) && /your figure, \$2\/h/.test(await p.textContent('#proj-out')),
         'cost: entering flows and a price fills cost per day and per 30 days ' + JSON.stringify(pr[0]));
-    log((await p.$$('#cost-correct .cat-row')).length === 2 && (await p.$$('#cost-correct-table tbody tr')).length === 2, 'cost: GPU time per correct answer per model');
+    log((await p.$$('#cost-valid .cat-row')).length === 2 && (await p.$$('#cost-valid-table tbody tr')).length === 2, 'cost: GPU time per valid answer per model');
     await tab(p, pcap, 'cost', '#proj-table');
-    log(!(await p.$('#cost-correct')), 'cost (PCAP, no labels): no cost-per-correct card');
+    log(!!(await p.$('#cost-valid')) && !(await p.$('#cost-correct')), 'cost (PCAP, no labels): cost per valid answer still shown (it needs no labels)');
 
     // Phase 7 — Recommendations: deployment fit at a glance
     await tab(p, csv, 'recommendations/limits', '#fit-table');
@@ -185,7 +186,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log((await p.$$('#sessions-table tbody tr')).length >= 3, 'sessions: removing the tag filter lists all again');
 
     // Phase D — tab summaries, downloads, first-visit guides
-    for (const [t, k] of [['ranking/scores', 'ranking'], ['accuracy', 'accuracy'], ['performance/latency', 'performance'], ['agents', 'agents'], ['cost', 'cost'], ['recommendations/limits', 'recommendations']]) {
+    for (const [t, k] of [['ranking/scores', 'ranking'], ['reliability', 'reliability'], ['performance/latency', 'performance'], ['agents', 'agents'], ['cost', 'cost'], ['recommendations/limits', 'recommendations']]) {
       await tab(p, csv, t, `.tab-summary[data-summary="${k}"]`);
     }
     log(true, 'every session tab opens with a one-line summary');
@@ -235,7 +236,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     // every view at phone width: no horizontal page scroll
     await p.setViewportSize({ width: 375, height: 800 });
     let maxW = 0;
-    for (const t of ['overview', 'ranking/robustness', 'accuracy', 'performance/latency', 'performance/statistics', 'agents', 'cost', 'recommendations/limits', 'performance/gpu']) {
+    for (const t of ['overview', 'ranking/robustness', 'reliability', 'performance/latency', 'performance/statistics', 'agents', 'cost', 'recommendations/limits', 'performance/gpu']) {
       await tab(p, csv, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }

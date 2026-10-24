@@ -34,11 +34,24 @@ def _rescore(tmp_path: Path) -> dict:
     return golden, json.loads(json.dumps(score_session(plan, golden["session"]["run_id"]), default=str))
 
 
+# Wording only (October 2026): the two summary SENTENCES state the reference-label agreement as a
+# validity check instead of an accuracy ranking. Every number, winner, rank and verdict field is
+# still compared byte for byte; the sentences are checked for their new wording below.
+SENTENCES = {"comparison": "statement", "relative_comparison": "verdict"}
+
+
+def _numbers(key: str, v):
+    return {k: x for k, x in v.items() if k != SENTENCES[key]} if key in SENTENCES and isinstance(v, dict) else v
+
+
 def test_scored_keys_are_byte_identical_to_the_pre_phase46_output(tmp_path):
     golden, now = _rescore(tmp_path)
     for key in SCORED_KEYS:
         assert key in golden, key
-        assert _dump(now[key]) == _dump(golden[key]), f"{key} changed"
+        assert _dump(_numbers(key, now[key])) == _dump(_numbers(key, golden[key])), f"{key} changed"
+    assert "more accurate" not in now["comparison"]["statement"] and "validity check" in now["comparison"]["statement"]
+    assert "Accuracy:" not in now["relative_comparison"]["verdict"] and "Validity check" in now["relative_comparison"]["verdict"]
+    assert now["relative_comparison"]["verdict"].split(". Validity")[0] == golden["relative_comparison"]["verdict"].split(". Accuracy")[0]
     strip = lambda s: {k: v for k, v in s.items() if k not in PATH_KEYS}   # noqa: E731
     assert _dump(strip(now["session"])) == _dump(strip(golden["session"]))
 

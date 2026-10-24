@@ -203,13 +203,13 @@ def _compare(models: list[str], per_model: dict[str, dict], eff: pd.DataFrame,
     if labelled:
         acc = {m: per_model[m]["accuracy"]["accuracy"] for m in models}
         out["accuracy"] = {"values": acc, "winner": _winner(acc, lower_better=False)}
-    parts = [f"More resource-efficient: {eff_w if eff_w != 'tie' else 'tie (within 0.5 points)'}"]
+    parts = [f"More resource-efficient (efficiency-only SAW): {eff_w if eff_w != 'tie' else 'tie (within 0.5 points)'}"]
     if labelled:
-        aw = out["accuracy"]["winner"]
-        parts.append(f"more accurate on this sample: {aw if aw != 'tie' else 'tie'}")
+        # a validity check of the output, beside the efficiency result — never a ranking of detectors
+        parts.append("validity check, answers matching the reference label: "
+                     + ", ".join(f"{m} {v:.1%}" for m, v in out["accuracy"]["values"].items()))
     top_tie = len(ranking) > 1 and abs(ranking[0]["composite_100"] - ranking[1]["composite_100"]) < TIE_SCORE * 100
     out["saw_top"] = "tie" if top_tie else ranking[0]["model"]
-    parts.append(f"SAW top: {out['saw_top']} ({out['saw_basis']})")
     out["statement"] = "; ".join(parts) + "."
     return out
 

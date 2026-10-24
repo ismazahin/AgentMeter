@@ -62,12 +62,16 @@ SESSION = {
         {"model": A, "cost_per_1k_flows_usd": 0.02, "cost_status": "measured"},
         {"model": B, "cost_per_1k_flows_usd": 0.05, "cost_status": "measured"},
     ]},
+    "output_reliability": {"per_model": [
+        {"model": A, "n_flows": 40, "valid": 40, "valid_rate": 1.0},
+        {"model": B, "n_flows": 40, "valid": 38, "valid_rate": 0.95},
+    ]},
 }
 
 
 def test_criteria_profile_flags_missing_criteria_and_strips_mock_prefix():
     pr = call("criteriaProfile", SESSION)
-    assert pr["criteria"] == ["accuracy", "latency", "vram", "tokens"]
+    assert pr["criteria"] == ["latency", "vram", "tokens"]          # efficiency only: labels are a validity check
     assert [r["model"] for r in pr["rows"]] == [A, B]
     assert pr["rows"][1]["scores"]["tokens"] == 0.6
     assert pr["missing"] == {"accuracy": False, "latency": False, "vram": True, "tokens": False}
@@ -84,13 +88,14 @@ def test_key_findings_restate_stored_numbers():
     assert f["tail"].startswith("Slowest 5% of flows: model-a takes 2.5× its median time")
     assert "25% of all tokens for model-b" in f["overhead"]
     assert f["cost"].startswith("Cheapest to run: model-a at $0.0200 per 1,000 flows ($0.0500 for model-b)")
-    assert f["accuracy"] == "Accuracy (context): model-a is highest at 40.0%."
+    assert f["valid"] == "Output validity: model-b gave a usable answer for 95.0% of flows (2 without one) — see Output Reliability."
+    assert "accuracy" not in f and not any("ccura" in t for t in f.values())
 
 
 def test_key_findings_merge_a_shared_slowest_step_and_report_ties():
     s = copy.deepcopy(SESSION)
     s["agents"]["per_model"][1]["agents"] = [_agent("perceive", 0.1, 0.2), _agent("reason", 0.7, 2.0)]
-    s["per_model"][1]["accuracy"]["accuracy"] = 0.40
+    s["output_reliability"]["per_model"][1].update(valid=40, valid_rate=1.0)
     s["relative_comparison"]["metrics"] = [m for m in s["relative_comparison"]["metrics"] if not m["available"]]
     s["cost_energy"] = {"per_model": [{"model": A, "cost_per_1k_flows_usd": None, "cost_reason": "mock run"}]}
     out = call("keyFindings", s)
@@ -98,7 +103,7 @@ def test_key_findings_merge_a_shared_slowest_step_and_report_ties():
     assert agents == ["Where the time goes: the reason step is the slowest for every model (50% of each flow for model-a, 70% of each flow for model-b)."]
     f = {x["key"]: x["text"] for x in out}
     assert f["gap"] == "No efficiency metric separates the models beyond the tie range."
-    assert f["accuracy"] == "Accuracy (context): the models tie at 40.0%."
+    assert f["valid"] == "Output validity: every model gave a usable answer for every flow."
     assert f["cost"] == "Cost and energy were not measured in this run: mock run."
 
 
@@ -108,7 +113,7 @@ def test_key_findings_skip_accuracy_when_unlabelled_and_handle_one_model():
     s["relative_comparison"] = None
     s["per_model"] = s["per_model"][:1]
     keys = [x["key"] for x in call("keyFindings", s)]
-    assert "accuracy" not in keys and "gap" not in keys and "tail" in keys
+    assert "accuracy" not in keys and "gap" not in keys and "tail" in keys and "valid" in keys
 
 
 def _two(a, b, lab=True):
@@ -118,16 +123,18 @@ def _two(a, b, lab=True):
 
 
 def test_weight_stability_finds_the_crossing():
-    # accuracy weight t, the rest in stored ratio (0.25 : 0.2 : 0.15):
-    #   A(t) = 0.2t + (1-t)*0.5417, B(t) = 0.6t + (1-t)*0.3333  ->  cross at t = 0.2083/0.6083 = 0.342
-    s = _two({"accuracy": 0.2, "latency": 1.0, "vram": 0.0, "tokens": 0.5},
-             {"accuracy": 0.6, "latency": 0.5, "vram": 0.0, "tokens": 0.5})
+    # efficiency only: accuracy weight 0, the stored 0.25 : 0.2 : 0.15 renormalised (latency 0.4167).
+    # latency weight t, vram : tokens in stored ratio (0.2 : 0.15):
+    #   A(t) = t + (1-t)*0.0857, B(t) = 0.5t + (1-t)*0.3429  ->  cross at t = 0.2571/0.7571 = 0.3396
+    s = _two({"accuracy": 0.9, "latency": 1.0, "vram": 0.0, "tokens": 0.2},
+             {"accuracy": 0.1, "latency": 0.5, "vram": 0.0, "tokens": 0.8})
     st = call("weightStability", s)
-    acc = next(r for r in st["rows"] if r["criterion"] == "accuracy")
-    assert acc["leader"] == B and acc["changes"] is True
-    assert [sg["leader"] for sg in acc["segments"]] == [A, B]
-    assert abs(acc["stable"][0] - 0.342) < 0.002 and acc["stable"][1] == 1
-    assert call("stabilitySentence", acc) == "model-b stays first while this weight is between 0.34 and 1.00 (stored 0.40)."
+    assert [r["criterion"] for r in st["rows"]] == ["latency", "vram", "tokens"] and st["weights"]["accuracy"] == 0
+    lat = next(r for r in st["rows"] if r["criterion"] == "latency")
+    assert lat["leader"] == A and lat["changes"] is True
+    assert [sg["leader"] for sg in lat["segments"]] == [B, A]
+    assert abs(lat["stable"][0] - 0.3396) < 0.002 and lat["stable"][1] == 1
+    assert call("stabilitySentence", lat) == "model-a stays first while this weight is between 0.34 and 1.00 (stored 0.42)."
     vram = next(r for r in st["rows"] if r["criterion"] == "vram")
     assert vram["no_data"] is True
     assert call("stabilitySentence", vram) == "No readings for this criterion in the run: its weight changes nothing."
@@ -137,15 +144,15 @@ def test_weight_stability_ties_point_ties_and_unlabelled():
     same = {"accuracy": 0.3, "latency": 1.0, "vram": 0.0, "tokens": 0.8}
     st = call("weightStability", _two(same, dict(same)))
     assert all(r["leader"] is None for r in st["rows"])
-    assert call("stabilitySentence", st["rows"][0]) == "At the stored weight (0.40) the top place is a tie."
+    assert call("stabilitySentence", st["rows"][0]) == "At the stored weight (0.42) the top place is a tie."
     # both models score 1.0 on VRAM: weight exactly 1 ties them; that single point is folded away
     st = call("weightStability", _two({"accuracy": 0.5, "latency": 1.0, "vram": 1.0, "tokens": 0.8},
                                       {"accuracy": 0.2, "latency": 0.9, "vram": 1.0, "tokens": 0.6}))
     vram = next(r for r in st["rows"] if r["criterion"] == "vram")
     assert vram["changes"] is False and vram["point_tie"] == 1
     assert call("stabilitySentence", vram) == "model-a stays first for any weight from 0 to 1 (at exactly 1.00 every model ties)."
-    # unlabelled: accuracy is not a criterion; the stored weights renormalise over the other three
-    st = call("weightStability", _two(same, {"accuracy": 0, "latency": 0.5, "vram": 0, "tokens": 0.9}, lab=False))
+    # labelled or not, accuracy is not a criterion; the stored weights renormalise over the other three
+    st = call("weightStability", _two(same, {"accuracy": 0, "latency": 0.5, "vram": 0, "tokens": 0.9}, lab=True))
     assert [r["criterion"] for r in st["rows"]] == ["latency", "vram", "tokens"]
     assert abs(st["weights"]["latency"] - 0.25 / 0.6) < 1e-9 and st["weights"]["accuracy"] == 0
 
@@ -256,13 +263,17 @@ def test_workload_projection_matches_the_stored_cost_basis():
     assert call("workloadProjection", _costed(), {"flows_per_day": 6750})["models"][0]["gpus_needed"] == 1
 
 
-def test_cost_per_correct_answer():
-    a, b = call("costPerCorrect", _costed())
-    assert abs(a["gpu_s_per_correct"] - 12.8 / 0.25) < 1e-12 and a["flows_per_correct"] == 4
-    assert abs(a["usd_per_1k_correct"] - 4 * 12.8 * 1000 / 3600 * 0.8) < 1e-9 and abs(a["wh_per_correct"] - 0.84) < 1e-12
-    assert b["gpu_s_per_correct"] is None and b["usd_per_1k_correct"] is None          # no correct answers
-    s = _costed(); s["session"]["accuracy_available"] = False
-    assert call("costPerCorrect", s) is None
+def test_cost_per_valid_answer():
+    s = _costed()
+    s["output_reliability"] = {"per_model": [{"model": m["model"], "valid_rate": v} for m, v in zip(s["per_model"], (0.25, 0.0))]}
+    a, b = call("costPerValid", s)
+    assert abs(a["gpu_s_per_valid"] - 12.8 / 0.25) < 1e-12 and a["flows_per_valid"] == 4
+    assert abs(a["usd_per_1k_valid"] - 4 * 12.8 * 1000 / 3600 * 0.8) < 1e-9 and abs(a["wh_per_valid"] - 0.84) < 1e-12
+    assert b["gpu_s_per_valid"] is None and b["usd_per_1k_valid"] is None                # no valid answers
+    s["session"]["accuracy_available"] = False                                           # works without labels
+    assert call("costPerValid", s)[0]["flows_per_valid"] == 4
+    del s["output_reliability"]
+    assert call("costPerValid", s) is None                                               # older sessions
 
 
 def test_deployment_fit_cells():
@@ -293,7 +304,7 @@ def test_a_measured_zero_is_not_missing_but_an_absent_reading_is():
     pr = call("criteriaProfile", s)
     assert pr["missing"] == {"accuracy": False, "latency": False, "vram": True, "tokens": False}
     rows = {r["criterion"]: r for r in call("weightStability", s)["rows"]}
-    assert rows["accuracy"]["no_data"] is False and rows["vram"]["no_data"] is True
+    assert "accuracy" not in rows and rows["latency"]["no_data"] is False and rows["vram"]["no_data"] is True
 
 
 def _s(status, gpu, demo, metrics, n=40):

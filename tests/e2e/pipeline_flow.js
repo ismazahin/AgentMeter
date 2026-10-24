@@ -92,6 +92,8 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log((await p.$$('#agents-gantt .g-row:first-child .g-seg')).length === 5, 'timeline: 5 segments per flow');
     log(/Escalation/.test(await p.textContent('#agents-handoffs')) && (await p.$$eval('#agents-handoffs .ho', hs => hs[0].querySelectorAll('.node').length)) === 5, 'hand-offs: 5 nodes, titles shown');
     await p.screenshot({ path: S + '/pl-session.png', fullPage: true });
+    log((await p.$$('#agents-remove .remove-table tbody tr')).length === 10 && (await p.$$('#agents-composition .cat-row')).length === 10,
+        'custom pipeline: removing-an-agent and prompt-composition cover all 5 agents per model');
     // the phone width still fits
     await p.setViewportSize({ width: 375, height: 800 }); await p.waitForTimeout(300);
     const w1 = await p.evaluate(() => document.documentElement.scrollWidth);

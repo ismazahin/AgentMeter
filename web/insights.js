@@ -614,6 +614,65 @@
                      "service times drawn from this session's per-flow latencies; " + n + " simulated arrivals, fixed seed." };
   }
 
+  // ---- Agent Analysis: what if one agent were removed? (an estimate from the measured shares) ----
+  // Saves its own call (time, tokens) and the hand-off tokens it sends to later agents; the time
+  // those re-read tokens cost is estimated with the session's prompt-size slope (drivers), if any.
+  function removeAgent(res) {
+    var ag = res.agents || {}, ho = ag.handoffs || {}, la = ag.label_agent || "decide";
+    var pl = {}; (ag.pipeline || []).forEach(function (a) { pl[a.name] = a.kind; });
+    var slope = {}; (((res.drivers || {}).per_model) || []).forEach(function (m) { if (m.input_scaling) slope[bare(m.model)] = m.input_scaling.slope_s_per_1k_tokens; });
+    return { label_agent: la, per_model: (ag.per_model || []).map(function (m) {
+      var flow = (m.agents || []).reduce(function (s, a) { return s + (num(a.mean_latency_s) || 0); }, 0);
+      var k = bare(m.model), sl = slope[k] != null && slope[k] > 0 ? slope[k] : null;
+      return { model: k, flow_s: flow, agents: (m.agents || []).map(function (a) {
+        var readers = Object.keys(ho).filter(function (b) { return (ho[b] || []).indexOf(a.agent) >= 0; });
+        var sent = (num(a.mean_output_tokens) || 0) * readers.length;
+        var save = (num(a.mean_latency_s) || 0) + (sl ? sl * sent / 1000 : 0);
+        var kind = pl[a.agent] || (a.agent === la ? "label" : a.agent === "act" ? "verdict" : "text");
+        return { agent: a.agent, kind: kind, removable: a.agent !== la, readers: readers,
+                 saves_s: save, saves_share: flow ? save / flow : null,
+                 saves_tokens: (num(a.mean_input_tokens) || 0) + (num(a.mean_output_tokens) || 0) + sent,
+                 handoff_tokens_sent: sent, prefill_estimated: !!sl };
+      }) };
+    }) };
+  }
+
+  // ---- Agent Analysis: does each agent's output-token budget fit what it writes? ----------------
+  function budgetTuning(res) {
+    return ((res.agents || {}).per_model || []).map(function (m) {
+      return { model: bare(m.model), agents: (m.agents || []).map(function (a) {
+        var f = a.failures || {}, cap = num(f.token_cap), hit = num(f.hit_token_cap), n = num(a.n) || 0;
+        var p95 = num(a.output_tokens_p95), mx = num(a.output_tokens_max), rate = cap && n ? (hit || 0) / n : null;
+        var advice, to = null;
+        if (!cap) advice = "no_budget";
+        else if (rate != null && rate > 0.02) { advice = "raise"; to = Math.ceil(cap * 1.5); }
+        else if (mx != null && mx < 0.5 * cap) { advice = "lower"; to = Math.max(8, Math.ceil(mx * 1.25)); }
+        else advice = mx == null ? "unknown" : "fits";
+        return { agent: a.agent, budget: cap, hit_rate: rate, p50: num(a.output_tokens_p50), p95: p95, max: mx, advice: advice, suggest: to };
+      }) };
+    });
+  }
+
+  // ---- Agent Analysis: the same flows with another pipeline (other sessions) -----------------
+  function pipelineCompare(sessions, sessionId) {
+    var cur = (sessions || []).filter(function (s) { return s.session_id === sessionId; })[0];
+    if (!cur || !cur.prepared_set_sha256) return { current: null, others: [] };
+    var key = function (s) { return (s.pipeline || ["perceive", "reason", "decide", "act"]).join(">"); };
+    var others = (sessions || []).filter(function (s) {
+      return s.session_id !== sessionId && s.prepared_set_sha256 === cur.prepared_set_sha256 && s.gpu === cur.gpu && key(s) !== key(cur) &&
+        (s.status === "Done" || s.status === "Demo");
+    }).map(function (s) {
+      var models = Object.keys(s.metrics || {}).filter(function (m) { return (cur.metrics || {})[m]; }).map(function (m) {
+        var a = cur.metrics[m], b = s.metrics[m], rel = function (k) { return num(a[k]) && num(b[k]) != null ? (num(b[k]) - num(a[k])) / num(a[k]) : null; };
+        return { model: bare(m), latency_s: num(b.mean_latency_s), tokens: num(b.mean_tokens_per_flow), valid_rate: num(b.valid_rate),
+                 latency_vs_this: rel("mean_latency_s"), tokens_vs_this: rel("mean_tokens_per_flow"),
+                 valid_vs_this: num(a.valid_rate) != null && num(b.valid_rate) != null ? num(b.valid_rate) - num(a.valid_rate) : null };
+      });
+      return { session_id: s.session_id, created_at: s.created_at, pipeline: s.pipeline || ["perceive", "reason", "decide", "act"], models: models };
+    }).filter(function (o) { return o.models.length; });
+    return { current: { pipeline: cur.pipeline || ["perceive", "reason", "decide", "act"] }, others: others };
+  }
+
   // ---- one plain sentence at the top of each session tab (restates stored numbers only) ----
   function tabSummaries(res) {
     var out = {}, rel = res.relative_comparison, pm = res.per_model || [];
@@ -670,7 +729,7 @@
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
-              workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
+              workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, removeAgent: removeAgent, budgetTuning: budgetTuning, pipelineCompare: pipelineCompare, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, repeatability: repeatability,
               loadScaling: loadScaling, runEstimate: runEstimate, sampleSize: sampleSize, tabSummaries: tabSummaries };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

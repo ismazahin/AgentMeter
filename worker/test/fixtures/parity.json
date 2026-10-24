@@ -23,6 +23,7 @@
    "waiting_for_prepare": null,
    "notes": "",
    "tags": [],
+   "pipeline": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -52,7 +53,8 @@
      "accuracy": 0.2,
      "saw_composite_100": 47.58,
      "saw_tier": "Critical",
-     "saw_eff_composite_100": 62.63
+     "saw_eff_composite_100": 62.63,
+     "valid_rate": null
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -76,7 +78,8 @@
      "accuracy": 0.22000000000000003,
      "saw_composite_100": 44.33,
      "saw_tier": "Critical",
-     "saw_eff_composite_100": 57.13
+     "saw_eff_composite_100": 57.13,
+     "valid_rate": null
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -144,6 +147,7 @@
    "waiting_for_prepare": null,
    "notes": "",
    "tags": [],
+   "pipeline": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -173,7 +177,8 @@
      "accuracy": 0.2,
      "saw_composite_100": 47.58,
      "saw_tier": "Critical",
-     "saw_eff_composite_100": 62.63
+     "saw_eff_composite_100": 62.63,
+     "valid_rate": null
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -197,7 +202,8 @@
      "accuracy": 0.22599999999999998,
      "saw_composite_100": 44.33,
      "saw_tier": "Critical",
-     "saw_eff_composite_100": 57.13
+     "saw_eff_composite_100": 57.13,
+     "valid_rate": null
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -265,6 +271,7 @@
    "waiting_for_prepare": null,
    "notes": "",
    "tags": [],
+   "pipeline": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -294,7 +301,8 @@
      "accuracy": 0.2,
      "saw_composite_100": 62.63,
      "saw_tier": "Degraded",
-     "saw_eff_composite_100": 62.63
+     "saw_eff_composite_100": 62.63,
+     "valid_rate": null
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -318,7 +326,8 @@
      "accuracy": 0.21600000000000003,
      "saw_composite_100": 68.13,
      "saw_tier": "Degraded",
-     "saw_eff_composite_100": 68.13
+     "saw_eff_composite_100": 68.13,
+     "valid_rate": null
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -385,6 +394,7 @@
    "waiting_for_prepare": null,
    "notes": "",
    "tags": [],
+   "pipeline": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -414,7 +424,8 @@
      "accuracy": 0.2,
      "saw_composite_100": 47.58,
      "saw_tier": "Critical",
-     "saw_eff_composite_100": 62.63
+     "saw_eff_composite_100": 62.63,
+     "valid_rate": null
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -475,6 +486,7 @@
    "waiting_for_prepare": null,
    "notes": "",
    "tags": [],
+   "pipeline": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -504,7 +516,8 @@
      "accuracy": 0.2,
      "saw_composite_100": 47.58,
      "saw_tier": "Critical",
-     "saw_eff_composite_100": 62.63
+     "saw_eff_composite_100": 62.63,
+     "valid_rate": null
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -528,7 +541,8 @@
      "accuracy": 0.22000000000000003,
      "saw_composite_100": 44.33,
      "saw_tier": "Critical",
-     "saw_eff_composite_100": 57.13
+     "saw_eff_composite_100": 57.13,
+     "valid_rate": null
     }
    },
    "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -596,6 +610,7 @@
    "waiting_for_prepare": null,
    "notes": "",
    "tags": [],
+   "pipeline": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -625,7 +640,8 @@
      "accuracy": 0.2,
      "saw_composite_100": 47.58,
      "saw_tier": "Critical",
-     "saw_eff_composite_100": 62.63
+     "saw_eff_composite_100": 62.63,
+     "valid_rate": null
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -649,7 +665,8 @@
      "accuracy": 0.22200000000000003,
      "saw_composite_100": 44.33,
      "saw_tier": "Critical",
-     "saw_eff_composite_100": 57.13
+     "saw_eff_composite_100": 57.13,
+     "valid_rate": null
     }
    },
    "prepared_set_sha256": null,
@@ -706,6 +723,7 @@
    "waiting_for_prepare": null,
    "notes": "",
    "tags": [],
+   "pipeline": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -735,7 +753,8 @@
      "accuracy": 0.2,
      "saw_composite_100": 47.58,
      "saw_tier": "Critical",
-     "saw_eff_composite_100": 62.63
+     "saw_eff_composite_100": 62.63,
+     "valid_rate": null
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -759,7 +778,8 @@
      "accuracy": 0.21800000000000003,
      "saw_composite_100": 50.83,
      "saw_tier": "Critical",
-     "saw_eff_composite_100": 68.13
+     "saw_eff_composite_100": 68.13,
+     "valid_rate": null
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -833,6 +853,7 @@
      "waiting_for_prepare": null,
      "notes": "",
      "tags": [],
+     "pipeline": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -862,7 +883,8 @@
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 62.63
+       "saw_eff_composite_100": 62.63,
+       "valid_rate": null
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -886,7 +908,8 @@
        "accuracy": 0.22000000000000003,
        "saw_composite_100": 44.33,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 57.13
+       "saw_eff_composite_100": 57.13,
+       "valid_rate": null
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -926,6 +949,7 @@
      "waiting_for_prepare": null,
      "notes": "",
      "tags": [],
+     "pipeline": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -955,7 +979,8 @@
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 62.63
+       "saw_eff_composite_100": 62.63,
+       "valid_rate": null
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -979,7 +1004,8 @@
        "accuracy": 0.22599999999999998,
        "saw_composite_100": 44.33,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 57.13
+       "saw_eff_composite_100": 57.13,
+       "valid_rate": null
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1345,6 +1371,7 @@
      "waiting_for_prepare": null,
      "notes": "",
      "tags": [],
+     "pipeline": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -1374,7 +1401,8 @@
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 62.63
+       "saw_eff_composite_100": 62.63,
+       "valid_rate": null
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1398,7 +1426,8 @@
        "accuracy": 0.22000000000000003,
        "saw_composite_100": 44.33,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 57.13
+       "saw_eff_composite_100": 57.13,
+       "valid_rate": null
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1438,6 +1467,7 @@
      "waiting_for_prepare": null,
      "notes": "",
      "tags": [],
+     "pipeline": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -1467,7 +1497,8 @@
        "accuracy": 0.2,
        "saw_composite_100": 62.63,
        "saw_tier": "Degraded",
-       "saw_eff_composite_100": 62.63
+       "saw_eff_composite_100": 62.63,
+       "valid_rate": null
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1491,7 +1522,8 @@
        "accuracy": 0.21600000000000003,
        "saw_composite_100": 68.13,
        "saw_tier": "Degraded",
-       "saw_eff_composite_100": 68.13
+       "saw_eff_composite_100": 68.13,
+       "valid_rate": null
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1847,6 +1879,7 @@
      "waiting_for_prepare": null,
      "notes": "",
      "tags": [],
+     "pipeline": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -1876,7 +1909,8 @@
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 62.63
+       "saw_eff_composite_100": 62.63,
+       "valid_rate": null
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1900,7 +1934,8 @@
        "accuracy": 0.22000000000000003,
        "saw_composite_100": 44.33,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 57.13
+       "saw_eff_composite_100": 57.13,
+       "valid_rate": null
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -1939,6 +1974,7 @@
      "waiting_for_prepare": null,
      "notes": "",
      "tags": [],
+     "pipeline": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -1968,7 +2004,8 @@
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 62.63
+       "saw_eff_composite_100": 62.63,
+       "valid_rate": null
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -2311,6 +2348,7 @@
      "waiting_for_prepare": null,
      "notes": "",
      "tags": [],
+     "pipeline": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -2340,7 +2378,8 @@
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 62.63
+       "saw_eff_composite_100": 62.63,
+       "valid_rate": null
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2364,7 +2403,8 @@
        "accuracy": 0.22599999999999998,
        "saw_composite_100": 44.33,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 57.13
+       "saw_eff_composite_100": 57.13,
+       "valid_rate": null
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -2404,6 +2444,7 @@
      "waiting_for_prepare": null,
      "notes": "",
      "tags": [],
+     "pipeline": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -2433,7 +2474,8 @@
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 62.63
+       "saw_eff_composite_100": 62.63,
+       "valid_rate": null
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2457,7 +2499,8 @@
        "accuracy": 0.22000000000000003,
        "saw_composite_100": 44.33,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 57.13
+       "saw_eff_composite_100": 57.13,
+       "valid_rate": null
       }
      },
      "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -2829,6 +2872,7 @@
      "waiting_for_prepare": null,
      "notes": "",
      "tags": [],
+     "pipeline": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -2858,7 +2902,8 @@
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 62.63
+       "saw_eff_composite_100": 62.63,
+       "valid_rate": null
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2882,7 +2927,8 @@
        "accuracy": 0.22000000000000003,
        "saw_composite_100": 44.33,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 57.13
+       "saw_eff_composite_100": 57.13,
+       "valid_rate": null
       }
      },
      "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -2922,6 +2968,7 @@
      "waiting_for_prepare": null,
      "notes": "",
      "tags": [],
+     "pipeline": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -2951,7 +2998,8 @@
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 62.63
+       "saw_eff_composite_100": 62.63,
+       "valid_rate": null
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2975,7 +3023,8 @@
        "accuracy": 0.22200000000000003,
        "saw_composite_100": 44.33,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 57.13
+       "saw_eff_composite_100": 57.13,
+       "valid_rate": null
       }
      },
      "prepared_set_sha256": null,
@@ -3349,6 +3398,7 @@
      "waiting_for_prepare": null,
      "notes": "",
      "tags": [],
+     "pipeline": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -3378,7 +3428,8 @@
        "accuracy": 0.2,
        "saw_composite_100": 62.63,
        "saw_tier": "Degraded",
-       "saw_eff_composite_100": 62.63
+       "saw_eff_composite_100": 62.63,
+       "valid_rate": null
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -3402,7 +3453,8 @@
        "accuracy": 0.21600000000000003,
        "saw_composite_100": 68.13,
        "saw_tier": "Degraded",
-       "saw_eff_composite_100": 68.13
+       "saw_eff_composite_100": 68.13,
+       "valid_rate": null
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -3441,6 +3493,7 @@
      "waiting_for_prepare": null,
      "notes": "",
      "tags": [],
+     "pipeline": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -3470,7 +3523,8 @@
        "accuracy": 0.2,
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
-       "saw_eff_composite_100": 62.63
+       "saw_eff_composite_100": 62.63,
+       "valid_rate": null
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

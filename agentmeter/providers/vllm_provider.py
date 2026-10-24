@@ -123,6 +123,13 @@ class VLLMProvider(ModelProvider):
         except Exception:
             pass
 
+    def count_tokens(self, text: str) -> Optional[int]:
+        if not text:
+            return 0
+        if self.tokenizer is None:
+            return None
+        return len(self.tokenizer.encode(text, add_special_tokens=False))
+
     # --- inference ------------------------------------------------------
     def _prompt(self, prompt: str, system: Optional[str]) -> str:
         """The chat template, as hf.py applies it; a template that rejects a system turn

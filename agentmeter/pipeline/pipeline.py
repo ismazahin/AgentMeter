@@ -71,7 +71,9 @@ class Pipeline:
         agent_fn = self._agent_fn(name)
 
         def node(state: dict) -> dict:
-            return self.node_hook(name, agent_fn, state, self.provider, self.config)
+            update = self.node_hook(name, agent_fn, state, self.provider, self.config)
+            update.pop("_parts", None)            # prompt parts: read by the instrumentation hook only
+            return update
 
         return node
 

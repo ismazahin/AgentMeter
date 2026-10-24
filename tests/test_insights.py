@@ -439,3 +439,48 @@ def test_queue_simulation_capacity_and_backlog():
     assert a["mean_wait_s"] < 2.0 < b["mean_wait_s"] and b["max_queue"] > a["max_queue"]
     assert call("queueSim", s, 12) == q                      # seeded: reproducible
     assert call("queueSim", {"latency_trend": {"per_model": [{"model": A, "points": []}]}}, 12)["models"][0]["measured"] is False
+
+
+# ---------------------------------------------------------------- analysis expansion, phase 4
+def _agents4():
+    def ag(name, lat, i, o, cap=None, hit=0, mx=None):
+        return {"agent": name, "n": 10, "mean_latency_s": lat, "mean_input_tokens": i, "mean_output_tokens": o,
+                "failures": {"token_cap": cap, "hit_token_cap": hit if cap else None},
+                "output_tokens_p50": o, "output_tokens_p95": o, "output_tokens_max": mx if mx is not None else o}
+    return {"agents": {"label_agent": "decide", "handoffs": {"perceive": [], "reason": ["perceive"], "decide": ["reason", "perceive"], "act": ["reason"]},
+                       "per_model": [{"model": A, "agents": [ag("perceive", 1.0, 400, 20, 160, 0, 30), ag("reason", 2.0, 430, 40, 50, 3, 50),
+                                                             ag("decide", 0.5, 480, 2, 12, 0, 10), ag("act", 0.5, 60, 15)]}]},
+            "drivers": {"per_model": [{"model": A, "input_scaling": {"slope_s_per_1k_tokens": 0.5}}]}}
+
+
+def test_remove_agent_estimates_what_it_saves():
+    ra = call("removeAgent", _agents4())
+    m = ra["per_model"][0]
+    by = {a["agent"]: a for a in m["agents"]}
+    assert m["flow_s"] == 4.0 and by["decide"]["removable"] is False
+    # perceive: own 1.0 s + its 20 output tokens re-read by reason and decide (40 tokens x 0.5 s per 1k)
+    assert set(by["perceive"]["readers"]) == {"reason", "decide"} and abs(by["perceive"]["saves_s"] - 1.02) < 1e-9
+    assert by["perceive"]["saves_tokens"] == 400 + 20 + 40 and abs(by["perceive"]["saves_share"] - 0.255) < 1e-9
+    assert by["act"]["readers"] == [] and by["act"]["saves_s"] == 0.5
+
+
+def test_budget_tuning_advice():
+    bt = {a["agent"]: a for a in call("budgetTuning", _agents4())[0]["agents"]}
+    assert bt["perceive"]["advice"] == "lower" and bt["perceive"]["suggest"] == 38          # max 30 of 160 -> 30 x 1.25
+    assert bt["reason"]["advice"] == "raise" and bt["reason"]["suggest"] == 75 and bt["reason"]["hit_rate"] == 0.3
+    assert bt["decide"]["advice"] == "fits" and bt["act"]["advice"] == "no_budget"
+
+
+def test_pipeline_compare_finds_other_pipelines_on_the_same_flows():
+    met = lambda lat, tok, v: {A: {"mean_latency_s": lat, "mean_tokens_per_flow": tok, "valid_rate": v}}
+    sessions = [
+        {"session_id": "cur", "status": "Done", "prepared_set_sha256": "h", "gpu": "L4", "pipeline": None, "metrics": met(2.0, 1000, 1.0)},
+        {"session_id": "short", "status": "Done", "prepared_set_sha256": "h", "gpu": "L4", "pipeline": ["perceive", "decide"], "metrics": met(1.0, 600, 0.9)},
+        {"session_id": "same", "status": "Done", "prepared_set_sha256": "h", "gpu": "L4", "pipeline": ["perceive", "reason", "decide", "act"], "metrics": met(2.1, 1000, 1.0)},
+        {"session_id": "othergpu", "status": "Done", "prepared_set_sha256": "h", "gpu": "A100", "pipeline": ["decide"], "metrics": met(1.0, 1, 1)},
+        {"session_id": "otherset", "status": "Done", "prepared_set_sha256": "x", "gpu": "L4", "pipeline": ["decide"], "metrics": met(1.0, 1, 1)}]
+    pc = call("pipelineCompare", sessions, "cur")
+    assert pc["current"]["pipeline"] == ["perceive", "reason", "decide", "act"]
+    assert [o["session_id"] for o in pc["others"]] == ["short"]
+    m = pc["others"][0]["models"][0]
+    assert m["latency_vs_this"] == -0.5 and m["tokens_vs_this"] == -0.4 and abs(m["valid_vs_this"] + 0.1) < 1e-9

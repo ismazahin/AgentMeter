@@ -85,6 +85,14 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log((await p.$$('#drivers-card .drivers-table')).length === 2 && (await p.$$('#drivers-card .drivers-table tbody tr')).length >= 2, 'drivers: the flow features that go with latency, per model');
     log(!!(await p.$('#scaling-card')), 'drivers: prompt size and latency card (a slope, or why there is none)');
 
+    // Analysis expansion, phase 4 — prompt composition, removing an agent, token budgets, other pipelines
+    await tab(p, csv, 'agents', '#agents-composition');
+    log((await p.$$('#agents-composition .cat-row')).length === 8 && /cacheable \d/.test(await p.textContent('#agents-composition')), 'agents: what the prompts are made of (2 models x 4 agents), cacheable share');
+    log((await p.$$('#agents-remove .remove-table tbody tr')).length === 8 && /cannot be removed/.test(await p.textContent('#agents-remove')), 'agents: what removing each agent saves; the label agent cannot be removed');
+    log((await p.$$('#agents-budget-table tbody tr')).length === 8 && /can be lower|fits|raise it/.test(await p.textContent('#agents-budget-table')), 'agents: token budget advice per agent');
+    await p.waitForSelector('#agents-pipelines');
+    log(/No other session ran a different pipeline/.test(await p.textContent('#agents-pipelines')), 'agents: other pipelines on these flows (none yet, says how)');
+
     // Phase 2 — Ranking -> Robustness: weight range in which #1 stays first
     await tab(p, csv, 'ranking/robustness', '#svc-stability');
     log((await p.$$('#svc-stability .stab-row')).length === 3 && (await p.$$('#svc-stability .stab-mark')).length === 3,

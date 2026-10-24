@@ -223,6 +223,9 @@ def agents_block(sr: list[dict], am: list[dict], label_of: dict[str, str],
                 "max_peak_vram_mb": float(np.max(vram)) if vram else None,
                 "failures": fail,
                 "failure_rate": fails / len(g),
+                # output length distribution: what a token budget would cut (budget tuning)
+                "output_tokens_p50": float(np.percentile(tout, 50)), "output_tokens_p95": float(np.percentile(tout, 95)),
+                "output_tokens_max": float(np.max(tout)),
                 "cap_rate": (fail["hit_token_cap"] / len(g)) if fail["hit_token_cap"] is not None else None,
             })
         # agentic overhead: earlier agents' outputs re-sent in later prompts (estimated
@@ -538,6 +541,57 @@ def drivers_block(sr: list[dict], am: list[dict], label_of: dict[str, str], run_
                        f"and total tokens, per model (the {DRIVER_TOP} strongest for latency shown). Input scaling: a "
                        "least-squares line of latency against the flow's input tokens (all agents). Correlation is not "
                        "cause: features move together.")}
+
+
+def read_parts(db: str | Path, run_id: str) -> list[dict]:
+    con = sqlite3.connect(f"file:{Path(db)}?mode=ro", uri=True)
+    con.row_factory = sqlite3.Row
+    try:
+        return [dict(r) for r in con.execute("SELECT * FROM agent_prompt_parts WHERE run_id=?", (run_id,))]
+    except sqlite3.OperationalError:            # the session predates prompt composition
+        return []
+    finally:
+        con.close()
+
+
+def prompt_composition_block(am: list[dict], parts: list[dict], label_of: dict[str, str]) -> dict[str, Any]:
+    """What each agent's input tokens are made of: its system prompt (the same for every flow),
+    the flow features, the earlier agents' answers it re-reads (hand-off), and the rest (chat
+    template, the harness's format lines, labels list). Counted with the model's own tokenizer
+    on each part separately, so the parts can add up to a little more or less than the prompt.
+    Prefix caching: the system prompt opens every call of an agent unchanged, so an engine with
+    prefix caching (e.g. vLLM) could reuse it — its share of input tokens is the upper bound."""
+    if not parts:
+        return {"measured": False, "reason": "the session predates prompt composition"}
+    pk = {(p["model"], p["scenario_id"], p["agent_name"]): p for p in parts}
+    order = _agents_in_order(am)
+    per = []
+    for model, dbm in label_of.items():
+        agents = []
+        tot = {"input": 0.0, "system": 0.0, "features": 0.0, "handoff": 0.0}
+        for ag in order:
+            rows = [(r, pk.get((dbm, r["scenario_id"], ag))) for r in am if r["model"] == dbm and r["agent_name"] == ag]
+            rows = [(r, p) for r, p in rows if p]
+            if not rows:
+                continue
+            n = len(rows)
+            mean = lambda f: sum(f(r, p) for r, p in rows) / n                          # noqa: E731
+            inp = mean(lambda r, p: r["input_tokens"] or 0)
+            sysm, fea, ho = mean(lambda r, p: p["system_tokens"] or 0), mean(lambda r, p: p["feature_tokens"] or 0), mean(lambda r, p: p["handoff_tokens"] or 0)
+            for k, v in (("input", inp), ("system", sysm), ("features", fea), ("handoff", ho)):
+                tot[k] += v
+            agents.append({"agent": ag, "n": n, "input_tokens": inp, "system_tokens": sysm, "feature_tokens": fea,
+                           "handoff_tokens": ho, "other_tokens": max(0.0, inp - sysm - fea - ho),
+                           "cacheable_share": (sysm / inp) if inp else None})
+        if agents:
+            per.append({"model": model, "agents": agents, "per_flow": {
+                "input_tokens": tot["input"], "system_tokens": tot["system"], "feature_tokens": tot["features"],
+                "handoff_tokens": tot["handoff"], "other_tokens": max(0.0, tot["input"] - tot["system"] - tot["features"] - tot["handoff"]),
+                "cacheable_share": (tot["system"] / tot["input"]) if tot["input"] else None}})
+    return {"measured": bool(per), "per_model": per,
+            "note": ("Each part counted with the model's own tokenizer, separately: parts may not add up exactly. "
+                     "Cacheable = the system prompt's share of input tokens (the same text opens every call of an "
+                     "agent), an upper bound for what prefix caching could skip.")}
 
 
 def cold_start_block(sr: list[dict], label_of: dict[str, str], loads: dict[str, Optional[dict]]) -> dict[str, Any]:
@@ -1107,6 +1161,7 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
         read_texts(db_path, run_id), bool((payload.get("session") or {}).get("accuracy_available")),
         mitre=dict(config_data.get("mitre") or {}), repeat=read_extras(db_path, run_id, labels, "repeat_check"))
     payload["drivers"] = drivers_block(sr, am, label_of, run_dir)
+    payload["prompt_composition"] = prompt_composition_block(am, read_parts(db_path, run_id), label_of)
     payload["cold_start"] = cold_start_block(sr, label_of, read_extras(db_path, run_id, labels, "model_load"))
     payload["rank_stability"] = rank_stability_block(sr, am, label_of, config_data.get("scoring"))
     payload["latency_distribution"] = latency_block(sr, label_of)

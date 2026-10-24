@@ -81,6 +81,7 @@ def model_metrics(res: dict[str, Any]) -> dict[str, dict[str, Any]]:
     lat = {m["model"]: m for m in ((res.get("latency_distribution") or {}).get("per_model") or [])}
     cost = {m["model"]: m for m in ((res.get("cost_energy") or {}).get("per_model") or [])}
     mem = {m["model"]: m for m in ((res.get("memory") or {}).get("per_model") or [])}
+    valid = {m["model"]: m for m in ((res.get("output_reliability") or {}).get("per_model") or [])}
     for pm in res.get("per_model") or []:
         m = pm["model"]
         eff = pm.get("efficiency") or {}
@@ -105,7 +106,8 @@ def model_metrics(res: dict[str, Any]) -> dict[str, dict[str, Any]]:
                # the stored SAW score (fixed targets) and tier, copied for Compare — never recomputed
                "saw_composite_100": (pm.get("saw") or {}).get("composite_100"),
                "saw_tier": (pm.get("saw") or {}).get("tier"),
-               "saw_eff_composite_100": (pm.get("saw_efficiency_only") or {}).get("composite_100")}
+               "saw_eff_composite_100": (pm.get("saw_efficiency_only") or {}).get("composite_100"),
+               "valid_rate": (valid.get(m) or {}).get("valid_rate")}
         out[m] = row
     return out
 
@@ -145,6 +147,8 @@ def session_summary(job: dict[str, Any], res: Optional[dict[str, Any]] = None,
         "message": job.get("message"), "error": job.get("error"),
         "waiting_for_prepare": job.get("after_prepare") if not job.get("run_dir") else None,
         "notes": job.get("notes") or "", "tags": list(job.get("tags") or []),
+        # the agents this session ran (a custom pipeline lists its own; None = the default four)
+        "pipeline": [a.get("name") if isinstance(a, dict) else a for a in job["pipeline"]] if job.get("pipeline") else None,
     }
     if res:
         v = _verdict(res)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass
@@ -25,6 +26,10 @@ class ModelProvider(ABC):
 
     def unload(self) -> None:
         """Free the device / VRAM. No-op unless overridden."""
+
+    def count_tokens(self, text: str) -> Optional[int]:
+        """Tokens in `text` by this provider's tokenizer (prompt composition); None if unknown."""
+        return None
 
     @abstractmethod
     def generate(

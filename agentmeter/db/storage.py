@@ -196,6 +196,13 @@ class Storage:
         """
         if outputs is not None:
             self.conn.executescript(self._OUTPUTS_DDL)   # before BEGIN: executescript commits
+        rows_list = list(agent_rows)
+        agent_rows = rows_list
+        parts = [(run_id, model, scenario_id, m.agent_name, getattr(m, "system_tokens", None),
+                  getattr(m, "feature_tokens", None), getattr(m, "handoff_tokens", None))
+                 for m in rows_list if getattr(m, "system_tokens", None) is not None]
+        if parts:
+            self.conn.executescript(self._PARTS_DDL)
         agent_params = [
             (
                 run_id,
@@ -248,6 +255,25 @@ class Storage:
                 self.conn.executemany(
                     "INSERT INTO agent_outputs (run_id, model, scenario_id, agent_name, text) VALUES (?, ?, ?, ?, ?)",
                     [(run_id, model, scenario_id, a, t) for a, t in outputs.items()])
+            if parts:
+                self.conn.execute("DELETE FROM agent_prompt_parts WHERE run_id=? AND model=? AND scenario_id=?",
+                                  (run_id, model, scenario_id))
+                self.conn.executemany(
+                    "INSERT INTO agent_prompt_parts (run_id, model, scenario_id, agent_name, system_tokens, "
+                    "feature_tokens, handoff_tokens) VALUES (?, ?, ?, ?, ?, ?, ?)", parts)
+
+    # Prompt composition per agent call (the provider's token count of each part). Own table.
+    _PARTS_DDL = """
+    CREATE TABLE IF NOT EXISTS agent_prompt_parts (
+        run_id         TEXT NOT NULL,
+        model          TEXT NOT NULL,
+        scenario_id    TEXT NOT NULL,
+        agent_name     TEXT NOT NULL,
+        system_tokens  INTEGER,
+        feature_tokens INTEGER,
+        handoff_tokens INTEGER,
+        PRIMARY KEY (run_id, model, scenario_id, agent_name)
+    );"""
 
     # Agent answers (flow explorer). Own table, created on first use, like model_memory.
     _OUTPUTS_DDL = """

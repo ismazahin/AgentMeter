@@ -50,6 +50,7 @@
     --info-soft: #E7ECFA;
     --series-1: #2455D6; --series-2: #C65C34;
     --mseries-1: #2a78d6; --mseries-2: #eda100; --mseries-3: #e87ba4; --mseries-4: #008300;
+    --part-1: #3b4651; --part-2: #6f7a85; --part-3: #a3acb5; --part-4: #d2d7dc;
     --ag-1: #2a78d6; --ag-2: #eb6834; --ag-3: #1baf7a; --ag-4: #eda100; --ag-5: #e87ba4; --ag-6: #008300; --ag-7: #6250d6; --ag-8: #e34948;
     --radius: 3px; --radius-lg: 4px; --side: 232px;
     color-scheme: light;
@@ -65,6 +66,7 @@
     --info-soft: #1C2540;
     --series-1: #5b8ae8; --series-2: #d9714a;
     --mseries-1: #3987e5; --mseries-2: #c98500; --mseries-3: #d55181; --mseries-4: #008300;
+    --part-1: #e3e7eb; --part-2: #aab3bc; --part-3: #707b86; --part-4: #434c55;
     --ag-1: #3987e5; --ag-2: #d95926; --ag-3: #199e70; --ag-4: #c98500; --ag-5: #d55181; --ag-6: #008300; --ag-7: #9085e9; --ag-8: #e66767;
     color-scheme: dark;
   } }
@@ -79,6 +81,7 @@
     --info-soft: #1C2540;
     --series-1: #5b8ae8; --series-2: #d9714a;
     --mseries-1: #3987e5; --mseries-2: #c98500; --mseries-3: #d55181; --mseries-4: #008300;
+    --part-1: #e3e7eb; --part-2: #aab3bc; --part-3: #707b86; --part-4: #434c55;
     --ag-1: #3987e5; --ag-2: #d95926; --ag-3: #199e70; --ag-4: #c98500; --ag-5: #d55181; --ag-6: #008300; --ag-7: #9085e9; --ag-8: #e66767;
     color-scheme: dark;
   }
@@ -2750,7 +2753,7 @@
     $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
     resetEmbed();
     wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); SAME_SETUP = {};       // fresh per render: a later session on these flows must show up
-    wireRepeat(res, job); wireNotes(job); wireChanged(job); wireFrontier(res); wireCapacity(res);
+    wireRepeat(res, job); wireNotes(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePipelineCompare(job);
     addExports($("session-body"));
   }
 
@@ -3170,6 +3173,80 @@
       '<div class="table-wrap"><table id="scaling-table"><thead><tr><th>Model</th><th class="num">+ time per 1,000 input tokens</th><th class="num">Fit (r)</th><th class="num">Input tokens per flow</th></tr></thead><tbody>' +
       ms.map(function (m) { var s = m.input_scaling; return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + (s.slope_s_per_1k_tokens < 0 ? "−" + fmtTime(-s.slope_s_per_1k_tokens) : "+" + fmtTime(s.slope_s_per_1k_tokens)) + '</td><td class="num">' + fmtNum(s.r, 2) + '</td><td class="num">' + fmtNum(s.min_tokens) + '–' + fmtNum(s.max_tokens) + '</td></tr>'; }).join("") +
       '</tbody></table></div></div>';
+  }
+  // ---------- Analysis expansion, phase 4: agents ----------
+  function removeAgentCard(res) {
+    if (!window.INSIGHTS || !res.agents) return "";
+    var ra = INSIGHTS.removeAgent(res);
+    return '<div class="card" id="agents-remove"><h2>What if one agent were removed?</h2><p class="muted small" style="margin-top:0">An estimate from this session\'s measurements: removing an agent saves its own call and the hand-off tokens later agents re-read. It says nothing about whether the answers stay as useful: re-run the pipeline without it (Build my own) to measure that.</p>' +
+      ra.per_model.map(function (m) {
+        return '<h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + ' <span class="muted small">' + fmtTime(m.flow_s) + ' per flow</span></h3>' +
+          '<div class="table-wrap"><table class="remove-table"><thead><tr><th>Remove</th><th class="num">Time saved / flow</th><th class="num">Share of flow time</th><th class="num">Tokens saved / flow</th><th>Who loses its answer</th></tr></thead><tbody>' +
+          m.agents.map(function (a) {
+            if (!a.removable) return '<tr><td><span class="legend"><span style="--c:' + agColor(a.agent) + '">' + esc(agName(a.agent)) + '</span></span></td><td colspan="4" class="muted">gives the pipeline\'s answer (label agent): cannot be removed</td></tr>';
+            return '<tr><td><span class="legend"><span style="--c:' + agColor(a.agent) + '">' + esc(agName(a.agent)) + '</span></span></td><td class="num">' + fmtTime(a.saves_s) + (a.prefill_estimated ? ' <span class="muted small">(incl. est. re-reading)</span>' : "") +
+              '</td><td class="num">' + fmtPct(a.saves_share) + '</td><td class="num">' + fmtNum(a.saves_tokens) + '</td><td>' + (a.readers.length ? esc(a.readers.map(agName).join(", ")) : '<span class="muted">nobody</span>') + '</td></tr>';
+          }).join("") + '</tbody></table></div>';
+      }).join("") + '</div>';
+  }
+  var ADVICE = { raise: ["raise it", "warn"], lower: ["can be lower", ""], fits: ["fits", "ok"], no_budget: ["no budget", ""], unknown: ["not recorded", ""] };
+  function budgetCard(res) {
+    if (!window.INSIGHTS || !res.agents) return "";
+    var bt = INSIGHTS.budgetTuning(res);
+    return '<div class="card" id="agents-budget"><h2>Token budgets</h2><p class="muted small" style="margin-top:0">Each agent may write up to its output-token budget. An agent that often hits it gets cut off (raise it); one that never comes near it can have a tighter budget, which bounds its worst-case time without changing its usual answers.</p>' +
+      '<div class="table-wrap"><table id="agents-budget-table"><thead><tr><th>Model</th><th>Agent</th><th class="num">Budget</th><th class="num">Hits it</th><th class="num">Writes (median · p95 · max)</th><th>Advice</th></tr></thead><tbody>' +
+      bt.map(function (m) {
+        return m.agents.map(function (a) {
+          var ad = ADVICE[a.advice];
+          return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td><span class="legend"><span style="--c:' + agColor(a.agent) + '">' + esc(agName(a.agent)) + '</span></span></td><td class="num">' + (a.budget == null ? "—" : fmtNum(a.budget)) +
+            '</td><td class="num">' + (a.hit_rate == null ? "—" : fmtPct(a.hit_rate)) + '</td><td class="num">' + (a.max == null ? '<span class="muted">not recorded</span>' : fmtNum(a.p50) + ' · ' + fmtNum(a.p95) + ' · ' + fmtNum(a.max)) +
+            '</td><td><span class="chip ' + ad[1] + '">' + ad[0] + '</span>' + (a.suggest ? ' <span class="small">→ ' + fmtNum(a.suggest) + ' tokens</span>' : "") + '</td></tr>';
+        }).join("");
+      }).join("") + '</tbody></table></div></div>';
+  }
+  var PART_COLORS = [["system_tokens", "System prompt", "var(--part-1)"], ["feature_tokens", "Flow features", "var(--part-2)"], ["handoff_tokens", "Hand-off", "var(--part-3)"], ["other_tokens", "Other (template, format lines)", "var(--part-4)"]];
+  function compositionCard(res) {
+    var pc = res.prompt_composition;
+    if (!pc) return "";
+    if (!pc.measured) return '<div class="card" id="agents-composition"><h2>What the prompts are made of</h2><p class="muted small">' + esc(pc.reason || "Not measured in this session") + '.</p></div>';
+    var legend = '<div class="ilegend">' + PART_COLORS.map(function (p) { return '<span><i style="--c:' + p[2] + '"></i>' + esc(p[1]) + '</span>'; }).join("") + '</div>';
+    var mx = Math.max.apply(null, pc.per_model.map(function (m) { return Math.max.apply(null, m.agents.map(function (a) { return a.input_tokens; })); })) || 1;
+    var groups = pc.per_model.map(function (m) {
+      return '<div class="cat-group"><h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + ' <span class="muted small">' + fmtNum(m.per_flow.input_tokens) + ' input tokens per flow · cacheable ' + fmtPct(m.per_flow.cacheable_share) + '</span></h3>' +
+        m.agents.map(function (a) {
+          var bar = PART_COLORS.map(function (p) {
+            var v = a[p[0]] || 0, t = agName(a.agent) + " · " + p[1] + ": " + fmtNum(v) + " tokens";
+            return v ? '<span tabindex="0" style="flex:' + v.toFixed(2) + ' 1 0;--c:' + p[2] + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span>' : "";
+          }).join("");
+          return '<div class="cat-row"><span class="lbl">' + esc(agName(a.agent)) + '</span><div class="cat-track"><div class="cat-bar" style="width:' + (100 * a.input_tokens / mx).toFixed(1) + '%">' + bar + '</div></div><span class="val">' + fmtNum(a.input_tokens) + '</span></div>';
+        }).join("") + '</div>';
+    }).join("");
+    return '<div class="card" id="agents-composition"><h2>What the prompts are made of</h2><p class="muted small" style="margin-top:0">Input tokens per call, split into the agent\'s system prompt, the flow features, the earlier answers it re-reads, and the rest. <b>Cacheable</b>: the system prompt opens every call of an agent unchanged, so an engine with prefix caching (e.g. vLLM) could skip that share.</p>' +
+      legend + groups +
+      '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="agents-composition-table"><thead><tr><th>Model</th><th>Agent</th><th class="num">Input</th><th class="num">System</th><th class="num">Features</th><th class="num">Hand-off</th><th class="num">Other</th><th class="num">Cacheable</th></tr></thead><tbody>' +
+      pc.per_model.map(function (m) { return m.agents.map(function (a) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(agName(a.agent)) + '</td><td class="num">' + fmtNum(a.input_tokens) + '</td><td class="num">' + fmtNum(a.system_tokens) + '</td><td class="num">' + fmtNum(a.feature_tokens) +
+        '</td><td class="num">' + fmtNum(a.handoff_tokens) + '</td><td class="num">' + fmtNum(a.other_tokens) + '</td><td class="num">' + fmtPct(a.cacheable_share) + '</td></tr>'; }).join(""); }).join("") +
+      '</tbody></table></div></details><p class="small muted">' + esc(pc.note) + '</p></div>';
+  }
+  function wirePipelineCompare(job) {
+    var host = $("agents-pipelines-host"), id = job.job_id;
+    if (!host || !window.INSIGHTS) return;
+    api("/api/sessions?limit=200").then(function (r) {
+      if (SESSION.id !== id || !r.ok) return;
+      var pc = INSIGHTS.pipelineCompare(r.data.sessions || [], id), name = function (l) { return l.map(agName).join(" → "); };
+      host.innerHTML = '<div class="card" id="agents-pipelines"><h2>Other pipelines on these flows</h2>' + (!pc.current ? '<p class="muted small">This session has no prepared-set fingerprint.</p>'
+        : !pc.others.length ? '<p class="muted small" style="margin-bottom:0">No other session ran a different pipeline on these flows and this GPU. Use <b>Build my own</b> in a new benchmark on the same prepared set (for example drop or add an agent) to see whether more agents are worth their cost.</p>'
+        : '<p class="muted small" style="margin-top:0">This session: <b>' + esc(name(pc.current.pipeline)) + '</b>. The same models on the same flows and GPU with another pipeline (change against this session):</p>' +
+          '<div class="table-wrap"><table id="agents-pipelines-table"><thead><tr><th>Pipeline</th><th>Model</th><th class="num">Latency / flow</th><th class="num">Tokens / flow</th><th class="num">Valid answers</th></tr></thead><tbody>' +
+          pc.others.map(function (o) {
+            return o.models.map(function (m, i) {
+              var d = function (v) { return v == null ? "" : ' <span class="muted small">(' + (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v) * 100, 0) + '%)</span>'; };
+              return '<tr>' + (i ? '<td></td>' : '<td><a href="#/session/' + enc(o.session_id) + '/agents">' + esc(name(o.pipeline)) + '</a></td>') + '<td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtTime(m.latency_s) + d(m.latency_vs_this) +
+                '</td><td class="num">' + fmtNum(m.tokens) + d(m.tokens_vs_this) + '</td><td class="num">' + fmtPct(m.valid_rate) + (m.valid_vs_this == null ? "" : ' <span class="muted small">(' + (m.valid_vs_this >= 0 ? "+" : "−") + fmtNum(Math.abs(m.valid_vs_this) * 100, 1) + ' pts)</span>') + '</td></tr>';
+            }).join("");
+          }).join("") + '</tbody></table></div>') + '</div>';
+      addExports(host);
+    });
   }
   // Output Reliability: is the pipeline's output usable? A validity check of the output, not a
   // detection score — nothing here enters a score, rank or verdict.
@@ -3860,7 +3937,7 @@
       flows.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join("") + '</select></div></div><div id="agents-gantt" class="gantt" style="margin-top:14px"></div>' +
       '<div class="legend">' + ag.agent_order.map(function (a) { return '<span style="--c:' + agColor(a) + '">' + esc(agName(a)) + '</span>'; }).join("") + '</div>' +
       '<p class="muted small">' + esc(ag.notes.timeline) + '</p></div>');
-    h.push(handoffCard(res), classAgentCard(res), '<div class="card" id="flows-card"><h2>Flow explorer</h2><p class="muted small" id="flows-status">Loading the flows…</p><div id="flows-body"></div></div>');
+    h.push(handoffCard(res), compositionCard(res), removeAgentCard(res), budgetCard(res), '<div id="agents-pipelines-host"></div>', classAgentCard(res), '<div class="card" id="flows-card"><h2>Flow explorer</h2><p class="muted small" id="flows-status">Loading the flows…</p><div id="flows-body"></div></div>');
     h.push('<div class="card flat"><h2>How these are measured</h2><ul class="list">' +
       ["latency", "vram", "overhead", "failures"].map(function (k) { return '<li>' + esc(ag.notes[k]) + '</li>'; }).join("") + '</ul></div>');
     return h.join("");

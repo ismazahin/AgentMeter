@@ -105,7 +105,8 @@ def perceive_agent(state: dict, provider: ModelProvider, config: Config) -> dict
         system=SYSTEM_PROMPTS["perceive"],
         max_new_tokens=_max_tokens(config, "perceive"),
     )
-    return {"perceive": res.text, "_last_result": res}
+    return {"perceive": res.text, "_last_result": res,
+            "_parts": {"system": SYSTEM_PROMPTS["perceive"], "features": state["feature_prompt"], "handoff": ""}}
 
 
 def reason_agent(state: dict, provider: ModelProvider, config: Config) -> dict:
@@ -116,7 +117,9 @@ def reason_agent(state: dict, provider: ModelProvider, config: Config) -> dict:
     res = provider.generate(
         user, system=SYSTEM_PROMPTS["reason"], max_new_tokens=_max_tokens(config, "reason")
     )
-    return {"reason": res.text, "_last_result": res}
+    return {"reason": res.text, "_last_result": res,
+            "_parts": {"system": SYSTEM_PROMPTS["reason"], "features": state["feature_prompt"],
+                       "handoff": state.get("perceive", "")}}
 
 
 def decide_agent(state: dict, provider: ModelProvider, config: Config) -> dict:
@@ -132,7 +135,9 @@ def decide_agent(state: dict, provider: ModelProvider, config: Config) -> dict:
         user, system=SYSTEM_PROMPTS["decide"], max_new_tokens=_max_tokens(config, "decide")
     )
     predicted = normalize_class(res.text, classes)
-    return {"decide": res.text, "predicted_class": predicted, "_last_result": res}
+    return {"decide": res.text, "predicted_class": predicted, "_last_result": res,
+            "_parts": {"system": SYSTEM_PROMPTS["decide"], "features": state["feature_prompt"],
+                       "handoff": state.get("reason", "") + "\n" + state.get("perceive", "")}}
 
 
 def act_agent(state: dict, provider: ModelProvider, config: Config) -> dict:
@@ -156,7 +161,8 @@ def act_agent(state: dict, provider: ModelProvider, config: Config) -> dict:
         "justification": res.text.strip().splitlines()[-1] if res.text.strip() else "",
         "raw": res.text,
     }
-    return {"act": res.text, "verdict": verdict, "_last_result": res}
+    return {"act": res.text, "verdict": verdict, "_last_result": res,
+            "_parts": {"system": SYSTEM_PROMPTS["act"], "features": "", "handoff": state.get("reason", "")}}
 
 
 # Which earlier agents' OUTPUTS each agent's prompt re-sends (the inter-agent
@@ -207,7 +213,10 @@ def make_custom_agent(name: str, spec: dict, titles: dict[str, str]) -> Callable
             parts.append("Give: predicted class, its MITRE ATT&CK technique, one-line justification.")
         res = provider.generate("\n\n".join(parts), system=custom_system_prompt(spec),
                                 max_new_tokens=_max_tokens(config, name))
-        update: dict = {name: res.text, "_last_result": res}
+        update: dict = {name: res.text, "_last_result": res,
+                        "_parts": {"system": custom_system_prompt(spec),
+                                   "features": state["feature_prompt"] if spec.get("features", True) else "",
+                                   "handoff": "\n".join(state.get(src, "") for src in spec.get("reads") or [])}}
         if kind == "label":
             update["predicted_class"] = normalize_class(res.text, classes)
         elif kind == "verdict":

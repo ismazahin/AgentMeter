@@ -483,3 +483,24 @@ def test_drivers_block_correlates_features_and_fits_prompt_size(tmp_path):
     assert abs(sc["slope_s_per_1k_tokens"] - 2.0) < 1e-9 and abs(sc["r"] - 1.0) < 1e-9     # +0.1 s per 50 tokens
     assert sc["min_tokens"] == 1000 and len(sc["points"]) == n
     assert "features" not in drivers_block(sr, am, {"M": "m"}, tmp_path / "missing")["per_model"][0]
+
+
+def test_prompt_composition_is_counted_and_stored(tmp_path):
+    process_csv(SAMPLE, out_root=tmp_path, max_flows=5)
+    run_dir = tmp_path / "cicids2017_sample"
+    p = run_session(run_dir, ["mock-a"], provider="mock")
+    pc = p["prompt_composition"]
+    assert pc["measured"] is True
+    by = {a["agent"]: a for a in pc["per_model"][0]["agents"]}
+    assert by["perceive"]["handoff_tokens"] == 0 and by["perceive"]["feature_tokens"] > 0
+    assert by["act"]["feature_tokens"] == 0 and by["act"]["handoff_tokens"] > 0         # act re-reads reason only
+    assert by["decide"]["handoff_tokens"] > by["reason"]["handoff_tokens"]                 # reason + perceive
+    pf = pc["per_model"][0]["per_flow"]
+    assert 0 < pf["cacheable_share"] < 1 and pf["input_tokens"] == p["per_model"][0]["efficiency"]["end_to_end"]["mean_input_tokens_per_flow"]
+    rows = _rows(str(run_dir / "session.db"), "SELECT COUNT(*) FROM agent_prompt_parts")
+    assert rows[0][0] == 5 * 4
+    a = p["agents"]["per_model"][0]["agents"][0]
+    assert a["output_tokens_p50"] <= a["output_tokens_p95"] <= a["output_tokens_max"]
+    # the session list carries the pipeline and each model's valid-answer rate (pipeline vs pipeline)
+    from agentmeter.server.sessions import model_metrics
+    assert model_metrics(p)["mock-a"]["valid_rate"] == 1.0

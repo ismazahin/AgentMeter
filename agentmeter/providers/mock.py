@@ -116,6 +116,9 @@ class MockProvider(ModelProvider):
             ttft_s=None,  # mock does not stream; measured for real in Phase 4/5
         )
 
+    def count_tokens(self, text: str) -> int:
+        return self._count(text)
+
     # --- helpers --------------------------------------------------------
     @staticmethod
     def _count(text: str) -> int:

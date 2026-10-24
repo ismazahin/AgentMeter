@@ -30,6 +30,10 @@ class AgentMetrics:
     vram_peak_mb: Optional[float]
     input_tokens: int
     output_tokens: int
+    # prompt composition (the provider's own token count of each part; None when not counted)
+    system_tokens: Optional[int] = None
+    feature_tokens: Optional[int] = None
+    handoff_tokens: Optional[int] = None
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -186,6 +190,15 @@ def make_instrumented_hook(collector: MetricsCollector, model_label: str, gpu: G
             vram = None     # e.g. vLLM: its KV cache is reserved up front, no per-call delta exists
 
         res = update.get("_last_result")
+        # prompt composition: counted AFTER the call (never inside the timed window)
+        parts, count = update.get("_parts"), getattr(provider, "count_tokens", None)
+        pc = {}
+        if parts and callable(count):
+            try:
+                pc = {"system_tokens": count(parts.get("system") or ""), "feature_tokens": count(parts.get("features") or ""),
+                      "handoff_tokens": count(parts.get("handoff") or "")}
+            except Exception:  # noqa: BLE001 — a counting problem never fails a measured flow
+                pc = {}
         collector.add(
             AgentMetrics(
                 scenario_id=state.get("scenario_id", "?"),
@@ -196,6 +209,7 @@ def make_instrumented_hook(collector: MetricsCollector, model_label: str, gpu: G
                 vram_peak_mb=vram,
                 input_tokens=getattr(res, "input_tokens", 0),
                 output_tokens=getattr(res, "output_tokens", 0),
+                **pc,
             )
         )
         return update

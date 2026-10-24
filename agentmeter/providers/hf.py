@@ -197,6 +197,12 @@ class HFProvider(ModelProvider):
             self._torch.cuda.synchronize()
             self._torch.cuda.empty_cache()
 
+    def count_tokens(self, text: str) -> Optional[int]:
+        if self.tokenizer is None or not text:
+            return 0 if not text else None
+        with self._tok_lock:
+            return len(self.tokenizer(text, add_special_tokens=False).input_ids)
+
     # --- inference ------------------------------------------------------
     def _encode(self, prompt: str, system: Optional[str]) -> dict:
         """Encode one turn into a dict of tensors on the device.

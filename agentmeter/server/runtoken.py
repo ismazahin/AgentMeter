@@ -26,7 +26,7 @@ from typing import Any, Optional
 
 SECRET_ENV = "AGENTMETER_RUN_TOKEN_SECRET"
 AUDIENCE = "agentmeter-backend"
-SINGLE_USE = ("prepare", "import", "benchmark", "resume", "stop", "verify")
+SINGLE_USE = ("prepare", "import", "benchmark", "resume", "stop", "verify", "schedule")
 KINDS = SINGLE_USE + ("read", "files")
 MAX_TTL_S = 15 * 60                     # the Worker issues 5 min; refuse anything claiming longer
 _JTI = re.compile(r"^[0-9a-f]{32}$")

@@ -60,7 +60,7 @@ async function frameOf(p) {
   await p.waitForSelector('#home-empty:not([hidden])', { timeout: 15000 });
   log(true, 'Home empty state shown on first launch');
   const nav = await p.$$eval('.mainnav a:not([hidden])', as => as.map(a => a.textContent.trim()));
-  log(nav.join('|') === 'Home|New benchmark|Sessions|Compare|Leaderboard', 'header nav: ' + nav.join(', '));
+  log(nav.join('|') === 'Home|New benchmark|Sessions|Compare|Leaderboard|Trends', 'header nav: ' + nav.join(', '));
   log(await p.getAttribute('.top-right a.iconbtn', 'aria-label') === 'Settings', 'Settings icon button has an aria-label');
   log(/Demo mode \(no GPU\)/.test(await p.textContent('#svc-backend-badge')), 'GPU chip: ' + await p.textContent('#svc-backend-badge'));
   const body0 = await p.textContent('body');
@@ -318,6 +318,33 @@ async function frameOf(p) {
   await p.click('.lb-group .lb-compare'); await p.waitForSelector('#cmp-validity');
   log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Open in Compare opens the merged view of that setup');
 
+  // History & Trends: one model on one setup over time; demo sessions only when asked
+  await p.click('.mainnav a[data-nav="trends"]'); await p.waitForSelector('#view-trends:not([hidden])');
+  await p.waitForSelector('#tr-empty');
+  log(/demo sessions are hidden/.test(await p.textContent('#tr-empty')), 'Trends: demo sessions are left out by default (said plainly)');
+  await p.check('#tr-demo'); await p.waitForSelector('#tr-chart-card');
+  const trOpts = await p.$$eval('#tr-series option', o => o.map(x => x.textContent));
+  log(trOpts.length >= 2 && /2 runs/.test(trOpts[0]) && trOpts.every(t => /Demo \(no GPU\)/.test(t)), 'Trends: a series per model and setup; the reused set gives 2 runs (' + trOpts[0] + ')');
+  log((await p.$$('#tr-table tbody tr')).length === 2 && (await p.$$('#tr-plot circle')).length === 2 && /needs at least 3/.test(await p.textContent('#tr-verdict')),
+      'Trends: chart and table list both runs; no judgement from 2 runs');
+  await p.selectOption('#tr-metric', 'wh_per_flow'); await p.waitForSelector('#tr-none');
+  log(/Not measured/.test(await p.textContent('#tr-none')), 'Trends: a measure the demo never records says so');
+  await p.selectOption('#tr-metric', 'mean_latency_s');
+  log(/No series moved/.test(await p.textContent('#tr-drift-card')) && /No schedules yet/.test(await p.textContent('#tr-schedules')), 'Trends: nothing flagged; no schedules yet');
+  await p.screenshot({ path: S + '/11d-trends.png', fullPage: true });
+  // Repeat on a schedule (session Overview) -> listed on Trends -> cancel
+  await p.goto(BASE + '/#/session/' + job1 + '/overview'); await p.waitForSelector('#svc-schedule');
+  await p.fill('#sch-runs', '31'); await p.click('#sch-save');
+  log(/1 to 30/.test(await p.textContent('#sch-error')), 'Schedule: the number of runs is checked before sending');
+  await p.fill('#sch-runs', '5'); await p.selectOption('#sch-every', '12'); await p.click('#sch-save');
+  await p.waitForSelector('#sch-list [data-sch]');
+  log(/every 12 hours, 0 of 5 runs done/.test(await p.textContent('#sch-list')), 'Schedule: started from the session, shown with its next run');
+  await p.click('.mainnav a[data-nav="trends"]'); await p.waitForSelector('#tr-sched-table');
+  log(/every 12 hours/.test(await p.textContent('#tr-sched-table')) && /0 \/ 5/.test(await p.textContent('#tr-sched-table')), 'Trends: the schedule is listed');
+  p.once('dialog', d => d.accept());
+  await p.click('#tr-sched-table [data-sch-cancel]'); await p.waitForFunction(() => /cancelled/.test(document.querySelector('#tr-sched-table').textContent));
+  log(true, 'Trends: a schedule can be cancelled (runs already made are kept)');
+
   // How to use: a sidebar page; its contents links scroll within the page; the tips come back
   await p.click('.sidenav-account a[data-nav="help"]'); await p.waitForSelector('#view-help:not([hidden])');
   log(await p.$$eval('#help-tabs-table tbody tr', r => r.length) === 8 && await p.getAttribute('.sidenav-account a[data-nav="help"]', 'aria-current') === 'page', 'How to use: opens from the sidebar and covers all 8 session tabs');
@@ -345,7 +372,7 @@ async function frameOf(p) {
   const ph = await (await b.newContext({ viewport: { width: 375, height: 800 }, colorScheme: 'dark' })).newPage();
   ph.on('pageerror', e => errs.push('phone: ' + e.message));
   for (const [hash, sel] of [['#/', '#home-latest:not([hidden])'], ['#/new', '#svc-upload-form:not([hidden])'],
-                             ['#/session/' + job1, '#session-body:not([hidden])'], ['#/leaderboard', '.lb-group'],
+                             ['#/session/' + job1, '#session-body:not([hidden])'], ['#/leaderboard', '.lb-group'], ['#/trends?demo=1', '#tr-chart-card'],
                              ['#/compare?a=' + job1 + '&b=' + job3, '#cmp-validity']]) {
     await ph.goto(BASE + '/' + hash); await ph.waitForSelector(sel, { timeout: 20000 });
     const over = await ph.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

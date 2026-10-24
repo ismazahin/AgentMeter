@@ -428,6 +428,24 @@ What changes, and how the app reports it:
 Settings (in the base config, `model.vllm`): `gpu_memory_utilization` (0.1-0.95),
 `max_model_len` (default 8192), `enforce_eager` (default true), `seed`.
 
+## Scheduled re-runs (History & Trends)
+
+A finished session can be repeated on a schedule from its Overview tab (**Repeat on a
+schedule**): every 6 hours to weekly, 1 to 30 runs. The schedule lives on the GPU backend
+(`<jobs dir>/schedules.json`, `agentmeter/server/schedules.py`), which queues each run as an
+ordinary benchmark session owned by whoever created the schedule. The runs use the same GPU,
+prepared set, models, settings and pipeline, so the **Trends** page can line them up.
+
+- A run never stacks: while the previous scheduled run is queued or running, or the queue is
+  full, the next one waits and is retried every 10 minutes.
+- At most 3 active schedules per user. Creating or cancelling one needs a `schedule` run
+  token for that session (the Worker issues it; the backend checks that the caller owns the
+  session or is an admin). Scheduled runs are not counted against the hourly limit.
+- Schedules run only while the backend runs. A Vast.ai instance that is stopped skips its
+  firings; when it comes back, a due schedule fires once (no burst of catch-up runs). If the
+  prepared set is gone (a new instance without the results volume), the schedule ends as
+  `failed` with the reason.
+
 ## Checklist before going public
 - [ ] Served over **HTTPS** (tunnel), never plain http; Worker var `ALLOW_HTTP_BACKEND = "0"`.
 - [ ] `AGENTMETER_TEST_ALLOW_LOOPBACK_URLS` is **not** set.

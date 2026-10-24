@@ -126,3 +126,18 @@ describe("stop tokens", () => {
     expect((await api("/api/runs/authorize", { body: { kind: "prepare" }, token: u.token })).status).toBe(200);   // still allowed
   });
 });
+
+describe("schedule tokens", () => {
+  it("a schedule token names the session, says whether the caller is an admin, and is never counted", async () => {
+    const admin = await user("admin"), u = await user();
+    await register();
+    const r = await api("/api/runs/authorize", { body: { kind: "schedule", job_id: JOB(1) }, token: u.token });
+    expect(r.status).toBe(200);
+    expect(await verifyToken<any>(E.RUN_TOKEN_SECRET, r.data.token, "run")).toMatchObject({ kind: "schedule", job_id: JOB(1), sub: u.id, admin: false });
+    const a = await api("/api/runs/authorize", { body: { kind: "schedule", job_id: JOB(2) }, token: admin.token });
+    expect((await verifyToken<any>(E.RUN_TOKEN_SECRET, a.data.token, "run"))!.admin).toBe(true);
+    expect((await api("/api/runs/authorize", { body: { kind: "schedule" }, token: u.token })).status).toBe(400);
+    const n = await E.DB.prepare("SELECT COUNT(*) AS n FROM run_grants").first();
+    expect(n.n).toBe(0);
+  });
+});

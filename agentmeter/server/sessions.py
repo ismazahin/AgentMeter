@@ -148,6 +148,7 @@ def session_summary(job: dict[str, Any], res: Optional[dict[str, Any]] = None,
         "waiting_for_prepare": job.get("after_prepare") if not job.get("run_dir") else None,
         "notes": job.get("notes") or "", "tags": list(job.get("tags") or []),
         # the agents this session ran (a custom pipeline lists its own; None = the default four)
+        "schedule_id": job.get("schedule_id"),          # queued by a scheduled re-run (server/schedules.py)
         "pipeline": [a.get("name") if isinstance(a, dict) else a for a in job["pipeline"]] if job.get("pipeline") else None,
     }
     if res:

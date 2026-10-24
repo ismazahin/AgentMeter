@@ -507,3 +507,39 @@ def test_energy_efficiency_price_compare_idle_and_recommend():
     assert r["best"]["model"] == A and r["excluded"] == [B]
     assert call("recommend", s, "speed", None)["tie"] is True       # 1.00 s vs 1.03 s: within 5%
     assert call("recommend", s, "memory", None)["no_data"] == [B]
+
+
+def _sess(sid, at, lat, *, status="Done", gpu="NVIDIA L4", fp="fp1", psh="set1", model=A, identity=True, sched=None):
+    s = {"session_id": sid, "status": status, "created_at": at, "finished_at": at, "input_type": "CSV", "n_flows": 50,
+         "schedule_id": sched, "metrics": {model: {"mean_latency_s": lat, "valid_rate": 1.0}}}
+    if identity:
+        s["identity"] = {"prepared_set_sha256": psh, "gpu_label": gpu, "settings_fingerprint": fp}
+    else:                                     # the backend's own list: top-level hash and fingerprint
+        s.update(prepared_set_sha256=psh, gpu=gpu, settings_fingerprint=fp)
+    return s
+
+
+def test_trends_group_by_model_and_setup_and_flag_drift():
+    rows = [_sess("s1", "2026-01-01T00:00:00Z", 1.00), _sess("s2", "2026-01-02T00:00:00Z", 1.02, identity=False),
+            _sess("s3", "2026-01-03T00:00:00Z", 0.98), _sess("s4", "2026-01-04T00:00:00Z", 1.40, sched="sch_1"),
+            _sess("g2", "2026-01-05T00:00:00Z", 0.5, gpu="NVIDIA A100"),            # another GPU: its own series
+            _sess("demo", "2026-01-06T00:00:00Z", 9.0, status="Demo", gpu="Demo (no GPU)"),
+            _sess("run", "2026-01-06T00:00:00Z", 9.0, status="Running"),
+            _sess("noid", "2026-01-07T00:00:00Z", 1.0, psh=None)]
+    t = call("trends", rows)
+    assert [len(s["points"]) for s in t["series"]] == [4, 1] and t["skipped"] == 1
+    main = t["series"][0]
+    assert [p["session_id"] for p in main["points"]] == ["s1", "s2", "s3", "s4"] and main["points"][3]["scheduled"]
+    assert "NVIDIA L4" in main["label"] and "set set1" in main["label"]
+    d = [x for x in t["drifts"] if x["metric"] == "mean_latency_s"]
+    assert len(d) == 1 and d[0]["worse"] and abs(d[0]["baseline"] - 1.0) < 1e-12 and abs(d[0]["change"] - 0.4) < 1e-9
+    assert not [x for x in t["drifts"] if x["metric"] == "valid_rate"]                 # unchanged: not flagged
+    assert len(call("trends", rows, {"includeDemo": True})["series"]) == 3
+    ts = call("trendSeries", main, "mean_latency_s")
+    assert ts["lower_is_better"] and ts["drift"]["flagged"] and ts["points"][1]["delta"] is not None
+    assert abs(ts["points"][3]["delta"] - (1.40 - 0.98) / 0.98) < 1e-9
+    # a small move inside the runs' usual spread is never flagged
+    quiet = [_sess("q%d" % i, "2026-02-0%dT00:00:00Z" % (i + 1), v) for i, v in enumerate([1.0, 1.2, 0.9, 1.1, 1.15])]
+    assert not call("trends", quiet)["drifts"]
+    # fewer than three runs: no drift judgement at all
+    assert not call("trends", rows[:2])["drifts"] and not call("trendSeries", call("trends", rows[:2])["series"][0], "mean_latency_s")["drift"]["enough"]

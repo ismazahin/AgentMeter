@@ -785,12 +785,84 @@
     return out;
   }
 
+  // ---- History & Trends: the same model on the same setup across sessions (stored numbers only) ----
+  // A series = one model on one setup (same prepared set, same GPU, same settings), so every point
+  // is like-for-like; a model is never compared across GPUs here.
+  var TREND_METRICS = [
+    ["mean_latency_s", "Mean latency per flow", "s", true], ["p95_latency_s", "p95 latency per flow", "s", true],
+    ["mean_tokens_per_flow", "Tokens per flow", "tokens", true], ["max_peak_vram_mb", "Peak working VRAM", "MB", true],
+    ["wh_per_flow", "Energy per flow", "Wh", true], ["cost_per_1k_flows_usd", "Cost per 1,000 flows", "USD", true],
+    ["valid_rate", "Usable answers", "share", false], ["saw_eff_composite_100", "SAW score (efficiency)", "points", false]];
+  var DRIFT_MIN = 0.10;                               // a change under 10% is never flagged
+  function setupOf(s) {
+    var i = s.identity || {};
+    return { prepared_set_sha256: i.prepared_set_sha256 || s.prepared_set_sha256 || null, gpu: i.gpu_label || s.gpu || null,
+             settings_fingerprint: i.settings_fingerprint || s.settings_fingerprint || null, input_type: s.input_type || null,
+             n_flows: s.n_flows == null ? null : s.n_flows, demo: !!s.demo };
+  }
+  function median(vs) {
+    var a = vs.slice().sort(function (x, y) { return x - y; }), n = a.length;
+    return n ? (n % 2 ? a[(n - 1) / 2] : (a[n / 2 - 1] + a[n / 2]) / 2) : null;
+  }
+  function drift(points, key, lowerBetter) {
+    var vs = points.map(function (p) { return num((p.metrics || {})[key]); }).filter(function (v) { return v != null; });
+    if (vs.length < 3) return { n: vs.length, enough: false };
+    var before = vs.slice(0, -1), latest = vs[vs.length - 1], base = median(before);
+    if (!base) return { n: vs.length, enough: false };
+    var mad = median(before.map(function (v) { return Math.abs(v - base); })) * 1.4826;
+    var change = (latest - base) / Math.abs(base), noise = mad / Math.abs(base), band = Math.max(DRIFT_MIN, 3 * noise);
+    return { n: vs.length, enough: true, baseline: base, latest: latest, change: change, noise: noise, band: band,
+             flagged: Math.abs(change) > band, worse: lowerBetter ? change > 0 : change < 0 };
+  }
+  function trends(sessions, opts) {
+    opts = opts || {};
+    var by = {}, skipped = 0;
+    (sessions || []).forEach(function (s) {
+      var ok = s.status === "Done" || (opts.includeDemo && s.status === "Demo");
+      if (!ok || !s.metrics) return;
+      var st = setupOf(s);
+      if (!st.prepared_set_sha256 || !st.gpu || !st.settings_fingerprint) { skipped++; return; }
+      var sk = [st.prepared_set_sha256, st.gpu, st.settings_fingerprint].join("|");
+      Object.keys(s.metrics).forEach(function (m) {
+        var k = m + "\u0000" + sk;
+        if (!by[k]) by[k] = { id: k, model: m, setup: st, points: [] };
+        by[k].points.push({ session_id: s.session_id, at: s.finished_at || s.created_at, scheduled: !!s.schedule_id, metrics: s.metrics[m] });
+      });
+    });
+    var series = Object.keys(by).map(function (k) {
+      var s = by[k];
+      s.points.sort(function (a, b) { return String(a.at).localeCompare(String(b.at)); });
+      s.label = short(s.model) + " · " + (s.setup.gpu || "GPU") + " · " + (s.setup.input_type || "") + " " + (s.setup.n_flows == null ? "" : s.setup.n_flows + " flows") +
+        " · set " + String(s.setup.prepared_set_sha256).slice(0, 8);
+      return s;
+    }).sort(function (a, b) { return b.points.length - a.points.length || a.label.localeCompare(b.label); });
+    var drifts = [];
+    series.forEach(function (s) {
+      TREND_METRICS.forEach(function (m) {
+        var d = drift(s.points, m[0], m[3]);
+        if (d.enough && d.flagged) drifts.push({ series: s.id, model: s.model, label: s.label, metric: m[0], metric_label: m[1], unit: m[2],
+                                                 baseline: d.baseline, latest: d.latest, change: d.change, band: d.band, worse: d.worse, n: d.n });
+      });
+    });
+    drifts.sort(function (a, b) { return (b.worse - a.worse) || Math.abs(b.change) - Math.abs(a.change); });
+    return { metrics: TREND_METRICS.map(function (m) { return { key: m[0], label: m[1], unit: m[2], lower_is_better: m[3] }; }),
+             series: series, drifts: drifts, skipped: skipped, min_points: 3, drift_min: DRIFT_MIN,
+             rule: "A series is one model on one setup (same prepared set, GPU and settings). The latest run is flagged when it differs from the median of the earlier runs by more than 10% and by more than three times their usual spread." };
+  }
+  function trendSeries(series, key) {
+    var m = TREND_METRICS.filter(function (x) { return x[0] === key; })[0] || TREND_METRICS[0];
+    var pts = series.points.map(function (p) { return { session_id: p.session_id, at: p.at, scheduled: p.scheduled, v: num((p.metrics || {})[m[0]]) }; });
+    var prev = null;
+    pts.forEach(function (p) { p.delta = p.v != null && prev != null && prev ? (p.v - prev) / Math.abs(prev) : null; if (p.v != null) prev = p.v; });
+    return { key: m[0], label: m[1], unit: m[2], lower_is_better: m[3], points: pts, drift: drift(series.points, m[0], m[3]) };
+  }
+
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
               workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, energyEfficiency: energyEfficiency, priceCompare: priceCompare, idleCost: idleCost, recommend: recommend, removeAgent: removeAgent, budgetTuning: budgetTuning, pipelineCompare: pipelineCompare, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, repeatability: repeatability,
-              loadScaling: loadScaling, runEstimate: runEstimate, sampleSize: sampleSize, tabSummaries: tabSummaries };
+              loadScaling: loadScaling, trends: trends, trendSeries: trendSeries, runEstimate: runEstimate, sampleSize: sampleSize, tabSummaries: tabSummaries };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

@@ -54,11 +54,12 @@ from .jobs import _JOB_ID, strong_job_id
 JOB_CREATING = {("POST", "/api/prepare"), ("POST", "/api/prepared/import"), ("POST", "/api/jobs")}
 _WRITE = {"POST", "PUT", "PATCH", "DELETE"}
 _WRITE_KIND = {"/api/prepare": "prepare", "/api/prepared/import": "import", "/api/jobs": "benchmark",
-               "/api/models/verify": "verify"}
+               "/api/models/verify": "verify", "/api/schedules": "schedule"}
 _READ_EXACT = {"/api/jobs", "/api/sessions", "/api/compare", "/api/compare/candidates", "/api/compare/merged",
-               "/api/leaderboard", "/api/models/catalog"}
+               "/api/leaderboard", "/api/models/catalog", "/api/schedules"}
 _JOB_SUB = re.compile(r"^/api/jobs/([^/]+)(?:/(result|report\.pdf|constraints|flows|resume|stop))?$")
 _SESSION = re.compile(r"^/api/sessions/[^/]+$")
+_SCHEDULE_CANCEL = re.compile(r"^/api/schedules/sch_[0-9a-f]{12}/cancel$")
 _PREPARED = re.compile(r"^/api/prepared/([^/]+)/([^/]+)(?:/([^/]+))?$")
 
 
@@ -68,6 +69,8 @@ def required(method: str, path: str) -> tuple[Optional[str], dict]:
     if method in _WRITE:
         if path in _WRITE_KIND:
             return _WRITE_KIND[path], {}
+        if _SCHEDULE_CANCEL.match(path):
+            return "schedule", {}                        # the handler checks the token's session
         m = _JOB_SUB.match(path)
         if m and m.group(2) in ("resume", "stop"):
             return m.group(2), {"job_id": m.group(1)}

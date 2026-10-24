@@ -412,6 +412,10 @@
   svg.frontier .front { fill: none; stroke: var(--muted-2); stroke-width: 2; stroke-dasharray: 6 4; }
   svg.frontier circle { stroke: var(--surface); stroke-width: 2; }
   svg.frontier circle.beaten { opacity: .55; }
+  svg.trend .tline { fill: none; stroke: var(--series-1); stroke-width: 2; }
+  svg.trend .base { stroke: var(--muted-2); stroke-width: 1.5; stroke-dasharray: 6 4; }
+  svg.trend circle.sched { stroke: var(--text); }
+  .tr-drift-list { margin: 0; padding-left: 18px; } .tr-drift-list li { margin: 6px 0; }
   .pl-view { margin: 8px 0 0; padding-left: 22px; display: grid; gap: 10px; }
   .pl-view p { margin: 2px 0 0; }
   .pl-instr { white-space: pre-wrap; }
@@ -704,6 +708,7 @@
       <a href="#/sessions" data-nav="sessions" title="Sessions"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg><span class="nl">Sessions</span></a>
       <a href="#/compare" data-nav="compare" title="Compare"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h13l-4-4M17 17H4l4 4"/></svg><span class="nl">Compare</span></a>
       <a href="#/leaderboard" data-nav="leaderboard" title="Leaderboard"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 20V11M12 20V4M18 20v-6"/></svg><span class="nl">Leaderboard</span></a>
+      <a href="#/trends" data-nav="trends" title="History &amp; Trends"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-5 4 4 8-8M15 8h5v5"/></svg><span class="nl">Trends</span></a>
     </nav>
     <nav class="sidenav-account" id="side-account" aria-label="Account">
       <span class="nav-group" aria-hidden="true">Account</span>
@@ -865,6 +870,7 @@
         <li><a href="#/sessions">Sessions</a> lists every run. Search by text, filter by tag, open a session, add a note, or delete a finished session (with an account).</li>
         <li><a href="#/compare">Compare</a> puts two sessions side by side, for example the same model on two GPUs or two data sets.</li>
         <li><a href="#/leaderboard">Leaderboard</a> ranks models across all sessions, overall or per GPU and data setup.</li>
+        <li><a href="#/trends">Trends</a> follows one model on one setup (same flows, GPU and settings) across sessions over time and flags a run that moved beyond the usual spread. To collect such runs automatically, open a finished session and use <b>Repeat on a schedule</b> on its Overview tab.</li>
       </ul>
     </div>
     <div class="card" id="help-terms">
@@ -1163,6 +1169,22 @@
     </div>
   </section>
 
+  <!-- HISTORY & TRENDS -->
+  <section id="view-trends" class="view" hidden aria-labelledby="h-trends">
+    <div class="page-head"><div><h1 id="h-trends">History &amp; Trends</h1>
+      <p>The same model on the same flows, GPU and settings, measured again over time. Each line stays on one setup: models on different GPUs are never mixed.</p></div></div>
+    <div class="card" id="tr-controls">
+      <div class="row" style="margin-top:0;gap:16px;flex-wrap:wrap;align-items:flex-end">
+        <div class="field" style="margin:0;min-width:0;flex:2 1 280px"><label for="tr-series">Model and setup</label><select id="tr-series" class="wide"></select></div>
+        <div class="field" style="margin:0;min-width:0;flex:1 1 200px"><label for="tr-metric">Measure</label><select id="tr-metric" class="wide"></select></div>
+      </div>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="tr-demo"> Include demo sessions</label>
+    </div>
+    <div id="tr-body"></div>
+    <div id="tr-drifts"></div>
+    <div class="card" id="tr-schedules"><h2>Scheduled re-runs</h2><p class="muted">Loading…</p></div>
+  </section>
+
   <!-- SETTINGS -->
   <section id="view-settings" class="view" hidden aria-labelledby="h-settings">
     <div class="page-head"><div><h1 id="h-settings">Settings</h1>
@@ -1422,10 +1444,11 @@
       if (p === "/api/prepared/import") return { kind: "import" };
       if (p === "/api/jobs") return { kind: "benchmark" };
       if (p === "/api/models/verify") return { kind: "verify" };
+      if (p === "/api/schedules" || /^\/api\/schedules\/[^/]+\/cancel$/.test(p)) return { kind: "schedule" };
       if ((m = /^\/api\/jobs\/([^/]+)\/(resume|stop)$/.exec(p))) return { kind: m[2], job_id: decodeURIComponent(m[1]) };
       return null;
     }
-    if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
+    if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog|schedules)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
     if ((m = /^\/api\/jobs\/([^/]+)(\/(result|report\.pdf|constraints|flows))?$/.exec(p))) return m[2] || !STRONG_JOB.test(decodeURIComponent(m[1])) ? { kind: "read" } : null;
     if ((m = /^\/api\/prepared\/([^/]+)\/([^/]+)(\/[^/]+)?$/.exec(p)) && m[1] !== "import") return m[3] ? { kind: "files", set: decodeURIComponent(m[1]) + "/" + decodeURIComponent(m[2]) } : { kind: "read" };
     return null;
@@ -1449,6 +1472,7 @@
     }
     var body = { kind: need.kind };
     if (need.kind === "resume" || need.kind === "stop") body.job_id = need.job_id;
+    if (need.kind === "schedule") { try { body.job_id = JSON.parse(opts.body || "{}").job_id; } catch (e) { /* not JSON */ } }
     if (need.kind === "verify") { try { body.model = JSON.parse(opts.body || "{}").model; } catch (e) { /* not JSON */ } }
     if (need.kind === "benchmark") {
       var b = {};
@@ -1636,7 +1660,7 @@
   function hoverTip(el) { openTip(el, el.getAttribute("data-hover")); if (TIP) { TIP._for = el; TIP._hover = true; } }
 
   // ---------- routing ----------
-  var VIEWS = ["home", "new", "sessions", "session", "compare", "leaderboard", "settings", "profile", "admin", "help", "login"];
+  var VIEWS = ["home", "new", "sessions", "session", "compare", "leaderboard", "trends", "settings", "profile", "admin", "help", "login"];
   function parseHash() {
     var h = location.hash.replace(/^#\/?/, ""), q = {}, qi = h.indexOf("?");
     if (qi >= 0) { new URLSearchParams(h.slice(qi + 1)).forEach(function (v, k) { q[k] = v; }); h = h.slice(0, qi); }
@@ -1672,6 +1696,7 @@
     else if (v === "session" && p[1]) loadSession(p[1], p[2] ? p[2] + (p[3] ? "/" + p[3] : "") : rememberedTab());
     else if (v === "compare") loadCompare(r.q);
     else if (v === "leaderboard") loadLeaderboard();
+    else if (v === "trends") loadTrends(r.q);
     else if (v === "settings") loadSettings();
     else if (v === "profile") loadProfile();
     else if (v === "admin") loadAdmin();
@@ -2742,7 +2767,7 @@
     var SUM = window.INSIGHTS ? INSIGHTS.tabSummaries(res) : {};
     var lead = function (k) { return SUM[k] ? '<p class="tab-summary" data-summary="' + k + '">' + esc(SUM[k]) + '</p>' : ""; };
     LC = {};                                         // line charts of this session (wired after render)
-    $("spanel-overview").innerHTML = pane("main", overviewTab(res) + notesCard(job));
+    $("spanel-overview").innerHTML = pane("main", overviewTab(res) + notesCard(job) + scheduleCard(job));
     $("spanel-ranking").innerHTML = lead("ranking") + pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
         'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", rankStabilityCard(res) + stabilityCard(res)) + pane("tradeoffs", frontierCard(res)) + pane("guide", "");
     $("spanel-reliability").innerHTML = lead("reliability") + pane("main", reliabilityCard(res) + consistencyCard(res) + failureCard(res));
@@ -2753,7 +2778,7 @@
     $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
     resetEmbed();
     wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); SAME_SETUP = {};       // fresh per render: a later session on these flows must show up
-    wireRepeat(res, job); wireNotes(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePipelineCompare(job); wirePrices(res); wirePicker(res);
+    wireRepeat(res, job); wireNotes(job); wireSchedule(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePipelineCompare(job); wirePrices(res); wirePicker(res);
     addExports($("session-body"));
   }
 
@@ -3656,6 +3681,163 @@
               ' · ' + fmtNum(a.input_tokens) + ' tokens in, ' + fmtNum(a.output_tokens) + ' out</div>' + (a.text != null ? '<pre class="flow-text">' + esc(a.text) + '</pre>' : (d.has_text ? '<p class="muted small">(empty answer)</p>' : "")) + '</div>';
           }).join("") + '</div>';
       }).join("") + '</div></div>';
+  }
+  // ---------- HISTORY & TRENDS ----------
+  var TR = { data: null, series: null, metric: null, sched: [] };
+  var SCHED_EVERY = [[6, "every 6 hours"], [12, "every 12 hours"], [24, "daily"], [48, "every 2 days"], [168, "weekly"]];
+  function everyLabel(h) { var e = SCHED_EVERY.filter(function (x) { return x[0] === h; })[0]; return e ? e[1] : "every " + h + " hours"; }
+  function loadTrends(q) {
+    q = q || {};
+    if (q.series) TR.series = q.series;
+    if (q.metric) TR.metric = q.metric;
+    if (q.demo === "1") $("tr-demo").checked = true;
+    $("tr-body").innerHTML = '<p class="muted">Loading…</p>'; $("tr-drifts").innerHTML = "";
+    api("/api/sessions?limit=200").then(function (r) {
+      if (!r.ok) { $("tr-body").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
+      TR.data = r.data.sessions || [];
+      renderTrends();
+    });
+    loadSchedules();
+  }
+  function renderTrends() {
+    if (!TR.data || !window.INSIGHTS) return;
+    var t = INSIGHTS.trends(TR.data, { includeDemo: $("tr-demo").checked });
+    var ser = $("tr-series"), met = $("tr-metric");
+    if (!t.series.length) {
+      ser.innerHTML = ""; met.innerHTML = "";
+      $("tr-body").innerHTML = '<div class="card empty" id="tr-empty"><p>No finished sessions' + ($("tr-demo").checked ? "" : " (demo sessions are hidden)") +
+        '. A trend needs the same model run more than once on the same flows, GPU and settings — run a session again, or repeat one on a schedule from its Overview tab.</p></div>';
+      $("tr-drifts").innerHTML = "";
+      return;
+    }
+    if (!t.series.some(function (s) { return s.id === TR.series; })) TR.series = t.series[0].id;
+    if (!t.metrics.some(function (m) { return m.key === TR.metric; })) TR.metric = t.metrics[0].key;
+    ser.innerHTML = t.series.map(function (s) { return '<option value="' + esc(s.id) + '"' + (s.id === TR.series ? " selected" : "") + '>' + esc(s.label + " — " + s.points.length + " run" + (s.points.length === 1 ? "" : "s")) + '</option>'; }).join("");
+    met.innerHTML = t.metrics.map(function (m) { return '<option value="' + esc(m.key) + '"' + (m.key === TR.metric ? " selected" : "") + '>' + esc(m.label) + '</option>'; }).join("");
+    var s = t.series.filter(function (x) { return x.id === TR.series; })[0], ts = INSIGHTS.trendSeries(s, TR.metric);
+    $("tr-body").innerHTML = historyCard(s, ts, t);
+    $("tr-drifts").innerHTML = '<div class="card" id="tr-drift-card"><h2>Runs that moved</h2>' +
+      (t.drifts.length ? '<p class="muted small" style="margin-top:0">The latest run of a series against the median of its earlier runs.' + infoI(t.rule) + '</p><ul class="tr-drift-list">' + t.drifts.map(function (d) {
+        return '<li><span class="chip ' + (d.worse ? "bad" : "ok") + '">' + (d.worse ? "worse" : "better") + '</span> <b>' + esc(d.label) + '</b>: ' + esc(d.metric_label) + ' ' +
+          esc(fmtUnit(d.unit, d.baseline)) + ' → ' + esc(fmtUnit(d.unit, d.latest)) + ' (' + (d.change > 0 ? "+" : "") + fmtNum(100 * d.change, 0) + '% over ' + (d.n - 1) + ' earlier runs) ' +
+          '<button type="button" class="btn small-btn" data-tr-open="' + esc(d.series) + '" data-tr-metric="' + esc(d.metric) + '">Show</button></li>';
+      }).join("") + '</ul>'
+        : '<p class="muted" style="margin-bottom:0">No series moved beyond its usual spread' + (t.series.some(function (x) { return x.points.length >= 3; }) ? "." : " — a judgement needs at least three runs of the same model on the same setup.") + infoI(t.rule) + '</p>') + '</div>';
+    if (t.skipped) $("tr-drifts").innerHTML += '<p class="muted small">' + t.skipped + ' finished session' + (t.skipped === 1 ? " has" : "s have") + ' no recorded setup (older sessions) and ' + (t.skipped === 1 ? "is" : "are") + ' left out.</p>';
+  }
+  function historyCard(s, ts, t) {
+    var pts = ts.points.filter(function (p) { return p.v != null; });
+    var head = '<div class="card" id="tr-chart-card"><h2>' + esc(ts.label) + ' — ' + esc(short(s.model)) + '</h2><p class="muted small" style="margin-top:0">' +
+      esc((s.setup.gpu || "GPU") + " · " + (s.setup.input_type || "") + " · " + (s.setup.n_flows == null ? "" : s.setup.n_flows + " flows") + " · prepared set " + String(s.setup.prepared_set_sha256).slice(0, 12) +
+          " · settings " + String(s.setup.settings_fingerprint).slice(0, 8)) + ' · ' + (ts.lower_is_better ? "lower is better" : "higher is better") + '</p>';
+    if (!pts.length) return head + '<p class="muted" id="tr-none">Not measured in these runs (e.g. demo runs have no GPU energy or price).</p></div>';
+    var d = ts.drift, verdict = !d.enough ? '<p class="small" id="tr-verdict">' + pts.length + ' run' + (pts.length === 1 ? "" : "s") + ' so far: a judgement needs at least ' + t.min_points + '.</p>'
+      : '<p class="small" id="tr-verdict">Latest run ' + esc(fmtUnit(ts.unit, d.latest)) + ' vs ' + esc(fmtUnit(ts.unit, d.baseline)) + ' (median of the ' + (d.n - 1) + ' earlier runs): ' +
+        (d.change > 0 ? "+" : "") + fmtNum(100 * d.change, 1) + '%. ' + (d.flagged ? '<b>' + (d.worse ? "Worse" : "Better") + ' than the usual spread (±' + fmtNum(100 * d.band, 0) + '%).</b>' : 'Within the usual spread (±' + fmtNum(100 * d.band, 0) + '%).') + '</p>';
+    return head + verdict + '<div id="tr-plot">' + trendSvg(ts, pts, d) + '</div>' +
+      '<div class="table-wrap"><table id="tr-table"><thead><tr><th>Finished</th><th>Session</th><th class="num">' + esc(ts.label) + '</th><th class="num">Change vs previous</th></tr></thead><tbody>' +
+      ts.points.slice().reverse().map(function (p) {
+        return '<tr><td>' + esc(fmtDate(p.at)) + '</td><td><a class="mono" href="#/session/' + enc(p.session_id) + '">' + esc(shortId(p.session_id)) + '</a>' + (p.scheduled ? ' <span class="chip">scheduled</span>' : "") +
+          '</td><td class="num">' + esc(fmtUnit(ts.unit, p.v)) + '</td><td class="num">' + (p.delta == null ? "—" : (p.delta > 0 ? "+" : "") + fmtNum(100 * p.delta, 1) + "%") + '</td></tr>';
+      }).join("") + '</tbody></table></div></div>';
+  }
+  function trendSvg(ts, pts, d) {
+    var W = 640, H = 260, L = 70, R = 20, T = 16, B = 40;
+    var xs = pts.map(function (p) { return Date.parse(p.at) || 0; }), x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs);
+    var ys = pts.map(function (p) { return p.v; }), my = Math.max.apply(null, ys.concat(d.enough ? [d.baseline] : [])) * 1.15 || 1;
+    var X = function (v) { return x1 === x0 ? (L + W - R) / 2 : L + (W - L - R) * (v - x0) / (x1 - x0); }, Y = function (v) { return T + (H - T - B) * (1 - v / my); };
+    var line = pts.map(function (p, i) { return (i ? "L" : "M") + X(xs[i]) + " " + Y(p.v); }).join(" ");
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="frontier trend" role="img" aria-label="' + esc(ts.label + " over " + pts.length + " runs") + '">' +
+      [0, 0.5, 1].map(function (f) { return '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(my * f) + '" y2="' + Y(my * f) + '"/><text class="ax" x="' + (L - 6) + '" y="' + (Y(my * f) + 4) + '" text-anchor="end">' + esc(fmtUnit(ts.unit, my * f)) + '</text>'; }).join("") +
+      '<text class="ax" x="' + L + '" y="' + (H - B + 18) + '">' + esc(fmtDate(pts[0].at).slice(0, 10)) + '</text>' +
+      (pts.length > 1 ? '<text class="ax" x="' + (W - R) + '" y="' + (H - B + 18) + '" text-anchor="end">' + esc(fmtDate(pts[pts.length - 1].at).slice(0, 10)) + '</text>' : "") +
+      (d.enough ? '<line class="base" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(d.baseline) + '" y2="' + Y(d.baseline) + '"/><text class="ax" x="' + (W - R) + '" y="' + (Y(d.baseline) - 5) + '" text-anchor="end">earlier median</text>' : "") +
+      (pts.length > 1 ? '<path class="tline" d="' + line + '"/>' : "") +
+      pts.map(function (p, i) {
+        var tip = fmtDate(p.at) + ": " + fmtUnit(ts.unit, p.v) + (p.scheduled ? " (scheduled run)" : "");
+        return '<g tabindex="0" data-hover="' + esc(tip) + '" aria-label="' + esc(tip) + '"><circle cx="' + X(xs[i]) + '" cy="' + Y(p.v) + '" r="6" style="fill:var(--series-1)"' + (p.scheduled ? ' class="sched"' : "") + '/></g>';
+      }).join("") + '</svg>';
+  }
+  function loadSchedules() {
+    var host = $("tr-schedules");
+    backendFetch("/api/schedules").then(function (r) {
+      if (!r.ok) {
+        host.innerHTML = '<h2>Scheduled re-runs</h2><p class="muted" style="margin-bottom:0">' + esc(r.data.code === "backend_offline" || r.status === 0 ? "The GPU backend is offline: schedules run there, so they cannot be listed now." : (r.data.error || "Could not load the schedules.")) + '</p>';
+        return;
+      }
+      TR.sched = r.data.schedules || [];
+      host.innerHTML = '<h2>Scheduled re-runs</h2><p class="muted small" style="margin-top:0">Each one repeats a finished session on this GPU (same flows, models and settings) and adds its runs to the trends above. Start one from a session\'s Overview tab.</p>' +
+        (TR.sched.length ? '<div class="table-wrap"><table id="tr-sched-table"><thead><tr><th>Repeats</th><th>Models</th><th>How often</th><th class="num">Runs</th><th>Next</th><th>Owner</th><th></th></tr></thead><tbody>' +
+          TR.sched.map(schedRow).join("") + '</tbody></table></div>' : '<p class="muted" id="tr-sched-none" style="margin-bottom:0">No schedules yet.</p>');
+    });
+  }
+  function schedRow(x) {
+    var state = x.active ? (x.waiting ? '<span class="small muted">' + esc(fmtDate(x.next_at)) + ' — ' + esc(x.waiting) + '</span>' : esc(fmtDate(x.next_at)))
+      : '<span class="chip">' + esc(x.ended || "ended") + '</span>' + (x.last_error ? ' <span class="small muted">' + esc(x.last_error) + '</span>' : "");
+    return '<tr data-sch="' + esc(x.schedule_id) + '"><td><a class="mono" href="#/session/' + enc(x.source_job_id) + '">' + esc(shortId(x.source_job_id)) + '</a></td><td class="small">' + esc((x.models || []).map(short).join(", ")) +
+      '</td><td>' + esc(everyLabel(x.every_hours)) + '</td><td class="num">' + x.runs_done + ' / ' + x.runs_total + '</td><td>' + state + '</td><td>' + esc(x.owner || "—") + '</td><td>' +
+      (x.active ? '<button type="button" class="btn small-btn danger-lite" data-sch-cancel="' + esc(x.schedule_id) + '" data-sch-job="' + esc(x.source_job_id) + '">Cancel</button>' : "") + '</td></tr>';
+  }
+  function cancelSchedule(id, jobId, done) {
+    if (!confirm("Cancel this schedule? Runs already made are kept.")) return;
+    backendFetch("/api/schedules/" + enc(id) + "/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) }).then(function (r) {
+      if (!r.ok) { alert(r.data.error || "Could not cancel the schedule."); return; }
+      done();
+    });
+  }
+  document.addEventListener("change", function (ev) {
+    if (ev.target.id === "tr-series") { TR.series = ev.target.value; renderTrends(); }
+    else if (ev.target.id === "tr-metric") { TR.metric = ev.target.value; renderTrends(); }
+    else if (ev.target.id === "tr-demo") renderTrends();
+  });
+  document.addEventListener("click", function (ev) {
+    var o = ev.target.closest && ev.target.closest("[data-tr-open]");
+    if (o) { TR.series = o.getAttribute("data-tr-open"); TR.metric = o.getAttribute("data-tr-metric"); renderTrends(); $("tr-chart-card").scrollIntoView({ block: "start" }); return; }
+    var c = ev.target.closest && ev.target.closest("[data-sch-cancel]");
+    if (c && c.closest("#tr-schedules")) cancelSchedule(c.getAttribute("data-sch-cancel"), c.getAttribute("data-sch-job"), loadSchedules);
+  });
+  // Overview: repeat this session on a schedule (finished sessions; the owner or an admin)
+  function scheduleCard(job) {
+    var st = String(job.status || "").toLowerCase();
+    if (!(st === "done" || st === "demo") || !canEditNotes(job)) return "";
+    return '<form class="card" id="svc-schedule" novalidate><h2>Repeat on a schedule</h2><p class="muted small" style="margin-top:0">Runs this session again on this GPU — the same flows, models and settings — so <a href="#/trends">Trends</a> can show whether the numbers hold over time. Each run is an ordinary session in the queue; a run waits while the previous one is still going.</p>' +
+      '<div class="row" style="gap:16px;flex-wrap:wrap;align-items:flex-end"><div class="field" style="margin:0"><label for="sch-every">How often</label><select id="sch-every">' +
+      SCHED_EVERY.map(function (e) { return '<option value="' + e[0] + '"' + (e[0] === 24 ? " selected" : "") + '>' + esc(e[1]) + '</option>'; }).join("") + '</select></div>' +
+      '<div class="field" style="margin:0"><label for="sch-runs">Number of runs <span class="hint">(1–30)</span></label><input type="number" id="sch-runs" min="1" max="30" step="1" value="7" inputmode="numeric"></div>' +
+      '<div class="actions" style="margin:0"><button type="submit" class="btn" id="sch-save">Start schedule</button></div></div>' +
+      '<div id="sch-error" class="notice error" role="alert" hidden></div><div id="sch-list" class="small" style="margin-top:10px"></div></form>';
+  }
+  function wireSchedule(job) {
+    var f = $("svc-schedule");
+    if (!f) return;
+    var list = function () {
+      backendFetch("/api/schedules").then(function (r) {
+        if (!r.ok || !$("sch-list")) return;
+        var mine = (r.data.schedules || []).filter(function (x) { return x.source_job_id === job.job_id && x.active; });
+        $("sch-list").innerHTML = mine.map(function (x) {
+          return '<div class="row" style="margin:4px 0;gap:8px;align-items:center" data-sch="' + esc(x.schedule_id) + '"><span class="chip ok">active</span> ' + esc(everyLabel(x.every_hours)) + ', ' + x.runs_done + ' of ' + x.runs_total + ' runs done; next ' + esc(fmtDate(x.next_at)) +
+            (x.waiting ? ' (' + esc(x.waiting) + ')' : "") + ' <button type="button" class="btn small-btn danger-lite" data-sch-cancel="' + esc(x.schedule_id) + '">Cancel</button></div>';
+        }).join("");
+      });
+    };
+    list();
+    f.addEventListener("click", function (ev) {
+      var c = ev.target.closest("[data-sch-cancel]");
+      if (c) cancelSchedule(c.getAttribute("data-sch-cancel"), job.job_id, list);
+    });
+    f.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      $("sch-error").hidden = true;
+      var runs = +$("sch-runs").value;
+      if (!(runs >= 1 && runs <= 30 && Math.floor(runs) === runs)) { showError($("sch-error"), { error: "Number of runs: a whole number from 1 to 30." }); return; }
+      $("sch-save").disabled = true;
+      backendFetch("/api/schedules", { method: "POST", headers: { "Content-Type": "application/json" },
+                                       body: JSON.stringify({ job_id: job.job_id, every_hours: +$("sch-every").value, runs: runs }) }).then(function (r) {
+        $("sch-save").disabled = false;
+        if (!r.ok) { showError($("sch-error"), r.data); return; }
+        list();
+      });
+    });
   }
   // Overview: notes and tags (owner or admin edits; with a control plane the Worker stores them)
   function canEditNotes(job) { return CP ? !!job.can_edit : true; }

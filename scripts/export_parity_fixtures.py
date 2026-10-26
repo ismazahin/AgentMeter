@@ -1,5 +1,5 @@
-"""Generate worker/test/fixtures/parity.json: inputs + the Python reference's outputs for
-Compare, Leaderboard and the decision helper. worker/test/parity.test.ts asserts the Worker's
+"""Generate controlplane/test/fixtures/parity.json: inputs + the Python reference's outputs for
+Compare, Leaderboard and the decision helper. controlplane/test/parity.test.ts asserts the control plane's
 port returns exactly the same; tests/test_control_plane.py fails if this file is stale.
 
     python scripts/export_parity_fixtures.py
@@ -18,7 +18,7 @@ from agentmeter.server.sessions import (LEADERBOARD_SORTS, comparable_s, compare
                                        cp_summary, leaderboard_overall_s, leaderboard_s, OVERALL_BY)
 from agentmeter.session.constraints import ConstraintError, evaluate_facts, load_rules  # noqa: E402
 
-OUT = REPO / "worker" / "test" / "fixtures" / "parity.json"
+OUT = REPO / "controlplane" / "test" / "fixtures" / "parity.json"
 GOLDEN = REPO / "tests" / "fixtures" / "golden_session" / "golden_session_results.json"
 
 

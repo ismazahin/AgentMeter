@@ -1,0 +1,20 @@
+{
+  "name": "agentmeter-control-plane",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AgentMeter control plane tooling: tests, local dev server and admin bootstrap for the Supabase Edge Function (supabase/functions/agentmeter). AgentMeter measures LLM efficiency; it is not a threat-detection product.",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "dev": "node --experimental-strip-types dev-server.ts",
+    "bootstrap-admin": "node scripts/bootstrap-admin.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.3",
+    "postgres": "^3.4.7",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11",
+    "@types/node": "^22.15.0"
+  }
+}

@@ -36,23 +36,32 @@ jobs:
       - name: Run tests
         run: pytest
 
-  worker:
-    # Phase 47: the Cloudflare control plane (Worker + D1 + R2) — vitest in workerd via
-    # @cloudflare/vitest-plugin (Miniflare: local D1 and R2, no Cloudflare account needed).
+  controlplane:
+    # The control plane (Supabase Edge Function: supabase/functions/agentmeter) — vitest in Node:
+    # once on PGlite (in-process Postgres), once through postgres.js on a real Postgres server.
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres }
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     defaults:
       run:
-        working-directory: worker
+        working-directory: controlplane
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: worker/package-lock.json
+          cache-dependency-path: controlplane/package-lock.json
       - name: Install
         run: npm ci --legacy-peer-deps
       - name: Typecheck
         run: npx tsc --noEmit -p .
-      - name: Worker tests
+      - name: Control-plane tests (PGlite)
         run: npx vitest run
+      - name: Control-plane tests (postgres.js on Postgres 16)
+        run: npx vitest run
+        env: { TEST_DATABASE_URL: "postgres://postgres:postgres@127.0.0.1:5432/postgres" }

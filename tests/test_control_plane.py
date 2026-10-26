@@ -87,11 +87,11 @@ def test_token_verification():
 
 
 def test_the_worker_and_the_backend_agree_on_the_token_format():
-    """The TS signer (worker/src/crypto.ts) produces exactly runtoken.sign's bytes for the same JSON."""
-    src = (PROJECT_ROOT / "worker" / "src" / "crypto.ts").read_text()
+    """The TS signer (supabase/functions/agentmeter/src/crypto.ts) produces exactly runtoken.sign's bytes for the same JSON."""
+    src = (PROJECT_ROOT / "supabase" / "functions" / "agentmeter" / "src" / "crypto.ts").read_text()
     assert 'const body = "v1." + b64url(enc.encode(JSON.stringify(payload)));' in src
     assert 'return body + "." + b64url(await hmac(secret, body));' in src
-    assert "RUN_TTL_S = 300" in (PROJECT_ROOT / "worker" / "src" / "runs.ts").read_text()
+    assert "RUN_TTL_S = 300" in (PROJECT_ROOT / "supabase" / "functions" / "agentmeter" / "src" / "runs.ts").read_text()
 
 
 def test_single_use_kind_and_target_checks(app):
@@ -223,7 +223,7 @@ def test_identification_columns_are_stripped_from_the_uploaded_copy():
 
 
 # ---------------------------------------------------------------------------
-# protocol against a fake Worker (signature checked exactly like worker/src/backend.ts)
+# protocol against a fake Worker (signature checked exactly like supabase/functions/agentmeter/src/backend.ts)
 # ---------------------------------------------------------------------------
 class FakeWorker:
     def __init__(self, fail_first: int = 0):
@@ -256,7 +256,7 @@ class FakeWorker:
                 if self.command == "GET":
                     return self._get()
                 m = re.fullmatch(r"/api/backend/sessions/([^/]+)/identity", self.path)
-                if m:                              # like worker/src/sessions.ts backendSetIdentity
+                if m:                              # like supabase/functions/agentmeter/src/sessions.ts backendSetIdentity
                     key = f"/api/backend/sessions/{m.group(1)}/summary"
                     doc = json.loads(outer.store[key])
                     upd = json.loads(body)
@@ -402,7 +402,7 @@ def test_worker_rule_file_matches_the_python_rule_base():
     spec = importlib.util.spec_from_file_location("exp", PROJECT_ROOT / "scripts" / "export_constraint_rules.py")
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
-    assert (PROJECT_ROOT / "worker" / "src" / "constraint_rules.json").read_text() == m.exported(), \
+    assert (PROJECT_ROOT / "supabase" / "functions" / "agentmeter" / "src" / "constraint_rules.json").read_text() == m.exported(), \
         "run: python scripts/export_constraint_rules.py"
 
 
@@ -410,12 +410,12 @@ def test_worker_parity_fixtures_are_current():
     spec = importlib.util.spec_from_file_location("par", PROJECT_ROOT / "scripts" / "export_parity_fixtures.py")
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
-    assert json.loads((PROJECT_ROOT / "worker" / "test" / "fixtures" / "parity.json").read_text()) == json.loads(m.exported()), \
+    assert json.loads((PROJECT_ROOT / "controlplane" / "test" / "fixtures" / "parity.json").read_text()) == json.loads(m.exported()), \
         "run: python scripts/export_parity_fixtures.py (then the Worker's parity test)"
 
 
 def test_control_plane_settings_cannot_hide_the_demo_banner_or_caveats():
-    src = (PROJECT_ROOT / "worker" / "src" / "settings.ts").read_text()
+    src = (PROJECT_ROOT / "supabase" / "functions" / "agentmeter" / "src" / "settings.ts").read_text()
     keys = set(re.findall(r"^\s{2}(\w+):", src.split("export const DEFAULT_SETTINGS")[1].split("};")[0], re.M))
     assert keys == {"theme", "telegram_chat_id", "notify_on", "default_models", "default_flows",
                     "default_other_attack", "weight_presets", "timezone"}
@@ -423,8 +423,8 @@ def test_control_plane_settings_cannot_hide_the_demo_banner_or_caveats():
 
 
 def test_pbkdf2_iterations_are_documented():
-    toml = (PROJECT_ROOT / "worker" / "wrangler.toml").read_text()
-    assert 'PBKDF2_ITERATIONS = "40000"' in toml
+    src = (PROJECT_ROOT / "supabase" / "functions" / "agentmeter" / "src" / "auth.ts").read_text()
+    assert "intVar(env.PBKDF2_ITERATIONS, 40000)" in src
     assert "40,000" in (PROJECT_ROOT / "docs" / "DEPLOY.md").read_text()
 
 
@@ -466,7 +466,7 @@ def test_front_end_never_shows_identification_columns():
 
 def test_merged_compare_only_on_the_same_setup():
     from agentmeter.server import sessions as S
-    fx = json.loads((PROJECT_ROOT / "worker" / "test" / "fixtures" / "parity.json").read_text())
+    fx = json.loads((PROJECT_ROOT / "controlplane" / "test" / "fixtures" / "parity.json").read_text())
     by = {x["session_id"]: x for x in fx["summaries"]}
     a, b, c, d6 = fx["summaries"][0], fx["summaries"][1], fx["summaries"][2], fx["summaries"][6]
     cand = S.comparable_s(a, list(reversed(fx["summaries"])))

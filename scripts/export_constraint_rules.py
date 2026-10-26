@@ -1,4 +1,4 @@
-"""Export configs/constraint_rules.yaml to worker/src/constraint_rules.json (the control plane
+"""Export configs/constraint_rules.yaml to supabase/functions/agentmeter/src/constraint_rules.json (the control plane
 bundles it; tests/test_control_plane.py fails if the two drift apart).
 
     python scripts/export_constraint_rules.py
@@ -14,7 +14,7 @@ sys.path.insert(0, str(REPO))
 
 from agentmeter.session.constraints import load_rules  # noqa: E402
 
-OUT = REPO / "worker" / "src" / "constraint_rules.json"
+OUT = REPO / "supabase" / "functions" / "agentmeter" / "src" / "constraint_rules.json"
 
 
 def exported() -> str:

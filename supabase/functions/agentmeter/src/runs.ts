@@ -10,7 +10,7 @@ import { requireUser } from "./auth.ts";
 import { backendState } from "./backend.ts";
 import { randomHex, signToken } from "./crypto.ts";
 import { loadLimits } from "./settings.ts";
-import { Env, fail, json, nowIso, nowS, readJson } from "./util.ts";
+import { type Env, fail, json, nowIso, nowS, readJson } from "./util.ts";
 
 export const RUN_TTL_S = 300;
 export const RUN_KINDS = ["prepare", "import", "benchmark", "resume"];

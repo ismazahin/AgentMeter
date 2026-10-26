@@ -196,8 +196,8 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
     @app.route("/config.json", methods=["GET"])
     def web_config():
         # served by the backend: talk to this origin; Phase 47: log in at the control plane
-        return jsonify({"api_base": "", "control_plane": os.environ.get("AGENTMETER_CONTROL_PLANE_URL")
-                        or os.environ.get("AGENTMETER_WORKER_URL") or None})
+        from agentmeter.server.control_plane import cp_url
+        return jsonify({"api_base": "", "control_plane": cp_url() or None})
 
     @app.route("/service/prepare", methods=["GET"])
     @app.route("/service/benchmark", methods=["GET"])
@@ -402,7 +402,7 @@ def main(argv=None) -> int:
     if cp is not None:
         job_manager.on_event = cp.on_job_event
         cp.start()
-        print(f"  Control plane      : {os.environ['AGENTMETER_WORKER_URL']} (public URL: "
+        print(f"  Control plane      : {control_plane.cp_url()} (public URL: "
               f"{control_plane.public_url() or 'waiting for the tunnel URL'})", flush=True)
 
     # ONE process (threaded, no extra workers): the job layer's single-job lock is per process.

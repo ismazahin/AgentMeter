@@ -10,7 +10,7 @@ starts, in this order:
 
 There is no silent fallback: in REAL mode `preflight()` must pass before the
 server starts (CUDA GPU, bitsandbytes, every study model already on local disk,
-the control-plane secrets: AGENTMETER_RUN_TOKEN_SECRET, AGENTMETER_WORKER_URL,
+the control-plane settings: AGENTMETER_RUN_TOKEN_SECRET, AGENTMETER_CONTROL_PLANE_URL,
 AGENTMETER_BACKEND_SECRET — Phase 47) — otherwise the server refuses to start with the reason. A
 real server never runs a job on the mock provider and a mock server never claims
 real numbers; every job, session result, PDF and prepared-set manifest carries
@@ -175,20 +175,21 @@ def environment(mode: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # real-mode preflight: refuse to start instead of falling back
 # ---------------------------------------------------------------------------
-CONTROL_PLANE_ENV = ("AGENTMETER_RUN_TOKEN_SECRET", "AGENTMETER_WORKER_URL", "AGENTMETER_BACKEND_SECRET")
+CONTROL_PLANE_ENV = ("AGENTMETER_RUN_TOKEN_SECRET", "AGENTMETER_CONTROL_PLANE_URL", "AGENTMETER_BACKEND_SECRET")
 
 
 def control_plane_problems() -> list[str]:
     """Phase 47: a public GPU backend only works for users logged in to the control plane."""
+    from .control_plane import cp_url
     out = []
     for k in CONTROL_PLANE_ENV:
-        v = os.environ.get(k) or ""
+        v = cp_url() if k == "AGENTMETER_CONTROL_PLANE_URL" else os.environ.get(k) or ""
         if not v:
             out.append(f"{k} is not set: a public GPU endpoint must only run jobs the control plane authorised")
-        elif k != "AGENTMETER_WORKER_URL" and len(v) < 16:
+        elif k != "AGENTMETER_CONTROL_PLANE_URL" and len(v) < 16:
             out.append(f"{k} is shorter than 16 characters")
-        elif k == "AGENTMETER_WORKER_URL" and not v.startswith("https://"):
-            out.append(f"{k} must be an https:// URL (the deployed Worker)")
+        elif k == "AGENTMETER_CONTROL_PLANE_URL" and not v.startswith("https://"):
+            out.append(f"{k} must be an https:// URL (the deployed control plane)")
     return out
 
 

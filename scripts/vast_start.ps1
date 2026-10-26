@@ -17,7 +17,7 @@ param(
   [string]$Key = "$env:USERPROFILE\.ssh\vast_ed25519",
   [string]$BackendEnv = "$env:USERPROFILE\.agentmeter\backend.env",
   [string]$HfEnv = (Join-Path (Split-Path -Parent $PSScriptRoot) ".env"),
-  [string]$WorkerUrl = "https://agentmeter-control-plane.ismazahin.workers.dev",
+  [string]$ControlPlaneUrl = "",  # https://<project-ref>.supabase.co/functions/v1/agentmeter (or AGENTMETER_CONTROL_PLANE_URL in backend.env)
   [string]$AllowedOrigins = "https://agentmeter.pages.dev",
   [string]$Repo = "https://github.com/ismazahin/AgentMeter.git",
   [string]$Branch = "claude/cool-ride-mitmzl",
@@ -30,6 +30,14 @@ function Fail($msg) { Write-Host "ERROR: $msg" -ForegroundColor Red; exit 1 }
 
 foreach ($f in @($Key, $BackendEnv, $HfEnv)) {
   if (-not (Test-Path $f)) { Fail "file not found: $f" }
+}
+# the control plane's URL: -ControlPlaneUrl, or AGENTMETER_CONTROL_PLANE_URL in backend.env
+$envText = Get-Content $BackendEnv -Raw
+if (-not $ControlPlaneUrl -and $envText -notmatch '(?m)^AGENTMETER_CONTROL_PLANE_URL=https://') {
+  Fail "set the control plane's URL: add AGENTMETER_CONTROL_PLANE_URL=https://<project-ref>.supabase.co/functions/v1/agentmeter to $BackendEnv, or pass -ControlPlaneUrl."
+}
+if (-not $ControlPlaneUrl -and $envText -match '(?m)^AGENTMETER_CONTROL_PLANE_URL=https://[^\r\n]*workers\.dev') {
+  Write-Host "WARNING: AGENTMETER_CONTROL_PLANE_URL still points at the Cloudflare Worker (workers.dev)." -ForegroundColor Yellow
 }
 if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) { Fail "ssh is not installed (Windows: Settings -> Optional features -> OpenSSH Client)." }
 
@@ -53,7 +61,7 @@ set -euo pipefail
 sed -i 's/\r`$//' /root/backend.env /root/hf.env
 chmod 600 /root/backend.env /root/hf.env /root/am_start.sh
 set -a; . /root/backend.env; . /root/hf.env; set +a
-export AGENTMETER_WORKER_URL='$WorkerUrl'
+$(if ($ControlPlaneUrl) { "export AGENTMETER_CONTROL_PLANE_URL='$ControlPlaneUrl'" })
 export AGENTMETER_ALLOWED_ORIGINS='$AllowedOrigins'
 export IDLE_MIN='$IdleMin'
 export PRELOAD_STUDY='$(if ($PreloadStudy) { "1" } else { "0" })'

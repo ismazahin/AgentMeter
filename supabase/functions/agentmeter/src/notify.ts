@@ -4,7 +4,7 @@
 // Telegram failure never fails the backend's upload.
 import { requireUser } from "./auth.ts";
 import { loadSettings } from "./settings.ts";
-import { Env, fail, json } from "./util.ts";
+import { type Env, fail, json } from "./util.ts";
 
 const API = (env: Env) => env.TELEGRAM_API || "https://api.telegram.org";
 

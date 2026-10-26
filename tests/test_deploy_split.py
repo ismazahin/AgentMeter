@@ -314,7 +314,7 @@ def test_preflight_lists_every_problem_and_passes_when_ready(tmp_path, monkeypat
     msg = str(e.value)
     assert "no CUDA GPU" in msg and "AGENTMETER_RUN_TOKEN_SECRET is not set" in msg
     assert "Phi-3" not in msg                                          # no model has to be on disk
-    assert "AGENTMETER_WORKER_URL is not set" in msg and "AGENTMETER_BACKEND_SECRET is not set" in msg
+    assert "AGENTMETER_CONTROL_PLANE_URL is not set" in msg and "AGENTMETER_BACKEND_SECRET is not set" in msg
     monkeypatch.setenv("AGENTMETER_WORKER_URL", "http://insecure.example")
     assert "must be an https:// URL" in _preflight_msg()
     # now make everything present — with NO model on disk: each downloads on first use

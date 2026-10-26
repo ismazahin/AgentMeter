@@ -30,7 +30,7 @@ def rentals(tmp_path, monkeypatch):
     """make(name) -> a fresh backend (its own disk), like a new Vast rental."""
     pytest.importorskip("flask")
     for k in ("AGENTMETER_ALLOWED_ORIGINS", "AGENTMETER_JOBS_PER_HOUR", "AGENTMETER_MAX_QUEUED_JOBS",
-              "AGENTMETER_WORKER_URL", "AGENTMETER_BACKEND_SECRET"):
+              "AGENTMETER_WORKER_URL", "AGENTMETER_CONTROL_PLANE_URL", "AGENTMETER_BACKEND_SECRET"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("AGENTMETER_RUN_TOKEN_SECRET", SECRET)
     spec = importlib.util.spec_from_file_location("serve47h", PROJECT_ROOT / "scripts" / "serve.py")

@@ -4,7 +4,7 @@ import { requireUser } from "./auth.ts";
 import { hmacHex, sha256Hex, timingSafeEqual } from "./crypto.ts";
 import { loadLimits } from "./settings.ts";
 import { loadModelState } from "./models.ts";
-import { Env, fail, intVar, json, nowIso, nowS } from "./util.ts";
+import { type Env, fail, intVar, json, nowIso, nowS } from "./util.ts";
 
 export const HEARTBEAT_S = 60;
 export const MAX_SKEW_S = 120;

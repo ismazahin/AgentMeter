@@ -2,16 +2,16 @@
 # Phase E/47 — bring the AgentMeter GPU backend up on a fresh Vast.ai instance, in ONE command.
 #
 #   export HF_TOKEN=hf_...                       # needs access to Llama-3-8B + gemma-2-9b (gated)
-#   export AGENTMETER_WORKER_URL=https://agentmeter-control-plane.<you>.workers.dev
-#   export AGENTMETER_RUN_TOKEN_SECRET=...       # = the Worker secret RUN_TOKEN_SECRET
-#   export AGENTMETER_BACKEND_SECRET=...         # = the Worker secret BACKEND_SECRET
+#   export AGENTMETER_CONTROL_PLANE_URL=https://<project-ref>.supabase.co/functions/v1/agentmeter
+#   export AGENTMETER_RUN_TOKEN_SECRET=...       # = the control-plane secret RUN_TOKEN_SECRET
+#   export AGENTMETER_BACKEND_SECRET=...         # = the control-plane secret BACKEND_SECRET
 #   export AGENTMETER_ALLOWED_ORIGINS=https://agentmeter.pages.dev   # your front-end origin(s)
 #   bash scripts/vast_up.sh                      # quick tunnel (random trycloudflare.com URL)
 #   CF_TUNNEL_TOKEN=eyJ... CF_TUNNEL_HOSTNAME=gpu.example.org bash scripts/vast_up.sh   # named tunnel
 #
 # The backend REGISTERS its public URL with the control plane by itself (and heartbeats every
-# 60 s): the front-end gets the URL from the Worker — nothing to paste. Users log in at the
-# front-end; the backend only accepts requests carrying a run token the Worker issued.
+# 60 s): the front-end gets the URL from the control plane — nothing to paste. Users log in at
+# the front-end; the backend only accepts requests carrying a run token the control plane issued.
 #
 # Optional:  VAST_API_KEY=...  IDLE_MIN=45  -> destroy the instance after 45 idle minutes
 #            AGENTMETER_DATA_DIR=/workspace  (persistent disk: models, jobs, prepared sets)
@@ -23,7 +23,7 @@
 # Steps: check env -> install deps -> check CUDA/GPU -> download the models marked "download at
 # start-up" (the rest download on first use) -> start ONE server process in REAL mode (it refuses
 # to start without GPU/bitsandbytes/control-plane secrets — no mock fallback) -> start Cloudflare
-# Tunnel -> write its URL to $LOGS/public_url -> the backend registers it with the Worker.
+# Tunnel -> write its URL to $LOGS/public_url -> the backend registers it with the control plane.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -42,10 +42,12 @@ die()  { printf '\n\033[31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 # --- 1. environment ------------------------------------------------------------------
 say "1/6 checking settings"
 [ -n "${HF_TOKEN:-}" ] || die "HF_TOKEN is not set (needed for the gated Llama-3 / gemma-2 weights)."
-for v in AGENTMETER_WORKER_URL AGENTMETER_RUN_TOKEN_SECRET AGENTMETER_BACKEND_SECRET; do
+# AGENTMETER_WORKER_URL is the older name of AGENTMETER_CONTROL_PLANE_URL
+export AGENTMETER_CONTROL_PLANE_URL="${AGENTMETER_CONTROL_PLANE_URL:-${AGENTMETER_WORKER_URL:-}}"
+for v in AGENTMETER_CONTROL_PLANE_URL AGENTMETER_RUN_TOKEN_SECRET AGENTMETER_BACKEND_SECRET; do
   [ -n "${!v:-}" ] || die "$v is not set — the backend only runs jobs the control plane authorised (docs/DEPLOY.md)."
 done
-case "$AGENTMETER_WORKER_URL" in https://*) ;; *) die "AGENTMETER_WORKER_URL must start with https://";; esac
+case "$AGENTMETER_CONTROL_PLANE_URL" in https://*) ;; *) die "AGENTMETER_CONTROL_PLANE_URL must start with https://";; esac
 [ "${#AGENTMETER_RUN_TOKEN_SECRET}" -ge 16 ] || die "AGENTMETER_RUN_TOKEN_SECRET is shorter than 16 characters."
 [ "${#AGENTMETER_BACKEND_SECRET}" -ge 16 ] || die "AGENTMETER_BACKEND_SECRET is shorter than 16 characters."
 if [ -z "${AGENTMETER_ALLOWED_ORIGINS:-}" ]; then
@@ -144,13 +146,13 @@ else
 fi
 echo "$URL" > "$AGENTMETER_PUBLIC_URL_FILE"
 
-# --- registration: the backend picks the URL up within ~5 s and registers with the Worker ---
+# --- registration: the backend picks the URL up within ~5 s and registers with the control plane ---
 REG=""
 for _ in $(seq 1 30); do
-  if curl -fsS "$AGENTMETER_WORKER_URL/api/health" >/dev/null 2>&1; then REG=ok; break; fi
+  if curl -fsS "$AGENTMETER_CONTROL_PLANE_URL/api/health" >/dev/null 2>&1; then REG=ok; break; fi
   sleep 1
 done
-[ -n "$REG" ] || echo "WARNING: the Worker at $AGENTMETER_WORKER_URL did not answer /api/health — check the URL; the backend keeps retrying."
+[ -n "$REG" ] || echo "WARNING: the control plane at $AGENTMETER_CONTROL_PLANE_URL did not answer /api/health — check the URL; the backend keeps retrying."
 
 cat <<EOF
 
@@ -161,8 +163,8 @@ cat <<EOF
    health      : $URL/health
    logs        : $LOGS/server.log   $LOGS/tunnel.log
 
- Registered with the control plane: $AGENTMETER_WORKER_URL
-   The front-end finds this backend through the Worker — nothing to paste. Log in and
+ Registered with the control plane: $AGENTMETER_CONTROL_PLANE_URL
+   The front-end finds this backend through the control plane — nothing to paste. Log in and
    the Run button turns on (GPU online). Check: grep "control plane" $LOGS/server.log
 
  Stop billing when done:  destroy the instance in the Vast console (or: vastai destroy instance <id>).

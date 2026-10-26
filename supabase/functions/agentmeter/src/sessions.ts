@@ -4,9 +4,9 @@
 // function's CPU budget is 2 s): in the row up to RESULTS_INLINE_MAX bytes, otherwise in Storage.
 import { requireUser } from "./auth.ts";
 import { mapJobStatus as STATUS_FROM_JOB, parseBody, verifyBackend } from "./backend.ts";
-import { ConstraintError, Summary, compare, compareMany, comparable, evaluateFacts, leaderboard, leaderboardOverall, LEADERBOARD_SORTS, OVERALL_BY } from "./analytics.ts";
+import { ConstraintError, type Summary, compare, compareMany, comparable, evaluateFacts, leaderboard, leaderboardOverall, LEADERBOARD_SORTS, OVERALL_BY } from "./analytics.ts";
 import { notifyFinal } from "./notify.ts";
-import { Env, fail, intVar, json, nowIso, readJson } from "./util.ts";
+import { type Env, fail, intVar, json, nowIso, readJson } from "./util.ts";
 
 const SESSION_ID = /^job_\d{8}_\d{6}_([0-9a-f]{6}|[0-9a-f]{32})$/;
 export const FILES = ["report.pdf", "manifest.json", "features.csv", "labels.csv", "flows.json"] as const;
@@ -292,6 +292,28 @@ async function ensureRow(env: Env, id: string) {
     .bind(id, "Running", nowIso(), nowIso()).run();
 }
 
+const RESULTS = "session_results.json";
+const objectKey = (id: string, name: string) => `sessions/${id}/${name}`;
+// a direct upload may be larger than a request through the function (Supabase Storage free plan: 50 MB per file)
+const DIRECT_MAX = 50 * 1024 * 1024;
+
+async function recordResults(env: Env, id: string, bytes: number) {
+  await env.DB.prepare("UPDATE sessions SET results_json=NULL, results_key=?, results_bytes=?, updated_at=? WHERE id=?")
+    .bind(objectKey(id, RESULTS), bytes, nowIso(), id).run();
+}
+
+async function recordFile(env: Env, id: string, name: string) {
+  const r = await env.DB.prepare("SELECT files_json FROM sessions WHERE id=?").bind(id).first<{ files_json: string | null }>();
+  const files = { ...(r?.files_json ? JSON.parse(r.files_json) : {}), [name]: objectKey(id, name) };
+  await env.DB.prepare("UPDATE sessions SET files_json=?, updated_at=? WHERE id=?").bind(JSON.stringify(files), nowIso(), id).run();
+}
+
+const uploadName = (name: unknown): string => {
+  const n = String(name || "");
+  if (n !== RESULTS && !(FILES as readonly string[]).includes(n)) fail(400, "bad_request", `name must be ${RESULTS} or one of ${FILES.join(", ")}`);
+  return n;
+};
+
 /** PUT /api/backend/sessions/:id/results — raw session_results.json, stored unparsed. */
 export async function putResults(req: Request, env: Env, id: string): Promise<Response> {
   checkId(id);
@@ -299,10 +321,8 @@ export async function putResults(req: Request, env: Env, id: string): Promise<Re
   await ensureRow(env, id);
   const threshold = intVar(env.RESULTS_INLINE_MAX, 1_000_000);
   if (body.length > threshold) {
-    const key = `sessions/${id}/session_results.json`;
-    await env.STORE.put(key, body, "application/json");
-    await env.DB.prepare("UPDATE sessions SET results_json=NULL, results_key=?, results_bytes=?, updated_at=? WHERE id=?")
-      .bind(key, body.length, nowIso(), id).run();
+    await env.STORE.put(objectKey(id, RESULTS), body, "application/json");
+    await recordResults(env, id, body.length);
     return json({ ok: true, stored: "storage", bytes: body.length });
   }
   await env.DB.prepare("UPDATE sessions SET results_json=?, results_key=NULL, results_bytes=?, updated_at=? WHERE id=?")
@@ -316,12 +336,37 @@ export async function putFile(req: Request, env: Env, id: string, name: string):
   if (!(FILES as readonly string[]).includes(name)) fail(400, "bad_request", `file must be one of ${FILES.join(", ")}`);
   const body = await verifyBackend(req, env, 25 * 1024 * 1024);
   await ensureRow(env, id);
-  const key = `sessions/${id}/${name}`;
-  await env.STORE.put(key, body, CONTENT_TYPE[name]);
-  const r = await env.DB.prepare("SELECT files_json FROM sessions WHERE id=?").bind(id).first<{ files_json: string | null }>();
-  const files = { ...(r?.files_json ? JSON.parse(r.files_json) : {}), [name]: key };
-  await env.DB.prepare("UPDATE sessions SET files_json=?, updated_at=? WHERE id=?").bind(JSON.stringify(files), nowIso(), id).run();
-  return json({ ok: true, key, bytes: body.length });
+  await env.STORE.put(objectKey(id, name), body, CONTENT_TYPE[name]);
+  await recordFile(env, id, name);
+  return json({ ok: true, key: objectKey(id, name), bytes: body.length });
+}
+
+/** POST /api/backend/sessions/:id/upload-url {name, bytes} — a single-use URL the backend PUTs a
+ *  large file to, straight into Storage (the bytes never pass through the function); then commit. */
+export async function uploadUrl(req: Request, env: Env, id: string): Promise<Response> {
+  checkId(id);
+  const b = parseBody(await verifyBackend(req, env, 4096));
+  const name = uploadName(b.name);
+  if (!Number.isInteger(b.bytes) || b.bytes < 0 || b.bytes > DIRECT_MAX) fail(413, "too_large", `bytes: 0 to ${DIRECT_MAX}`);
+  const url = await env.STORE.signedUploadUrl(objectKey(id, name));
+  if (!url) fail(409, "direct_upload_unavailable", "this control plane takes uploads through the API only");
+  await ensureRow(env, id);
+  return json({ url, key: objectKey(id, name), content_type: CONTENT_TYPE[name] });
+}
+
+/** POST /api/backend/sessions/:id/commit {name, bytes} — record a direct upload once Storage holds
+ *  exactly that many bytes under the session's key. */
+export async function commitUpload(req: Request, env: Env, id: string): Promise<Response> {
+  checkId(id);
+  const b = parseBody(await verifyBackend(req, env, 4096));
+  const name = uploadName(b.name);
+  const size = await env.STORE.size(objectKey(id, name));
+  if (size === null) fail(409, "not_uploaded", `${name} is not in storage`);
+  if (size !== b.bytes) fail(409, "size_mismatch", `${name}: storage holds ${size} bytes, expected ${b.bytes}`);
+  await ensureRow(env, id);
+  if (name === RESULTS) await recordResults(env, id, size!);
+  else await recordFile(env, id, name);
+  return json({ ok: true, key: objectKey(id, name), bytes: size });
 }
 
 /** PUT /api/backend/sessions/:id/summary — the compact record; marks the session finished. */

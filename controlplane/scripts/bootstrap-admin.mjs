@@ -1,24 +1,26 @@
 #!/usr/bin/env node
 // One-time bootstrap of the FIRST admin (no public sign-up; there is no HTTP route for this).
-// Hashes the password locally exactly like the Worker (PBKDF2-SHA256 over HMAC(pepper, pw)) and
-// inserts the user with `wrangler d1 execute`, ONLY if the users table is empty.
+// Hashes the password locally exactly like the control plane (PBKDF2-SHA256 over HMAC(pepper, pw))
+// and inserts the user straight into the Supabase database, ONLY if the users table is empty.
 //
-//   PASSWORD_PEPPER=<same value as the Worker secret> node scripts/bootstrap-admin.mjs <username> [--local|--remote]
+//   DATABASE_URL=<Supabase connection string> PASSWORD_PEPPER=<same as the function secret> \
+//     node scripts/bootstrap-admin.mjs <username>
 //   (the password is read from AGENTMETER_ADMIN_PASSWORD or prompted on stdin)
-import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+//   DATABASE_URL: Supabase dashboard -> Connect -> "Session pooler" URI (with your database password).
+import postgres from "postgres";
 import { createInterface } from "node:readline/promises";
 import { webcrypto as crypto } from "node:crypto";
 
 const enc = new TextEncoder();
 const b64url = (b) => Buffer.from(b).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-const [, , username, where = "--remote"] = process.argv;
-if (!username || !/^[A-Za-z0-9_.-]{3,32}$/.test(username) || !["--local", "--remote"].includes(where)) {
-  console.error("usage: PASSWORD_PEPPER=... node scripts/bootstrap-admin.mjs <username> [--local|--remote]");
+const [, , username] = process.argv;
+if (!username || !/^[A-Za-z0-9_.-]{3,32}$/.test(username)) {
+  console.error("usage: DATABASE_URL=... PASSWORD_PEPPER=... node scripts/bootstrap-admin.mjs <username>");
   process.exit(2);
 }
+if (!process.env.DATABASE_URL) { console.error("DATABASE_URL (the Supabase connection string) must be set"); process.exit(2); }
 const pepper = process.env.PASSWORD_PEPPER;
-if (!pepper || pepper.length < 16) { console.error("PASSWORD_PEPPER (the Worker secret) must be set, >= 16 chars"); process.exit(2); }
+if (!pepper || pepper.length < 16) { console.error("PASSWORD_PEPPER (the control-plane secret) must be set, >= 16 chars"); process.exit(2); }
 let password = process.env.AGENTMETER_ADMIN_PASSWORD;
 if (!password) {
   const rl = createInterface({ input: process.stdin, output: process.stderr });
@@ -34,19 +36,13 @@ const pk = await crypto.subtle.importKey("raw", peppered, "PBKDF2", false, ["der
 const hash = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations }, pk, 256);
 const id = [...crypto.getRandomValues(new Uint8Array(16))].map((x) => x.toString(16).padStart(2, "0")).join("");
 const now = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
-const q = (s) => `'${String(s).replace(/'/g, "''")}'`;
-const sql = `INSERT INTO users (id, username, role, pw_hash, pw_salt, pw_iter, disabled, must_change_pw, created_at, updated_at)
-SELECT ${q(id)}, ${q(username.toLowerCase())}, 'admin', ${q(b64url(hash))}, ${q(b64url(salt))}, ${iterations}, 0, 0, ${q(now)}, ${q(now)}
-WHERE NOT EXISTS (SELECT 1 FROM users);`;
-const db = process.env.D1_DATABASE || "agentmeter";
-const persist = where === "--local" && process.env.WRANGLER_PERSIST_TO ? ["--persist-to", process.env.WRANGLER_PERSIST_TO] : [];
-// run the project's own wrangler with this Node (no npx / shell: works the same on Windows,
-// where npx is npx.cmd and cannot be spawned directly)
-const wrangler = fileURLToPath(new URL("../node_modules/wrangler/bin/wrangler.js", import.meta.url));
-const d1 = (command) => JSON.parse(execFileSync(process.execPath, [wrangler, "d1", "execute", db, where, ...persist, "--json", "--command", command],
-                                                { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] }));
-d1(sql);
-// local D1 does not report meta.changes: check that OUR row is there
-const created = (d1(`SELECT COUNT(*) AS n FROM users WHERE id=${q(id)}`)?.[0]?.results?.[0]?.n ?? 0) > 0;
-if (!created) { console.error("not created: the users table is not empty (bootstrap runs once). Ask an admin to create users."); process.exit(1); }
-console.log(`admin "${username}" created (${where.slice(2)}). Log in from the app; create the other users under Admin.`);
+const sql = postgres(process.env.DATABASE_URL, { prepare: false, onnotice: () => {} });
+try {
+  const r = await sql`INSERT INTO users (id, username, role, pw_hash, pw_salt, pw_iter, disabled, must_change_pw, created_at, updated_at)
+    SELECT ${id}, ${username.toLowerCase()}, 'admin', ${b64url(hash)}, ${b64url(salt)}, ${iterations}, 0, 0, ${now}, ${now}
+    WHERE NOT EXISTS (SELECT 1 FROM users)`;
+  if (!r.count) { console.error("not created: the users table is not empty (bootstrap runs once). Ask an admin to create users."); process.exit(1); }
+  console.log(`admin "${username}" created. Log in from the app; create the other users under Admin.`);
+} finally {
+  await sql.end();
+}

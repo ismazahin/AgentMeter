@@ -5,14 +5,11 @@ import { credentials, deleteUser, listUsers, patchUser, postUser } from "./admin
 import { changePassword, errorResponse, listDevices, login, logout, me, refresh, revokeDevice } from "./auth.ts";
 import { getBackend, heartbeat, register } from "./backend.ts";
 import { authorize } from "./runs.ts";
-import {
-  backendGetFile, backendListSessions, backendSetIdentity, compareCandidatesRoute, compareMergedRoute, compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus,
-  leaderboardRoute, listSessions, patchSession, putFile, putResults, putSummary,
-} from "./sessions.ts";
+import { backendGetFile, backendListSessions, backendSetIdentity, compareCandidatesRoute, compareMergedRoute, compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus, commitUpload, leaderboardRoute, listSessions, patchSession, putFile, putResults, putSummary, uploadUrl } from "./sessions.ts";
 import { telegramTest } from "./notify.ts";
 import { getLimits, getSettings, putLimits, putSettings } from "./settings.ts";
 import { backendModelState, backendModelVerified, getAdminModels, putAdminModels } from "./models.ts";
-import { Env, corsHeaders, fail, json } from "./util.ts";
+import { type Env, corsHeaders, fail, json } from "./util.ts";
 
 type Handler = (req: Request, env: Env, ...params: string[]) => Promise<Response>;
 const ROUTES: [string, RegExp, Handler][] = [
@@ -63,6 +60,8 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["PUT", /^\/api\/backend\/sessions\/([^/]+)\/results$/, putResults],
   ["PUT", /^\/api\/backend\/sessions\/([^/]+)\/summary$/, putSummary],
   ["PUT", /^\/api\/backend\/sessions\/([^/]+)\/files\/([a-z_.]+)$/, putFile],
+  ["POST", /^\/api\/backend\/sessions\/([^/]+)\/upload-url$/, uploadUrl],
+  ["POST", /^\/api\/backend\/sessions\/([^/]+)\/commit$/, commitUpload],
   // prepared-set hash migration (scripts/migrate_prepared_set_hash.py)
   ["GET", /^\/api\/backend\/sessions$/, backendListSessions],
   ["GET", /^\/api\/backend\/sessions\/([^/]+)\/files\/([a-z_.]+)$/, backendGetFile],

@@ -1,7 +1,7 @@
 // Admin: users (max 5, enforced in SQL), credential STATUS ("set" / "not set" — never values).
-import { MAX_USERS, User, checkPassword, checkUsername, iterations, publicUser, requireUser } from "./auth.ts";
+import { MAX_USERS, type User, checkPassword, checkUsername, iterations, publicUser, requireUser } from "./auth.ts";
 import { hashPassword, randomHex } from "./crypto.ts";
-import { Env, fail, json, nowIso, readJson } from "./util.ts";
+import { type Env, fail, json, nowIso, readJson } from "./util.ts";
 
 export async function createUser(env: Env, username: string, password: string, role: string, mustChange = true) {
   if (!["admin", "user"].includes(role)) fail(400, "bad_role", "role: admin | user");

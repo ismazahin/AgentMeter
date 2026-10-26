@@ -91,7 +91,8 @@ def verify(models: list[str]) -> None:
 def _load_admin_state() -> None:
     """The admin's model choices (enabled / download at start-up) live in the control plane;
     fall back to configs/model_catalog.yaml when it cannot be reached."""
-    url, secret = os.environ.get("AGENTMETER_WORKER_URL"), os.environ.get("AGENTMETER_BACKEND_SECRET")
+    from agentmeter.server.control_plane import cp_url
+    url, secret = cp_url(), os.environ.get("AGENTMETER_BACKEND_SECRET")
     if not (url and secret):
         return
     from agentmeter.server.control_plane import Client, ControlPlaneError

@@ -1,0 +1,6 @@
+# Supabase CLI project config for the AgentMeter control plane (docs/DEPLOY.md, runbook A).
+project_id = "agentmeter"
+
+[functions.agentmeter]
+# The app has its own accounts and tokens; Supabase's JWT check would reject them.
+verify_jwt = false

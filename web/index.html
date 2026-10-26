@@ -15,9 +15,9 @@
   Settings. AgentMeter MEASURES LLM resource efficiency; it is not a threat-detection product.
 
   VIEW LAYER ONLY. The page is static (Cloudflare Pages, or served by the backend at /).
-  Phase 47 — with a control plane (config.json {"control_plane": "<Worker URL>"}): users log in
-  (no public sign-up); sessions, Compare and Leaderboard are read from the Worker (D1/R2), so they
-  work with the GPU off; the Worker says where the GPU backend is (it registers itself) and issues
+  Phase 47 — with a control plane (config.json {"control_plane": "<Supabase function URL>"}): users log in
+  (no public sign-up); sessions, Compare and Leaderboard are read from the control plane (Postgres +
+  Storage), so they work with the GPU off; the control plane says where the GPU backend is (it registers itself) and issues
   short-lived run tokens for every Prepare / Benchmark / resume. Without a control plane (local
   development) it talks to the backend named by config.json "api_base" ("" = same origin, or
   ?api=<url>). Every number comes from the server's session_results.json; nothing here computes a
@@ -1275,7 +1275,7 @@
     </div>
     <div class="card">
       <h2>Credentials</h2>
-      <p class="muted small">Status only.<span class="info-i" tabindex="0" role="button" data-tip="Set on the GPU backend (Hugging Face token, Vast API key) or as a Worker secret (Telegram bot token).">i</span></p>
+      <p class="muted small">Status only.<span class="info-i" tabindex="0" role="button" data-tip="Set on the GPU backend (Hugging Face token, Vast API key) or as a control-plane secret in Supabase (Telegram bot token).">i</span></p>
       <dl class="kv" id="adm-creds"></dl>
     </div>
     <div class="card" id="adm-models-card">
@@ -1354,7 +1354,7 @@
                      "flows/s": function (v) { return v == null ? "—" : fmtNum(v, 2); }, USD: fmtUsd, Wh: fmtWh };
 
   // ---------- backend location + access ----------
-  // Phase 47. CP = the control plane (Cloudflare Worker) URL from config.json "control_plane".
+  // Phase 47. CP = the control plane (Supabase Edge Function) URL from config.json "control_plane".
   // With CP: log in (access token in memory, refresh token in localStorage — the page is served
   // with a strict CSP), sessions / Compare / Leaderboard / settings come from the Worker, and the
   // GPU backend's URL comes from the Worker too (the backend registers itself). Every backend
@@ -5109,7 +5109,7 @@
     var onScheme = function () { if (themePref() === "system") applyTheme("system", true); };
     if (mq.addEventListener) mq.addEventListener("change", onScheme);
   }
-  // config.json: {"control_plane": "<Worker URL>"} (production) or {"api_base": "<backend>"} (development,
+  // config.json: {"control_plane": "<Supabase function URL>"} (production) or {"api_base": "<backend>"} (development,
   // also ?api=<url>, remembered; ?api=reset forgets it). ?cp=<url> / ?cp=reset does the same for the control plane.
   function resolveConfig() {
     var qs = new URLSearchParams(location.search), qa = qs.get("api"), qc = qs.get("cp"), saved = {};

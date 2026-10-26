@@ -3,7 +3,7 @@ unreachable) to the Worker, so Home / Sessions / Compare / Leaderboard show them
 
 AgentMeter MEASURES LLM resource efficiency; it is not a threat-detection product.
 
-    export AGENTMETER_WORKER_URL=https://agentmeter-control-plane.<you>.workers.dev
+    export AGENTMETER_CONTROL_PLANE_URL=https://<project-ref>.supabase.co/functions/v1/agentmeter
     export AGENTMETER_BACKEND_SECRET=...            # the Worker's BACKEND_SECRET
     python scripts/backfill_sessions.py --owner alice [--jobs-dir results/jobs] [--dry-run] [--force]
 
@@ -31,7 +31,7 @@ def main(argv=None) -> int:
     ap.add_argument("--owner", required=True, help="username to attribute sessions with no recorded user to")
     ap.add_argument("--jobs-dir", default=str(DEFAULT_JOBS_DIR))
     ap.add_argument("--results-root", default=str(DEFAULT_RESULTS_ROOT))
-    ap.add_argument("--worker", default=os.environ.get("AGENTMETER_WORKER_URL"), help="Worker URL (or AGENTMETER_WORKER_URL)")
+    ap.add_argument("--worker", default=os.environ.get("AGENTMETER_CONTROL_PLANE_URL") or os.environ.get("AGENTMETER_WORKER_URL"), help="control plane URL (or AGENTMETER_CONTROL_PLANE_URL)")
     ap.add_argument("--keep-identification-columns", action="store_true",
                     help="keep IPs/ports/protocol/timestamp in the R2 copy of features.csv (default: stripped)")
     ap.add_argument("--force", action="store_true", help="re-upload sessions already marked as uploaded")
@@ -39,7 +39,7 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     secret = os.environ.get("AGENTMETER_BACKEND_SECRET", "")
     if not a.dry_run and (not a.worker or not secret):
-        print("ERROR: set AGENTMETER_WORKER_URL (or --worker) and AGENTMETER_BACKEND_SECRET", file=sys.stderr)
+        print("ERROR: set AGENTMETER_CONTROL_PLANE_URL (or --worker) and AGENTMETER_BACKEND_SECRET", file=sys.stderr)
         return 2
     mgr = JobManager(jobs_dir=a.jobs_dir, results_root=a.results_root, autostart=False)
     todo = [j for j in mgr._all() if (j.get("kind") or "benchmark") == "benchmark" and j.get("status") == "done"

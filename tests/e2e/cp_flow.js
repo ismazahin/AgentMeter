@@ -1,5 +1,5 @@
 // Phase 47 — walk-through of the control plane (Playwright). Run via tests/e2e/cp_stack.sh, which
-// starts the Worker (wrangler dev, local D1/R2), bootstraps the admin and serves web/ like Pages.
+// starts the control plane's dev server (Postgres via PGlite), bootstraps the admin and serves web/ like Pages.
 // This script starts / stops / restarts the mock GPU backend itself:
 //   bootstrap admin logs in -> creates a user -> the user logs in (forced password change) ->
 //   settings saved to the account (survive a reload) -> mock session (wizard; defaults applied) ->
@@ -15,7 +15,7 @@ try { ({ chromium } = require('playwright')); } catch (e) {
 const REPO = path.resolve(__dirname, '..', '..');
 const OUT = process.argv[2] || fs.mkdtempSync('/tmp/cp-e2e-');
 const WP = process.env.WP || 8787, PP = process.env.PP || 8080, BP = process.env.BP || 8766;
-const APP = `http://127.0.0.1:${PP}`, WORKER = `http://127.0.0.1:${WP}`;
+const APP = `http://127.0.0.1:${PP}`, WORKER = process.env.CP_URL || `http://127.0.0.1:${WP}/functions/v1/agentmeter`;
 const CSV = path.join(REPO, 'data', 'sample_csv', 'cicids2017_sample.csv');
 const RESULTS = path.join(OUT, 'backend-results');
 const out = []; const log = (ok, msg) => { out.push((ok ? 'PASS ' : 'FAIL ') + msg); console.log((ok ? 'PASS ' : 'FAIL ') + msg); };
@@ -28,6 +28,7 @@ function startBackend(extraEnv = {}) {
     AGENTMETER_RESULTS_DIR: RESULTS, AGENTMETER_RUN_TOKEN_SECRET: process.env.DEV_RUN_SECRET,
     AGENTMETER_BACKEND_SECRET: process.env.DEV_BACKEND_SECRET, AGENTMETER_WORKER_URL: WORKER,
     AGENTMETER_PUBLIC_URL: `http://127.0.0.1:${BP}`, AGENTMETER_ALLOWED_ORIGINS: APP, AGENTMETER_HEARTBEAT_S: '3',
+    AGENTMETER_DIRECT_UPLOAD_MIN: '1000',   // most session files take the direct-to-Storage path here
     AGENTMETER_TEST_MODEL_REPOS: path.join(REPO, 'tests', 'fixtures', 'model_repos.json'), AGENTMETER_HF_METADATA: 'on', AGENTMETER_TEST_DISK_FREE_GB: '200' }, extraEnv);
   backend = cp.spawn(process.env.PYTHON || 'python', ['scripts/serve.py', '--provider', 'mock', '--host', '127.0.0.1', '--port', String(BP),
                                                      '--results-dir', RESULTS], { cwd: REPO, env, stdio: ['ignore', fs.openSync(path.join(OUT, 'backend.log'), 'a'), fs.openSync(path.join(OUT, 'backend.log'), 'a')] });

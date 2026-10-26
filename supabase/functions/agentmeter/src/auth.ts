@@ -1,7 +1,7 @@
 // Accounts and sessions: login (throttled), refresh rotation (reuse => revoke), logout, password.
 import { hashPassword, randomHex, randomToken, sha256Hex, signToken, verifyPassword, verifyToken } from "./crypto.ts";
 import { loadLimits } from "./settings.ts";
-import { Env, HttpError, clientIp, fail, intVar, json, nowIso, nowS, readJson } from "./util.ts";
+import { type Env, HttpError, clientIp, fail, intVar, json, nowIso, nowS, readJson } from "./util.ts";
 
 export const ACCESS_TTL_S = 15 * 60;
 export const REFRESH_TTL_S = 30 * 24 * 3600;          // "Remember me" on

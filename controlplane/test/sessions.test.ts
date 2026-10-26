@@ -12,6 +12,46 @@ async function benchmarkFor(u: { token: string }) {
   return g.data.jti as string;
 }
 
+describe("direct uploads to Storage (large files never pass through the function)", () => {
+  const putSigned = async (url: string, body: string, type = "application/json") =>
+    E.STORE.acceptUpload(url.split("/upload/")[1], new TextEncoder().encode(body), type);
+
+  it("upload-url -> PUT to Storage -> commit records results and files; they are served byte-for-byte", async () => {
+    const u = await user();
+    await register();
+    await benchmarkFor(u);
+    const big = JSON.stringify({ schema: "x", pad: "z".repeat(9000) });
+    const g = await backendCall("POST", `/api/backend/sessions/${SID}/upload-url`, { name: "session_results.json", bytes: big.length });
+    expect(g.status).toBe(200);
+    expect(g.data).toMatchObject({ key: `sessions/${SID}/session_results.json`, content_type: "application/json" });
+    expect(await putSigned(g.data.url, big)).toBe(true);
+    const c = await backendCall("POST", `/api/backend/sessions/${SID}/commit`, { name: "session_results.json", bytes: big.length });
+    expect(c.data).toMatchObject({ ok: true, bytes: big.length });
+    expect((await api(`/api/sessions/${SID}/results`, { token: u.token })).text).toBe(big);
+    const f = await backendCall("POST", `/api/backend/sessions/${SID}/upload-url`, { name: "flows.json", bytes: 7 });
+    await putSigned(f.data.url, "[1,2,3]");
+    await backendCall("POST", `/api/backend/sessions/${SID}/commit`, { name: "flows.json", bytes: 7 });
+    const got = await api(`/api/sessions/${SID}/files/flows.json`, { token: u.token });
+    expect([got.status, got.text]).toEqual([200, "[1,2,3]"]);
+  });
+
+  it("commit checks the stored size; names, sizes and signatures are checked; users cannot call it", async () => {
+    const u = await user();
+    await register();
+    await benchmarkFor(u);
+    const base = `/api/backend/sessions/${SID}`;
+    expect((await backendCall("POST", `${base}/commit`, { name: "report.pdf", bytes: 3 })).data.code).toBe("not_uploaded");
+    const g = await backendCall("POST", `${base}/upload-url`, { name: "report.pdf", bytes: 3 });
+    await putSigned(g.data.url, "abcd", "application/pdf");
+    expect((await backendCall("POST", `${base}/commit`, { name: "report.pdf", bytes: 3 })).data.code).toBe("size_mismatch");
+    expect((await api(`/api/sessions/${SID}/files/report.pdf`, { token: u.token })).status).toBe(404);   // never recorded
+    expect((await backendCall("POST", `${base}/upload-url`, { name: "../x", bytes: 1 })).status).toBe(400);
+    expect((await backendCall("POST", `${base}/upload-url`, { name: "report.pdf", bytes: 60 * 1024 * 1024 })).status).toBe(413);
+    expect((await api(`${base}/upload-url`, { body: { name: "report.pdf", bytes: 1 }, token: u.token })).status).toBe(401);
+    expect(await putSigned(g.data.url, "abc", "application/pdf")).toBe(false);                    // a URL works once
+  });
+});
+
 describe("session lifecycle (backend writes, users read)", () => {
   it("a benchmark job becomes a Running session owned by the token's user; prepare jobs do not", async () => {
     const u = await user();
@@ -27,7 +67,7 @@ describe("session lifecycle (backend writes, users read)", () => {
     expect((await api(`/api/sessions/${SID}`, { token: u.token })).data.status).toBe("Failed");
   });
 
-  it("small results live in D1, large ones in R2; both are served byte-for-byte; summary marks it done", async () => {
+  it("small results live in the row, large ones in Storage; both are served byte-for-byte; summary marks it done", async () => {
     const u = await user();
     await register();
     await benchmarkFor(u);

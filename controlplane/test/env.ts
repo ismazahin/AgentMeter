@@ -3,26 +3,14 @@
 // Each test file gets its own database; each test starts from empty tables.
 // TEST_DATABASE_URL=postgres://... runs the same tests through postgres.js (the Edge Function's
 // driver) on a real server instead, each test file in its own throwaway schema.
-import { readdirSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { PGlite } from "@electric-sql/pglite";
 import postgres from "postgres";
 import { afterAll, beforeEach } from "vitest";
 import { handle } from "../../supabase/functions/agentmeter/src/app.ts";
-import { Db, NUMBER_TYPES, Querier, pglite, postgresJs } from "../../supabase/functions/agentmeter/src/db.ts";
+import { Db, NUMBER_TYPES, type Querier, pglite, postgresJs } from "../../supabase/functions/agentmeter/src/db.ts";
 import { MemoryStore } from "../../supabase/functions/agentmeter/src/store.ts";
 
-const MIGRATIONS = fileURLToPath(new URL("../../supabase/migrations/", import.meta.url));
+import { migrate, newPglite } from "./env-db.ts";
 
-export async function migrate(db: PGlite) {
-  for (const f of readdirSync(MIGRATIONS).filter((x) => x.endsWith(".sql")).sort()) await db.exec(readFileSync(MIGRATIONS + f, "utf8"));
-}
-
-export function newPglite(dataDir?: string) {
-  return new PGlite(dataDir, { parsers: Object.fromEntries(NUMBER_TYPES.map((t) => [t, Number])) });
-}
-
-const migrationSql = () => readdirSync(MIGRATIONS).filter((x) => x.endsWith(".sql")).sort().map((f) => readFileSync(MIGRATIONS + f, "utf8"));
 
 let exec: (sql: string) => Promise<unknown>;
 let querier: Querier;
@@ -33,17 +21,17 @@ if (URL_) {
   await admin.unsafe(`CREATE SCHEMA ${schema}`);
   const num = { to: 20, from: NUMBER_TYPES, parse: Number, serialize: String };
   const sql = postgres(URL_, { onnotice: () => {}, prepare: false, connection: { search_path: schema }, types: { num } as any });
-  for (const m of migrationSql()) await sql.unsafe(m);
+  await migrate((m) => sql.unsafe(m));
   querier = postgresJs(sql);
   exec = (q) => sql.unsafe(q);
   afterAll(async () => { await sql.end(); await admin.unsafe(`DROP SCHEMA ${schema} CASCADE`); await admin.end(); });
 } else {
   const pg = newPglite();
-  await migrate(pg);
+  await migrate((m) => pg.exec(m));
   querier = pglite(pg);
   exec = (q) => pg.exec(q);
 }
-const store = new MemoryStore();
+const store = new MemoryStore("http://store.test");
 
 export const env = {
   DB: new Db(querier),

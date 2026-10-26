@@ -11,6 +11,7 @@ import sys
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlsplit
 
 WEB = Path(__file__).resolve().parents[2] / "web"
 
@@ -59,7 +60,8 @@ class H(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     port, cp_url = int(sys.argv[1]), sys.argv[2]
-    extra = [cp_url] + sys.argv[3:]
+    # CSP sources are origins: a source with a path matches only that exact path, not the API under it
+    extra = [urlsplit(u)._replace(path="", query="", fragment="").geturl() for u in [cp_url] + sys.argv[3:]]
     srv = ThreadingHTTPServer(("127.0.0.1", port), partial(H, cfg={"api_base": "", "control_plane": cp_url},
                                                            hdrs=pages_headers(extra)))
     print(f"pages on http://127.0.0.1:{port} (control plane {cp_url})", flush=True)

@@ -8,7 +8,7 @@
 // decides which models users may pick; every model is quantized to 4-bit NF4 on the backend.
 import { requireUser } from "./auth.ts";
 import { verifyBackend } from "./backend.ts";
-import { Env, fail, json, nowIso, readJson } from "./util.ts";
+import { type Env, fail, json, nowIso, readJson } from "./util.ts";
 
 export const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]{1,96}$/;
 const PREQUANT = /-(gptq|awq|gguf|exl2|4bit|8bit|int4|int8|fp8|bnb)$/i;

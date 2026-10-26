@@ -2,7 +2,7 @@
 // so no setting can exist that hides the DEMO banner, the caveats or the "not an endorsement
 // as a threat detector" wording (tests/settings.test.ts checks this).
 import { requireUser } from "./auth.ts";
-import { Env, fail, json, nowIso, readJson } from "./util.ts";
+import { type Env, fail, json, nowIso, readJson } from "./util.ts";
 
 export const DEFAULT_SETTINGS = {
   theme: "system",

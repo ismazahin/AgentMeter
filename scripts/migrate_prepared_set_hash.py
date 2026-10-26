@@ -13,7 +13,7 @@ copy on the backend. For each stored session still on version 1 this:
      to the stored manifest, so that copy can be re-imported on a later rental.
 No score, SAW value, rank or verdict is touched. Idempotent: version-2 sessions are skipped.
 
-    export AGENTMETER_WORKER_URL=https://agentmeter-control-plane.<you>.workers.dev
+    export AGENTMETER_CONTROL_PLANE_URL=https://<project-ref>.supabase.co/functions/v1/agentmeter
     export AGENTMETER_BACKEND_SECRET=...            # the Worker's BACKEND_SECRET
     python scripts/migrate_prepared_set_hash.py [--dry-run] [--jobs-dir results/jobs]
 """
@@ -83,13 +83,13 @@ def migrate(client: control_plane.Client, jobs_dir: Path | None = None, dry_run:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--worker", default=os.environ.get("AGENTMETER_WORKER_URL"))
+    ap.add_argument("--worker", default=os.environ.get("AGENTMETER_CONTROL_PLANE_URL") or os.environ.get("AGENTMETER_WORKER_URL"))
     ap.add_argument("--jobs-dir", default=None, help="a backend's results/jobs, for sessions with no stored copy")
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args(argv)
     secret = os.environ.get("AGENTMETER_BACKEND_SECRET", "")
     if not a.worker or not secret:
-        print("ERROR: set AGENTMETER_WORKER_URL (or --worker) and AGENTMETER_BACKEND_SECRET", file=sys.stderr)
+        print("ERROR: set AGENTMETER_CONTROL_PLANE_URL (or --worker) and AGENTMETER_BACKEND_SECRET", file=sys.stderr)
         return 2
     r = migrate(control_plane.Client(a.worker, secret), Path(a.jobs_dir) if a.jobs_dir else None, a.dry_run)
     print(f"done: {r['migrated']} {'to migrate' if a.dry_run else 'migrated'}, {r['already']} already on version "

@@ -39,3 +39,9 @@ hf_cache/
 /pilot_report.html
 /model_vram.json
 *.worker_vram.json
+
+# control plane (Supabase): local dev data, Supabase CLI state, Deno lock files
+controlplane/.dev-data/
+supabase/.temp/
+supabase/.branches/
+supabase/functions/**/deno.lock

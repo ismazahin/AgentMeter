@@ -123,7 +123,7 @@ def test_owner_rules_and_per_user_limit(mgr):
 @pytest.fixture
 def app(tmp_path, monkeypatch):
     pytest.importorskip("flask")
-    for k in ("AGENTMETER_ALLOWED_ORIGINS", "AGENTMETER_WORKER_URL", "AGENTMETER_BACKEND_SECRET"):
+    for k in ("AGENTMETER_ALLOWED_ORIGINS", "AGENTMETER_WORKER_URL", "AGENTMETER_CONTROL_PLANE_URL", "AGENTMETER_BACKEND_SECRET"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("AGENTMETER_RUN_TOKEN_SECRET", SECRET)
     spec = importlib.util.spec_from_file_location("serve_sch", PROJECT_ROOT / "scripts" / "serve.py")

@@ -46,7 +46,7 @@ def auth(token):
 def app(tmp_path, monkeypatch):
     pytest.importorskip("flask")
     for k in ("AGENTMETER_ALLOWED_ORIGINS", "AGENTMETER_JOBS_PER_HOUR", "AGENTMETER_MAX_QUEUED_JOBS",
-              "AGENTMETER_WORKER_URL", "AGENTMETER_BACKEND_SECRET"):
+              "AGENTMETER_WORKER_URL", "AGENTMETER_CONTROL_PLANE_URL", "AGENTMETER_BACKEND_SECRET"):
         monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("AGENTMETER_RUN_TOKEN_SECRET", SECRET)
     spec = importlib.util.spec_from_file_location("serve47", PROJECT_ROOT / "scripts" / "serve.py")
@@ -226,10 +226,12 @@ def test_identification_columns_are_stripped_from_the_uploaded_copy():
 # protocol against a fake Worker (signature checked exactly like supabase/functions/agentmeter/src/backend.ts)
 # ---------------------------------------------------------------------------
 class FakeWorker:
-    def __init__(self, fail_first: int = 0):
+    def __init__(self, fail_first: int = 0, direct: bool = False):
         self.calls: list[tuple[str, str, bytes]] = []
         self.store: dict[str, bytes] = {}
         self.fail_first = fail_first
+        self.direct = direct                      # offers single-use Storage upload URLs (Supabase)
+        self.objects: dict[str, bytes] = {}
         self.limits = {"sessions_per_hour": 7, "max_queued_sessions": 3, "max_upload_mb": 40, "idle_minutes": 25,
                        "keep_identification_columns_in_r2": False}
         outer = self
@@ -241,6 +243,11 @@ class FakeWorker:
             def _do(self):
                 n = int(self.headers.get("Content-Length") or 0)
                 body = self.rfile.read(n)
+                if self.path.startswith("/storage/"):            # the signed URL is the permission
+                    if self.command != "PUT":
+                        return self._send(405, {})
+                    outer.objects[self.path[len("/storage/"):]] = body
+                    return self._send(200, {"Key": self.path})
                 ts = self.headers.get("X-AM-Timestamp", "")
                 want = control_plane.sign(BACKEND_SECRET, self.command, self.path, ts, body)
                 if not hmac.compare_digest(want, self.headers.get("X-AM-Signature", "")) or abs(time.time() - int(ts)) > 120:
@@ -255,6 +262,18 @@ class FakeWorker:
                     return self._send(200, {"ok": True, "limits": outer.limits})
                 if self.command == "GET":
                     return self._get()
+                m = re.fullmatch(r"/api/backend/sessions/([^/]+)/(upload-url|commit)", self.path)
+                if m:                              # like supabase/functions/agentmeter/src/sessions.ts uploadUrl / commitUpload
+                    if not outer.direct:
+                        return self._send(404, {"code": "not_found"})          # a control plane without them
+                    d = json.loads(body)
+                    key = f"sessions/{m.group(1)}/{d['name']}"
+                    if m.group(2) == "upload-url":
+                        return self._send(200, {"url": f"{outer.url}/storage/{key}", "key": key, "content_type": "x/test"})
+                    if len(outer.objects.get(key, b"")) != d["bytes"]:
+                        return self._send(409, {"code": "size_mismatch"})
+                    outer.store[f"committed/{key}"] = outer.objects[key]
+                    return self._send(200, {"ok": True})
                 m = re.fullmatch(r"/api/backend/sessions/([^/]+)/identity", self.path)
                 if m:                              # like supabase/functions/agentmeter/src/sessions.ts backendSetIdentity
                     key = f"/api/backend/sessions/{m.group(1)}/summary"
@@ -358,6 +377,34 @@ def test_register_heartbeat_events_and_upload(app, tmp_path, monkeypatch):
     assert fw.paths()[-1] == ("PUT", f"{base}/summary")                         # summary last: marks it Done
     n = len(fw.calls)
     assert cp.upload(bj) is True and len(fw.calls) == n                         # once only
+
+
+def test_large_files_go_straight_to_storage_and_small_ones_through_the_api(app, monkeypatch):
+    c, mgr = app["c"], app["mgr"]
+    sid = mgr.wait(prepare(c).get_json()["job_id"], timeout=60)["prepared"]
+    bj = c.post("/api/jobs", json={"run": sid, "models": [MODEL]}, headers=auth(tok("benchmark", run=sid))).get_json()["job_id"]
+    assert mgr.wait(bj, timeout=120)["status"] == "done"
+    job = mgr._load(bj)
+    raw = Path(job["result_path"]).read_bytes()
+    monkeypatch.setattr(control_plane, "DIRECT_UPLOAD_MIN", 2000)
+    fw = FakeWorker(direct=True)
+    cp = control_plane.ControlPlane(control_plane.Client(fw.url, BACKEND_SECRET), get_manager=lambda: mgr, mode="mock",
+                                    environment=lambda: {}, url_fn=lambda: "https://x.trycloudflare.com")
+    assert cp.upload(bj) is True
+    base = f"/api/backend/sessions/{bj}"
+    assert fw.store[f"committed/sessions/{bj}/session_results.json"] == raw and len(raw) > 2000     # byte for byte
+    assert fw.objects[f"sessions/{bj}/report.pdf"][:4] == b"%PDF"
+    assert ("PUT", f"{base}/results") not in fw.paths()
+    small = [p for m, p in fw.paths() if m == "PUT" and "/files/" in p]
+    assert small and all(len(fw.store[p]) < 2000 for p in small)                 # small files: the signed PUT
+    assert fw.paths()[-1] == ("PUT", f"{base}/summary")
+    # a control plane without direct uploads (404): everything through the API, as before
+    fw2 = FakeWorker()
+    cp2 = control_plane.ControlPlane(control_plane.Client(fw2.url, BACKEND_SECRET), get_manager=lambda: mgr, mode="mock",
+                                     environment=lambda: {}, url_fn=lambda: "https://x.trycloudflare.com")
+    assert cp2.upload(bj, force=True) is True and fw2.store[f"{base}/results"] == raw
+    with pytest.raises(control_plane.ControlPlaneError, match="non-https"):
+        control_plane.Client("https://cp", BACKEND_SECRET).put_direct("http://evil.example/x", b"1", "x/y")
 
 
 def test_a_failed_upload_is_retried_on_the_next_heartbeat(app, monkeypatch):

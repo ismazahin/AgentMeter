@@ -16,11 +16,12 @@ AgentMeter MEASURES LLM resource efficiency; it is not a threat-detection produc
     A failed upload is retried on the next heartbeat (job["cp_uploaded"] marks success).
 
 Requests are signed: X-AM-Timestamp + X-AM-Signature = hex HMAC-SHA256(BACKEND_SECRET,
-"METHOD\\nPATH\\nTS\\nsha256hex(body)") — worker/src/backend.ts verifies it.
+"METHOD\\nPATH\\nTS\\nsha256hex(body)") — supabase/functions/agentmeter/src/backend.ts verifies it.
 
 Environment:
-  AGENTMETER_WORKER_URL        https://agentmeter-control-plane.<you>.workers.dev
-  AGENTMETER_BACKEND_SECRET    shared with the Worker secret BACKEND_SECRET
+  AGENTMETER_CONTROL_PLANE_URL https://<project-ref>.supabase.co/functions/v1/agentmeter
+                               (AGENTMETER_WORKER_URL, the older name, still works)
+  AGENTMETER_BACKEND_SECRET    shared with the control-plane secret BACKEND_SECRET
   AGENTMETER_PUBLIC_URL        this backend's public URL, or
   AGENTMETER_PUBLIC_URL_FILE   a file holding it (scripts/vast_up.sh writes the quick-tunnel URL)
 """
@@ -37,12 +38,15 @@ import queue
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Optional
 
 log = logging.getLogger("agentmeter.control_plane")
 
+# files at least this large go straight to Storage (single-use upload URL), not through the API
+DIRECT_UPLOAD_MIN = int(os.environ.get("AGENTMETER_DIRECT_UPLOAD_MIN") or 1_000_000)
 HEARTBEAT_S = max(1, int(os.environ.get("AGENTMETER_HEARTBEAT_S") or 60))   # the Worker marks it offline after 3 missed
 # The identification columns of a prepared set (ingest.feature_map.META_COLUMNS minus flow_id).
 # "Destination Port" is one of the 78 CIC features the models see, so it stays.
@@ -56,8 +60,13 @@ class ControlPlaneError(RuntimeError):
         self.status, self.code = status, code
 
 
+def cp_url() -> str:
+    """The control plane's URL: AGENTMETER_CONTROL_PLANE_URL, or the older AGENTMETER_WORKER_URL."""
+    return (os.environ.get("AGENTMETER_CONTROL_PLANE_URL") or os.environ.get("AGENTMETER_WORKER_URL") or "").strip()
+
+
 def configured() -> bool:
-    return bool(os.environ.get("AGENTMETER_WORKER_URL") and os.environ.get("AGENTMETER_BACKEND_SECRET"))
+    return bool(cp_url() and os.environ.get("AGENTMETER_BACKEND_SECRET"))
 
 
 def public_url() -> str:
@@ -138,6 +147,22 @@ class Client:
                                     e.code, err.get("code", "")) from e
         except (urllib.error.URLError, OSError) as e:
             raise ControlPlaneError(f"{method} {path}: {e}") from e
+
+    def put_direct(self, url: str, data: bytes, content_type: str) -> None:
+        """PUT one file to a single-use Storage upload URL the control plane issued (no signature:
+        the URL itself is the permission). https only, except a local dev server."""
+        u = urllib.parse.urlsplit(url)
+        if u.scheme != "https" and not (u.scheme == "http" and u.hostname in ("127.0.0.1", "localhost")):
+            raise ControlPlaneError(f"refusing a non-https upload URL: {u.scheme}://{u.hostname}")
+        req = urllib.request.Request(url, data=data, method="PUT", headers={
+            "Content-Type": content_type, "x-upsert": "true", "User-Agent": "agentmeter-backend"})
+        try:
+            with urllib.request.urlopen(req, timeout=max(self.timeout, 300)) as r:   # noqa: S310 — checked above
+                r.read()
+        except urllib.error.HTTPError as e:
+            raise ControlPlaneError(f"PUT (storage): HTTP {e.code} {e.read()[:200]!r}", e.code) from e
+        except (urllib.error.URLError, OSError) as e:
+            raise ControlPlaneError(f"PUT (storage): {e}") from e
 
     def call(self, method: str, path: str, body: Any = None, raw: Optional[bytes] = None,
              content_type: str = "application/json") -> dict:
@@ -288,13 +313,32 @@ class ControlPlane:
             keep = bool(self.limits.get("keep_identification_columns_in_r2", False))
             raw, files, summary = session_upload(mgr, job, keep_identification=keep, owner_username=owner_username)
             base = f"/api/backend/sessions/{job_id}"
-            self.client.call("PUT", f"{base}/results", raw=raw)
+            self._store(base, "session_results.json", raw, "application/json")
             for name, data in files.items():
-                ctype = {"report.pdf": "application/pdf", "manifest.json": "application/json"}.get(name, "text/csv")
-                self.client.call("PUT", f"{base}/files/{name}", raw=data, content_type=ctype)
+                ctype = {"report.pdf": "application/pdf", "manifest.json": "application/json",
+                         "flows.json": "application/json"}.get(name, "text/csv")
+                self._store(base, name, data, ctype)
             self.client.call("PUT", f"{base}/summary", {"summary": summary, "owner_username": summary.get("owner_username")})
             mgr._update(job_id, cp_uploaded=True, cp_identification_stripped=not keep)
             return True
+
+    def _store(self, base: str, name: str, data: bytes, content_type: str) -> None:
+        """One file of a session. A large one goes straight to Storage (single-use upload URL, then
+        commit), so it never passes through the control plane's request limits; a small one, or a
+        control plane without direct uploads (404/409), takes the signed PUT."""
+        if len(data) >= DIRECT_UPLOAD_MIN:
+            u: dict = {}
+            try:
+                u = self.client.call("POST", f"{base}/upload-url", {"name": name, "bytes": len(data)})
+            except ControlPlaneError as e:
+                if e.status not in (404, 409):
+                    raise
+            if u.get("url"):
+                self.client.put_direct(u["url"], data, u.get("content_type") or content_type)
+                self.client.call("POST", f"{base}/commit", {"name": name, "bytes": len(data)})
+                return
+        path = f"{base}/results" if name == "session_results.json" else f"{base}/files/{name}"
+        self.client.call("PUT", path, raw=data, content_type=content_type)
 
     def upload_pending(self) -> int:
         n = 0
@@ -355,4 +399,4 @@ def default_creds() -> dict[str, bool]:
 def from_env(**kw) -> Optional[ControlPlane]:
     if not configured():
         return None
-    return ControlPlane(Client(os.environ["AGENTMETER_WORKER_URL"], os.environ["AGENTMETER_BACKEND_SECRET"]), **kw)
+    return ControlPlane(Client(cp_url(), os.environ["AGENTMETER_BACKEND_SECRET"]), **kw)

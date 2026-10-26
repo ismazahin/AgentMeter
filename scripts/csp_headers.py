@@ -7,9 +7,10 @@ fails while web/_headers is stale:
 
     python scripts/csp_headers.py
 
-connect-src allows the Worker (*.workers.dev) and quick tunnels (*.trycloudflare.com). Using a
-custom domain for either (a named tunnel, or the Worker on your domain)? Add it to EXTRA_CONNECT
-(or the env var AGENTMETER_CSP_CONNECT, space-separated) and re-run.
+connect-src allows the control plane (Supabase: https://*.supabase.co) and quick tunnels
+(*.trycloudflare.com). Using a custom domain for either (a named tunnel, or the control plane on
+your domain)? Add its ORIGIN (scheme + host, no path: a path would match only that exact URL) to
+EXTRA_CONNECT (or the env var AGENTMETER_CSP_CONNECT, space-separated) and re-run.
 """
 from __future__ import annotations
 
@@ -39,7 +40,7 @@ def script_hashes() -> list[str]:
 def csp(extra_connect: list[str] | None = None) -> str:
     extra = list(EXTRA_CONNECT) + (extra_connect if extra_connect is not None
                                    else os.environ.get("AGENTMETER_CSP_CONNECT", "").split())
-    connect = " ".join(["'self'", "https://*.workers.dev", "https://*.trycloudflare.com"] + extra)
+    connect = " ".join(["'self'", "https://*.supabase.co", "https://*.trycloudflare.com"] + extra)
     return "; ".join([
         "default-src 'self'",
         "script-src 'self' " + " ".join(script_hashes()),

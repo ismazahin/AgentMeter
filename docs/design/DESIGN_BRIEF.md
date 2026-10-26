@@ -210,8 +210,8 @@ pip install -r requirements.txt flask
 # A) standalone demo (no login): http://127.0.0.1:8766/#/new
 AGENTMETER_TEST_MODEL_REPOS=tests/fixtures/model_repos.json AGENTMETER_TEST_DISK_FREE_GB=200 \
   python scripts/serve.py --provider mock --port 8766
-# B) the full multi-user app (login, admin) with a local Worker: needs Node + wrangler
-bash tests/e2e/cp_stack.sh /tmp/cp-out        # runs the control-plane walk-through (76 checks)
+# B) the full multi-user app (login, admin) with a local control plane: needs Node 22 (cd controlplane && npm ci)
+bash tests/e2e/cp_stack.sh /tmp/cp-out        # runs the control-plane walk-through (82 checks)
 ```
 Walk-throughs (Playwright, must stay green): `tests/e2e/cp_flow.js` (via `cp_stack.sh`),
 `tests/e2e/model_picker_flow.js`, `tests/e2e/app_flow.js`, `tests/e2e/service_flow.js`,
@@ -278,7 +278,7 @@ Regenerate this list after changes:
 
 ## Appendix B — API the page calls (unchanged by a redesign)
 
-Control plane (Cloudflare Worker): `/api/auth/*`, `/api/me`, `/api/me/devices`, `/api/me/password`,
+Control plane (Supabase Edge Function): `/api/auth/*`, `/api/me`, `/api/me/devices`, `/api/me/password`,
 `/api/settings`, `/api/settings/telegram-test`, `/api/sessions`, `/api/compare/*`,
 `/api/leaderboard`, `/api/backend`, `/api/admin/users`, `/api/admin/credentials`,
 `/api/admin/limits`, `/api/admin/models`, `/api/runs/authorize`.

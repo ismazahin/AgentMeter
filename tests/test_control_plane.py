@@ -483,8 +483,8 @@ def test_pages_ships_the_analysis_page_and_its_scripts():
                  ("web/report.js", "dashboard/report.js"), ("web/insights.js", "dashboard/insights.js")):
         assert (PROJECT_ROOT / a).read_bytes() == (PROJECT_ROOT / b).read_bytes(), f"cp {b} {a}"
     cfg = json.loads((PROJECT_ROOT / "web" / "config.json").read_text())
-    # empty (development) or your deployed Worker — always https, never a secret
-    assert cfg["control_plane"] == "" or re.fullmatch(r"https://[a-z0-9.-]+(/)?", cfg["control_plane"]), cfg["control_plane"]
+    # empty (development) or your deployed control plane — always https, never a secret
+    assert cfg["control_plane"] == "" or re.fullmatch(r"https://[a-z0-9.-]+(/[a-z0-9/_-]*)?", cfg["control_plane"]), cfg["control_plane"]
     assert cfg["api_base"] == ""
 
 

@@ -3,63 +3,72 @@
 AgentMeter **measures** LLM resource efficiency (latency, memory, tokens, cost, energy; accuracy
 as context only). It is not a threat-detection product, and nothing below changes that.
 
-Since Phase 47 a deployment has three parts:
+A deployment has three parts:
 
 ```
-browser ──▶ Cloudflare Pages  web/  (static: the app + analysis.html, strict CSP)
+browser ──▶ static hosting  web/  (the app + analysis.html, strict CSP; Cloudflare Pages for now)
    │
-   ├──▶ Cloudflare Worker "control plane"  worker/   accounts, settings, admin, run tokens,
-   │        D1 (users, settings, one row per session)  R2 (large results, PDFs, prepared-set copies)
+   ├──▶ Supabase "control plane"  supabase/   accounts, settings, admin, run tokens:
+   │        Edge Function `agentmeter` (supabase/functions/agentmeter)
+   │        Postgres (users, settings, one row per session)  Storage (large results, PDFs, prepared-set copies)
    │        └─ sessions / Compare / Leaderboard are read HERE, so they work with the GPU off
    │
    └──▶ https://<tunnel> ─▶ cloudflared ─▶ 127.0.0.1:8000   the GPU backend (scripts/serve.py)
-            only while a GPU is rented; it REGISTERS its URL with the Worker and heartbeats
+            only while a GPU is rented; it REGISTERS its URL with the control plane and heartbeats
 ```
 
-You deploy the Worker and Pages once (runbook A), then bring a GPU backend up whenever you
-need one (runbook B). The backend finds the Worker; the app finds the backend through the
-Worker. Nothing is pasted between them.
+You deploy the control plane and the static site once (runbook A), then bring a GPU backend up
+whenever you need one (runbook B). The backend finds the control plane; the app finds the
+backend through the control plane. Nothing is pasted between them.
+
+(The control plane ran on a Cloudflare Worker with D1 and R2 until October 2026; runbook A ends
+with the one-time copy of that data to Supabase.)
 
 ## Security model
 
 - **Accounts.** At most five, created by an admin (no public sign-up). The first admin is
-  created once with `worker/scripts/bootstrap-admin.mjs`. Roles: admin, user.
+  created once with `controlplane/scripts/bootstrap-admin.mjs`. Roles: admin, user.
 - **Passwords.** PBKDF2-SHA256 with **40,000 iterations**, a 16-byte random salt per user and
-  a server-side **pepper** (Worker secret `PASSWORD_PEPPER`: the password is HMAC'd with it
-  before PBKDF2, so a copy of the D1 database alone is not enough to test guesses). Measured
-  in workerd (the Workers runtime, `wrangler dev`): **6 ms median, 6 ms p95, 7 ms max** per
-  hash at 40,000 (20,000 → 3 ms; 60,000 → 9–10 ms; 100,000 → 15 / 17 / 20 ms).
+  a server-side **pepper** (control-plane secret `PASSWORD_PEPPER`: the password is HMAC'd
+  with it before PBKDF2, so a copy of the database alone is not enough to test guesses).
   **Trade-off vs OWASP:** OWASP's 2023 guidance for PBKDF2-SHA256 is 600,000 iterations,
-  ~15× more. That does not fit the Workers Free plan's 10 ms CPU limit per request, so we
-  use 40,000 and compensate with the pepper (offline guessing needs the Worker secret too)
-  and an online **login throttle**: 5 failed logins per username per 15 minutes (and 10 per
-  client IP) → HTTP 429 with `Retry-After: 900`; unknown usernames cost the same hash, so
-  timing does not reveal which accounts exist. On a paid Workers plan raise
-  `PBKDF2_ITERATIONS` in `wrangler.toml`; existing hashes keep their own iteration count
-  and still verify.
-- **Tokens.** The access token (15 minutes, HMAC-signed, checked against its session in D1 on
+  ~15× more. 40,000 was chosen for the 10 ms CPU limit of the former Cloudflare Worker (it
+  measured 6 ms there). Supabase Edge Functions allow 2 s of CPU per request, so the secret
+  `PBKDF2_ITERATIONS` can now be raised (measure a login first); every user keeps the
+  iteration count of their own hash, so existing passwords still verify and new or changed
+  ones use the new count. Until then the pepper (offline guessing needs that secret too) and
+  an online **login throttle** compensate: 5 failed logins per username per 15 minutes (and
+  10 per client IP) → HTTP 429 with `Retry-After: 900`; unknown usernames cost the same hash,
+  so timing does not reveal which accounts exist.
+- **Database exposure.** Supabase serves tables over its own REST API to the project's public
+  keys. Every AgentMeter table has row-level security ON with no policies and no grants to
+  `anon` / `authenticated`, so that API returns nothing; only the Edge Function (a direct
+  database connection) reads and writes them. The Storage bucket is private; the function uses
+  the service-role key, which never leaves Supabase. The GPU backend never holds a Supabase
+  key: it uploads large files to single-use signed URLs the function issues.
+- **Tokens.** The access token (15 minutes, HMAC-signed, checked against its session in the database on
   every request, so logout / disable / password reset end access at once) is kept in memory;
   the refresh token (rotated on every use, reuse of an old one revokes the session) depends on
   **Remember me** on the login page. Off (the default): kept in `sessionStorage` — closing the
   browser logs out, the login lasts at most 12 h, and it ends after `session_idle_minutes`
   (Admin → System limits, default 30, 0 = never) without a click, key, scroll or touch (the page
-  logs out; the Worker refuses a refresh after that long plus 15 min, as a backstop). On: kept in
+  logs out; the control plane refuses a refresh after that long plus 15 min, as a backstop). On: kept in
   `localStorage` for 30 days, no idle logout. Profile (the account menu, top right) lists every
   logged-in device and logs any of them out. That is why the Pages site runs with a strict
   Content-Security-Policy (`web/_headers`, generated by `scripts/csp_headers.py`: only this
   site's files and the hashed inline scripts may run; no inline event handlers). **Once the
-  front-end and the Worker share your own domain** (e.g. `app.example.org` and
+  front-end and the control plane share your own domain** (e.g. `app.example.org` and
   `api.example.org`), the refresh token can move to an `HttpOnly; Secure; SameSite=Strict`
   cookie, out of reach of page scripts — not possible while they live on `*.pages.dev` and
-  `*.workers.dev`, which are different sites.
+  `*.supabase.co`, which are different sites.
 - **Run tokens (they replace the shared passcode).** The backend accepts work only with a
-  token the Worker signed for a logged-in user (`AGENTMETER_RUN_TOKEN_SECRET` = Worker
-  `RUN_TOKEN_SECRET`): 5 minutes, single use for prepare / import / benchmark / resume / stop, bound
+  token the control plane signed for a logged-in user (`AGENTMETER_RUN_TOKEN_SECRET` =
+  control-plane secret `RUN_TOKEN_SECRET`): 5 minutes, single use for prepare / import / benchmark / resume / stop, bound
   to the request (the prepared set, the prepare job, the job to resume or stop; a stop token says
   whether the user is an admin — otherwise only the job's owner may stop it, and it never counts
   against the hourly limit). Listings and stored
-  results need a `read` token; prepared-set files a `files` token for that set (and the R2
-  copies a login). A job's status by id stays open: job ids carry **128 random bits**
+  results need a `read` token; prepared-set files a `files` token for that set (and the
+  copies stored in the control plane a login). A job's status by id stays open: job ids carry **128 random bits**
   (`secrets.token_hex(16)`); ids from before Phase 47 (24 bits) need a token even for status.
 
   **Known limitation — replay window after a backend restart.** The backend remembers which
@@ -67,22 +76,24 @@ Worker. Nothing is pasted between them.
   that memory is lost, so a token used shortly before the restart could be accepted once more
   until it expires — at most **5 minutes** after it was issued (the token lifetime; the backend
   refuses anything claiming a longer one). Replaying it needs the token itself (it travels only
-  between the logged-in browser, the Worker and the backend, over HTTPS) and could at worst
+  between the logged-in browser, the control plane and the backend, over HTTPS) and could at worst
   start one extra job for the same user and the same request it was issued for. Each grant is
-  already counted against that user's hourly limit in D1, and a restart interrupts running jobs
-  anyway. Closing it fully would mean persisting used jtis (on disk or in D1); not done, as the
+  already counted against that user's hourly limit in the database, and a restart interrupts
+  running jobs anyway. Closing it fully would mean persisting used jtis (on disk or in the
+  database); not done, as the
   exposure is one duplicate job within 5 minutes of a restart.
-- **Backend ↔ Worker.** Every backend call is HMAC-signed (`AGENTMETER_BACKEND_SECRET` =
-  Worker `BACKEND_SECRET`, timestamp within 120 s). The backend reports which credentials it
-  has as booleans only; no secret value ever leaves where it is set (Worker secrets or the
-  backend's environment) and the Admin page shows only *set / not set*.
-- **Rate limits** (admin → System limits; persistent in D1, per **user**): sessions per hour
+- **Backend ↔ control plane.** Every backend call is HMAC-signed (`AGENTMETER_BACKEND_SECRET`
+  = control-plane secret `BACKEND_SECRET`, timestamp within 120 s), over the route path, so the
+  `/functions/v1/agentmeter` prefix does not matter. The backend reports which credentials it
+  has as booleans only; no secret value ever leaves where it is set (Supabase function secrets
+  or the backend's environment) and the Admin page shows only *set / not set*.
+- **Rate limits** (admin → System limits; persistent in the database, per **user**): sessions per hour
   (default 12) and queued sessions (default 4). A wizard session (its data preparation plus
   the one benchmark queued behind it) counts once; a second benchmark on the same preparation
   counts again. 429 `rate_limited` / `queue_full` with `Retry-After`.
 - **Identification columns.** A prepared set's `features.csv` carries IPs, ports, protocol and
   timestamp (`src_ip, src_port, dst_ip, protocol, protocol_name, timestamp`). The models never
-  see them. They stay in the backend's run folder; the copy stored in R2 with the session has
+  see them. They stay in the backend's run folder; the copy stored with the session has
   them **stripped by default** (admin setting *Keep identification columns*, off). The app
   never displays them.
 - **Prepared-set reuse across rentals.** The prepared-set hash that Compare and Leaderboard group
@@ -97,7 +108,7 @@ Worker. Nothing is pasted between them.
   run on it compares **like-for-like** with the original. Sessions stored before hash v2:
   migrate them once (runbook A, step 6).
 - **HTTPS + origins.** The backend listens on 127.0.0.1 behind Cloudflare Tunnel;
-  `AGENTMETER_ALLOWED_ORIGINS` (backend) and `ALLOWED_ORIGINS` (Worker) list only the Pages
+  `AGENTMETER_ALLOWED_ORIGINS` (backend) and `ALLOWED_ORIGINS` (control-plane secret) list only the site's
   origin. Development mode (no control plane, mock only) needs no token.
 
 ## Uploads, URL import and where requests go
@@ -142,102 +153,155 @@ read only from the server's environment,
 not from any request or UI field, never open private or link-local ranges, and
 log a warning when used.
 
-## Runbook A: the control plane (Cloudflare Worker + D1 + R2 + Pages) — once
+## Runbook A: the control plane (Supabase) and the static site — once
 
-Everything here fits the Cloudflare **free** tier (see "Free-tier usage" below). You need a
-Cloudflare account and Node 20+ on your laptop.
+Everything here fits the Supabase **free** plan (see "Free-plan usage" below). You need a
+Supabase account (https://supabase.com) and Node 20+ on your laptop. The commands work the same
+in PowerShell, one per line.
 
+### A1. Create the Supabase project
+Supabase dashboard → **New project** → name `agentmeter`, a strong **database password** (keep
+it), the region nearest to you → Create. Note the **project ref**: the `xxxxxxxx` in
+`https://xxxxxxxx.supabase.co` (Project Settings → General).
+
+### A2. Database, function and secrets (from the repo folder)
 ```bash
-cd AgentMeter/worker
-npm ci --legacy-peer-deps
-npx wrangler login
+cd AgentMeter
+npx supabase login                                  # opens the browser once
+npx supabase link --project-ref <project-ref>       # asks for the database password
+npx supabase db push                                # creates the tables and the private Storage bucket
 
-# 1. D1 database — copy the printed database_id into wrangler.toml ([[d1_databases]] database_id)
-npx wrangler d1 create agentmeter
-npx wrangler d1 migrations apply agentmeter --remote
+# secrets — generate each with:  python -c "import secrets; print(secrets.token_urlsafe(48))"
+# RUN_TOKEN_SECRET and BACKEND_SECRET: the GPU backend gets the SAME values (backend.env).
+# PASSWORD_PEPPER: keep a copy and never change it (every password depends on it). Moving from
+# Cloudflare? Use your EXISTING four values (A6), so logins and the backend keep working.
+npx supabase secrets set ACCESS_TOKEN_SECRET=<value> RUN_TOKEN_SECRET=<value> BACKEND_SECRET=<value> PASSWORD_PEPPER=<value>
+npx supabase secrets set ALLOWED_ORIGINS=https://agentmeter.pages.dev    # the site's exact origin(s), comma-separated
+npx supabase secrets set TELEGRAM_BOT_TOKEN=<token>                      # optional: "notify me" in Settings
 
-# 2. R2 bucket (large results, PDFs, prepared-set copies)
-npx wrangler r2 bucket create agentmeter-sessions
-
-# 3. secrets — generate each with:  python3 -c "import secrets; print(secrets.token_urlsafe(48))"
-npx wrangler secret put ACCESS_TOKEN_SECRET
-npx wrangler secret put RUN_TOKEN_SECRET        # the backend gets the SAME value (AGENTMETER_RUN_TOKEN_SECRET)
-npx wrangler secret put BACKEND_SECRET          # the backend gets the SAME value (AGENTMETER_BACKEND_SECRET)
-npx wrangler secret put PASSWORD_PEPPER         # keep a copy: bootstrap-admin needs it; never change it later
-npx wrangler secret put TELEGRAM_BOT_TOKEN      # optional: from @BotFather, for "notify me" in Settings
-
-# 4. vars in wrangler.toml: ALLOWED_ORIGINS = "https://<your-project>.pages.dev"  (exact origin)
-#    keep ALLOW_HTTP_BACKEND = "0" and PBKDF2_ITERATIONS = "40000"
-npx wrangler deploy                              # prints https://agentmeter-control-plane.<sub>.workers.dev
-curl -s https://agentmeter-control-plane.<sub>.workers.dev/api/health
-
-# 5. the first admin (only works while there are no users)
-PASSWORD_PEPPER='<the same pepper>' node scripts/bootstrap-admin.mjs <admin-name> --remote
+npx supabase functions deploy agentmeter --no-verify-jwt --use-api
+curl -s https://<project-ref>.supabase.co/functions/v1/agentmeter/api/health
 ```
+`--no-verify-jwt`: the app has its own accounts and tokens (Supabase's JWT check would reject
+them; `supabase/config.toml` says the same). `--use-api` bundles on Supabase's side, so Docker
+is not needed. The function gets the database URL and the Storage key from Supabase itself.
 
-**Pages.** Edit `web/config.json` → `"control_plane": "https://agentmeter-control-plane.<sub>.workers.dev"`
-and commit. Cloudflare dashboard → Workers & Pages → Create → Pages → connect the repo →
-Framework preset **None**, Build command *(empty)*, Build output directory **`web`** → Deploy.
-`web/_headers` sets the CSP; its `connect-src` allows `*.workers.dev` and `*.trycloudflare.com`.
-Using your own domain for the Worker or a named tunnel? Run
+Optional secrets (defaults in brackets): `PBKDF2_ITERATIONS` [40000],
+`BACKEND_OFFLINE_AFTER_S` [180], `RESULTS_INLINE_MAX` [1000000 bytes of results kept in the
+row; larger ones go to Storage], `STORAGE_BUCKET` [agentmeter]. Never set `ALLOW_HTTP_BACKEND`.
+
+### A3. The first admin (only works while there are no users)
+Dashboard → **Connect** → copy the **Session pooler** connection string and put your database
+password in it.
+```bash
+cd controlplane
+npm ci
+# PowerShell:  $env:DATABASE_URL="postgresql://..."; $env:PASSWORD_PEPPER="<the same pepper>"
+DATABASE_URL='postgresql://...' PASSWORD_PEPPER='<the same pepper>' node scripts/bootstrap-admin.mjs <admin-name>
+```
+Not needed when you move from Cloudflare with your users (A6).
+
+### A4. The static site
+Edit `web/config.json` → `"control_plane": "https://<project-ref>.supabase.co/functions/v1/agentmeter"`
+and commit. Cloudflare Pages for now (any static host works: the site is the `web/` folder as
+is): `npx wrangler pages deploy web --project-name agentmeter`, or connect the repo in the
+Cloudflare dashboard (Framework preset **None**, no build command, output directory **`web`**).
+`web/_headers` sets the CSP; its `connect-src` allows `https://*.supabase.co` and
+`*.trycloudflare.com`. Another static host must send the same headers (copy the
+`Content-Security-Policy` line from `web/_headers` into that host's header settings). A custom
+domain for the control plane or a named tunnel? Run
 `AGENTMETER_CSP_CONNECT="https://api.example.org https://gpu.example.org" python scripts/csp_headers.py`
-and commit `web/_headers` (re-run it too after editing an inline script — a test fails while it
-is stale). Open the Pages URL, log in as the admin, and create the other users under **Admin**
-(each must choose a new password at first login).
+(origins only, no path) and commit `web/_headers` (re-run it too after editing an inline
+script — a test fails while it is stale). Open the site, log in as the admin, and create the
+other users under **Admin** (each must choose a new password at first login).
+
+### A5. The GPU backend's settings
+In `%USERPROFILE%\.agentmeter\backend.env` (what `scripts\vast_start.ps1` copies to the box):
+```
+AGENTMETER_CONTROL_PLANE_URL=https://<project-ref>.supabase.co/functions/v1/agentmeter
+AGENTMETER_RUN_TOKEN_SECRET=<same as RUN_TOKEN_SECRET>
+AGENTMETER_BACKEND_SECRET=<same as BACKEND_SECRET>
+```
+(`AGENTMETER_WORKER_URL`, the old name, still works; the new name wins when both are set.)
+
+### A6. Moving from Cloudflare (once, if you used the Worker before)
+Your users, settings, sessions and files can be copied over; nothing on Cloudflare is changed
+or deleted. Use the **same** `PASSWORD_PEPPER`, `RUN_TOKEN_SECRET` and `BACKEND_SECRET` as on
+Cloudflare in A2 (a new `ACCESS_TOKEN_SECRET` only means everyone logs in again). From
+`controlplane/`, still logged in to wrangler (`npx wrangler login`), with the service-role key
+from Project Settings → API Keys (keep it on your laptop; it is never needed anywhere else):
+```bash
+DATABASE_URL='postgresql://...' SUPABASE_URL=https://<project-ref>.supabase.co SUPABASE_SERVICE_ROLE_KEY=<key> \
+  node scripts/migrate-from-cloudflare.mjs --dry-run         # counts what it would copy
+DATABASE_URL=... SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/migrate-from-cloudflare.mjs
+```
+Safe to re-run (copied rows are skipped). It copies users, their settings and logins, the admin's
+system settings, run grants and every session row, then each file from R2 to the Storage
+bucket. Lost the old pepper? Add `--no-users`: sessions are copied without their owner links
+(names stay; an admin can edit them), then create a fresh admin (A3) and the users again. When
+the site works on Supabase, the Cloudflare Worker, D1 database and R2 bucket can be deleted in
+the Cloudflare dashboard (keep Pages while it hosts the site).
 
 **Sessions from before the control plane** (on a backend that still has its `results/jobs/`):
 ```bash
-AGENTMETER_WORKER_URL=https://agentmeter-control-plane.<sub>.workers.dev AGENTMETER_BACKEND_SECRET=... \
+AGENTMETER_CONTROL_PLANE_URL=https://<project-ref>.supabase.co/functions/v1/agentmeter AGENTMETER_BACKEND_SECRET=... \
   python scripts/backfill_sessions.py --owner <username> --dry-run   # then without --dry-run
 ```
 Idempotent; sessions with no recorded user are attributed to `--owner`; identification columns
 are stripped unless `--keep-identification-columns`.
 
-**Step 6 — once, after upgrading to the prepared-set hash v2** (sessions stored by the first
-Phase 47 release still carry the old hash, so Compare / Leaderboard would not group them with
-new sessions on the same flows):
+**Once, after upgrading to the prepared-set hash v2** (sessions stored by the first Phase 47
+release still carry the old hash, so Compare / Leaderboard would not group them with new
+sessions on the same flows):
 ```bash
-AGENTMETER_WORKER_URL=https://agentmeter-control-plane.<sub>.workers.dev AGENTMETER_BACKEND_SECRET=... \
+AGENTMETER_CONTROL_PLANE_URL=https://<project-ref>.supabase.co/functions/v1/agentmeter AGENTMETER_BACKEND_SECRET=... \
   python scripts/migrate_prepared_set_hash.py --dry-run          # then without --dry-run
 ```
-It recomputes each session's hash from its stored copy (R2), replaces only that hash (no status
+It recomputes each session's hash from its stored copy, replaces only that hash (no status
 change, no notification, no score touched) and adds the content hash to the stored manifest so
 the copy can be reused. A session with no stored copy keeps its old hash (`--jobs-dir` can
 recompute it from a backend that still has the run folder). Idempotent. Sessions still on a
 backend are recomputed automatically from their run folder.
 
-**Updating a deployed control plane** (after `git pull`), from the `worker` folder:
+**Updating a deployed control plane** (after `git pull`), from the repo folder:
 ```bash
-npx wrangler d1 migrations apply agentmeter --remote   # only applies new files in migrations/ (e.g. 0004_session_notes.sql: session notes and tags)
-npx wrangler deploy                                    # the Worker
-cd .. && npx wrangler pages deploy web --project-name agentmeter   # the pages
+npx supabase db push                                       # only applies new files in supabase/migrations/
+npx supabase functions deploy agentmeter --no-verify-jwt --use-api
+npx wrangler pages deploy web --project-name agentmeter    # the site (while it is on Cloudflare Pages)
 ```
 Migrations only add columns or tables; existing rows, sessions and scores are kept.
 
-**Local rehearsal without a Cloudflare account** (Miniflare via `wrangler dev`, local D1/R2):
-`bash tests/e2e/cp_stack.sh` runs the full walk-through (bootstrap admin → create user → login →
-settings → mock session → backend stopped: still browsable, Compare/Leaderboard work, Run shows
-GPU offline → backend restarts and re-registers → a NEW rental with an empty disk reuses the
-stored prepared set → Compare says like-for-like). Worker unit tests: `cd worker && npx vitest run`.
+**Local rehearsal without a Supabase account**: `bash tests/e2e/cp_stack.sh` runs the full
+walk-through on the control plane's dev server (`controlplane/dev-server.ts`: the same routes on
+PGlite, Postgres in-process, served under `/functions/v1/agentmeter`; bootstrap admin → create
+user → login → settings → mock session, its files uploaded straight to storage → backend
+stopped: still browsable, Compare/Leaderboard work, Run shows GPU offline → backend restarts and
+re-registers → a NEW rental with an empty disk reuses the stored prepared set → Compare says
+like-for-like). Control-plane unit tests: `cd controlplane && npx vitest run` (PGlite); with
+`TEST_DATABASE_URL=postgres://...` the same tests run through postgres.js on a real server.
 
-### Free-tier usage (5 users)
+### Free-plan usage (5 users)
 | resource | free allowance | estimated use |
 |---|---|---|
-| Worker requests | 100,000 / day | ~7,000 / day while a GPU runs all day: heartbeats 1,440 (every 60 s), job-status polls by open tabs ~4,800, navigation ~1,000 |
-| Worker CPU | 10 ms / request | login ~6 ms (PBKDF2); everything else < 2 ms: HMAC checks, D1 queries; results are stored and served **unparsed**; Compare / Leaderboard parse only the ~2 KB summaries |
-| D1 rows written | 100,000 / day | ~1,440 heartbeats + ~10 per session |
-| D1 storage | 5 GB (500 MB per database) | 100 KB–1 MB per session (results ≤ 1 MB stay in D1) → 500–5,000 sessions per 500 MB |
-| R2 storage / ops | 10 GB, 1 M writes, 10 M reads / month | ~0.3 MB per session (PDF, manifest, features, labels; larger results) |
-| Pages | unlimited static requests | — |
+| Edge Function calls | 500,000 / month | ~200,000 / month with a GPU running all day, every day: heartbeats ~43,000 (every 60 s), job-status polls by open tabs, navigation |
+| Edge Function CPU | 2 s / request | login: one PBKDF2 hash (40,000 iterations, milliseconds); everything else a few ms: HMAC checks, queries; results are stored and served **unparsed**; Compare / Leaderboard parse only the ~2 KB summaries |
+| Database size | 500 MB | 100 KB–1 MB per session (results ≤ 1 MB stay in the row) → 500–5,000 sessions |
+| Storage | 1 GB, 50 MB per file | ~0.3 MB per session (PDF, manifest, features, labels, flows; larger results) |
+| Egress | 5 GB / month | opening a session reads its results once (~0.1–1 MB) |
+| Static site | Cloudflare Pages: unlimited static requests | — |
 
-The one thing that grows with use is the Leaderboard: it reads every stored summary per view
-(fine to ~1,000 sessions; past that, add pagination or a cached aggregate).
+Two free-plan rules to know: a project with **no activity for 7 days is paused** (restore it in
+the dashboard; nothing is lost — a running GPU backend's heartbeats count as activity), and the
+plan has **no automatic backups** (Database → Backups on a paid plan; or `pg_dump` with the
+connection string now and then). The Leaderboard reads every stored summary per view (fine to
+~1,000 sessions; past that, add pagination or a cached aggregate).
+
 
 ## Runbook B: a GPU backend on Vast.ai (each time you need a GPU)
 
 
 The backend registers itself: `vast_up.sh` writes the tunnel URL to
-`$LOGS/public_url`, the server reads it and calls the Worker's `/api/backend/register`, then
+`$LOGS/public_url`, the server reads it and calls the control plane's `/api/backend/register`, then
 heartbeats every 60 s. After 3 missed heartbeats (180 s) the app shows **GPU offline** and
 disables Run; everything stored stays browsable. Before anyone clicks Run the header badge
 says either **Real GPU: <name>** or **DEMO (mock)**.
@@ -248,7 +312,7 @@ says either **Real GPU: <name>** or **DEMO (mock)**.
    https://huggingface.co/google/gemma-2-9b-it and accept both licences. Wait until
    both pages say you have access (usually minutes). Create a **read** token at
    https://huggingface.co/settings/tokens.
-2. **Control plane:** runbook A done; keep the Worker URL and the two shared secrets
+2. **Control plane:** runbook A done; keep the control-plane URL and the two shared secrets
    (`RUN_TOKEN_SECRET`, `BACKEND_SECRET`) at hand.
 
 ### 1. Choose a Vast.ai instance
@@ -274,9 +338,9 @@ cd /workspace
 git clone https://github.com/ismazahin/AgentMeter.git && cd AgentMeter
 git checkout claude/cool-ride-mitmzl          # or main once merged
 export HF_TOKEN=hf_xxx
-export AGENTMETER_WORKER_URL=https://agentmeter-control-plane.<sub>.workers.dev
-export AGENTMETER_RUN_TOKEN_SECRET='<same as the Worker secret RUN_TOKEN_SECRET>'
-export AGENTMETER_BACKEND_SECRET='<same as the Worker secret BACKEND_SECRET>'
+export AGENTMETER_CONTROL_PLANE_URL=https://<project-ref>.supabase.co/functions/v1/agentmeter
+export AGENTMETER_RUN_TOKEN_SECRET='<same as the control-plane secret RUN_TOKEN_SECRET>'
+export AGENTMETER_BACKEND_SECRET='<same as the control-plane secret BACKEND_SECRET>'
 export AGENTMETER_ALLOWED_ORIGINS=https://<your-project>.pages.dev   # exact origin, no trailing slash
 # optional cost guard: destroy the instance after 45 idle minutes (disk is lost!)
 # export VAST_API_KEY=xxxx IDLE_MIN=45
@@ -292,12 +356,12 @@ up in about 5 minutes instead of waiting for ~70 GB. `PRELOAD_STUDY=1` (`vast_st
 loads one in 4-bit NF4 as a smoke test. Each step prints its elapsed time, and the last line
 says how long start-up took. It then starts **one** server process in **real** mode
 on 127.0.0.1:8000, opens the tunnel and hands its URL to the server, which registers it
-with the Worker (`grep "control plane" /workspace/agentmeter-logs/server.log`). The front-end
+with the control plane (`grep "control plane" /workspace/agentmeter-logs/server.log`). The front-end
 needs no change.
 
 The server **refuses to start in real mode** (exit code 2, with a list of every
 problem) without a CUDA GPU, bitsandbytes, or the three
-control-plane settings (`AGENTMETER_WORKER_URL` https, both secrets ≥ 16 characters). It
+control-plane settings (`AGENTMETER_CONTROL_PLANE_URL` https, both secrets ≥ 16 characters). It
 never falls back to mock. A real server also refuses mock jobs (`provider_mismatch`)
 and always uses `configs/run_full_l4.yaml` (uniform 4-bit NF4). Logs:
 `/workspace/agentmeter-logs/server.log` and `tunnel.log`. To stop the server and
@@ -322,7 +386,7 @@ front of the hostname: the app's cross-origin `fetch` calls can't complete an SS
 tokens are the gate.
 
 ### 4. The front-end
-Nothing to do per GPU session: it is on Pages (runbook A) and asks the Worker where the backend
+Nothing to do per GPU session: it is on Pages (runbook A) and asks the control plane where the backend
 is. For development without a control plane, `web/config.json` `api_base` (or `?api=<url>`)
 still points the app straight at a backend.
 
@@ -357,7 +421,7 @@ still points the app straight at a backend.
    Latencies will differ from the Colab A100 and L4 study runs. That is expected: they
    are a property of the GPU, which is why every result names it.
 6. Destroy the instance (step 7), reload the app: the badge says **GPU offline**, the
-   session, its PDF and its prepared-set copy are still there (D1/R2), Compare and
+   session, its PDF and its prepared-set copy are still there (Supabase), Compare and
    Leaderboard still work.
 
 ### 6. What lives where, and what is lost
@@ -366,7 +430,7 @@ still points the app straight at a backend.
 | model weights `/workspace/hf` | yes: each model is fetched again on its first use on the next instance, or at start-up when marked "Download at start-up" in Admin › Model catalog |
 | jobs `results/jobs/`, prepared sets `results/csv_runs|pcap_runs/`, uploads `results/uploads/`, session DBs | yes — but every finished session was already uploaded to the control plane (results, PDF, manifest, features without identification columns, labels) |
 | logs `/workspace/agentmeter-logs/` | yes |
-| accounts, settings, sessions, PDFs | no: D1 / R2 |
+| accounts, settings, sessions, PDFs | no: Supabase (Postgres / Storage) |
 | the front-end and `config.json` | no: Pages |
 | the locked study (`agentmeter_full_l4.db`, `data/cicids_full_300.csv`) | not on the box; never written by the service |
 
@@ -385,12 +449,12 @@ still points the app straight at a backend.
 
 ### Troubleshooting
 - **Badge "GPU offline" while the box runs**: `grep "control plane" /workspace/agentmeter-logs/server.log`.
-  `bad_signature` → `AGENTMETER_BACKEND_SECRET` differs from the Worker's `BACKEND_SECRET`;
+  `bad_signature` → `AGENTMETER_BACKEND_SECRET` differs from the control plane's `BACKEND_SECRET`;
   `no public URL yet` → the tunnel URL never reached `$LOGS/public_url`; `bad_url` → the URL is
   not https. Does `curl https://<backend>/health` answer?
 - **Run fails with `run_token_invalid`**: `AGENTMETER_RUN_TOKEN_SECRET` differs from the
-  Worker's `RUN_TOKEN_SECRET`. `run_token_expired`: the backend clock is off by minutes.
-- **Login works but every page is empty / CORS errors in the console**: the Worker's
+  control plane's `RUN_TOKEN_SECRET`. `run_token_expired`: the backend clock is off by minutes.
+- **Login works but every page is empty / CORS errors in the console**: the control plane's
   `ALLOWED_ORIGINS` must be the Pages origin exactly; for a custom domain also regenerate
   `web/_headers` (CSP `connect-src`).
 - **Badge online but actions fail with "Cannot reach the GPU backend"**: CORS. Set
@@ -439,7 +503,7 @@ prepared set, models, settings and pipeline, so the **Trends** page can line the
 - A run never stacks: while the previous scheduled run is queued or running, or the queue is
   full, the next one waits and is retried every 10 minutes.
 - At most 3 active schedules per user. Creating or cancelling one needs a `schedule` run
-  token for that session (the Worker issues it; the backend checks that the caller owns the
+  token for that session (the control plane issues it; the backend checks that the caller owns the
   session or is an admin). Scheduled runs are not counted against the hourly limit.
 - Schedules run only while the backend runs. A Vast.ai instance that is stopped skips its
   firings; when it comes back, a due schedule fires once (no burst of catch-up runs). If the
@@ -447,10 +511,10 @@ prepared set, models, settings and pipeline, so the **Trends** page can line the
   `failed` with the reason.
 
 ## Checklist before going public
-- [ ] Served over **HTTPS** (tunnel), never plain http; Worker var `ALLOW_HTTP_BACKEND = "0"`.
+- [ ] Served over **HTTPS** (tunnel), never plain http; `ALLOW_HTTP_BACKEND` is not set in the Supabase secrets.
 - [ ] `AGENTMETER_TEST_ALLOW_LOOPBACK_URLS` is **not** set.
-- [ ] Worker secrets set (`wrangler secret list`); the backend's two shared secrets match them.
-- [ ] `ALLOWED_ORIGINS` (Worker) and `AGENTMETER_ALLOWED_ORIGINS` (backend) list only the Pages origin.
+- [ ] Control-plane secrets set (`npx supabase secrets list`); the backend's two shared secrets match them.
+- [ ] `ALLOWED_ORIGINS` (control plane) and `AGENTMETER_ALLOWED_ORIGINS` (backend) list only the site's origin.
 - [ ] `/health` says `"provider":"real"` and the badge reads *Real GPU*.
-- [ ] `.env` / `worker/.dev.vars` are **not** committed (both gitignored).
+- [ ] `.env` and `backend.env` are **not** committed; the Supabase service-role key is never copied anywhere but your laptop (A6).
 - [ ] A Prepare without a run token returns **401** (`python -m pytest tests/test_control_plane.py tests/test_deploy_split.py`).

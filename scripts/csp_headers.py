@@ -40,8 +40,7 @@ def script_hashes() -> list[str]:
 def csp(extra_connect: list[str] | None = None) -> str:
     extra = list(EXTRA_CONNECT) + (extra_connect if extra_connect is not None
                                    else os.environ.get("AGENTMETER_CSP_CONNECT", "").split())
-    # https://*.workers.dev: the former Cloudflare Worker, allowed until the move to Supabase is done
-    connect = " ".join(["'self'", "https://*.supabase.co", "https://*.trycloudflare.com", "https://*.workers.dev"] + extra)
+    connect = " ".join(["'self'", "https://*.supabase.co", "https://*.trycloudflare.com"] + extra)
     return "; ".join([
         "default-src 'self'",
         "script-src 'self' " + " ".join(script_hashes()),

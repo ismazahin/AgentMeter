@@ -19,7 +19,7 @@ const pdfText = f => cp.execFileSync(process.env.PYTHON || 'python', ['-c',
 async function session(p, file, flows, idx) {
   await p.goto(ORIGIN + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.setInputFiles('#svc-file', file); await p.fill('#svc-max-flows', String(flows));
-  await p.click('#svc-upload-btn');
+  await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
   await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
   await p.waitForSelector('#svc-models input');
   const boxes = await p.$$('#svc-models input');

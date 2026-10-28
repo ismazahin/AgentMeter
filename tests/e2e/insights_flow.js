@@ -17,7 +17,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
 async function session(p, file, flows, idx) {
   await p.goto(ORIGIN + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.setInputFiles('#svc-file', file); await p.fill('#svc-max-flows', String(flows));
-  await p.click('#svc-upload-btn');
+  await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
   await p.waitForFunction(() => /Ready/.test(document.querySelector('#wiz-data-chip').textContent), null, { timeout: 90000 });
   for (const i of idx) await p.locator('#svc-models input').nth(i).check();   // re-resolved: the list re-renders as the catalog loads
   await p.click('#svc-run');

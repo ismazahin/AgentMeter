@@ -430,6 +430,9 @@
   .tel-agent { display: grid; grid-template-columns: minmax(64px, auto) 1fr auto; gap: 8px; align-items: center; margin: 3px 0; }
   .tel-agent .track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; } .tel-agent .fill { display: block; height: 100%; }
   .tel-log { max-height: 220px; overflow-y: auto; font-size: 12px; line-height: 1.55; border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; background: var(--surface); overflow-wrap: anywhere; }
+  .prep-where { border: 0; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
+  .prep-where .check { align-items: flex-start; }
+  .local-prep { margin-top: 12px; } .local-prep .tel-log { list-style: none; margin: 8px 0 0; }
   .tel-line.tel-failed { color: var(--bad, #d64545); } .tel-line.tel-done { font-weight: 600; }
   svg.trend .tline { fill: none; stroke: var(--series-1); stroke-width: 2; }
   svg.trend .base { stroke: var(--muted-2); stroke-width: 1.5; stroke-dasharray: 6 4; }
@@ -822,7 +825,7 @@
     <div id="home-guide" class="card guide" hidden>
       <div class="guide-head"><h2>How AgentMeter works</h2><button type="button" class="btn" id="home-guide-hide">Got it</button></div>
       <ol class="guide-steps">
-        <li><b>Data.</b> Upload a CSV (CIC-IDS2017 flows, with labels) or a PCAP. AgentMeter samples the flows you ask for and keeps them as a <i>prepared set</i> you can reuse.</li>
+        <li><b>Data.</b> Upload a CSV (CIC-IDS2017 flows, with labels) or a PCAP. AgentMeter samples the flows you ask for and keeps them as a <i>prepared set</i> you can reuse. By default the sampling runs <b>on your own computer</b>, in the browser (the same Python code as the server, so the result is identical), and only the prepared flows are sent to the GPU server, which can keep benchmarking meanwhile. The first time loads about 40 MB, then the browser caches it. Choose <i>On the GPU server</i> to have the server do it instead.</li>
         <li><b>Models.</b> Pick one to four open models (4-bit). The wizard estimates the time and cost from earlier runs.</li>
         <li><b>Run.</b> Each flow goes through the agents — by default Perceive, Reason, Decide, Act, or your own pipeline — one model at a time, on the same GPU.</li>
         <li><b>Read.</b> Each session tab opens with a one-line summary; tables download as CSV, line charts and diagrams as PNG. Reference labels only check that the output is valid: AgentMeter measures efficiency.</li>
@@ -949,6 +952,13 @@
             <span class="hint" id="svc-url-limits">A direct download link, up to 10 GB.</span><span class="info-i" tabindex="0" role="button" id="svc-url-info" data-tip="The server downloads the file itself. Use a direct download link — Google Drive / Dropbox “share” pages are refused. Only public internet addresses are allowed.">i</span>
           </div>
         </div>
+        <fieldset class="prep-where" id="svc-prep-where">
+          <legend class="small" style="font-weight:600;margin-bottom:6px">Prepare the data</legend>
+          <label class="check"><input type="radio" name="prep-where" value="local" id="svc-prep-local" checked>
+            <span><b>On this computer</b> <span class="muted small">— your laptop's CPU samples the flows in this browser; the GPU server only receives the prepared flows, so it can keep benchmarking. The first time downloads about 40 MB (then cached).</span></span></label>
+          <label class="check"><input type="radio" name="prep-where" value="server" id="svc-prep-server">
+            <span><b>On the GPU server</b> <span class="muted small">— the file is uploaded (up to the upload limit) and prepared there; it waits while another benchmark runs.</span></span></label>
+        </fieldset>
         <div class="row" id="wiz-options">
           <div class="field">
             <label for="svc-max-flows">Flows to benchmark</label>
@@ -960,6 +970,10 @@
         <div class="row">
           <button type="submit" class="btn primary" id="svc-upload-btn">Continue</button>
           <span id="svc-upload-busy" class="muted" hidden role="status">Uploading…</span>
+        </div>
+        <div id="svc-local-prep" class="local-prep" hidden aria-live="polite">
+          <div class="bar indet" aria-hidden="true"><span></span></div>
+          <ol class="tel-log mono" id="svc-local-log" aria-label="Preparation on this computer"></ol>
         </div>
         <div id="svc-upload-error" class="notice error" role="alert" hidden></div>
       </form>
@@ -1382,6 +1396,8 @@
   // issued (POST /api/runs/authorize). Without CP (local development) the backend is called
   // directly, without tokens.
   var CP = "", AUTH = { access: null, exp: 0, user: null }, SETTINGS = null, BACKEND = null;
+  // "Prepare on this computer" loads Pyodide from here (config.json "pyodide_base" can point elsewhere, e.g. a self-hosted copy)
+  var PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/";
   var WORKER_PATHS = /^\/api\/(sessions(\/|\?|$)|compare(\/|\?|$)|leaderboard(\?|$)|settings(\/|$)|me(\/|$)|admin\/|backend$|runs\/|auth\/)/;
   var STRONG_JOB = /^job_\d{8}_\d{6}_[0-9a-f]{32}$/;
   var READ_TOK = null, FILE_TOK = {}, GRANTS = {};          // cached read/files tokens; jti of my prepare/import
@@ -1832,6 +1848,7 @@
     WIZ.src = name;
     selectTab(srcTabs, $("tab-src-" + name));
     $("svc-upload-form").hidden = name === "reuse";
+    $("svc-prep-where").hidden = name === "url";          // a link is always downloaded by the GPU server
     $("src-reuse").hidden = name !== "reuse";
     $("svc-upload-error").hidden = true;
     if (name === "reuse") { loadRecentSets(); loadStoredSets(); }
@@ -1856,6 +1873,7 @@
     } else {
       var file = $("svc-file").files[0];
       if (!file) { showError(err, { error: "Choose a .csv, .pcap or .pcapng file first — or use Import from a link." }); return; }
+      if (prepWhere() === "local") { prepareLocally(file); return; }
       if (lim && file.size > lim.max_upload_bytes) {   // checked here too, so a huge file is never sent
         showError(err, { error: "File too large to upload: the limit is " + lim.max_upload_label + " (this file is " +
           fmtSize(file.size) + "). Use Import from a link instead — the server downloads files up to " +
@@ -1874,6 +1892,59 @@
       location.hash = "#/new/models?prep=" + enc(r.data.job_id);      // models now; data prepares meanwhile
     });
   });
+  // ---------- "Prepare on this computer": the dataset is prepared in this browser ----------
+  // web/prep/prep-worker.js runs the server's own Python preparation (Pyodide) on this computer's
+  // CPU; the GPU server gets only the prepared set (manifest + features + labels), checks its
+  // hashes and stores it at once (POST /api/prepared/import), even while it benchmarks.
+  var PREP_WORKER = null;
+  function prepWhere() {
+    var r = document.querySelector('input[name="prep-where"]:checked');
+    return r ? r.value : "server";
+  }
+  function localPrepSupported() { return typeof Worker !== "undefined" && typeof WebAssembly !== "undefined"; }
+  document.querySelectorAll('input[name="prep-where"]').forEach(function (r) {
+    r.addEventListener("change", function () { try { localStorage.setItem("agentmeter.prepWhere", prepWhere()); } catch (e) { /* not remembered */ } });
+  });
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem("agentmeter.prepWhere"); } catch (e) { /* default */ }
+    if (!localPrepSupported()) saved = "server";
+    if (saved === "server" || saved === "local") $("svc-prep-" + saved).checked = true;
+    if (!localPrepSupported()) $("svc-prep-local").disabled = true;
+  })();
+  function prepareLocally(file) {
+    var err = $("svc-upload-error"), box = $("svc-local-prep"), log = $("svc-local-log"), btn = $("svc-upload-btn");
+    var lim = (CONFIG && CONFIG.limits) || {};
+    var line = function (msg, cls) {
+      var li = document.createElement("li"); li.className = "tel-line" + (cls ? " " + cls : "");
+      li.textContent = new Date().toTimeString().slice(0, 8) + "  " + msg; log.appendChild(li); log.scrollTop = log.scrollHeight;
+    };
+    log.innerHTML = ""; box.hidden = false; btn.disabled = true; err.hidden = true;
+    line("Preparing " + file.name + " (" + fmtSize(file.size) + ") on this computer");
+    if (!PREP_WORKER) PREP_WORKER = new Worker("prep/prep-worker.js", { type: "module" });
+    var done = function () { btn.disabled = false; box.querySelector(".bar").hidden = true; };
+    box.querySelector(".bar").hidden = false;
+    PREP_WORKER.onerror = function (e) { done(); line("The preparation worker could not start.", "tel-failed"); showError(err, { error: "Preparing on this computer could not start" + (e && e.message ? ": " + e.message : "") + ". Choose “On the GPU server” instead.", code: "browser_prepare_failed" }); };
+    PREP_WORKER.onmessage = function (ev) {
+      var m = ev.data || {};
+      if (m.type === "progress") { line((PHASES[m.phase] && m.phase !== "loading" ? PHASES[m.phase] + (m.message ? ": " : "") : "") + (m.message || "")); return; }
+      if (m.type === "error") { done(); line(m.error, "tel-failed"); showError(err, { error: m.error, code: m.code }); return; }
+      if (m.type !== "done") return;
+      line("Prepared " + m.set_name.split("/").pop() + ". Sending the prepared flows to the GPU server…");
+      var fd = new FormData();
+      fd.append("manifest", new Blob([m.files["manifest.json"]], { type: "application/json" }), "manifest.json");
+      fd.append("features", new Blob([m.files["features.csv"]], { type: "text/csv" }), "features.csv");
+      if (m.files["labels.csv"]) fd.append("labels", new Blob([m.files["labels.csv"]], { type: "text/csv" }), "labels.csv");
+      api("/api/prepared/import", { method: "POST", body: fd }).then(function (r) {
+        done();
+        if (!r.ok) { line("The GPU server did not accept it: " + (r.data.error || r.status), "tel-failed"); showError(err, r.data); return; }
+        line("Stored on the GPU server as " + r.data.prepared_set + ".", "tel-done");
+        location.hash = "#/new/models?set=" + enc(r.data.prepared_set);
+      });
+    };
+    PREP_WORKER.postMessage({ type: "prepare", base: PYODIDE_BASE, file: file, max_flows: parseInt($("svc-max-flows").value || "50", 10),
+                              other_attack: $("svc-other-attack").checked, limits: lim });
+  }
   var drop = $("svc-drop");
   ["dragover", "dragenter"].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add("over"); }); });
   ["dragleave", "drop"].forEach(function (e) { drop.addEventListener(e, function () { drop.classList.remove("over"); }); });
@@ -5209,7 +5280,7 @@
       if (SETTINGS) $("svc-other-attack").checked = !!SETTINGS.default_other_attack;
       var L = CONFIG.limits;
       if (L) {
-        $("svc-limits").innerHTML = "Up to " + esc(L.max_upload_label) + "; bigger files: Import from a link." +
+        $("svc-limits").innerHTML = "Prepared on this computer: any size your browser can read. On the GPU server: up to " + esc(L.max_upload_label) + "; bigger files: Import from a link." +
           infoI("For larger files use Import from a link (up to " + L.max_url_download_label + "). Large inputs are sampled across the whole file.");
         $("svc-url-limits").textContent = "A direct download link, up to " + L.max_url_download_label + ".";
       }
@@ -5247,6 +5318,7 @@
     return fetch("config.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : {}; }, function () { return {}; })
       .then(function (c) {
         c = c || {};
+        if (c.pyodide_base) PYODIDE_BASE = String(c.pyodide_base).replace(/\/*$/, "/");
         return { cp: String(saved.cp || c.control_plane || "").replace(/\/+$/, ""), api: String(saved.api || c.api_base || "").replace(/\/+$/, "") };
       });
   }

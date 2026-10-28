@@ -37,13 +37,21 @@ def script_hashes() -> list[str]:
     return out
 
 
+# "Prepare on this computer" (web/prep/prep-worker.js) loads Pyodide — Python as WebAssembly — from
+# here: its module script, its .wasm and package files. 'wasm-unsafe-eval' lets the page compile
+# WebAssembly; it does NOT allow JavaScript eval(). A self-hosted Pyodide (config.json
+# "pyodide_base") on another origin goes in PYODIDE_ORIGIN.
+PYODIDE_ORIGIN = os.environ.get("AGENTMETER_CSP_PYODIDE", "https://cdn.jsdelivr.net")
+
+
 def csp(extra_connect: list[str] | None = None) -> str:
     extra = list(EXTRA_CONNECT) + (extra_connect if extra_connect is not None
                                    else os.environ.get("AGENTMETER_CSP_CONNECT", "").split())
-    connect = " ".join(["'self'", "https://*.supabase.co", "https://*.trycloudflare.com"] + extra)
+    connect = " ".join(["'self'", "https://*.supabase.co", "https://*.trycloudflare.com", PYODIDE_ORIGIN] + extra)
     return "; ".join([
         "default-src 'self'",
-        "script-src 'self' " + " ".join(script_hashes()),
+        "script-src 'self' 'wasm-unsafe-eval' " + PYODIDE_ORIGIN + " " + " ".join(script_hashes()),
+        "worker-src 'self'",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src https://fonts.gstatic.com",
         "img-src 'self' data: blob:",

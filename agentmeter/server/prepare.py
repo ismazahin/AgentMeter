@@ -196,7 +196,7 @@ def finish_prepared_set(run_dir: Path, *, source: dict[str, Any], limits: dict[s
     else:
         sampling = man.get("sampling") or {}
     classes = _class_counts(meta, man)
-    from ..session.analyses import PREPARED_SET_HASH_VERSION, prepared_set_sha256
+    from ..session.prepared_hash import PREPARED_SET_HASH_VERSION, prepared_set_sha256
     man["prepared_set"] = {
         "schema": PREPARED_SCHEMA,
         "id": f"{run_dir.parent.name}/{run_dir.name}",
@@ -321,7 +321,7 @@ def import_prepared(files: dict[str, bytes], results_root: Path) -> str:
         raise PrepareError("features.csv contains a label column: labels must stay in labels.csv",
                            "invalid_prepared_set", 400)
     if stripped:                                # full copies are checked by their file hashes above
-        from ..session.analyses import prepared_set_content_hash
+        from ..session.prepared_hash import prepared_set_content_hash
         if not ps.get("content_sha256"):
             raise PrepareError("this copy has no identification columns, and its manifest has no content hash "
                                "to check it against (a session stored before the hash migration: run "
@@ -348,6 +348,10 @@ def import_prepared(files: dict[str, bytes], results_root: Path) -> str:
         raise PrepareError("manifest input_metadata.source_type must be csv or pcap",
                            "invalid_prepared_set", 400)
     name = unique_name(f"{str(meta.get('run_name') or 'prepared')[:30]}_import")
+    rn = str(meta.get("run_name") or "")
+    if (ps.get("backend") or {}).get("provider") == "browser" and re.fullmatch(r"[A-Za-z0-9_.-]{1,120}", rn) \
+            and not (Path(results_root) / kind / rn).exists():
+        name = rn          # prepared on the user's computer just now: its own (already unique) name
     out = Path(results_root) / kind / name
     out.mkdir(parents=True, exist_ok=False)
     try:

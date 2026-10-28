@@ -21,7 +21,7 @@ async function upload(p, file, flows) {
   await p.goto(ORIGIN + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.setInputFiles('#svc-file', file);
   await p.fill('#svc-max-flows', String(flows));
-  await p.click('#svc-upload-btn');
+  await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
   await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
 }
 async function ready(p, timeout) {
@@ -142,7 +142,7 @@ async function run(p, idx) {
   const lim = await p.evaluate(() => fetch('/api/service/config').then(r => r.json()).then(c => c.limits));
   const bigPath = S + '/toobig.csv'; fs.writeFileSync(bigPath, Buffer.alloc(lim.max_upload_bytes + 1024, 97));
   await p.goto(ORIGIN + '/#/new'); await p.waitForSelector('#svc-file');
-  await p.setInputFiles('#svc-file', bigPath); await p.click('#svc-upload-btn');
+  await p.setInputFiles('#svc-file', bigPath); await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
   await p.waitForSelector('#svc-upload-error:not([hidden])');
   log(/Import from a link/.test(await p.textContent('#svc-upload-error')), 'oversized upload points to Import from a link (limit ' + lim.max_upload_label + ')');
   log(/Import from a link/.test(await p.textContent('#svc-limits')), 'upload limit shown with the link-import hint');
@@ -153,7 +153,7 @@ async function run(p, idx) {
     await p.click('#tab-src-url');
     log(await p.isVisible('#svc-url') && !(await p.isVisible('#svc-drop')), 'link tab shows the URL field');
     await p.fill('#svc-url', URL_BASE + '/big.csv'); await p.fill('#svc-max-flows', '20');
-    await p.click('#svc-upload-btn');
+    await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
     await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 15000 });
     let phases = '';
     for (let i = 0; i < 600 && (await p.textContent('#wiz-data-chip')) === 'Preparing'; i++) {

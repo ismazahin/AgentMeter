@@ -207,7 +207,14 @@ and commit. Cloudflare Pages for now (any static host works: the site is the `we
 is): `npx wrangler pages deploy web --project-name agentmeter`, or connect the repo in the
 Cloudflare dashboard (Framework preset **None**, no build command, output directory **`web`**).
 `web/_headers` sets the CSP; its `connect-src` allows `https://*.supabase.co` and
-`*.trycloudflare.com`. Another static host must send the same headers (copy the
+`*.trycloudflare.com`. **Prepare on this computer** (the default in New benchmark) runs the data
+preparation in the user's browser with Pyodide (Python as WebAssembly, `web/prep/`): the CSP also
+allows `https://cdn.jsdelivr.net` (Pyodide's files, about 40 MB on first use, then cached) and
+`'wasm-unsafe-eval'` (compiling WebAssembly; JavaScript `eval` stays blocked). To self-host Pyodide
+0.28.3, put its files on your host, set `"pyodide_base"` in `web/config.json`, and regenerate the
+headers with `AGENTMETER_CSP_PYODIDE=<that origin>`. After editing anything in `agentmeter/ingest/`,
+`agentmeter/server/prepare.py` or the input configs, run `python scripts/build_web_prep.py` (a test
+fails while the browser bundle is stale). Another static host must send the same headers (copy the
 `Content-Security-Policy` line from `web/_headers` into that host's header settings). A custom
 domain for the control plane or a named tunnel? Run
 `AGENTMETER_CSP_CONNECT="https://api.example.org https://gpu.example.org" python scripts/csp_headers.py`

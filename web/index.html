@@ -2482,6 +2482,9 @@
   var TEL_STEP_OF = { queued: 0, start: 0, data: 1, hf: 2, download: 2, downloaded: 2, worker: 3, load: 3, loaded: 3,
                       measure: 4, flow: 4, extra: 4, idle: 4, worker_done: 4, scoring: 5, analysis: 5, results: 5, done: 6 };
   function startTelemetry(host, id) {
+    // one panel at a time: a panel left in a hidden view (the run page) must not take this one's updates
+    document.querySelectorAll("#tel-card").forEach(function (c) { if (!host.contains(c)) c.remove(); });
+    var q = function (k) { return host.querySelector("#" + k); };
     var token = pollToken, since = 0, st = { step: 0, events: [], gpu: [], lastFlow: null, flows: [], dl: null, fail: null, model: null, of: null };
     host.innerHTML = '<div class="card" id="tel-card"><div class="row" style="margin-top:0;justify-content:space-between"><h2>Live telemetry</h2>' +
       '<span class="small muted" id="tel-now" aria-live="polite"></span></div>' +
@@ -2497,14 +2500,14 @@
       return '<svg class="tel-spark" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><polyline points="' + pts + '" style="stroke:' + color + '"/></svg>';
     }
     function renderSteps() {
-      $("tel-steps").innerHTML = TEL_STEPS.map(function (x, i) {
+      q("tel-steps").innerHTML = TEL_STEPS.map(function (x, i) {
         var cls = st.fail && i === st.step ? "bad" : i < st.step || st.step === 6 ? "done" : i === st.step ? "now" : "";
         var sub = i === 3 || i === 4 ? (st.model ? '<span class="small muted">' + esc(short(st.model)) + (st.of ? " · " + st.of : "") + '</span>' : "") : "";
         return '<li class="' + cls + '"' + (cls === "now" ? ' aria-current="step"' : "") + '><span class="dot" aria-hidden="true"></span><span>' + esc(x[1]) + sub + '</span></li>';
       }).join("");
     }
     function renderGpu(r) {
-      var box = $("tel-gpu"), g = r.gpu;
+      var box = q("tel-gpu"), g = r.gpu;
       if (!g) {
         box.innerHTML = '<h3>GPU now</h3><p class="muted small" style="margin:0">' + (r.gpu_reason === "demo mode: no GPU"
           ? "Demo mode: this run has no GPU, so there are no live GPU readings (nothing is simulated)."
@@ -2520,7 +2523,7 @@
         cell("Temperature", g.temp_c == null ? "—" : fmtNum(g.temp_c) + " °C") + '</div>';
     }
     function renderFlow() {
-      var box = $("tel-flow");
+      var box = q("tel-flow");
       if (st.dl && st.step === 2) {
         var d = st.dl, pct = d.total_bytes ? Math.min(100, 100 * d.done_bytes / d.total_bytes) : null;
         box.innerHTML = '<h3>Downloading from Hugging Face</h3><p class="small" style="margin:0 0 6px">' + esc(short(d.model)) + ': ' + fmtNum((d.done_bytes || 0) / 1073741824, 2) + (d.total_bytes ? " / " + fmtNum(d.total_bytes / 1073741824, 2) : "") + ' GB' +
@@ -2541,7 +2544,7 @@
         fmtTime(secs / (mine.length || 1)) + ' per flow' + (secs > 0 ? ' · ' + fmtNum(outTok / secs, 1) + ' output tokens/s' : "") + '.</p>';
     }
     function renderLog(fresh) {
-      var log = $("tel-log"), stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
+      var log = q("tel-log"), stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
       log.insertAdjacentHTML("beforeend", fresh.map(function (e) {
         return '<div class="tel-line tel-' + esc(e.stage) + '"><span class="muted">' + hhmmss(e.t) + '</span> ' + esc(e.msg) + '</div>';
       }).join(""));
@@ -2559,12 +2562,12 @@
       if (r.gpu) st.gpu.push(r.gpu);
       renderSteps(); renderGpu(r); renderFlow(); renderLog(r.events);
       var p = r.progress || {};
-      $("tel-now").textContent = r.status === "running" && p.total ? (p.completed || 0) + " / " + p.total + " flows" : (r.message || "");
+      q("tel-now").textContent = r.status === "running" && p.total ? (p.completed || 0) + " / " + p.total + " flows" : (r.message || "");
     }
     (function poll() {
-      if (token !== pollToken || !$("tel-card")) return;
+      if (token !== pollToken || !q("tel-card")) return;
       api("/api/jobs/" + enc(id) + "/telemetry?since=" + since).then(function (r) {
-        if (token !== pollToken || !$("tel-card")) return;
+        if (token !== pollToken || !q("tel-card")) return;
         if (!r.ok) { setTimeout(poll, 4000); return; }
         since = r.data.next;
         apply(r.data);

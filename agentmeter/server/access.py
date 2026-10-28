@@ -57,7 +57,7 @@ _WRITE_KIND = {"/api/prepare": "prepare", "/api/prepared/import": "import", "/ap
                "/api/models/verify": "verify", "/api/schedules": "schedule"}
 _READ_EXACT = {"/api/jobs", "/api/sessions", "/api/compare", "/api/compare/candidates", "/api/compare/merged",
                "/api/leaderboard", "/api/models/catalog", "/api/schedules"}
-_JOB_SUB = re.compile(r"^/api/jobs/([^/]+)(?:/(result|report\.pdf|constraints|flows|resume|stop))?$")
+_JOB_SUB = re.compile(r"^/api/jobs/([^/]+)(?:/(result|report\.pdf|constraints|flows|telemetry|resume|stop))?$")
 _SESSION = re.compile(r"^/api/sessions/[^/]+$")
 _SCHEDULE_CANCEL = re.compile(r"^/api/schedules/sch_[0-9a-f]{12}/cancel$")
 _PREPARED = re.compile(r"^/api/prepared/([^/]+)/([^/]+)(?:/([^/]+))?$")

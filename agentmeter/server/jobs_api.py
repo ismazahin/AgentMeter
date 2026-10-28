@@ -9,6 +9,8 @@ covers them like every other route.
   GET  /api/jobs/<id>/result    session_results.json once done (409 until then)
   GET  /api/jobs/<id>/report.pdf  PDF benchmark report once done (409 until then)
   GET  /api/jobs/<id>/constraints ?max_mean_latency_s=..  decision helper (Phase 46)
+  GET  /api/jobs/<id>/telemetry ?since=N   live telemetry: events after the first N, status,
+                                progress, and the GPU right now (utilisation, memory, power)
   POST /api/jobs/<id>/resume    re-queue an interrupted/failed job -> 202 {job}
   POST /api/jobs/<id>/stop      stop a queued or running job -> 202 {job} (final; never scored)
 
@@ -213,6 +215,27 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
             return jsonify(evaluate_constraints(res, request.args))
         except ConstraintError as e:
             return fail(JobError(str(e), "bad_request", 400))
+
+    @app.route("/api/jobs/<job_id>/telemetry", methods=["GET"])
+    def job_telemetry(job_id):
+        from .. import telemetry
+        mgr = get_manager()
+        try:
+            job = mgr.get(job_id)
+        except JobError as e:
+            return fail(e)
+        try:
+            since = max(0, int(request.args.get("since", 0)))
+        except ValueError:
+            since = 0
+        events, nxt = telemetry.read(mgr.events_path(job_id), since)
+        live = job.get("status") in ("queued", "running")
+        gpu = telemetry.gpu_sample() if live and job.get("effective_provider") != "mock" else None
+        return jsonify({"job_id": job_id, "status": job.get("status"), "message": job.get("message"),
+                        "events": events, "next": nxt, "progress": job.get("progress"),
+                        "model_download": job.get("model_download"), "models": job.get("models"),
+                        "gpu": gpu, "gpu_reason": None if gpu else ("demo mode: no GPU" if job.get("effective_provider") == "mock"
+                                                                  else "no live GPU reading" if live else "finished")})
 
     @app.route("/api/jobs/<job_id>/stop", methods=["POST"])
     def job_stop(job_id):

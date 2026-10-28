@@ -180,9 +180,16 @@ def ensure_job_models(job: dict[str, Any], report: Callable[..., None], *,
 
     if job.get("provider") != "hf":
         return []
+    from .. import telemetry
     disk = on_disk or runtime.model_on_disk
-    todo = [m for m in job.get("models") or [] if not disk(m)]
+    todo = []
+    for m in job.get("models") or []:
+        if disk(m):
+            telemetry.emit("hf", f"{m}: already in this server's model cache; no download needed.", model=m)
+        else:
+            todo.append(m)
     for i, m in enumerate(todo, 1):
+        telemetry.emit("hf", f"{m}: connecting to Hugging Face (huggingface.co/{m}) for the model's file list.", model=m)
         total = sizes(m)
         need = max(0, (total or 0) - have(m))
         avail = free(m)
@@ -192,9 +199,14 @@ def ensure_job_models(job: dict[str, Any], report: Callable[..., None], *,
                 f"{avail / 1024 ** 3:,.1f} GB free (keeping {DISK_MARGIN_BYTES / 1024 ** 3:.0f} GB spare). "
                 "Rent an instance with a bigger disk.", "low_disk")
         base = {"model": m, "index": i, "count": len(todo)}
+        telemetry.emit("download", f"{m}: downloading" + (f" about {total / 2 ** 30:,.1f} GB" if total else "") +
+                       " from Hugging Face (first use on this server; never part of a measurement).",
+                       model=m, done_bytes=have(m), total_bytes=total)
         report(**base, phase="downloading", done_bytes=have(m), total_bytes=total)
         download(m, lambda **kw: report(**base, phase="downloading", **kw), total=total)
         report(**base, phase="downloaded", done_bytes=have(m), total_bytes=total)
+        telemetry.emit("downloaded", f"{m}: download complete ({have(m) / 2 ** 30:,.2f} GB, original weights; "
+                       "they are quantised to 4-bit when loaded).", model=m)
     return todo
 
 

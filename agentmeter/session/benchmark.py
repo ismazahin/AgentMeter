@@ -192,12 +192,16 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
     hook = None
     if sampler is not None and sampler.method and ops["idle_sample_s"] > 0:
         def hook(model_label: str) -> None:      # GPU idle between workers: idle power baseline
+            from .. import telemetry
+            telemetry.emit("idle", f"Measuring the GPU's idle power for {ops['idle_sample_s']:g} s (the energy baseline).", model=model_label)
             sampler.idle_window(model_label, ops["idle_sample_s"])
     try:
         result = run_full(config_path=plan["config_path"], fresh=fresh, auto_analyze=False,
                           before_model=hook, load_test=load_test, run_id=run_id, repeat_check=repeat_check)
     finally:
         energy = sampler.stop() if sampler is not None else None
+    from .. import telemetry
+    telemetry.emit("scoring", "Every flow measured. Scoring: efficiency (SAW), statistical tests, validity check.")
     payload = score_session(plan, run_id=result.run_id)
     if environment is None:                     # CLI: describe this machine the same way
         from ..server.runtime import environment as _env
@@ -209,6 +213,7 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
     from .analyses import add_analyses
     from .price import resolve_price
     price = resolve_price(ops["gpu_usd_per_hour"]) if real else None
+    telemetry.emit("analysis", "Analyses: agents, latency, output reliability, cost and energy, stability, trends.")
     add_analyses(payload, db_path=plan["db_path"], run_id=result.run_id, run_dir=plan["run_dir"],
                  config_data=load_config(plan["config_path"]).data, price=price, energy=energy)
     # Phase 45: rule-base stage 3 — external HF metadata as CONTEXT (model_context +
@@ -216,6 +221,7 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
     from .stage3 import add_stage3
     add_stage3(payload)
     write_results(Path(plan["run_dir"]) / RESULTS_JSON, payload)
+    telemetry.emit("results", "Results written; the PDF report is generated on request.")
     # the flow explorer's data: every flow, every agent (own file per run, never in the results)
     from .analyses import flows_file
     label_of = {pm["model"]: pm.get("db_label") or pm["model"] for pm in payload.get("per_model") or []}

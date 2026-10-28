@@ -412,6 +412,25 @@
   svg.frontier .front { fill: none; stroke: var(--muted-2); stroke-width: 2; stroke-dasharray: 6 4; }
   svg.frontier circle { stroke: var(--surface); stroke-width: 2; }
   svg.frontier circle.beaten { opacity: .55; }
+  .tel-steps { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 0; margin: 4px 0 14px; }
+  .tel-steps li { display: flex; align-items: center; gap: 8px; color: var(--muted-2); font-size: 13px; }
+  .tel-steps li span:last-child { display: flex; flex-direction: column; }
+  .tel-steps .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--border-2); flex: none; }
+  .tel-steps li.done { color: var(--text); } .tel-steps li.done .dot { background: var(--series-1); border-color: var(--series-1); }
+  .tel-steps li.now { color: var(--text); font-weight: 600; } .tel-steps li.now .dot { border-color: var(--accent); background: var(--accent-soft); animation: telpulse 1.4s ease-in-out infinite; }
+  .tel-steps li.bad .dot { background: var(--bad, #d64545); border-color: var(--bad, #d64545); }
+  @keyframes telpulse { 50% { box-shadow: 0 0 0 5px var(--accent-soft); } }
+  @media (prefers-reduced-motion: reduce) { .tel-steps li.now .dot { animation: none; } }
+  .tel-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .tel-box { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; min-width: 0; }
+  .tel-box h3 { margin: 0 0 8px; font-size: 14px; }
+  .tel-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+  .tel-metric { display: flex; flex-direction: column; min-width: 0; } .tel-metric b { font-variant-numeric: tabular-nums; }
+  .tel-spark { width: 100%; max-width: 160px; height: 28px; } .tel-spark polyline { fill: none; stroke-width: 1.8; }
+  .tel-agent { display: grid; grid-template-columns: minmax(64px, auto) 1fr auto; gap: 8px; align-items: center; margin: 3px 0; }
+  .tel-agent .track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; } .tel-agent .fill { display: block; height: 100%; }
+  .tel-log { max-height: 220px; overflow-y: auto; font-size: 12px; line-height: 1.55; border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; background: var(--surface); overflow-wrap: anywhere; }
+  .tel-line.tel-failed { color: var(--bad, #d64545); } .tel-line.tel-done { font-weight: 600; }
   svg.trend .tline { fill: none; stroke: var(--series-1); stroke-width: 2; }
   svg.trend .base { stroke: var(--muted-2); stroke-width: 1.5; stroke-dasharray: 6 4; }
   svg.trend circle.sched { stroke: var(--text); }
@@ -1048,6 +1067,7 @@
           <button type="button" class="btn" id="svc-resume" hidden>Resume</button>
           <a class="btn primary" id="svc-open-session" hidden href="#/sessions">Open session</a></div>
       </div>
+      <div id="tel-host"></div>
     </div>
   </section>
 
@@ -1449,7 +1469,7 @@
       return null;
     }
     if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog|schedules)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
-    if ((m = /^\/api\/jobs\/([^/]+)(\/(result|report\.pdf|constraints|flows))?$/.exec(p))) return m[2] || !STRONG_JOB.test(decodeURIComponent(m[1])) ? { kind: "read" } : null;
+    if ((m = /^\/api\/jobs\/([^/]+)(\/(result|report\.pdf|constraints|flows|telemetry))?$/.exec(p))) return m[2] || !STRONG_JOB.test(decodeURIComponent(m[1])) ? { kind: "read" } : null;
     if ((m = /^\/api\/prepared\/([^/]+)\/([^/]+)(\/[^/]+)?$/.exec(p)) && m[1] !== "import") return m[3] ? { kind: "files", set: decodeURIComponent(m[1]) + "/" + decodeURIComponent(m[2]) } : { kind: "read" };
     return null;
   }
@@ -2453,6 +2473,106 @@
       target.resume.hidden = false;
     }
   }
+  // ---------- LIVE TELEMETRY (run page and the watch view of a running session) ----------
+  // What the system is doing right now, from GET /api/jobs/<id>/telemetry: the steps (queue,
+  // data, Hugging Face, 4-bit load, flows, scoring), the GPU now (utilisation, memory, power,
+  // temperature; never simulated: a demo run says it has no GPU), each flow's agents, and the log.
+  var TEL_STEPS = [["queue", "Queue"], ["data", "Data"], ["hf", "Hugging Face"], ["load", "Load model (4-bit)"],
+                   ["flows", "Run flows"], ["score", "Score & analyse"], ["done", "Done"]];
+  var TEL_STEP_OF = { queued: 0, start: 0, data: 1, hf: 2, download: 2, downloaded: 2, worker: 3, load: 3, loaded: 3,
+                      measure: 4, flow: 4, extra: 4, idle: 4, worker_done: 4, scoring: 5, analysis: 5, results: 5, done: 6 };
+  function startTelemetry(host, id) {
+    var token = pollToken, since = 0, st = { step: 0, events: [], gpu: [], lastFlow: null, flows: [], dl: null, fail: null, model: null, of: null };
+    host.innerHTML = '<div class="card" id="tel-card"><div class="row" style="margin-top:0;justify-content:space-between"><h2>Live telemetry</h2>' +
+      '<span class="small muted" id="tel-now" aria-live="polite"></span></div>' +
+      '<ol class="tel-steps" id="tel-steps" aria-label="Benchmark steps"></ol>' +
+      '<div class="tel-grid"><div class="tel-box" id="tel-gpu"></div><div class="tel-box" id="tel-flow"></div></div>' +
+      '<h3 style="margin:14px 0 6px">Event log</h3><div class="tel-log mono" id="tel-log" role="log" aria-label="Event log" tabindex="0"></div></div>';
+    function hhmmss(t) { var d = new Date(t * 1000); return isNaN(d) ? "" : d.toTimeString().slice(0, 8); }
+    function spark(vals, max, color) {
+      var v = vals.filter(function (x) { return x != null; });
+      if (v.length < 2) return "";
+      var W = 120, H = 28, m = max || Math.max.apply(null, v) || 1;
+      var pts = vals.map(function (x, i) { return x == null ? null : (i * W / (vals.length - 1)).toFixed(1) + "," + (H - 2 - (H - 4) * Math.min(1, x / m)).toFixed(1); }).filter(Boolean).join(" ");
+      return '<svg class="tel-spark" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><polyline points="' + pts + '" style="stroke:' + color + '"/></svg>';
+    }
+    function renderSteps() {
+      $("tel-steps").innerHTML = TEL_STEPS.map(function (x, i) {
+        var cls = st.fail && i === st.step ? "bad" : i < st.step || st.step === 6 ? "done" : i === st.step ? "now" : "";
+        var sub = i === 3 || i === 4 ? (st.model ? '<span class="small muted">' + esc(short(st.model)) + (st.of ? " · " + st.of : "") + '</span>' : "") : "";
+        return '<li class="' + cls + '"' + (cls === "now" ? ' aria-current="step"' : "") + '><span class="dot" aria-hidden="true"></span><span>' + esc(x[1]) + sub + '</span></li>';
+      }).join("");
+    }
+    function renderGpu(r) {
+      var box = $("tel-gpu"), g = r.gpu;
+      if (!g) {
+        box.innerHTML = '<h3>GPU now</h3><p class="muted small" style="margin:0">' + (r.gpu_reason === "demo mode: no GPU"
+          ? "Demo mode: this run has no GPU, so there are no live GPU readings (nothing is simulated)."
+          : r.gpu_reason === "finished" ? "The run has finished." : "No live GPU reading from the backend.") + '</p>';
+        return;
+      }
+      var h = st.gpu.slice(-60);
+      var cell = function (label, val, sp) { return '<div class="tel-metric"><span class="small muted">' + label + '</span><b>' + val + '</b>' + (sp || "") + '</div>'; };
+      box.innerHTML = '<h3>GPU now <span class="small muted">' + esc(g.name || "") + '</span></h3><div class="tel-metrics">' +
+        cell("Utilisation", fmtNum(g.util_pct) + " %", spark(h.map(function (x) { return x.util_pct; }), 100, "var(--series-1)")) +
+        cell("Memory", fmtNum(g.mem_used_mb / 1024, 1) + " / " + fmtNum(g.mem_total_mb / 1024, 1) + " GB", spark(h.map(function (x) { return x.mem_used_mb; }), g.mem_total_mb, "var(--series-2)")) +
+        cell("Power", g.power_w == null ? "—" : fmtNum(g.power_w) + " W", spark(h.map(function (x) { return x.power_w; }), null, "var(--accent)")) +
+        cell("Temperature", g.temp_c == null ? "—" : fmtNum(g.temp_c) + " °C") + '</div>';
+    }
+    function renderFlow() {
+      var box = $("tel-flow");
+      if (st.dl && st.step === 2) {
+        var d = st.dl, pct = d.total_bytes ? Math.min(100, 100 * d.done_bytes / d.total_bytes) : null;
+        box.innerHTML = '<h3>Downloading from Hugging Face</h3><p class="small" style="margin:0 0 6px">' + esc(short(d.model)) + ': ' + fmtNum((d.done_bytes || 0) / 1073741824, 2) + (d.total_bytes ? " / " + fmtNum(d.total_bytes / 1073741824, 2) : "") + ' GB' +
+          (d.mb_per_s ? ' · ' + fmtNum(d.mb_per_s) + ' MB/s' : "") + '</p><div class="bar' + (pct == null ? " indet" : "") + '"><span style="width:' + (pct || 0) + '%"></span></div>';
+        return;
+      }
+      var f = st.lastFlow;
+      if (!f) { box.innerHTML = '<h3>Pipeline</h3><p class="muted small" style="margin:0">Each flow passes through the agents one after another; the latest flow appears here.</p>'; return; }
+      var mine = st.flows.filter(function (x) { return x.model === f.model; }).slice(-10);
+      var secs = mine.reduce(function (a, x) { return a + (x.total_s || 0); }, 0);
+      var outTok = mine.reduce(function (a, x) { return a + (x.agents || []).reduce(function (b, y) { return b + (y.out || 0); }, 0); }, 0);
+      var max = Math.max.apply(null, (f.agents || []).map(function (a) { return a.s || 0; })) || 1;
+      box.innerHTML = '<h3>Latest flow <span class="small muted">' + esc(short(f.model)) + ' · ' + esc(f.scenario) + ' · ' + f.n + ' of ' + f.of + '</span></h3>' +
+        '<div class="tel-agents">' + (f.agents || []).map(function (a) {
+          return '<div class="tel-agent"><span class="small">' + esc(agName(a.agent)) + '</span><span class="track" aria-hidden="true"><span class="fill" style="width:' + Math.max(2, 100 * (a.s || 0) / max) + '%;background:' + agColor(a.agent) + '"></span></span>' +
+            '<span class="small mono">' + fmtTime(a.s) + ' · ' + fmtNum((a.in || 0) + (a.out || 0)) + ' tok</span></div>';
+        }).join("") + '</div><p class="small muted" style="margin:6px 0 0">Last ' + mine.length + ' flow' + (mine.length === 1 ? "" : "s") + ' of this model: ' +
+        fmtTime(secs / (mine.length || 1)) + ' per flow' + (secs > 0 ? ' · ' + fmtNum(outTok / secs, 1) + ' output tokens/s' : "") + '.</p>';
+    }
+    function renderLog(fresh) {
+      var log = $("tel-log"), stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;
+      log.insertAdjacentHTML("beforeend", fresh.map(function (e) {
+        return '<div class="tel-line tel-' + esc(e.stage) + '"><span class="muted">' + hhmmss(e.t) + '</span> ' + esc(e.msg) + '</div>';
+      }).join(""));
+      while (log.childNodes.length > 400) log.removeChild(log.firstChild);
+      if (stick) log.scrollTop = log.scrollHeight;
+    }
+    function apply(r) {
+      r.events.forEach(function (e) {
+        if (e.stage in TEL_STEP_OF) st.step = Math.max(e.stage === "worker" || e.stage === "load" || e.stage === "loaded" ? Math.min(st.step, 4) : st.step, TEL_STEP_OF[e.stage]);
+        if (e.stage === "worker") { st.step = 3; st.model = e.model; st.of = e.count > 1 ? "model " + e.index + " of " + e.count : null; }
+        if (e.stage === "download") st.dl = e;
+        if (e.stage === "flow") { st.lastFlow = e; st.flows.push(e); if (st.flows.length > 200) st.flows.shift(); }
+        if (e.stage === "failed" || e.stage === "stopped") st.fail = e;
+      });
+      if (r.gpu) st.gpu.push(r.gpu);
+      renderSteps(); renderGpu(r); renderFlow(); renderLog(r.events);
+      var p = r.progress || {};
+      $("tel-now").textContent = r.status === "running" && p.total ? (p.completed || 0) + " / " + p.total + " flows" : (r.message || "");
+    }
+    (function poll() {
+      if (token !== pollToken || !$("tel-card")) return;
+      api("/api/jobs/" + enc(id) + "/telemetry?since=" + since).then(function (r) {
+        if (token !== pollToken || !$("tel-card")) return;
+        if (!r.ok) { setTimeout(poll, 4000); return; }
+        since = r.data.next;
+        apply(r.data);
+        if (r.data.status === "queued" || r.data.status === "running") setTimeout(poll, 1500);
+      });
+    })();
+  }
+
   // Stop: the owner (or an admin) stops a queued or running benchmark. Final: never scored.
   function canStop(j) {
     if (!CP) return true;
@@ -2482,6 +2602,7 @@
               text: $("svc-progress-text"), phase: $("svc-job-phase"), error: $("svc-job-error"), resume: $("svc-resume"),
               stop: $("svc-stop"), id: id, onStopped: function () { watchRun(id); } };
     t.error.hidden = true; t.resume.hidden = true;
+    startTelemetry($("tel-host"), id);
     $("svc-open-session").hidden = false;
     $("svc-open-session").setAttribute("href", "#/session/" + enc(id));
     t.resume.onclick = function () {
@@ -2498,7 +2619,7 @@
         if (token !== pollToken) return;
         if (!r.ok) { showError(t.error, r.data); return; }
         renderProgress(r.data, t);
-        if (r.data.status === "done") { setTimeout(function () { if (token === pollToken) location.hash = "#/session/" + enc(id); }, 700); return; }
+        if (r.data.status === "done") { setTimeout(function () { if (token === pollToken) location.hash = "#/session/" + enc(id); }, 2500); return; }
         if (r.data.status === "failed" || r.data.status === "interrupted" || r.data.status === "stopped") return;
         setTimeout(tick, r.data.prepare ? 1000 : 2000);
       });
@@ -2622,7 +2743,8 @@
             w.innerHTML = '<div class="card" id="watch-card"><div class="row" style="margin-top:0;justify-content:space-between"><h2 id="watch-phase">…</h2><span id="watch-status" class="status Running">…</span></div>' +
               '<p id="watch-models" class="muted small"></p><div class="bar" id="watch-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Session progress"><span id="watch-fill"></span></div>' +
               '<p id="watch-text" aria-live="polite"></p><div id="watch-error" class="notice error" role="alert" hidden></div>' +
-              '<div class="actions"><button type="button" class="btn danger" id="watch-stop" hidden>Stop benchmark</button><button type="button" class="btn" id="watch-resume" hidden>Resume</button></div></div>';
+              '<div class="actions"><button type="button" class="btn danger" id="watch-stop" hidden>Stop benchmark</button><button type="button" class="btn" id="watch-resume" hidden>Resume</button></div></div><div id="watch-tel"></div>';
+            startTelemetry($("watch-tel"), id);
             $("watch-resume").onclick = function () {
               api("/api/jobs/" + enc(id) + "/resume", { method: "POST" }).then(function (rr) { if (!rr.ok) showError($("watch-error"), rr.data); else { SESSION.id = null; loadSession(id, tab); } });
             };
@@ -2708,7 +2830,8 @@
             w.innerHTML = '<div class="card" id="watch-card"><div id="watch-progress"></div><div class="row" style="margin-top:0;justify-content:space-between"><h2 id="watch-phase">…</h2><span id="watch-status" class="status Running">…</span></div>' +
               '<p id="watch-models" class="muted small"></p><div class="bar" id="watch-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Session progress"><span id="watch-fill"></span></div>' +
               '<p id="watch-text" aria-live="polite"></p><div id="watch-error" class="notice error" role="alert" hidden></div>' +
-              '<div class="actions"><button type="button" class="btn danger" id="watch-stop" hidden>Stop benchmark</button><button type="button" class="btn" id="watch-resume" hidden>Resume</button></div></div>';
+              '<div class="actions"><button type="button" class="btn danger" id="watch-stop" hidden>Stop benchmark</button><button type="button" class="btn" id="watch-resume" hidden>Resume</button></div></div><div id="watch-tel"></div>';
+            startTelemetry($("watch-tel"), id);
             $("watch-resume").onclick = function () {
               api("/api/jobs/" + enc(id) + "/resume", { method: "POST" }).then(function (rr) { if (!rr.ok) showError($("watch-error"), rr.data); else { SESSION.id = null; loadSession(id, tab); } });
             };

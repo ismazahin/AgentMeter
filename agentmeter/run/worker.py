@@ -225,7 +225,11 @@ def _run_model_sqlite(
 
             _Path(vram_out).write_text(_json.dumps({"device_vram_before_load_mb": dev_before}))
 
+        from .. import telemetry
         provider = get_provider(cfg)
+        telemetry.emit("load", f"{label}: loading the weights onto the GPU, quantised to 4-bit NF4 (bitsandbytes)."
+                       if getattr(provider, "name", "") != "mock" else f"{label}: starting the demo provider (no model weights).",
+                       model=label, vram_before_mb=dev_before)
         t_load = time.perf_counter()
         provider.load()
         load_s = time.perf_counter() - t_load
@@ -244,6 +248,9 @@ def _run_model_sqlite(
             # vLLM: torch's allocator holds the weights AND the pre-reserved KV cache, so it is
             # no weights reading; the device total (NVML) stays
             weights.update(allocated_mb=None, reserved_mb=None, engine=getattr(provider, "name", None))
+        telemetry.emit("loaded", f"{label}: ready in {load_s:,.1f} s" +
+                       (f", {weights['nvml_used_mb']:,.0f} MB of GPU memory in use" if weights and weights.get("nvml_used_mb") else "") + ".",
+                       model=label, load_s=round(load_s, 3), vram_mb=(weights or {}).get("nvml_used_mb"))
         collector = MetricsCollector()
         hook = make_instrumented_hook(collector, label, gpu)
         pipeline = Pipeline(cfg, provider, node_hook=hook)
@@ -252,6 +259,11 @@ def _run_model_sqlite(
         # the parent's crash/resume path. Unset in normal use -> no effect.
         crash_after = os.environ.get("AGENTMETER_WORKER_CRASH_AFTER_SCENARIOS")
         persisted = 0
+        todo = [s for s in scenarios if s.scenario_id not in done]
+        agents = list(getattr(pipeline, "agent_names", []) or [])
+        telemetry.emit("measure", f"{label}: running {len(todo)} flow(s) through the {len(agents)}-agent pipeline "
+                       f"({' → '.join(agents)}), one flow at a time, timing every agent call.",
+                       model=label, flows=len(todo), agents=agents)
         try:
             for s in scenarios:
                 if s.scenario_id in done:
@@ -281,6 +293,12 @@ def _run_model_sqlite(
                              for r in new_rows},
                 )
                 persisted += 1
+                telemetry.emit("flow", f"{label} · {s.scenario_id}: "
+                               + (f"{total_time:,.2f} s, " if total_time >= 1 else f"{total_time * 1000:,.1f} ms, ")
+                               + f"{sum((r.input_tokens or 0) + (r.output_tokens or 0) for r in new_rows):,} tokens",
+                               model=label, scenario=s.scenario_id, n=persisted, of=len(todo), total_s=round(total_time, 4),
+                               agents=[{"agent": r.agent_name, "s": round(r.wall_time_s, 4), "in": r.input_tokens,
+                                        "out": r.output_tokens} for r in new_rows])
                 print(f"    {s.scenario_id:<10} -> {pred:<16} "
                       f"(gt={s.held_out_label}, {total_time:.4f}s) [persisted]")
 
@@ -295,10 +313,12 @@ def _run_model_sqlite(
             # Optional load scaling (opt-in): only after every measured flow and the memory
             # readings are persisted; uninstrumented and written to its own file.
             if load_test:
+                telemetry.emit("extra", f"{label}: load scaling: 1, 2 and 4 flows at once (opt-in, not part of the measured flows).", model=label)
                 from .load_test import out_path, run_load_test
                 run_load_test(cfg, provider, scenarios, label, out_path(db_path, run_id, label))
             # Optional repeat check (opt-in): the first flows answered a second time.
             if repeat_check:
+                telemetry.emit("extra", f"{label}: repeat check: answering the first flows again (opt-in).", model=label)
                 from .extras import run_repeat_check
                 run_repeat_check(cfg, provider, scenarios, label, db_path, run_id)
         finally:

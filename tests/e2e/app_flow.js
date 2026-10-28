@@ -26,6 +26,7 @@ async function wizardUpload(p, file, flows, models) {
   await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
   return pickAndRun(p, models);
 }
+let TEL_CHECKED = false;
 async function pickAndRun(p, models) {
   await p.waitForSelector('#svc-models input');
   const boxes = await p.$$('#svc-models input');
@@ -33,6 +34,18 @@ async function pickAndRun(p, models) {
   await p.click('#svc-run');
   await p.waitForFunction(() => /^#\/new\/run\//.test(location.hash), null, { timeout: 30000 });
   const job = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[3]);
+  if (!TEL_CHECKED) {                       // live telemetry, once: every step, each flow's agents, the log
+    TEL_CHECKED = true;
+    await p.waitForSelector('#tel-card', { timeout: 30000 });
+    await p.waitForFunction(() => /Done: results are ready/.test(document.querySelector('#tel-log')?.textContent || ''), null, { timeout: 180000 });
+    const steps = await p.$$eval('#tel-steps li', l => l.map(x => x.className));
+    const tlog = await p.textContent('#tel-log');
+    log(steps.length === 7 && steps.every(c => c === 'done') && /Queued/.test(tlog) && /Hugging Face/.test(tlog) && /worker process/.test(tlog) &&
+        /flow\(s\) through the 4-agent pipeline/.test(tlog) && /Scoring/.test(tlog),
+        'live telemetry: queue -> data -> Hugging Face -> load -> flows -> scoring -> done, all in the log');
+    log((await p.$$('#tel-flow .tel-agent')).length === 4 && /no live GPU readings/.test(await p.textContent('#tel-gpu')),
+        'live telemetry: the latest flow per agent; a demo run says it has no GPU readings');
+  }
   await p.waitForFunction(id => location.hash.indexOf('#/session/' + id) === 0, job, { timeout: 180000 });
   await p.waitForSelector('#session-body:not([hidden])', { timeout: 30000 });
   return job;

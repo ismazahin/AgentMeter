@@ -46,6 +46,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from .. import telemetry
 from ..config import PROJECT_ROOT, load_config
 
 # AGENTMETER_RESULTS_DIR moves jobs + prepared sets elsewhere (persistent disk; local walk-throughs)
@@ -421,6 +422,10 @@ class JobManager:
         except SpecError as e:
             raise JobError(str(e), "bad_pipeline", 400) from e
 
+    def events_path(self, job_id: str) -> Path:
+        """The job's live telemetry (agentmeter/telemetry.py), beside its JSON file."""
+        return self.jobs_dir / f"{job_id}.events.jsonl"
+
     def _created(self, job: dict[str, Any]) -> dict[str, Any]:
         if job.get("kind", "benchmark") == "benchmark":
             # Sessions on one prepared set share its session.db: each owns its run, so a later
@@ -428,6 +433,9 @@ class JobManager:
             job.setdefault("run_id", "run_" + job["job_id"][len("job_"):])
         with self._lock:
             self._save(job)
+            if job.get("kind", "benchmark") == "benchmark":
+                telemetry.emit("queued", f"Queued: {len(job.get('models') or [])} model(s); one benchmark runs on the GPU at a time.",
+                               path=self.events_path(job["job_id"]), models=job.get("models"))
             self._enqueue(job["job_id"])
         self._emit(job, created=True)
         return self.get(job["job_id"])
@@ -687,23 +695,34 @@ class JobManager:
             self._run_verify(job)
             return
         self.clear_stop()
+        telemetry.bind(self.events_path(job_id))
         try:
+            telemetry.emit("start", ("Resumed" if job.get("attempts", 1) > 1 else "Started") +
+                           f" on {((job.get('environment') or {}).get('gpu_name')) or ('the demo provider (no GPU)' if job.get('effective_provider') == 'mock' else 'the GPU')}.",
+                           attempt=job.get("attempts"))
             if not job.get("run_dir") and job.get("after_prepare"):
                 job = self._resolve_chained(job)
+            telemetry.emit("data", f"Prepared set ready: {job.get('n_flows')} flows ({job.get('run_name')}).", n_flows=job.get("n_flows"))
             if job_id in self._stopping:
                 raise JobStopped("stopped by a user")
             self._prepare_models(job)
             result_path = self.runner(job)
         except BaseException as e:               # noqa: BLE001 — a job must never kill the worker
             if job_id in self._stopping:
+                telemetry.emit("stopped", "Stopped by a user; the flows finished so far are not scored.")
+                telemetry.unbind()
                 self._finish_stopped(job_id, final_progress=self.progress_fn(self._load(job_id)))
                 return
+            telemetry.emit("failed", f"Failed: {type(e).__name__}: {e}"[:400])
+            telemetry.unbind()
             self._update(job_id, status="failed", finished_at=_now(),
                          error=f"{type(e).__name__}: {e}",
                          error_trace=traceback.format_exc(limit=5),
                          final_progress=self.progress_fn(self._load(job_id)),
                          message="failed — resume to retry from the last completed flow")
             return
+        telemetry.emit("done", "Done: results are ready.")
+        telemetry.unbind()
         self._stopping.discard(job_id)             # finished before the stop took effect: keep it
         done = self._load(job_id)
         done["status"] = "done"
@@ -714,16 +733,29 @@ class JobManager:
         """Download-on-first-use for extra models (real GPU only). Progress goes to
         job["model_download"]; a stop request ends the download (the runner kills it)."""
         if job.get("provider") != "hf":
+            telemetry.emit("hf", "Demo mode: the mock provider runs no real model, so nothing is fetched from Hugging Face.")
             return
         prep = self.model_preparer
         if prep is None:
             from .model_store import ensure_job_models as prep
         job_id, last = job["job_id"], [0.0, None]
+        seen = {"t": 0.0, "bytes": 0, "pct": -1}
 
         def report(**kw):
             if job_id in self._stopping:
                 raise JobStopped("stopped by a user")
             now = time.monotonic()
+            if kw.get("phase") == "downloading":          # telemetry: every 10 % or 15 s, with the speed
+                done_b, total_b = kw.get("done_bytes") or 0, kw.get("total_bytes")
+                pct = int(100 * done_b / total_b) // 10 * 10 if total_b else -1
+                if pct != seen["pct"] or now - seen["t"] >= 15:
+                    dt = now - seen["t"] if seen["t"] else 0
+                    speed = (done_b - seen["bytes"]) / dt / 2 ** 20 if dt > 0 and done_b >= seen["bytes"] else None
+                    telemetry.emit("download", f"Downloading {kw.get('model')}: {done_b / 2 ** 30:,.2f}"
+                                   + (f" / {total_b / 2 ** 30:,.2f} GB ({100 * done_b / total_b:.0f} %)" if total_b else " GB")
+                                   + (f" at {speed:,.0f} MB/s" if speed else ""),
+                                   model=kw.get("model"), done_bytes=done_b, total_bytes=total_b, mb_per_s=speed)
+                    seen.update(t=now, bytes=done_b, pct=pct)
             if kw.get("phase") == last[1] and now - last[0] < 0.5:
                 return
             last[0], last[1] = now, kw.get("phase")

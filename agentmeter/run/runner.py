@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -116,7 +117,11 @@ def _spawn_model_worker(
     global _PROC
     if _STOP.is_set():
         raise Stopped("stopped by a user before the next model started")
-    proc = subprocess.Popen(cmd)
+    from .. import telemetry
+    env = None
+    if telemetry.current_path():                 # the worker appends to the job's live telemetry
+        env = {**os.environ, telemetry.ENV: telemetry.current_path()}
+    proc = subprocess.Popen(cmd, env=env)
     with _PROC_LOCK:
         _PROC = proc
     try:
@@ -339,6 +344,10 @@ def run_full(
             if before_model is not None:
                 before_model(label)
             print(f"[{mi+1}/{len(models)}] {label}: spawning worker (running {len(remaining)}/{n_scn} scenario(s))")
+            from .. import telemetry
+            telemetry.emit("worker", f"Model {mi + 1} of {len(models)}: {label}. Starting a fresh worker process "
+                           "(each model gets a clean GPU context).", model=label, index=mi + 1, count=len(models),
+                           flows=len(remaining))
             rc = _spawn_model_worker(
                 worker_config, model_name, run_id, n,
                 baseline_vram_mb=baseline_vram_mb, vram_out=vram_sidecar, load_test=load_test,
@@ -352,6 +361,7 @@ def run_full(
                     f"worker for model {label!r} exited with code {rc}. Run {run_id} left "
                     f"incomplete — re-run `run-full` (no --fresh) to resume just this model."
                 )
+            telemetry.emit("worker_done", f"{label}: worker finished; its GPU memory is released before the next model.", model=label)
             # First worker establishes the fresh-context baseline for the rest.
             if baseline_vram_mb is None:
                 baseline_vram_mb = _read_worker_before_load(vram_sidecar)

@@ -45,3 +45,6 @@ controlplane/.dev-data/
 supabase/.temp/
 supabase/.branches/
 supabase/functions/**/deno.lock
+
+# npm packages (any folder)
+node_modules/

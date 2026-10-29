@@ -19,6 +19,7 @@ export interface Env {
   CLOUD_PREP_URL?: string;         // the cloud preparation service (cloudprep/, Google Cloud Run)
   CLOUD_PREP_SECRET?: string;      // signs jobs to it and its reports back (the same value on both)
   CLOUD_PREP_MAX_MB?: string;      // largest upload prepared in the cloud (default 50: a Storage file)
+  CLOUD_PREP_RETRY_MS?: string;    // wait between attempts while the service wakes (default 5000)
   CLOUD_PREP_MAX_URL_MB?: string;  // largest linked file the cloud downloads (default 2048: it is held in memory)
   PUBLIC_BASE_URL?: string;        // this API's public URL (default: SUPABASE_URL + /functions/v1/agentmeter)
   SUPABASE_URL?: string;

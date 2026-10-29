@@ -1852,7 +1852,14 @@
     try { history.replaceState(null, "", "#/new" + (src === "file" ? "" : "?src=" + src)); } catch (e) { /* URL unchanged */ }
     setSrc(src);
   });
-  function wizData(src) { setSrc(src === "url" || src === "reuse" ? src : "file"); resumeCloud(); }
+  function wizData(src) { setSrc(src === "url" || src === "reuse" ? src : "file"); resumeCloud(); wakeCloud(); }
+  // a free cloud service (Hugging Face Space) sleeps when unused: nudge it awake while the user picks a file
+  var WOKEN = 0;
+  function wakeCloud() {
+    if (!CP || !BACKEND || !BACKEND.cloud_prep || Date.now() - WOKEN < 10 * 60 * 1000) return;
+    WOKEN = Date.now();
+    cpFetch("/api/prep/wake", { method: "POST" }).then(function () { /* best effort */ });
+  }
 
   $("svc-upload-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
@@ -1993,7 +2000,14 @@
         if (!u.ok) throw new Error("storage answered HTTP " + u.status);
         return cpFetch("/api/prep/jobs/" + enc(job.id) + "/start", { method: "POST" });
       }).then(function (s) {
-        if (!s.ok) { remember(null); ui.end(); ui.line(s.data.error || "The cloud did not start.", "tel-failed"); showError(err, s.data); return; }
+        if (!s.ok) {
+          remember(null); ui.end();
+          if (localPrepSupported() && /cloud_prep_unreachable|cloud_prep_refused/.test(s.data.code || "")) {
+            ui.line("The cloud did not answer (" + (s.data.error || s.status) + "); preparing on this computer instead.");
+            prepareLocally(src.file); return;
+          }
+          ui.line(s.data.error || "The cloud did not start.", "tel-failed"); showError(err, s.data); return;
+        }
         ui.line("Uploaded. The cloud is preparing it.");
         watchCloud(job, ui);
       }, function (e) {

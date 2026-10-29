@@ -225,7 +225,7 @@ domain for the control plane or a named tunnel? Run
 script — a test fails while it is stale). Open the site, log in as the admin, and create the
 other users under **Admin** (each must choose a new password at first login).
 
-### A7. Cloud data preparation (optional; Google Cloud Run, free tier)
+### A7. Cloud data preparation (optional; free on Hugging Face, or Google Cloud Run)
 While the GPU benchmarks, a new dataset is prepared by a small CPU service instead of waiting in
 the GPU queue: `cloudprep/app.py`, packaged with the same preparation code as the server and the
 browser (`web/prep/agentmeter-prep.zip`). Users never see it: the web app asks the control plane,
@@ -234,8 +234,22 @@ Storage URLs (the upload, and one per prepared file); the service reports each s
 with the same secret, and the web app then imports the prepared files into the GPU server
 (hash-checked). Without A7 the browser takes over, as before.
 
-Once, from your terminal (the Cloud Console is only needed to create the account and add a
-billing card, which Google requires even for the free tier):
+**Free, no card: a Hugging Face Space** (Docker, CPU Basic: 2 vCPU, 16 GB). With a Hugging Face
+**write** token (huggingface.co → Settings → Access Tokens), from the repo folder (PowerShell too):
+```bash
+pip install huggingface_hub
+python scripts/deploy_cloudprep_hf.py      # creates/updates <you>/agentmeter-prep, sets its secret,
+                                           # waits for the build, then runs npx supabase secrets set ...
+npx supabase db push                       # the prep_jobs table (answer Y)
+npx supabase functions deploy agentmeter --no-verify-jwt --use-api
+```
+The Space is public (its code is this repository's; the secret is a Space secret, never in a file,
+and every job must be signed). A free Space sleeps after 48 hours without use: New benchmark wakes
+it, the control plane retries while it wakes, and a job that still finds it asleep is prepared in
+the browser instead. Re-run the script after a change to the preparation code.
+
+**Or Google Cloud Run** (needs a billing card even within the free tier). Once, from your terminal
+(the Cloud Console is only needed to create the account and add the card):
 ```bash
 gcloud auth login                                      # opens the browser once
 gcloud projects create agentmeter-prep-<suffix> && gcloud config set project agentmeter-prep-<suffix>

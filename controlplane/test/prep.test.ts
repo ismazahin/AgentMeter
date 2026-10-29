@@ -11,15 +11,17 @@ const CLOUD = "https://prep.test";
 const LIMITS = { max_csv_rows: 500000, max_pcap_packets: 100000, max_pcap_flows: 20000, pcap_windows: 10 };
 const store = () => E.STORE as MemoryStore;
 
-function spyCloud(status = 202) {
+function spyCloud(status: number | number[] = 202) {
   const calls: { url: string; headers: Record<string, string>; body: any; raw: string }[] = [];
+  const statuses = Array.isArray(status) ? [...status] : null;
   const real = globalThis.fetch;
   vi.spyOn(globalThis, "fetch").mockImplementation(async (input: any, init?: any) => {
     const url = typeof input === "string" ? input : input.url;
+    if (url === `${CLOUD}/health`) return new Response('{"ok":true}', { status: 200 });
     if (url.startsWith(CLOUD)) {
       const raw = new TextDecoder().decode(init.body);
       calls.push({ url, headers: init.headers, body: JSON.parse(raw), raw });
-      return new Response('{"accepted":true}', { status });
+      return new Response('{"accepted":true}', { status: statuses ? statuses.shift() ?? 202 : status as number });
     }
     return real(input, init);
   });
@@ -37,7 +39,7 @@ async function uploaded(u: { token: string }, bytes = new TextEncoder().encode("
 }
 
 beforeEach(() => { E.CLOUD_PREP_URL = CLOUD; E.CLOUD_PREP_SECRET = SECRET; E.PUBLIC_BASE_URL = "https://cp.test/functions/v1/agentmeter"; });
-afterEach(() => { vi.restoreAllMocks(); delete E.CLOUD_PREP_URL; delete E.CLOUD_PREP_SECRET; delete E.PUBLIC_BASE_URL; delete E.CLOUD_PREP_MAX_MB; });
+afterEach(() => { vi.restoreAllMocks(); delete E.CLOUD_PREP_RETRY_MS; delete E.CLOUD_PREP_URL; delete E.CLOUD_PREP_SECRET; delete E.PUBLIC_BASE_URL; delete E.CLOUD_PREP_MAX_MB; });
 
 describe("cloud data preparation", () => {
   it("is off until the service URL and secret are set; /api/backend says which", async () => {
@@ -129,6 +131,20 @@ describe("cloud data preparation", () => {
     expect(r.status).toBe(502);
     const rows = await E.DB.prepare("SELECT status, error_code FROM prep_jobs WHERE source_kind='url'").all();
     expect(rows.results[0]).toMatchObject({ status: "failed", error_code: "cloud_prep_refused" });
+  });
+
+  it("waits for a sleeping service (502/503 while it wakes) and wakes it when New benchmark opens", async () => {
+    E.CLOUD_PREP_RETRY_MS = "0";
+    const calls = spyCloud([503, 502, 202]);
+    const u = await user();
+    const id = await uploaded(u);
+    expect((await api(`/api/prep/jobs/${id}/start`, { method: "POST", token: u.token })).status).toBe(200);
+    expect(calls).toHaveLength(3);
+    expect((await api(`/api/prep/jobs/${id}`, { token: u.token })).data.status).toBe("running");
+    expect((await api("/api/prep/wake", { method: "POST", token: u.token })).data).toMatchObject({ configured: true, up: true });
+    expect((await api("/api/prep/wake", { method: "POST" })).status).toBe(401);
+    delete E.CLOUD_PREP_URL;
+    expect((await api("/api/prep/wake", { method: "POST", token: u.token })).data.configured).toBe(false);
   });
 
   it("limits unfinished jobs per user and fails a job that stopped answering", async () => {

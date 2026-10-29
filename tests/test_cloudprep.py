@@ -179,3 +179,19 @@ def test_an_input_over_the_limit_is_refused(service):
     assert signed_post(base, json.dumps(stub.job("big.csv", max_bytes=100)).encode())[0] == 202
     assert stub.done.wait(60)
     assert stub.reports[-1]["failed"]["code"] == "too_large"
+
+
+def test_the_hugging_face_space_bundle(tmp_path):
+    """scripts/deploy_cloudprep_hf.py stages the Cloud Run files plus a Docker Space README."""
+    s = importlib.util.spec_from_file_location("deploy_cloudprep_hf", PROJECT_ROOT / "scripts" / "deploy_cloudprep_hf.py")
+    D = importlib.util.module_from_spec(s)
+    s.loader.exec_module(D)
+    d = D.stage(tmp_path / "space")
+    names = sorted(p.name for p in d.iterdir())
+    assert names == ["Dockerfile", "README.md", "agentmeter-prep.zip", "app.py", "requirements.txt", "urlfetch.py", "wheels"]
+    assert len(list((d / "wheels").glob("*.whl"))) == 2
+    readme = (d / "README.md").read_text(encoding="utf-8")
+    assert "sdk: docker" in readme and "app_port: 8080" in readme
+    assert "ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8080" in (d / "Dockerfile").read_text()
+    assert not any("SECRET" in p.read_text(errors="ignore") and "secret" in p.name.lower() for p in d.iterdir() if p.is_file())
+    assert D.space_url("Isma_Zahin/agentmeter-prep") == "https://isma-zahin-agentmeter-prep.hf.space"

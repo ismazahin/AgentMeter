@@ -23,6 +23,7 @@ const LOG_MAX = 200;
 const STALE_S = 15 * 60;              // a running job with no news for this long has died
 const MAX_ACTIVE = 2;                 // unfinished cloud jobs per user
 const URL_GET_S = 3600;               // the input's download URL lives an hour
+const WAKE_TRIES = 4;                 // attempts while a sleeping service wakes up
 const LIMIT_KEYS: Record<string, [number, number]> = {
   max_csv_rows: [1, 50_000_000], max_pcap_packets: [1, 100_000_000], max_pcap_flows: [1, 10_000_000],
   pcap_windows: [1, 1000], max_url_download_bytes: [1, 50 * 2 ** 30], url_timeout_s: [1, 3600],
@@ -124,13 +125,22 @@ async function dispatch(env: Env, r: Row): Promise<void> {
   }));
   const ts = String(nowS());
   const sig = await hmacHex(env.CLOUD_PREP_SECRET!, `POST\n/prepare\n${ts}\n${await sha256Hex(body)}`);
-  let res: Response | null = null;
-  try {
-    res = await fetch(env.CLOUD_PREP_URL!.replace(/\/+$/, "") + "/prepare", {
-      method: "POST", headers: { "content-type": "application/json", "X-AM-Timestamp": ts, "X-AM-Signature": sig }, body,
-    });
-  } catch (e) {
-    await finishFailed(env, r, `the cloud preparation service could not be reached: ${(e as Error).message}`, "cloud_prep_unreachable");
+  // A free Hugging Face Space that slept answers 502/503 for a few seconds while it wakes: retry.
+  let res: Response | null = null, lastErr = "";
+  for (let i = 0; i < WAKE_TRIES; i++) {
+    if (i) await new Promise((ok) => setTimeout(ok, intVar(env.CLOUD_PREP_RETRY_MS, 5000)));
+    try {
+      res = await fetch(env.CLOUD_PREP_URL!.replace(/\/+$/, "") + "/prepare", {
+        method: "POST", headers: { "content-type": "application/json", "X-AM-Timestamp": ts, "X-AM-Signature": sig }, body,
+      });
+      if (![502, 503, 504].includes(res.status)) break;
+      await res.body?.cancel();
+    } catch (e) {
+      res = null; lastErr = (e as Error).message;
+    }
+  }
+  if (!res) {
+    await finishFailed(env, r, `the cloud preparation service could not be reached: ${lastErr}`, "cloud_prep_unreachable");
     fail(502, "cloud_prep_unreachable", "the cloud preparation service could not be reached");
   }
   if (!res!.ok) {
@@ -254,4 +264,18 @@ export async function prepEvents(req: Request, env: Env, id: string): Promise<Re
     return json({ ok: true });
   }
   return fail(400, "bad_request", "send {event}, {done} or {failed}");
+}
+
+/** POST /api/prep/wake — New benchmark opened: nudge a sleeping cloud service (free Hugging Face
+ *  Space) awake before a dataset is uploaded. Best effort, answers at once. */
+export async function wakePrep(req: Request, env: Env): Promise<Response> {
+  await requireUser(req, env);
+  if (!cloudPrepConfigured(env)) return json({ ok: false, configured: false });
+  let up = false;
+  try {
+    const r = await fetch(env.CLOUD_PREP_URL!.replace(/\/+$/, "") + "/health", { signal: AbortSignal.timeout(4000) });
+    up = r.ok;
+    await r.body?.cancel();
+  } catch { /* still waking: the request itself wakes it */ }
+  return json({ ok: true, configured: true, up });
 }

@@ -244,6 +244,7 @@ gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregi
 
 SECRET=$(python -c "import secrets; print(secrets.token_urlsafe(48))")
 CLOUD_PREP_SECRET=$SECRET bash scripts/deploy_cloudprep.sh     # builds and deploys; prints the URL
+# Windows PowerShell: $env:CLOUD_PREP_SECRET = "<secret>"; .\scripts\deploy_cloudprep.ps1
 npx supabase secrets set CLOUD_PREP_URL=<the printed URL> CLOUD_PREP_SECRET=$SECRET
 npx supabase db push                                   # the prep_jobs table
 npx supabase functions deploy agentmeter --no-verify-jwt --use-api

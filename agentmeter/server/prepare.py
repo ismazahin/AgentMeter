@@ -349,9 +349,9 @@ def import_prepared(files: dict[str, bytes], results_root: Path) -> str:
                            "invalid_prepared_set", 400)
     name = unique_name(f"{str(meta.get('run_name') or 'prepared')[:30]}_import")
     rn = str(meta.get("run_name") or "")
-    if (ps.get("backend") or {}).get("provider") == "browser" and re.fullmatch(r"[A-Za-z0-9_.-]{1,120}", rn) \
+    if (ps.get("backend") or {}).get("provider") in ("browser", "cloud") and re.fullmatch(r"[A-Za-z0-9_.-]{1,120}", rn) \
             and not (Path(results_root) / kind / rn).exists():
-        name = rn          # prepared on the user's computer just now: its own (already unique) name
+        name = rn          # prepared just now in the browser or the cloud: its own (already unique) name
     out = Path(results_root) / kind / name
     out.mkdir(parents=True, exist_ok=False)
     try:

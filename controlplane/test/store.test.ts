@@ -34,6 +34,19 @@ describe("Supabase Storage client", () => {
     expect(await s.signedUploadUrl("k")).toBe("https://ref.supabase.co/storage/v1/object/upload/sign/agentmeter/k?token=abc");
   });
 
+  it("signed download URLs (the cloud preparation service reads its input) are absolute and expire", async () => {
+    const { f, calls } = fake([new Response(JSON.stringify({ signedURL: "/object/sign/agentmeter/prep/x/input/a.csv?token=t1" }))]);
+    const s = new SupabaseStore("https://ref.supabase.co", "k", "agentmeter", f);
+    expect(await s.signedDownloadUrl("prep/x/input/a.csv", 3600)).toBe("https://ref.supabase.co/storage/v1/object/sign/agentmeter/prep/x/input/a.csv?token=t1");
+    expect(calls[0]).toMatchObject({ url: "https://ref.supabase.co/storage/v1/object/sign/agentmeter/prep/x/input/a.csv",
+                                     init: { method: "POST", body: JSON.stringify({ expiresIn: 3600 }) } });
+    const m = new MemoryStore("http://127.0.0.1:9");
+    await m.put("prep/x/input/a.csv", "abc", "text/csv");
+    const u = (await m.signedDownloadUrl("prep/x/input/a.csv", 60))!;
+    expect(new TextDecoder().decode((await m.serveDownload(u.split("/download/")[1]))!)).toBe("abc");
+    expect(await m.serveDownload("00000000-0000-0000-0000-000000000000")).toBeNull();
+  });
+
   it("the in-memory store (tests, dev server) accepts one upload per signed token", async () => {
     const m = new MemoryStore("http://127.0.0.1:9");
     const u = (await m.signedUploadUrl("sessions/x/flows.json"))!;

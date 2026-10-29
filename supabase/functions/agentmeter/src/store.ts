@@ -18,6 +18,8 @@ export interface ObjectStore {
   signedUploadUrl(key: string): Promise<string | null>;
   /** Size of a stored object, or null when it is not there. */
   size(key: string): Promise<number | null>;
+  /** A short-lived URL that GETs one object (the cloud preparation service reads its input). */
+  signedDownloadUrl(key: string, expiresInS: number): Promise<string | null>;
 }
 
 function fromResponse(r: Response): StoredObject {
@@ -69,6 +71,17 @@ export class SupabaseStore implements ObjectStore {
     return `${this.url}/storage/v1${d.url}`;
   }
 
+  async signedDownloadUrl(key: string, expiresInS: number): Promise<string | null> {
+    const path = key.split("/").map(encodeURIComponent).join("/");
+    const r = await this.f(`${this.url}/storage/v1/object/sign/${this.bucket}/${path}`, {
+      method: "POST", headers: this.h({ "content-type": "application/json" }), body: JSON.stringify({ expiresIn: expiresInS }) });
+    if (!r.ok) throw new Error(`storage sign download ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    const d = await r.json() as { signedURL?: string; signedUrl?: string };
+    const u = d.signedURL || d.signedUrl;
+    if (!u) throw new Error("storage sign download: no url");
+    return `${this.url}/storage/v1${u}`;
+  }
+
   async size(key: string): Promise<number | null> {
     const r = await this.f(`${this.url}/storage/v1/object/info/${this.bucket}/${key.split("/").map(encodeURIComponent).join("/")}`, { headers: this.h() });
     if (!r.ok) { await r.body?.cancel(); return null; }
@@ -81,6 +94,7 @@ export class SupabaseStore implements ObjectStore {
 export class MemoryStore implements ObjectStore {
   readonly objects = new Map<string, { bytes: Uint8Array; type: string }>();
   readonly tokens = new Map<string, string>();
+  readonly downloads = new Map<string, string>();
   constructor(private uploadBase: string | null = null) {}
 
   async get(key: string): Promise<StoredObject | null> {
@@ -113,4 +127,17 @@ export class MemoryStore implements ObjectStore {
   }
 
   async size(key: string): Promise<number | null> { return this.objects.get(key)?.bytes.length ?? null; }
+
+  async signedDownloadUrl(key: string, _expiresInS: number): Promise<string | null> {
+    if (!this.uploadBase) return null;
+    const token = crypto.randomUUID();
+    this.downloads.set(token, key);
+    return `${this.uploadBase}/download/${token}`;
+  }
+
+  /** The dev server's GET /download/<token> handler: the object's bytes, or null. */
+  async serveDownload(token: string): Promise<Uint8Array | null> {
+    const key = this.downloads.get(token);
+    return key ? this.objects.get(key)?.bytes ?? null : null;
+  }
 }

@@ -25,7 +25,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
   try {
     // 1. upload, then step 2 shows both model groups
     await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])', { timeout: 15000 });
-    await p.setInputFiles('#svc-file', CSV); await p.fill('#svc-max-flows', '5'); await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
+    await p.setInputFiles('#svc-file', CSV); await p.fill('#svc-max-flows', '5'); await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
     await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
     await p.waitForSelector('#svc-models input');
     log((await p.$$('#svc-models input')).length === 5, 'Study models: the 5 validated models are listed');

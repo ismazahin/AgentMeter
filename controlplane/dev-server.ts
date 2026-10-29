@@ -43,6 +43,7 @@ const env = {
   PASSWORD_PEPPER: dev("PASSWORD_PEPPER", "dev-pepper-0123456789abcdef"),
   ALLOW_HTTP_BACKEND: dev("ALLOW_HTTP_BACKEND", "1"),
   ALLOWED_ORIGINS: dev("ALLOWED_ORIGINS", "http://127.0.0.1:8080"),
+  PUBLIC_BASE_URL: dev("PUBLIC_BASE_URL", `${base}/functions/v1/agentmeter`),   // where cloudprep reports
 };
 
 if (P.AGENTMETER_ADMIN_USER && P.AGENTMETER_ADMIN_PASSWORD) {
@@ -62,9 +63,18 @@ createServer(async (req, res) => {
   const url = new URL(req.url || "/", base);
   try {
     const up = /^\/upload\/([0-9a-f-]{36})$/.exec(url.pathname);
+    // like Storage: a browser may PUT to a signed upload URL from the app's origin (cloud preparation)
+    const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "PUT, OPTIONS", "Access-Control-Allow-Headers": "content-type, x-upsert" };
+    if (up && req.method === "OPTIONS") { res.writeHead(204, cors).end(); return; }
     if (up && req.method === "PUT") {
       const ok = await store.acceptUpload(up[1], new Uint8Array(body), String(req.headers["content-type"] || ""));
-      res.writeHead(ok ? 200 : 400, { "content-type": "application/json" }).end(JSON.stringify(ok ? { ok } : { error: "invalid upload token" }));
+      res.writeHead(ok ? 200 : 400, { "content-type": "application/json", ...cors }).end(JSON.stringify(ok ? { ok } : { error: "invalid upload token" }));
+      return;
+    }
+    const down = /^\/download\/([0-9a-f-]{36})$/.exec(url.pathname);
+    if (down && req.method === "GET") {
+      const bytes = await store.serveDownload(down[1]);
+      res.writeHead(bytes ? 200 : 404, { "content-type": "application/octet-stream" }).end(bytes ? Buffer.from(bytes) : undefined);
       return;
     }
     url.pathname = url.pathname.replace(PREFIX, "") || "/";

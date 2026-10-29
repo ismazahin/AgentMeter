@@ -207,8 +207,11 @@ and commit. Cloudflare Pages for now (any static host works: the site is the `we
 is): `npx wrangler pages deploy web --project-name agentmeter`, or connect the repo in the
 Cloudflare dashboard (Framework preset **None**, no build command, output directory **`web`**).
 `web/_headers` sets the CSP; its `connect-src` allows `https://*.supabase.co` and
-`*.trycloudflare.com`. **Prepare on this computer** (the default in New benchmark) runs the data
-preparation in the user's browser with Pyodide (Python as WebAssembly, `web/prep/`): the CSP also
+`*.trycloudflare.com`. Where a new dataset is prepared is chosen automatically, never by the user:
+on the GPU server when it is free; while it runs or queues a job, by the cloud preparation service
+(A7) when that is set up, otherwise in the user's browser with Pyodide (Python as WebAssembly,
+`web/prep/`). All three run the same code, so the prepared flows and their hash are identical. For
+the browser route the CSP also
 allows `https://cdn.jsdelivr.net` (Pyodide's files, about 40 MB on first use, then cached) and
 `'wasm-unsafe-eval'` (compiling WebAssembly; JavaScript `eval` stays blocked). To self-host Pyodide
 0.28.3, put its files on your host, set `"pyodide_base"` in `web/config.json`, and regenerate the
@@ -221,6 +224,38 @@ domain for the control plane or a named tunnel? Run
 (origins only, no path) and commit `web/_headers` (re-run it too after editing an inline
 script — a test fails while it is stale). Open the site, log in as the admin, and create the
 other users under **Admin** (each must choose a new password at first login).
+
+### A7. Cloud data preparation (optional; Google Cloud Run, free tier)
+While the GPU benchmarks, a new dataset is prepared by a small CPU service instead of waiting in
+the GPU queue: `cloudprep/app.py`, packaged with the same preparation code as the server and the
+browser (`web/prep/agentmeter-prep.zip`). Users never see it: the web app asks the control plane,
+the control plane signs a job to the service with `CLOUD_PREP_SECRET` and gives it only single-use
+Storage URLs (the upload, and one per prepared file); the service reports each step back, signed
+with the same secret, and the web app then imports the prepared files into the GPU server
+(hash-checked). Without A7 the browser takes over, as before.
+
+Once, from your terminal (the Cloud Console is only needed to create the account and add a
+billing card, which Google requires even for the free tier):
+```bash
+gcloud auth login                                      # opens the browser once
+gcloud projects create agentmeter-prep-<suffix> && gcloud config set project agentmeter-prep-<suffix>
+gcloud billing projects link agentmeter-prep-<suffix> --billing-account <ACCOUNT_ID>   # gcloud billing accounts list
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+
+SECRET=$(python -c "import secrets; print(secrets.token_urlsafe(48))")
+CLOUD_PREP_SECRET=$SECRET bash scripts/deploy_cloudprep.sh     # builds and deploys; prints the URL
+npx supabase secrets set CLOUD_PREP_URL=<the printed URL> CLOUD_PREP_SECRET=$SECRET
+npx supabase db push                                   # the prep_jobs table
+npx supabase functions deploy agentmeter --no-verify-jwt --use-api
+```
+After a change to the preparation code, run `scripts/deploy_cloudprep.sh` again (it rebuilds the
+bundle first). The service runs 2 vCPU / 4 GB, scales to zero when idle and keeps working after
+answering (`--no-cpu-throttling`); a dataset takes seconds to a few minutes, well inside the free
+tier. Uploads prepared in the cloud are capped at 50 MB (one Supabase Storage file on the free
+plan; `CLOUD_PREP_MAX_MB` lowers it); a larger file falls back to the browser. A linked file is
+downloaded by the service up to 2 GB (`CLOUD_PREP_MAX_URL_MB`; Cloud Run keeps files in memory). Optional:
+`gcloud billing budgets create` with a small amount to be emailed before anything is charged.
+Local rehearsal, no accounts: `bash tests/e2e/cloudprep_stack.sh`.
 
 ### A5. The GPU backend's settings
 In `%USERPROFILE%\.agentmeter\backend.env` (what `scripts\vast_start.ps1` copies to the box):

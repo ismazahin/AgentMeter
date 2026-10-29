@@ -49,7 +49,7 @@ export const env = {
 
 export const fetchApi = (url: string, init?: RequestInit) => handle(new Request(url, init), env);
 
-const TABLES = ["auth_sessions", "settings", "run_grants", "sessions", "rate_limits", "system_settings", "backends", "users"];
+const TABLES = ["prep_jobs", "auth_sessions", "settings", "run_grants", "sessions", "rate_limits", "system_settings", "backends", "users"];
 beforeEach(async () => {
   await exec(`TRUNCATE ${TABLES.join(", ")}`);
   store.objects.clear();

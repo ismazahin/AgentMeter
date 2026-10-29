@@ -26,7 +26,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
   try {
     await p.goto(ORIGIN + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
     await p.setInputFiles('#svc-file', REPO + '/data/sample_csv/cicids2017_sample.csv'); await p.fill('#svc-max-flows', '8');
-    await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
+    await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
     await p.waitForFunction(() => /Ready/.test(document.querySelector('#wiz-data-chip').textContent), null, { timeout: 90000 });
     await p.locator('#svc-models input').nth(0).check();
 
@@ -71,7 +71,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
 
     // run it
     await p.setInputFiles('#svc-file', REPO + '/data/sample_csv/cicids2017_sample.csv'); await p.fill('#svc-max-flows', '8');
-    await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
+    await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
     await p.waitForFunction(() => /Ready/.test(document.querySelector('#wiz-data-chip').textContent), null, { timeout: 90000 });
     await p.locator('#svc-models input').nth(0).check(); await p.locator('#svc-models input').nth(1).check();
     log(await p.isChecked('#pl-mode-custom') && /Perceive → Reason → Classify → Report → Escalation \(your own pipeline, 5 agents\)/.test(await p.textContent('#wiz-settings')),

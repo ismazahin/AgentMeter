@@ -22,7 +22,7 @@ const CSP = (() => {
 
 async function prepare(p, file, flows) {
   await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
-  await p.check('#svc-prep-local');
+  await p.evaluate(() => localStorage.setItem('agentmeter.prepWhere', 'local'));   // the GPU-busy fallback without cloud preparation
   await p.setInputFiles('#svc-file', file);
   await p.fill('#svc-max-flows', String(flows));
   await p.click('#svc-upload-btn');

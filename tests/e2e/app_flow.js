@@ -22,7 +22,7 @@ async function wizardUpload(p, file, flows, models) {
   await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.setInputFiles('#svc-file', file);
   await p.fill('#svc-max-flows', String(flows));
-  await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
+  await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
   await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
   return pickAndRun(p, models);
 }
@@ -91,7 +91,7 @@ async function frameOf(p) {
   await p.screenshot({ path: S + '/02-wizard-data.png', fullPage: true });
   await p.setInputFiles('#svc-file', REPO + '/data/sample_csv/cicids2017_sample.csv');
   await p.fill('#svc-max-flows', '10');
-  await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
+  await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
   await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
   log(await p.isVisible('#wiz-step-models'), 'Continue goes straight to Models while the data prepares');
   log(!/prepare job|benchmark job/i.test(await p.textContent('#view-new')), 'no "prepare job" / "benchmark job" wording');
@@ -118,7 +118,7 @@ async function frameOf(p) {
   await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.setInputFiles('#svc-file', REPO + '/data/sample_pcaps/sample_small.pcap');
   await p.fill('#svc-max-flows', '8');
-  await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
+  await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
   await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
   await p.waitForSelector('#svc-models input');
   const early = await p.textContent('#svc-run');
@@ -138,7 +138,7 @@ async function frameOf(p) {
     log(await p.isVisible('#svc-url') && !(await p.isVisible('#svc-file')), 'link tab shows the URL field');
     await p.fill('#svc-url', URL_BASE.replace(/\/$/, '') + '/big.csv');
     await p.fill('#svc-max-flows', '6');
-    await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
+    await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
     await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
     await p.waitForFunction(() => document.querySelector('#wiz-data-chip').textContent === 'Ready', null, { timeout: 120000 });
     log(/6 flows ready/.test(await p.textContent('#wiz-data-status')), 'link import prepared: ' + await p.textContent('#wiz-data-status'));

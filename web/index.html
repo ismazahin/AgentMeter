@@ -430,8 +430,7 @@
   .tel-agent { display: grid; grid-template-columns: minmax(64px, auto) 1fr auto; gap: 8px; align-items: center; margin: 3px 0; }
   .tel-agent .track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; } .tel-agent .fill { display: block; height: 100%; }
   .tel-log { max-height: 220px; overflow-y: auto; font-size: 12px; line-height: 1.55; border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; background: var(--surface); overflow-wrap: anywhere; }
-  .prep-where { border: 0; padding: 0; margin: 12px 0 0; display: grid; gap: 6px; }
-  .prep-where .check { align-items: flex-start; }
+  .prep-note { margin: 12px 0 0; max-width: 70ch; }
   .local-prep { margin-top: 12px; } .local-prep .tel-log { list-style: none; margin: 8px 0 0; }
   .tel-line.tel-failed { color: var(--bad, #d64545); } .tel-line.tel-done { font-weight: 600; }
   svg.trend .tline { fill: none; stroke: var(--series-1); stroke-width: 2; }
@@ -825,7 +824,7 @@
     <div id="home-guide" class="card guide" hidden>
       <div class="guide-head"><h2>How AgentMeter works</h2><button type="button" class="btn" id="home-guide-hide">Got it</button></div>
       <ol class="guide-steps">
-        <li><b>Data.</b> Upload a CSV (CIC-IDS2017 flows, with labels) or a PCAP. AgentMeter samples the flows you ask for and keeps them as a <i>prepared set</i> you can reuse. By default the sampling runs <b>on your own computer</b>, in the browser (the same Python code as the server, so the result is identical), and only the prepared flows are sent to the GPU server, which can keep benchmarking meanwhile. The first time loads about 40 MB, then the browser caches it. Choose <i>On the GPU server</i> to have the server do it instead.</li>
+        <li><b>Data.</b> Upload a CSV (CIC-IDS2017 flows, with labels) or a PCAP. AgentMeter samples the flows you ask for and keeps them as a <i>prepared set</i> you can reuse. The GPU server does the sampling when it is free; while it is busy with another benchmark, AgentMeter does it in the cloud instead (or, without cloud preparation, in your browser), so a new dataset never waits in the queue. Every route runs the same Python code, so the prepared flows are identical.</li>
         <li><b>Models.</b> Pick one to four open models (4-bit). The wizard estimates the time and cost from earlier runs.</li>
         <li><b>Run.</b> Each flow goes through the agents — by default Perceive, Reason, Decide, Act, or your own pipeline — one model at a time, on the same GPU.</li>
         <li><b>Read.</b> Each session tab opens with a one-line summary; tables download as CSV, line charts and diagrams as PNG. Reference labels only check that the output is valid: AgentMeter measures efficiency.</li>
@@ -952,13 +951,7 @@
             <span class="hint" id="svc-url-limits">A direct download link, up to 10 GB.</span><span class="info-i" tabindex="0" role="button" id="svc-url-info" data-tip="The server downloads the file itself. Use a direct download link — Google Drive / Dropbox “share” pages are refused. Only public internet addresses are allowed.">i</span>
           </div>
         </div>
-        <fieldset class="prep-where" id="svc-prep-where">
-          <legend class="small" style="font-weight:600;margin-bottom:6px">Prepare the data</legend>
-          <label class="check"><input type="radio" name="prep-where" value="local" id="svc-prep-local" checked>
-            <span><b>On this computer</b> <span class="muted small">— your laptop's CPU samples the flows in this browser; the GPU server only receives the prepared flows, so it can keep benchmarking. The first time downloads about 40 MB (then cached).</span></span></label>
-          <label class="check"><input type="radio" name="prep-where" value="server" id="svc-prep-server">
-            <span><b>On the GPU server</b> <span class="muted small">— the file is uploaded (up to the upload limit) and prepared there; it waits while another benchmark runs.</span></span></label>
-        </fieldset>
+        <p class="muted small prep-note" id="svc-prep-note">AgentMeter prepares the data on the GPU server. While the GPU is busy with another benchmark, it prepares it in the cloud instead, so you never wait in the queue.<span class="info-i" tabindex="0" role="button" data-tip="Both run the same preparation code, so the prepared flows and their hash are identical wherever they were prepared.">i</span></p>
         <div class="row" id="wiz-options">
           <div class="field">
             <label for="svc-max-flows">Flows to benchmark</label>
@@ -973,7 +966,7 @@
         </div>
         <div id="svc-local-prep" class="local-prep" hidden aria-live="polite">
           <div class="bar indet" aria-hidden="true"><span></span></div>
-          <ol class="tel-log mono" id="svc-local-log" aria-label="Preparation on this computer"></ol>
+          <ol class="tel-log mono" id="svc-local-log" aria-label="Preparation progress"></ol>
         </div>
         <div id="svc-upload-error" class="notice error" role="alert" hidden></div>
       </form>
@@ -1848,7 +1841,6 @@
     WIZ.src = name;
     selectTab(srcTabs, $("tab-src-" + name));
     $("svc-upload-form").hidden = name === "reuse";
-    $("svc-prep-where").hidden = name === "url";          // a link is always downloaded by the GPU server
     $("src-reuse").hidden = name !== "reuse";
     $("svc-upload-error").hidden = true;
     if (name === "reuse") { loadRecentSets(); loadStoredSets(); }
@@ -1860,7 +1852,7 @@
     try { history.replaceState(null, "", "#/new" + (src === "file" ? "" : "?src=" + src)); } catch (e) { /* URL unchanged */ }
     setSrc(src);
   });
-  function wizData(src) { setSrc(src === "url" || src === "reuse" ? src : "file"); }
+  function wizData(src) { setSrc(src === "url" || src === "reuse" ? src : "file"); resumeCloud(); }
 
   $("svc-upload-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
@@ -1873,7 +1865,6 @@
     } else {
       var file = $("svc-file").files[0];
       if (!file) { showError(err, { error: "Choose a .csv, .pcap or .pcapng file first — or use Import from a link." }); return; }
-      if (prepWhere() === "local") { prepareLocally(file); return; }
       if (lim && file.size > lim.max_upload_bytes) {   // checked here too, so a huge file is never sent
         showError(err, { error: "File too large to upload: the limit is " + lim.max_upload_label + " (this file is " +
           fmtSize(file.size) + "). Use Import from a link instead — the server downloads files up to " +
@@ -1882,6 +1873,41 @@
       }
       fd.append("file", file);
     }
+    var src = WIZ.src === "url" ? { url: fd.get("url") } : { file: file };
+    $("svc-upload-btn").disabled = true; $("svc-upload-busy").hidden = false;
+    $("svc-upload-busy").textContent = "Checking the GPU…";
+    prepRoute(src).then(function (where) {
+      $("svc-upload-btn").disabled = false; $("svc-upload-busy").hidden = true;
+      if (where === "cloud") { prepareInCloud(src); return; }
+      if (where === "local") { prepareLocally(src.file); return; }
+      prepareOnServer(fd);
+    });
+  });
+  // ---------- where the data is prepared: chosen automatically, never by the user ----------
+  // The GPU server prepares it when it is free. While it runs (or queues) a job, the cloud
+  // preparation service does (control plane: /api/prep/jobs, cloudprep/), so nothing waits in
+  // the GPU queue; without cloud preparation, this browser does (web/prep). All three run the
+  // same Python code: the prepared flows and their hash are identical. (localStorage
+  // "agentmeter.prepWhere" = server | cloud | local forces one; the end-to-end tests use it.)
+  function gpuBusy() {
+    return api("/api/jobs?limit=50").then(function (r) {
+      return !!(r.ok && (r.data.jobs || []).some(function (j) { return j.status === "running" || j.status === "queued"; }));
+    });
+  }
+  function cloudMaxBytes() { return ((BACKEND && BACKEND.cloud_prep_max_mb) || 50) * 1024 * 1024; }
+  function prepRoute(src) {
+    var forced = null;
+    try { forced = localStorage.getItem("agentmeter.prepWhere"); } catch (e) { /* none */ }
+    if (forced === "server" || forced === "cloud" || (forced === "local" && src.file)) return Promise.resolve(forced);
+    return gpuBusy().then(function (busy) {
+      if (!busy) return "server";
+      var cloud = CP && BACKEND && BACKEND.cloud_prep && (!src.file || src.file.size <= cloudMaxBytes());
+      if (cloud) return "cloud";
+      return src.file && localPrepSupported() ? "local" : "server";
+    });
+  }
+  function prepareOnServer(fd) {
+    var err = $("svc-upload-error");
     fd.append("max_flows", $("svc-max-flows").value || "50");
     if ($("svc-other-attack").checked) fd.append("other_attack", "1");
     $("svc-upload-btn").disabled = true; $("svc-upload-busy").hidden = false;
@@ -1891,27 +1917,13 @@
       if (!r.ok) { showError(err, r.data); return; }
       location.hash = "#/new/models?prep=" + enc(r.data.job_id);      // models now; data prepares meanwhile
     });
-  });
+  }
   // ---------- "Prepare on this computer": the dataset is prepared in this browser ----------
   // web/prep/prep-worker.js runs the server's own Python preparation (Pyodide) on this computer's
   // CPU; the GPU server gets only the prepared set (manifest + features + labels), checks its
   // hashes and stores it at once (POST /api/prepared/import), even while it benchmarks.
   var PREP_WORKER = null;
-  function prepWhere() {
-    var r = document.querySelector('input[name="prep-where"]:checked');
-    return r ? r.value : "server";
-  }
   function localPrepSupported() { return typeof Worker !== "undefined" && typeof WebAssembly !== "undefined"; }
-  document.querySelectorAll('input[name="prep-where"]').forEach(function (r) {
-    r.addEventListener("change", function () { try { localStorage.setItem("agentmeter.prepWhere", prepWhere()); } catch (e) { /* not remembered */ } });
-  });
-  (function () {
-    var saved = null;
-    try { saved = localStorage.getItem("agentmeter.prepWhere"); } catch (e) { /* default */ }
-    if (!localPrepSupported()) saved = "server";
-    if (saved === "server" || saved === "local") $("svc-prep-" + saved).checked = true;
-    if (!localPrepSupported()) $("svc-prep-local").disabled = true;
-  })();
   function prepareLocally(file) {
     var err = $("svc-upload-error"), box = $("svc-local-prep"), log = $("svc-local-log"), btn = $("svc-upload-btn");
     var lim = (CONFIG && CONFIG.limits) || {};
@@ -1920,11 +1932,11 @@
       li.textContent = new Date().toTimeString().slice(0, 8) + "  " + msg; log.appendChild(li); log.scrollTop = log.scrollHeight;
     };
     log.innerHTML = ""; box.hidden = false; btn.disabled = true; err.hidden = true;
-    line("Preparing " + file.name + " (" + fmtSize(file.size) + ") on this computer");
+    line("The GPU is busy with a benchmark, so " + file.name + " (" + fmtSize(file.size) + ") is prepared on this computer, in this browser.");
     if (!PREP_WORKER) PREP_WORKER = new Worker("prep/prep-worker.js", { type: "module" });
     var done = function () { btn.disabled = false; box.querySelector(".bar").hidden = true; };
     box.querySelector(".bar").hidden = false;
-    PREP_WORKER.onerror = function (e) { done(); line("The preparation worker could not start.", "tel-failed"); showError(err, { error: "Preparing on this computer could not start" + (e && e.message ? ": " + e.message : "") + ". Choose “On the GPU server” instead.", code: "browser_prepare_failed" }); };
+    PREP_WORKER.onerror = function (e) { done(); line("The preparation worker could not start.", "tel-failed"); showError(err, { error: "Preparing on this computer could not start" + (e && e.message ? ": " + e.message : "") + ". Try again when the GPU has finished its benchmark.", code: "browser_prepare_failed" }); };
     PREP_WORKER.onmessage = function (ev) {
       var m = ev.data || {};
       if (m.type === "progress") { line((PHASES[m.phase] && m.phase !== "loading" ? PHASES[m.phase] + (m.message ? ": " : "") : "") + (m.message || "")); return; }
@@ -1944,6 +1956,96 @@
     };
     PREP_WORKER.postMessage({ type: "prepare", base: PYODIDE_BASE, file: file, max_flows: parseInt($("svc-max-flows").value || "50", 10),
                               other_attack: $("svc-other-attack").checked, limits: lim });
+  }
+  // ---------- prepared in the cloud (while the GPU benchmarks) ----------
+  var CLOUD_KEY = "agentmeter.cloudPrepJob", CLOUD_POLL = null;
+  function prepLogUi() {
+    var box = $("svc-local-prep"), log = $("svc-local-log"), btn = $("svc-upload-btn");
+    return {
+      start: function () { log.innerHTML = ""; box.hidden = false; box.querySelector(".bar").hidden = false; btn.disabled = true; $("svc-upload-error").hidden = true; },
+      line: function (msg, cls, when) {
+        var li = document.createElement("li"); li.className = "tel-line" + (cls ? " " + cls : "");
+        li.textContent = (when ? new Date(when) : new Date()).toTimeString().slice(0, 8) + "  " + msg; log.appendChild(li); log.scrollTop = log.scrollHeight;
+      },
+      end: function () { btn.disabled = false; box.querySelector(".bar").hidden = true; }
+    };
+  }
+  function remember(job) { try { if (job) localStorage.setItem(CLOUD_KEY, JSON.stringify(job)); else localStorage.removeItem(CLOUD_KEY); } catch (e) { /* not kept */ } }
+  function prepareInCloud(src) {
+    var ui = prepLogUi(), err = $("svc-upload-error");
+    ui.start();
+    ui.line("The GPU is busy with a benchmark, so " + (src.file ? src.file.name + " (" + fmtSize(src.file.size) + ")" : "the linked file") + " is prepared in the cloud.");
+    var body = { max_flows: parseInt($("svc-max-flows").value || "50", 10), other_attack: $("svc-other-attack").checked, limits: (CONFIG && CONFIG.limits) || {} };
+    if (src.file) { body.filename = src.file.name; body.size = src.file.size; } else body.url = src.url;
+    cpFetch("/api/prep/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
+      if (!r.ok) {
+        if (src.file && localPrepSupported() && /cloud_prep_unavailable|too_large|cloud_prep_unreachable|cloud_prep_refused/.test(r.data.code || "")) {
+          ui.line("Cloud preparation is not available (" + (r.data.error || r.status) + "); preparing on this computer instead.");
+          ui.end(); prepareLocally(src.file); return;
+        }
+        ui.end(); ui.line(r.data.error || "Cloud preparation failed.", "tel-failed"); showError(err, r.data); return;
+      }
+      var job = { id: r.data.job_id, name: src.file ? src.file.name : src.url };
+      remember(job);
+      if (!src.file) { ui.line("Sent to the cloud."); watchCloud(job, ui); return; }
+      ui.line("Uploading " + fmtSize(src.file.size) + " to cloud storage…");
+      fetch(r.data.upload_url, { method: "PUT", body: src.file, headers: { "content-type": src.file.type || "application/octet-stream" } }).then(function (u) {
+        if (!u.ok) throw new Error("storage answered HTTP " + u.status);
+        return cpFetch("/api/prep/jobs/" + enc(job.id) + "/start", { method: "POST" });
+      }).then(function (s) {
+        if (!s.ok) { remember(null); ui.end(); ui.line(s.data.error || "The cloud did not start.", "tel-failed"); showError(err, s.data); return; }
+        ui.line("Uploaded. The cloud is preparing it.");
+        watchCloud(job, ui);
+      }, function (e) {
+        remember(null); ui.end(); ui.line("Upload failed: " + e.message, "tel-failed");
+        showError(err, { error: "The upload to cloud storage failed (" + e.message + "). Try again.", code: "cloud_upload_failed" });
+      });
+    });
+  }
+  function watchCloud(job, ui) {
+    var seen = 0, err = $("svc-upload-error");
+    clearTimeout(CLOUD_POLL);
+    var tick = function () {
+      if ($("view-new").hidden || $("wiz-step-data").hidden) return;      // left the page: resumes on return
+      cpFetch("/api/prep/jobs/" + enc(job.id)).then(function (r) {
+        if (!r.ok) { if (r.status === 404) { remember(null); ui.end(); return; } CLOUD_POLL = setTimeout(tick, 3000); return; }
+        var j = r.data;
+        (j.log || []).slice(seen).forEach(function (ev) { ui.line((PHASES[ev.phase] && ev.phase !== "loading" ? PHASES[ev.phase] + (ev.message ? ": " : "") : "") + (ev.message || ""), null, ev.t); });
+        seen = (j.log || []).length;
+        if (j.status === "failed") { remember(null); ui.end(); ui.line(j.error || "Cloud preparation failed.", "tel-failed"); showError(err, { error: j.error, code: j.code }); return; }
+        if (j.status !== "done") { CLOUD_POLL = setTimeout(tick, 1500); return; }
+        ui.line("Prepared " + String(j.set_name).split("/").pop() + " in the cloud. Sending the prepared flows to the GPU server…");
+        cloudImport(j).then(function (imp) {
+          ui.end();
+          if (!imp.ok) { ui.line("The GPU server did not accept it: " + (imp.data.error || imp.status), "tel-failed"); showError(err, imp.data); return; }
+          remember(null);
+          ui.line("Stored on the GPU server as " + imp.data.prepared_set + ".", "tel-done");
+          location.hash = "#/new/models?set=" + enc(imp.data.prepared_set);
+        });
+      });
+    };
+    tick();
+  }
+  function cloudImport(j) {
+    return Promise.all(j.files.map(function (n) {
+      return cpFetch("/api/prep/jobs/" + enc(j.job_id) + "/files/" + n, { raw: true }).then(function (r) { return r && r.ok ? r.blob() : null; });
+    })).then(function (blobs) {
+      var fd = new FormData(), field = { "manifest.json": "manifest", "features.csv": "features", "labels.csv": "labels" };
+      for (var i = 0; i < j.files.length; i++) {
+        if (!blobs[i]) return { ok: false, data: { error: "Could not read " + j.files[i] + " from the cloud." } };
+        fd.append(field[j.files[i]], blobs[i], j.files[i]);
+      }
+      return api("/api/prepared/import", { method: "POST", body: fd });
+    });
+  }
+  // a cloud preparation started earlier (the page was reloaded or left): follow it again
+  function resumeCloud() {
+    var job = null;
+    try { job = JSON.parse(localStorage.getItem(CLOUD_KEY) || "null"); } catch (e) { job = null; }
+    if (!job || !job.id || !CP || !$("svc-local-prep").hidden) return;
+    var ui = prepLogUi();
+    ui.start(); ui.line("Following the cloud preparation of " + job.name + " started earlier.");
+    watchCloud(job, ui);
   }
   var drop = $("svc-drop");
   ["dragover", "dragenter"].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add("over"); }); });
@@ -5280,7 +5382,7 @@
       if (SETTINGS) $("svc-other-attack").checked = !!SETTINGS.default_other_attack;
       var L = CONFIG.limits;
       if (L) {
-        $("svc-limits").innerHTML = "Prepared on this computer: any size your browser can read. On the GPU server: up to " + esc(L.max_upload_label) + "; bigger files: Import from a link." +
+        $("svc-limits").innerHTML = "Maximum upload: " + esc(L.max_upload_label) + "; bigger files: Import from a link." +
           infoI("For larger files use Import from a link (up to " + L.max_url_download_label + "). Large inputs are sampled across the whole file.");
         $("svc-url-limits").textContent = "A direct download link, up to " + L.max_url_download_label + ".";
       }

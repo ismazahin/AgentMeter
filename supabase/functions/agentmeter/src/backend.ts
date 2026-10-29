@@ -4,7 +4,7 @@ import { requireUser } from "./auth.ts";
 import { hmacHex, sha256Hex, timingSafeEqual } from "./crypto.ts";
 import { loadLimits } from "./settings.ts";
 import { loadModelState } from "./models.ts";
-import { type Env, fail, intVar, json, nowIso, nowS } from "./util.ts";
+import { type Env, cloudPrepConfigured, fail, intVar, json, nowIso, nowS } from "./util.ts";
 
 export const HEARTBEAT_S = 60;
 export const MAX_SKEW_S = 120;
@@ -12,6 +12,11 @@ export const MAX_SKEW_S = 120;
 /** Verify X-AM-Timestamp / X-AM-Signature = hex HMAC(BACKEND_SECRET, method\npath\nts\nsha256(body)).
  *  Returns the raw body bytes. Writes are idempotent, so a replay inside the window changes nothing. */
 export async function verifyBackend(req: Request, env: Env, maxBytes = 30 * 1024 * 1024): Promise<Uint8Array> {
+  return verifySigned(req, env.BACKEND_SECRET, maxBytes, "backend");
+}
+
+/** The same check with another shared secret (the cloud preparation service signs with its own). */
+export async function verifySigned(req: Request, secret: string, maxBytes: number, who: string): Promise<Uint8Array> {
   const ts = req.headers.get("X-AM-Timestamp") || "";
   const sig = req.headers.get("X-AM-Signature") || "";
   const t = parseInt(ts, 10);
@@ -21,8 +26,8 @@ export async function verifyBackend(req: Request, env: Env, maxBytes = 30 * 1024
   const body = new Uint8Array(await req.arrayBuffer());
   if (body.length > maxBytes) fail(413, "too_large", "body too large");
   const path = new URL(req.url).pathname;
-  const expect = await hmacHex(env.BACKEND_SECRET, `${req.method}\n${path}\n${ts}\n${await sha256Hex(body)}`);
-  if (!timingSafeEqual(expect, sig.toLowerCase())) fail(401, "bad_signature", "backend signature invalid");
+  const expect = await hmacHex(secret, `${req.method}\n${path}\n${ts}\n${await sha256Hex(body)}`);
+  if (!timingSafeEqual(expect, sig.toLowerCase())) fail(401, "bad_signature", `${who} signature invalid`);
   return body;
 }
 
@@ -97,6 +102,8 @@ export async function backendState(env: Env) {
     online, url: online ? r!.url : null, mode: r?.mode || null, gpu: r?.gpu_json ? JSON.parse(r.gpu_json) : null,
     version: r?.version || null, last_heartbeat_at: r?.last_heartbeat_at || null, registered_at: r?.registered_at || null,
     offline_after_s: after,
+    cloud_prep: cloudPrepConfigured(env),
+    cloud_prep_max_mb: cloudPrepConfigured(env) ? intVar(env.CLOUD_PREP_MAX_MB, 50) : null,
   };
 }
 

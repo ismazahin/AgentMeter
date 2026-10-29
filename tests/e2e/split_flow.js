@@ -49,7 +49,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     // 2. Prepare (upload) -> prepared set
     await p.setInputFiles('#svc-file', REPO + '/data/sample_csv/cicids2017_sample.csv');
     await p.fill('#svc-max-flows', '12');
-    await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
+    await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
     await p.waitForSelector('#svc-summary-card', { timeout: 60000 });
     log(/^#\/new\/models\?prep=/.test(await p.evaluate(() => location.hash)), 'cross-origin data preparation -> Models step with the data ready');
     const dl = await p.$$eval('#wiz-downloads a', as => as.map(a => a.href));
@@ -91,7 +91,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     if (URL_BASE) {
       await p.goto(FRONT + '#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
       await p.click('#tab-src-url'); await p.fill('#svc-url', URL_BASE + '/big.csv'); await p.fill('#svc-max-flows', '10');
-      await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
+      await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
       await p.waitForSelector('#svc-summary-card', { timeout: 180000 });
       await p.click('#svc-summary-card summary');
       log(/Imported from/.test(await p.textContent('#svc-summary-card')), 'URL import works cross-origin');

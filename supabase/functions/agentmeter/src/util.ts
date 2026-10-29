@@ -16,6 +16,12 @@ export interface Env {
   BACKEND_OFFLINE_AFTER_S?: string;
   RESULTS_INLINE_MAX?: string;    // bytes of session_results.json kept in the row (larger: Storage)
   ALLOW_HTTP_BACKEND?: string;
+  CLOUD_PREP_URL?: string;         // the cloud preparation service (cloudprep/, Google Cloud Run)
+  CLOUD_PREP_SECRET?: string;      // signs jobs to it and its reports back (the same value on both)
+  CLOUD_PREP_MAX_MB?: string;      // largest upload prepared in the cloud (default 50: a Storage file)
+  CLOUD_PREP_MAX_URL_MB?: string;  // largest linked file the cloud downloads (default 2048: it is held in memory)
+  PUBLIC_BASE_URL?: string;        // this API's public URL (default: SUPABASE_URL + /functions/v1/agentmeter)
+  SUPABASE_URL?: string;
 }
 
 export class HttpError extends Error {
@@ -77,3 +83,7 @@ export const intVar = (v: string | undefined, d: number) => {
   const n = parseInt(v || "", 10);
   return Number.isFinite(n) ? n : d;
 };
+
+/** Cloud data preparation is on when the service's URL and a long enough shared secret are set. */
+export const cloudPrepConfigured = (env: Env) =>
+  !!env.CLOUD_PREP_URL && /^https?:\/\//.test(env.CLOUD_PREP_URL) && (env.CLOUD_PREP_SECRET || "").length >= 16;

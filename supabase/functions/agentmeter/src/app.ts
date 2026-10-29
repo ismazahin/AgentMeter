@@ -7,6 +7,7 @@ import { getBackend, heartbeat, register } from "./backend.ts";
 import { authorize } from "./runs.ts";
 import { backendGetFile, backendListSessions, backendSetIdentity, compareCandidatesRoute, compareMergedRoute, compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus, commitUpload, leaderboardRoute, listSessions, patchSession, putFile, putResults, putSummary, uploadUrl } from "./sessions.ts";
 import { telegramTest } from "./notify.ts";
+import { createPrepJob, getPrepFile, getPrepJob, prepEvents, startPrepJob } from "./prep.ts";
 import { getLimits, getSettings, putLimits, putSettings } from "./settings.ts";
 import { backendModelState, backendModelVerified, getAdminModels, putAdminModels } from "./models.ts";
 import { type Env, corsHeaders, fail, json } from "./util.ts";
@@ -38,6 +39,12 @@ const ROUTES: [string, RegExp, Handler][] = [
   // backend state + runs
   ["GET", /^\/api\/backend$/, getBackend],
   ["POST", /^\/api\/runs\/authorize$/, authorize],
+  // cloud data preparation while the GPU benchmarks (prep.ts; cloudprep/)
+  ["POST", /^\/api\/prep\/jobs$/, createPrepJob],
+  ["GET", /^\/api\/prep\/jobs\/([0-9a-f]{32})$/, getPrepJob],
+  ["POST", /^\/api\/prep\/jobs\/([0-9a-f]{32})\/start$/, startPrepJob],
+  ["GET", /^\/api\/prep\/jobs\/([0-9a-f]{32})\/files\/(manifest\.json|features\.csv|labels\.csv)$/, getPrepFile],
+  ["POST", /^\/api\/prep\/jobs\/([0-9a-f]{32})\/events$/, prepEvents],
   // sessions (read: any user; delete: owner or admin)
   ["GET", /^\/api\/sessions$/, listSessions],
   ["GET", /^\/api\/sessions\/([^/]+)$/, getSession],

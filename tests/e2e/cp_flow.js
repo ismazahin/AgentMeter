@@ -186,7 +186,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     // 5. a mock session through the wizard; defaults applied
     await p.goto(APP + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
     log(await p.inputValue('#svc-max-flows') === '4', 'default flows prefilled from Settings');
-    await p.setInputFiles('#svc-file', CSV); await p.evaluate(() => { const r = document.getElementById('svc-prep-server'); if (r) r.checked = true; }); await p.click('#svc-upload-btn');   // server-side preparation (prep_flow.js covers this computer)
+    await p.setInputFiles('#svc-file', CSV); await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
     await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
     await p.waitForSelector('#svc-models input');
     const checked = await p.$$eval('#svc-models input:checked', xs => xs.map(x => x.value).sort());

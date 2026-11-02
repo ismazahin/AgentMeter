@@ -292,6 +292,9 @@ async function frameOf(p) {
   const exTxt = await p.textContent('#cmp-excluded-table');
   log(exTxt.includes(job2.slice(-8)) || /different flows/.test(exTxt), 'Compare: the PCAP session is listed as left out');
   log(/different flows/.test(exTxt), 'Compare: with the reason (different flows)');
+  log((await p.$$('#cmp-list input:checked')).length === offered.length, 'Compare: every model of the setup is ticked by default (no upper limit)');
+  await p.click('#cmp-clear'); log(await p.isDisabled('#cmp-go'), 'Compare: Clear unticks every model');
+  await p.click('#cmp-all'); log(/Compare 2 models/.test(await p.textContent('#cmp-go')), 'Compare: Select all; the button counts the models');
   await p.uncheck('#cmp-list input >> nth=1');
   log(await p.isDisabled('#cmp-go'), 'Compare: one model is not enough');
   await p.check('#cmp-list input >> nth=1');
@@ -300,7 +303,12 @@ async function frameOf(p) {
   log(/Like-for-like comparison/.test(await p.textContent('#cmp-validity')) && /2 models/.test(await p.textContent('#cmp-validity')) && /only the model differs/.test(await p.textContent('#cmp-validity')),
       'Compare: like-for-like, 2 models, only the model differs');
   log((await p.$$('#cmp-table thead th')).length === 3 && (await p.$$('#cmp-table tbody tr')).length >= 15, 'Compare: every metric (+ SAW, accuracy), one column per model (not per run)');
-  log(/latest is shown/.test(await p.textContent('#cmp-rep-note')), 'Compare: says the latest run of a repeated model is shown');
+  log(/latest of 2 runs/.test(await p.textContent('#cmp-table thead')), 'Compare: a model run twice is one column, marked "latest of 2 runs"');
+  const rank = await p.$$eval('#cmp-rank-table tbody tr', r => r.map(x => x.children[0].textContent));
+  log(rank.join(',') === '1,2' && !!(await p.$('#cmp-rank-table td.best')), 'Compare: a ranking with one row per model (' + rank + '), best marked');
+  log((await p.$$('#cmp-bars .hbar')).length === 2, 'Compare: a bar per model for the chosen measure');
+  await p.selectOption('#cmp-bar-metric', 'wh_per_flow'); await p.waitForSelector('#cmp-bars-none');
+  log(true, 'Compare: a measure the demo never records says so');
   log((await p.$$('#cmp-tiles .tile')).length === 4, 'Compare › Overview: who is fastest / least VRAM / fewest tokens / top SAW');
   log(!(await p.$('#cmp-mode')), 'Compare: no per-run mode (the same model twice belongs to Repeatability)');
   await p.click('#ctab-performance');

@@ -247,6 +247,12 @@
   .validity.locked { margin: 12px 0 0; }
   .lk-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
   .lk-ok { color: var(--success); font-weight: 700; }
+  .hbars { display: grid; gap: 6px; margin-top: 8px; }
+  .hbar { display: grid; grid-template-columns: minmax(120px, 220px) 1fr 90px; gap: 10px; align-items: center; font-size: 13px; }
+  .hb-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hb-t { background: var(--border); border-radius: 4px; height: 14px; overflow: hidden; }
+  .hb-f { display: block; height: 100%; background: var(--series-1); border-radius: 4px; } .hb-f.lead { background: var(--success); }
+  .hb-v { text-align: right; }
   .rep-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--border-2); white-space: nowrap; }
   .rep-badge.stable { color: var(--success); border-color: var(--success); background: var(--success-soft); }
   .rep-badge.varies { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
@@ -915,7 +921,7 @@
       <h2>4. Sessions, Compare and Leaderboard</h2>
       <ul class="guide-steps">
         <li><a href="#/sessions">Sessions</a> lists every run. Search by text, filter by tag, open a session, add a note, or delete a finished session (with an account).</li>
-        <li><a href="#/compare">Compare</a> puts different models side by side on one setup: choose the data set, GPU and settings, then tick 2 to 4 models measured on it. Sessions on other flows, GPUs or settings are listed with the reason they are left out.</li>
+        <li><a href="#/compare">Compare</a> puts different models side by side on one setup: choose the data set, GPU and settings, then tick the models measured on it — as many as you like (every one is ticked by default), so models from many sessions can be ranked together. Sessions on other flows, GPUs or settings are listed with the reason they are left out.</li>
         <li><a href="#/leaderboard">Leaderboard</a> ranks models across all sessions, overall or per GPU and data setup.</li>
         <li><a href="#/trends">Repeatability</a> checks that the same model on the same setup gives the same result each time it runs: each model gets a verdict — Stable, Varies or Moved — after 3 runs. To collect such runs automatically, open a finished session and use <b>Repeat on a schedule</b> on its Overview tab. In short: Compare = different models, same setup, one moment; Repeatability = the same model, same setup, over time.</li>
       </ul>
@@ -5075,7 +5081,8 @@
       if (first) {
         CMP.key = target ? INSIGHTS.setupKey(target) : null;
         if (target && !CMP.key) CMP.old = target;
-        if (!CMP.want.length) CMP.given.forEach(function (id) { ((cmpRow(id) || {}).models || []).forEach(function (m) { if (CMP.want.indexOf(m) < 0) CMP.want.push(m); }); });
+        // no models= in the link: every model of the setup (Compare is for ranking many models at once)
+        if (!CMP.want.length && CMP.key) CMP.want = ((CMP.setups.filter(function (g) { return g.key === CMP.key; })[0] || {}).models || []).map(function (m) { return m.model; });
       }
       var off = ids.filter(function (id) { var s = cmpRow(id); return !s || !CMP.key || INSIGHTS.setupKey(s) !== CMP.key; });
       varsBar($("cmp-vars"), CMP.rows, fillSetups);
@@ -5127,21 +5134,24 @@
         (last.run_name ? '<div class="actions"><a class="btn" href="#/new/models?set=' + enc(last.run_name) + '">Benchmark these flows again</a></div>' : "") + '</div>';
     } else {
       var want = CMP.want.filter(function (m) { return g.models.some(function (x) { return x.model === m; }); });
-      if (!want.length) want = g.models.slice(0, 4).map(function (x) { return x.model; });
-      box.innerHTML = '<fieldset style="border:0;padding:0;margin:12px 0 0"><legend class="small" style="font-weight:600"><span class="step-n">2</span> Models measured on this setup (' + g.models.length + ') — tick 2 to 4</legend>' +
+      if (!want.length) want = g.models.map(function (x) { return x.model; });              // every model, by default
+      box.innerHTML = '<fieldset style="border:0;padding:0;margin:12px 0 0"><legend class="small" style="font-weight:600"><span class="step-n">2</span> Models measured on this setup (' + g.models.length + ') — tick 2 or more</legend>' +
+        '<div class="row" style="margin:4px 0 8px;gap:8px"><button type="button" class="btn small-btn" id="cmp-all">Select all</button><button type="button" class="btn small-btn" id="cmp-clear">Clear</button></div>' +
         '<div class="models" id="cmp-list">' + g.models.map(function (m) {
           var on = want.indexOf(m.model) >= 0;
           return '<label class="model"><input type="checkbox" value="' + esc(m.model) + '"' + (on ? " checked" : "") + '><span><b>' + esc(short(m.model)) + '</b>' + extraTag(m.model) +
             '<br><span class="muted small">' + (m.runs.length === 1 ? "1 run · " + esc(fmtDate(m.runs[0].at)) : m.runs.length + ' runs · latest ' + esc(fmtDate(m.runs[0].at)) +
               ' · <a href="' + repLink(m.model, g.key) + '" data-rep-link>how they vary</a>') + '</span></span></label>';
         }).join("") + '</div></fieldset>' +
-        '<p class="small muted" id="cmp-pick-note" style="margin:6px 0 0">A model measured more than once is shown once, from its latest run. How its runs differ is on <a href="#/trends">Repeatability</a>.</p>';
+        '<p class="small muted" id="cmp-pick-note" style="margin:6px 0 0">Each model is one row, from its latest run on this setup. Whether a model gives the same result every time is on <a href="#/trends">Repeatability</a>.</p>';
       var sync = function () {
         var on = box.querySelectorAll("input:checked").length;
-        box.querySelectorAll("input").forEach(function (x) { x.disabled = !x.checked && on >= 4; });
         $("cmp-go").disabled = on < 2;
+        $("cmp-go").textContent = on >= 2 ? "Compare " + on + " models" : "Compare";
       };
       box.querySelectorAll("input").forEach(function (x) { x.addEventListener("change", sync); });
+      $("cmp-all").addEventListener("click", function () { box.querySelectorAll("input").forEach(function (x) { x.checked = true; }); sync(); });
+      $("cmp-clear").addEventListener("click", function () { box.querySelectorAll("input").forEach(function (x) { x.checked = false; }); sync(); });
       sync();
     }
     var ex = INSIGHTS.excludedFrom(g, CMP.rows);
@@ -5178,6 +5188,7 @@
       }
       ids.push(other.session_id);
     }
+    if (ids.length > 20) { showError($("cmp-error"), { error: "These models come from " + ids.length + " sessions; up to 20 sessions can be merged at once. Untick a few models." }); return; }
     runMerged(ids, pick);
   }
   $("cmp-form").addEventListener("submit", function (ev) {
@@ -5209,7 +5220,8 @@
     d.runs.forEach(function (run, i) {
       if (CMP.pick[run.model] !== run.session || seen[run.model]) return;
       seen[run.model] = true;
-      cols.push({ head: short(run.model), model: run.model, sub: fmtDate(run.created_at).slice(0, 16) + (run.owner ? " · " + run.owner : ""), session: run.session,
+      var g = cmpSetup(), mr = g && g.models.filter(function (x) { return x.model === run.model; })[0], n = mr ? mr.runs.length : 1;
+      cols.push({ head: short(run.model), model: run.model, runs: n, sub: fmtDate(run.created_at).slice(0, 16) + (n > 1 ? " · latest of " + n + " runs" : ""), session: run.session,
                   val: function (k) { var row = d.rows.filter(function (x) { return x.metric === k; })[0]; return row ? row.values[i] : null; } });
     });
     return cols;
@@ -5244,31 +5256,65 @@
              ["Fewest tokens", pick("mean_tokens_per_flow", true)], ["Top SAW score (efficiency)", pick("saw_eff_composite_100", false)]];
     return '<div class="tiles" id="cmp-tiles">' + t.map(function (x) { return '<div class="tile"><div class="k">' + x[0] + '</div><div class="v" style="font-size:18px">' + esc(x[1]) + '</div></div>'; }).join("") + '</div>';
   }
+  // many models at once: one row per model, ranked by the efficiency SAW score
+  var CMP_RANK = [["saw_eff_composite_100", "SAW score (efficiency)"], ["mean_latency_s", "Latency / flow"], ["p95_latency_s", "p95 latency"], ["mean_peak_vram_mb", "Working VRAM"],
+                  ["mean_tokens_per_flow", "Tokens / flow"], ["cost_per_1k_flows_usd", "Cost / 1k flows"], ["wh_per_flow", "Energy / flow"]];
+  function cmpDef(k) { return CMP.data.rows.filter(function (x) { return x.metric === k; })[0]; }
+  function cmpFmt(row) { return row.unit === "score" ? function (x) { return fmtNum(x, 1); } : (METRIC_FMT[row.unit] || function (x) { return fmtNum(x, 2); }); }
+  function cmpRanking() {
+    var cols = cmpCols(), defs = CMP_RANK.map(function (r) { return [r, cmpDef(r[0])]; }).filter(function (x) { return x[1]; });
+    var saw = function (c) { var v = c.val("saw_eff_composite_100"); return v == null ? -Infinity : v; };
+    var lat = function (c) { var v = c.val("mean_latency_s"); return v == null ? Infinity : v; };
+    var order = cols.slice().sort(function (a, b) { return saw(b) - saw(a) || lat(a) - lat(b) || a.head.localeCompare(b.head); });   // a tie on SAW: the faster first
+    var best = {};
+    defs.forEach(function (x) { var vals = order.map(function (c) { return c.val(x[0][0]); }); best[x[0][0]] = bestIdx(vals, x[1].lower_is_better); });
+    return '<div class="card"><h2>Ranking (' + cols.length + ' models)</h2><p class="muted small" style="margin-top:0">Ordered by the SAW score (efficiency), then by latency on a tie; the best value in each column is marked.</p>' +
+      '<div class="table-wrap"><table id="cmp-rank-table"><thead><tr><th class="num">#</th><th>Model</th>' + defs.map(function (x) { return '<th class="num">' + esc(x[0][1]) + '</th>'; }).join("") + '</tr></thead><tbody>' +
+      order.map(function (c, i) {
+        return '<tr><td class="num">' + (saw(c) === -Infinity ? "—" : i + 1) + '</td><td><b>' + esc(c.head) + '</b>' + extraTag(c.model) + '<br><span class="small muted"><a href="#/session/' + enc(c.session) + '" title="' + esc(c.session) + '">' +
+          esc(shortId(c.session)) + '</a>' + (c.runs > 1 ? ' · latest of ' + c.runs + ' runs' : "") + '</span></td>' + defs.map(function (x) {
+            var v = c.val(x[0][0]);
+            return '<td class="num' + (best[x[0][0]].indexOf(i) >= 0 ? " best" : "") + '">' + (v == null ? '<span class="muted">—</span>' : cmpFmt(x[1])(v)) + '</td>';
+          }).join("") + '</tr>';
+      }).join("") + '</tbody></table></div></div>';
+  }
+  function cmpBars() {
+    var defs = CMP_RANK.filter(function (r) { return cmpDef(r[0]); });
+    if (!defs.some(function (r) { return r[0] === CMP.bar; })) CMP.bar = "mean_latency_s";
+    var row = cmpDef(CMP.bar), f = cmpFmt(row);
+    var items = cmpCols().map(function (c) { return { c: c, v: c.val(CMP.bar) }; }).filter(function (x) { return x.v != null; })
+      .sort(function (a, b) { return row.lower_is_better ? a.v - b.v : b.v - a.v; });
+    var max = Math.max.apply(null, items.map(function (x) { return Math.abs(x.v); }).concat([0])) || 1;
+    return '<div class="card" id="cmp-bars-card"><div class="row" style="margin-top:0;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap"><h2 style="margin:0">Side by side</h2>' +
+      '<div class="field" style="margin:0"><label for="cmp-bar-metric">Measure</label><select id="cmp-bar-metric">' + defs.map(function (r) {
+        return '<option value="' + r[0] + '"' + (r[0] === CMP.bar ? " selected" : "") + '>' + esc(r[1]) + '</option>'; }).join("") + '</select></div></div>' +
+      '<p class="muted small">' + (row.lower_is_better ? "Lower is better" : "Higher is better") + '; best first.</p>' +
+      (items.length ? '<div id="cmp-bars" class="hbars">' + items.map(function (x, i) {
+        return '<div class="hbar"><span class="hb-l">' + esc(x.c.head) + '</span><span class="hb-t"><span class="hb-f' + (i === 0 && items.length > 1 ? " lead" : "") + '" style="width:' +
+          Math.max(1, 100 * Math.abs(x.v) / max).toFixed(1) + '%"></span></span><span class="hb-v num">' + esc(f(x.v)) + '</span></div>';
+      }).join("") + '</div>' : '<p class="muted" id="cmp-bars-none">Not measured for these models (e.g. demo runs have no GPU energy or price).</p>') + '</div>';
+  }
   function renderMerged() {
     var d = CMP.data, st = d.setup, g = cmpSetup(), cols = cmpCols();
     var tabs = CMP_TABS;
     if (!tabs.some(function (t) { return t[0] === CMP.tab; })) CMP.tab = "overview";
     var body;
     if (CMP.tab === "overview") {
-      body = cmpTiles() + '<div class="card"><h2>Models</h2>' +
-        cmpTable("cmp-overview-table", ["mean_latency_s", "mean_peak_vram_mb", "mean_tokens_per_flow", "cost_per_1k_flows_usd", "saw_eff_composite_100"]) +
-        '<p class="small muted">Each column is one run: ' + cols.map(function (c) { return esc(c.head) + ' from <a href="#/session/' + enc(c.session) + '" title="' + esc(c.session) + '">' + esc(shortId(c.session)) + '</a>'; }).join(" · ") + '.</p></div>';
+      body = cmpTiles() + cmpRanking() + cmpBars();
     } else {
       body = '<div class="card">' + cmpTable("cmp-" + CMP.tab + "-table", CMP_GROUPS[CMP.tab]) + '</div>';
     }
-    var reps = g ? g.models.filter(function (m) { return CMP.pick[m.model] && m.runs.length > 1; }) : [];
     $("cmp-result").innerHTML =
       '<div class="validity ok" id="cmp-validity" role="status"><strong>Like-for-like comparison</strong> · ' + cols.length + ' models · same flows (' +
         esc(String(st.input_type || "").toUpperCase()) + ', ' + fmtNum(st.n_flows) + ' flows, set <span class="mono">' + esc(String(st.prepared_set_sha256).slice(0, 12)) + '</span>), same GPU (' + esc(st.gpu) + '), same settings · only the model differs' +
-        infoI(d.note) + '</div>' +
-      (reps.length ? '<p class="small muted" id="cmp-rep-note">' + reps.map(function (m) { return esc(short(m.model)) + ' has ' + m.runs.length + ' runs on this setup'; }).join("; ") +
-        ' — the latest is shown. <a href="' + repLink(reps[0].model, g.key) + '">See how the runs vary on Repeatability</a>.</p>' : "") +
+        infoI("Every model answered the same flows on the same GPU with the same settings, so the differences are the models'. Each model is one entry, from its latest run on this setup. Values are the stored ones; the best is marked.") + '</div>' +
       '<div class="tabs" role="tablist" aria-label="Comparison sections" id="cmp-tabs">' + tabs.map(function (t) {
         return '<a role="tab" href="#" data-ctab="' + t[0] + '" id="ctab-' + t[0] + '" aria-selected="' + (t[0] === CMP.tab) + '">' + esc(t[1]) + '</a>';
       }).join("") + '</div>' + body +
       '<details class="info"><summary>All metrics</summary>' + cmpTable("cmp-table", d.rows.map(function (x) { return x.metric; })) + '</details>' +
       '<p class="muted small">View only: stored scores never change.</p>';
     $("cmp-result").querySelectorAll("[data-ctab]").forEach(function (a) { a.addEventListener("click", function (ev) { ev.preventDefault(); CMP.tab = a.getAttribute("data-ctab"); renderMerged(); }); });
+    if ($("cmp-bar-metric")) $("cmp-bar-metric").addEventListener("change", function () { CMP.bar = this.value; renderMerged(); });
   }
 
   // ---------- LEADERBOARD ----------

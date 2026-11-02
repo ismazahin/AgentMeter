@@ -64,14 +64,14 @@ Open the file directly in a browser:
 
 ```bash
 # macOS
-open dashboard/index.html
+open web/analysis.html
 # Linux
-xdg-open dashboard/index.html
+xdg-open web/analysis.html
 # Windows
-start dashboard/index.html
+start web/analysis.html
 ```
 
-Or just double-click `dashboard/index.html`. It works fully offline over
+Or just double-click `web/analysis.html` (the page and its scripts live in `web/`; this folder keeps the baseline data). It works fully offline over
 `file://` — SAW table, sliders/presets, and per-agent chart all function.
 
 It opens on the **bundled SAMPLE** (amber banner). To view your real results,

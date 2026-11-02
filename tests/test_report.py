@@ -1,6 +1,6 @@
 """Phase 17 — comparison workspace + report export tests (CPU).
 
-Runs dashboard/report.js under node against 2-3 sample analysis.json objects and
+Runs web/report.js under node against 2-3 sample analysis.json objects and
 checks: the comparison assembles aligned rows across sessions; CSV export is exact
 from the source analysis.json; nothing writes to the locked study DB.
 """
@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-REPORT_JS = REPO / "dashboard" / "report.js"
+REPORT_JS = REPO / "web" / "report.js"
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node not available")
 

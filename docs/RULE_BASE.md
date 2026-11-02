@@ -40,7 +40,7 @@ no later stage can change an earlier stage's result.
     also be significant (Kruskal-Wallis p < 0.05). One model wins ≥ 1 efficiency metric
     and loses none → "more resource-efficient". Each wins one → "mixed". Otherwise →
     "tie". Accuracy is reported beside the verdict and is never folded into it.
-  - *Recommendation text* (`brief.py`, a line-for-line mirror of `dashboard/report.js`,
+  - *Recommendation text* (`brief.py`, a line-for-line mirror of `web/report.js`,
     checked by a parity test).
 - **Outputs:** `session_results.json` keys `per_model`, `phase8` (SAW table, ranks,
   tiers), `sensitivity`, `statistics`, `comparison`, `relative_comparison` (with the

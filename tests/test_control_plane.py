@@ -479,9 +479,11 @@ def test_pbkdf2_iterations_are_documented():
 # the front-end on Cloudflare Pages
 # ---------------------------------------------------------------------------
 def test_pages_ships_the_analysis_page_and_its_scripts():
-    for a, b in (("web/analysis.html", "dashboard/index.html"), ("web/saw.js", "dashboard/saw.js"),
-                 ("web/report.js", "dashboard/report.js"), ("web/insights.js", "dashboard/insights.js")):
-        assert (PROJECT_ROOT / a).read_bytes() == (PROJECT_ROOT / b).read_bytes(), f"cp {b} {a}"
+    # one copy of each: web/ (Pages and the backend serve the same files; no mirror in dashboard/)
+    for f in ("analysis.html", "saw.js", "report.js", "insights.js"):
+        assert (PROJECT_ROOT / "web" / f).is_file()
+    for f in ("index.html", "saw.js", "report.js", "insights.js"):
+        assert not (PROJECT_ROOT / "dashboard" / f).exists(), f"dashboard/{f} is a stale second copy: web/ is the source"
     cfg = json.loads((PROJECT_ROOT / "web" / "config.json").read_text())
     # empty (development) or your deployed control plane — always https, never a secret
     assert cfg["control_plane"] == "" or re.fullmatch(r"https://[a-z0-9.-]+(/[a-z0-9/_-]*)?", cfg["control_plane"]), cfg["control_plane"]

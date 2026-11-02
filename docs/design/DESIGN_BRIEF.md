@@ -180,7 +180,7 @@ Demo screenshots show placeholders; real sessions look like this (session
 
 1. **Static, no build step.** The front-end is `web/index.html` (≈3,000 lines: HTML, one
    `<style>`, inline `<script>`s), `web/analysis.html` (embedded analysis page), `web/report.js`
-   (must stay byte-identical to `dashboard/report.js`; `tests/test_frontend_split.py`),
+   (one copy in `web/`, served by Pages and the backend),
    `web/saw.js`, `web/config.json`. Deployed to **Cloudflare Pages** as plain files.
 2. **Strict Content-Security-Policy** (`web/_headers`, generated): `script-src 'self'` plus the
    SHA-256 of each inline script. **After any change to an inline `<script>`, run

@@ -1,6 +1,6 @@
 """Phase 42: PDF benchmark report for a finished service run.
 
-  * brief.py is a faithful mirror of dashboard/report.js recommendation() and
+  * brief.py is a faithful mirror of web/report.js recommendation() and
     optimisationHint(): checked against report.js under node (skips without node).
   * GET /api/jobs/<id>/report.pdf returns a real PDF whose text carries the input
     summary, rule-base, per-metric winners, verdict, recommendation and caveats,
@@ -37,7 +37,7 @@ SAMPLE_CSV = PROJECT_ROOT / "data" / "sample_csv" / "cicids2017_sample.csv"
 SAMPLE_PCAP = PROJECT_ROOT / "data" / "sample_pcaps" / "sample_small.pcap"
 DATASET = PROJECT_ROOT / "data" / "cicids_full_300.csv"
 DATASET_SHA256 = "ef1b13787e2c87602033f54d985355515408b4f930c9648cd1fb29cb540392b5"
-REPORT_JS = PROJECT_ROOT / "dashboard" / "report.js"
+REPORT_JS = PROJECT_ROOT / "web" / "report.js"
 NODE = shutil.which("node")
 
 

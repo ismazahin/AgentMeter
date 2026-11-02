@@ -45,14 +45,14 @@ from agentmeter import envtools, vast_shutdown  # noqa: E402
 
 log = logging.getLogger("agentmeter.serve")
 
-DASHBOARD_DIR = REPO_ROOT / "dashboard"     # the read-only baseline page
+DASHBOARD_DIR = REPO_ROOT / "dashboard"     # the baseline's data (sample_analysis.json); its page and scripts live in web/
 WEB_DIR = REPO_ROOT / "web"                 # the static service front-end
 # Only these baseline-page assets are servable (no arbitrary file access).
 # analysis.json: a canonical results file dropped in dashboard/ auto-loads (gitignored).
 _PREP_ASSETS = {"prep-worker.js", "agentmeter-prep.zip", "wheels/scapy-2.8.0-py3-none-any.whl",
                 "wheels/cicflowmeter-0.2.0-py3-none-any.whl"}
-_ALLOWED_ASSETS = {"index.html", "saw.js", "report.js", "insights.js", "sample_analysis.json", "README.md",
-                   "analysis.json"}
+_ALLOWED_ASSETS = {"saw.js", "report.js", "insights.js", "sample_analysis.json", "README.md", "analysis.json"}
+_WEB_SCRIPTS = {"saw.js", "report.js", "insights.js"}         # served from web/ (no second copy in dashboard/)
 # Requests that must not count as "activity" for the idle cost guard: a front-end
 # polling /health would otherwise keep a rented GPU alive forever.
 _PASSIVE_PATHS = {"/health", "/config.json"}
@@ -217,7 +217,7 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
     @app.route("/analysis", methods=["GET"])
     @app.route("/baseline", methods=["GET"])
     def analysis_page():
-        return send_from_directory(dashboard_dir, "index.html")
+        return send_from_directory(WEB_DIR, "analysis.html")      # the one copy (also on Pages)
 
     @app.route("/prep/<path:asset>", methods=["GET"])
     def prep_asset(asset):
@@ -239,6 +239,8 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
     def dashboard_asset(asset):
         if asset not in _ALLOWED_ASSETS:
             return jsonify({"error": "not found"}), 404
+        if asset in _WEB_SCRIPTS:                                  # one copy, in web/ (Pages serves the same files)
+            return send_from_directory(WEB_DIR, asset)
         return send_from_directory(dashboard_dir, asset)
 
     # Hugging Face Hub metadata (external CONTEXT: parameters, licence, downloads,

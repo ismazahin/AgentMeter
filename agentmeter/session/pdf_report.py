@@ -5,7 +5,7 @@ run's own input.json / selection_audit.json for the rule-base section, which
 session_results.json does not carry). Nothing is recomputed. The verdict is the
 session's own `relative_comparison.verdict` / `comparison.statement`; the
 recommendation text reuses brief.recommendation() / brief.optimisation_hint(),
-the parity-tested mirror of dashboard/report.js.
+the parity-tested mirror of web/report.js.
 
 Framing: a resource-efficiency benchmark of LLM agents doing a SOC workload (classifying
 network flows), not a threat-detection product and not a deployment sign-off. Scores are

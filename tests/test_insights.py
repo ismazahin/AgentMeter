@@ -1,4 +1,4 @@
-"""Session insights (dashboard/insights.js) — the read-only derivations behind the
+"""Session insights (web/insights.js) — the read-only derivations behind the
 session tabs, run under node against a small synthetic session_results.json.
 
 Each view only restates stored numbers; these tests pin the arithmetic and the
@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-INSIGHTS_JS = REPO / "dashboard" / "insights.js"
+INSIGHTS_JS = REPO / "web" / "insights.js"
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node not available")
 

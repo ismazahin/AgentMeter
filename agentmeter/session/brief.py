@@ -1,4 +1,4 @@
-"""Decision-brief text logic — a FAITHFUL Python mirror of dashboard/report.js.
+"""Decision-brief text logic — a FAITHFUL Python mirror of web/report.js.
 
 The PDF report (pdf_report.py) is built server-side, so it cannot call the
 browser's report.js directly. Instead these functions mirror report.js's

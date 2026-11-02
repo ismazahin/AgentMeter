@@ -1,8 +1,8 @@
 # AgentMeter web front-end (static)
 
 This directory is the whole front-end: `index.html` (the whole app: Home, New benchmark, Sessions
-with their tabs, Compare, Leaderboard, Settings), `report.js` (a copy of `dashboard/report.js`, kept identical by
-`tests/test_frontend_split.py`) and `config.json`. There is no build step and there are no
+with their tabs, Compare, Leaderboard, Settings), `analysis.html` with `saw.js`, `report.js` and `insights.js` (the only copies: the GPU backend
+serves these same files) and `config.json`. There is no build step and there are no
 server functions.
 
 - `config.json` → `api_base`: the GPU backend's URL. When it's empty, the page talks to its own

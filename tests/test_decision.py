@@ -1,6 +1,6 @@
 """Phase 32B — decision-support layer tests (CPU).
 
-Runs dashboard/report.js (+ saw.js for live ranking) under node against a sample
+Runs web/report.js (+ saw.js for live ranking) under node against a sample
 analysis.json and checks the four read-only decision-support pieces:
   1. recommendation() — reflects the live ranking + the non-negotiable Critical-tier
      caveat, and the top model changes when the weights change.
@@ -21,8 +21,8 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-REPORT_JS = REPO / "dashboard" / "report.js"
-SAW_JS = REPO / "dashboard" / "saw.js"
+REPORT_JS = REPO / "web" / "report.js"
+SAW_JS = REPO / "web" / "saw.js"
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node not available")
 

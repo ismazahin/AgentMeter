@@ -84,8 +84,7 @@ def upload(c, headers=None, **form):
 # the static front-end
 # ---------------------------------------------------------------------------
 def test_web_is_static_and_report_js_is_in_sync():
-    assert (WEB / "report.js").read_bytes() == (PROJECT_ROOT / "dashboard" / "report.js").read_bytes(), \
-        "web/report.js must be a copy of dashboard/report.js: cp dashboard/report.js web/report.js"
+    assert (WEB / "report.js").is_file() and not (PROJECT_ROOT / "dashboard" / "report.js").exists()     # one copy
     cfg = json.loads((WEB / "config.json").read_text())
     assert cfg["api_base"] == ""
     v = json.loads((WEB / "vercel.json").read_text())

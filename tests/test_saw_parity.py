@@ -1,4 +1,4 @@
-"""Parity test: the in-browser SAW math (dashboard/saw.js) must match the Python
+"""Parity test: the in-browser SAW math (web/saw.js) must match the Python
 analysis (agentmeter/analyze._composite / _tier) exactly.
 
 This guarantees the dashboard's live sensitivity slider re-ranks models the same
@@ -18,7 +18,7 @@ import pytest
 from agentmeter import analyze
 
 REPO = Path(__file__).resolve().parents[1]
-SAW_JS = REPO / "dashboard" / "saw.js"
+SAW_JS = REPO / "web" / "saw.js"
 
 NODE = shutil.which("node")
 pytestmark = pytest.mark.skipif(NODE is None, reason="node not available")

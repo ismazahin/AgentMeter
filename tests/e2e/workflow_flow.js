@@ -118,6 +118,26 @@ async function grab(p, click) {
     const run = JSON.parse(cp.execFileSync(process.env.PYTHON || 'python', ['-c', 'import sys,zipfile;print(zipfile.ZipFile(sys.argv[1]).read("run.json").decode())', zip]).toString());
     log(run.repeat_check === true && run.quantization === '4-bit NF4' && run.models.length === 2, 'run.json records the models, options and 4-bit NF4');
 
+    // Ctrl+K: search pages, sessions, data sets and models
+    await p.goto(BASE + '/#/'); await p.waitForSelector('#gs-open');
+    await p.keyboard.press('Control+k'); await p.waitForSelector('#gs:not([hidden])');
+    const mname = models[0].split('/').pop();
+    await p.keyboard.type(mname.slice(0, 6).toLowerCase());
+    await p.waitForFunction(() => document.querySelectorAll('#gs-list li[data-i]').length > 1);
+    const first = await p.textContent('#gs-list li[data-i="0"]');
+    log(/Model/.test(first) && first.includes(mname), 'Ctrl+K: typing a model name finds the model first (' + first.slice(0, 60) + ')');
+    await p.keyboard.press('Enter'); await p.waitForSelector('#view-sessions:not([hidden])');
+    await p.waitForFunction(m => document.querySelector('#flt-q').value === m, models[0]);
+    log(await p.isHidden('#gs'), 'Enter opens it: the sessions of that model');
+    await p.keyboard.press('Control+k'); await p.keyboard.type('repeatab'); await p.keyboard.press('Enter');
+    await p.waitForSelector('#view-trends:not([hidden])');
+    log(true, 'Ctrl+K reaches pages by name');
+    await p.keyboard.press('Control+k'); await p.keyboard.press('Escape');
+    log(await p.isHidden('#gs'), 'Esc closes the search');
+    log(/In short:/.test(await p.textContent('#tr-plain')), 'Repeatability: a plain-language summary first');
+    await p.goto(BASE + '/#/compare?a=' + j1); await p.waitForSelector('#cmp-list input'); await p.click('#cmp-go'); await p.waitForSelector('#cmp-plain');
+    log(/In short:/.test(await p.textContent('#cmp-plain')), 'Compare: a plain-language summary of the result');
+
     // Methodology
     await p.goto(BASE + '/#/help'); await p.waitForSelector('#help-method');
     const m = await p.textContent('#help-method');

@@ -104,6 +104,7 @@
   [hidden] { display: none !important; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .table-wrap { position: relative; }                       /* keeps absolutely placed bits (e.g. .sr-only labels) inside the scroller */
 
   /* ---------------- header (one, persistent) ---------------- */
   .top { position: sticky; top: 0; z-index: 20; background: var(--bg); border-bottom: 1px solid var(--border); }
@@ -247,6 +248,31 @@
   .validity.locked { margin: 12px 0 0; }
   .lk-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
   .lk-ok { color: var(--success); font-weight: 700; }
+  .skel { display: grid; gap: 10px; padding: 4px 0; }
+  .skel-line { display: block; height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--border) 25%, var(--border-2) 37%, var(--border) 63%); background-size: 400% 100%; animation: skel 1.4s ease infinite; }
+  @keyframes skel { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+  @media (prefers-reduced-motion: reduce) { .skel-line { animation: none; } }
+  kbd { font: 11px/1.4 ui-monospace, monospace; padding: 1px 5px; border: 1px solid var(--border-2); border-radius: 4px; background: var(--surface-2, transparent); color: var(--muted-2); }
+  .gs-btn { display: inline-flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--border-2); border-radius: var(--radius-lg, 8px);
+            background: transparent; color: var(--muted-2); font: inherit; cursor: pointer; text-align: left; }
+  .gs-btn .nl, .gs-btn kbd { display: none; }                   /* top bar: the icon only */
+  @media (min-width: 1024px) {                                     /* sidebar: the full box */
+    .gs-btn { display: flex; width: calc(100% - 24px); margin: 12px 12px 0; padding: 8px 10px; }
+    .gs-btn .nl, .gs-btn kbd { display: inline; }
+  }
+  .gs-btn:hover { color: var(--text); border-color: var(--text); } .gs-btn kbd { margin-left: auto; }
+  .gs-back { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,.35); display: flex; justify-content: center; align-items: flex-start; padding: 10vh 16px 16px; }
+  .gs-back[hidden] { display: none; }
+  .gs { width: min(640px, 100%); background: var(--bg); border: 1px solid var(--border-2); border-radius: var(--radius-lg, 10px); box-shadow: 0 12px 40px rgba(0,0,0,.3); padding: 12px; }
+  #gs-q { width: 100%; font-size: 16px; padding: 10px 12px; }
+  #gs-list { list-style: none; margin: 8px 0 0; padding: 0; max-height: 55vh; overflow: auto; }
+  #gs-list li { display: flex; gap: 10px; align-items: baseline; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
+  #gs-list li[aria-selected="true"] { background: var(--accent-soft); }
+  #gs-list .gs-kind { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted-2); min-width: 72px; }
+  #gs-list .gs-sub { margin-left: auto; font-size: 12px; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+  .gs-help { margin: 8px 0 0; }
+  @media (min-width: 1024px) { :root.side-collapsed .gs-btn kbd, :root.side-collapsed .gs-btn .nl { display: none; } :root.side-collapsed .gs-btn { width: auto; justify-content: center; } }
+  .model .muted { color: var(--muted-2); }                /* contrast on the ticked card's tint */
   .toast { position: fixed; right: 16px; bottom: 16px; z-index: 60; max-width: 420px; display: flex; gap: 10px; align-items: center; padding: 12px 14px;
            background: var(--surface, var(--bg)); border: 1px solid var(--border-2); border-left: 4px solid var(--success); border-radius: var(--radius-lg); box-shadow: 0 6px 24px rgba(0,0,0,.18); font-size: 14px; }
   .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 16px; }
@@ -761,6 +787,7 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
     </button>
     <nav class="mainnav" id="main-nav" aria-label="Main">
+      <button type="button" class="gs-btn" id="gs-open" title="Search pages, sessions, data sets and models (Ctrl+K)" aria-label="Search" aria-keyshortcuts="Control+K"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span class="nl">Search</span><kbd>Ctrl K</kbd></button>
       <span class="nav-group" aria-hidden="true">Workspace</span>
       <a href="#/" data-nav="home" title="Home"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span class="nl">Home</span></a>
       <a href="#/new" data-nav="new" class="nav-primary" title="New benchmark"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span class="nl">New benchmark</span></a>
@@ -805,6 +832,14 @@
 </header>
 
 <main class="wrap" id="main" tabindex="-1">
+  <div id="gs" class="gs-back" hidden>
+    <div class="gs" role="dialog" aria-modal="true" aria-labelledby="gs-title">
+      <h2 id="gs-title" class="sr-only">Search</h2>
+      <input type="search" id="gs-q" placeholder="Search pages, sessions, data sets, models…" autocomplete="off" role="combobox" aria-expanded="true" aria-controls="gs-list" aria-autocomplete="list">
+      <ul id="gs-list" role="listbox" aria-label="Results"></ul>
+      <p class="small muted gs-help"><kbd>↑</kbd> <kbd>↓</kbd> to move · <kbd>Enter</kbd> to open · <kbd>Esc</kbd> to close</p>
+    </div>
+  </div>
   <div id="svc-demo" class="notice warn" hidden></div>
   <div id="svc-gpu-off" class="notice" role="status" hidden><b>GPU offline — viewing mode.</b> Every page still opens on the stored results; new benchmarks (demo runs too) start again when the GPU server is back. Checked every 30 seconds.
     <button type="button" class="btn small-btn" id="svc-gpu-retry" style="margin-left:6px">Check now</button></div>
@@ -1867,7 +1902,7 @@
     return '<a href="#/session/' + enc(row.session_id) + '" data-open="' + esc(row.session_id) + '">' + (running ? "Watch" : "Open") + '</a>';
   }
   function sessionsTable(rows, id, actions) {
-    return '<table id="' + id + '"><thead><tr><th>Session</th><th>Input</th><th class="num">Flows</th><th>GPU</th><th>More efficient</th><th>Status</th><th></th></tr></thead><tbody>' +
+    return '<table id="' + id + '"><thead><tr><th>Session</th><th>Input</th><th class="num">Flows</th><th>GPU</th><th>More efficient</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
       rows.map(function (s) {
         var tags = (s.tags || []).map(function (t) { return '<button type="button" class="chip tag-chip" data-tag="' + esc(t) + '" title="Show sessions tagged ' + esc(t) + '">' + esc(t) + '</button>'; }).join("");
         return '<tr><td><span class="mono" title="' + esc(s.session_id) + '">' + esc(shortId(s.session_id)) + '</span><br><span class="muted small">' + esc((s.models || []).map(short).join(" vs ")) +
@@ -1966,6 +2001,104 @@
     ALL.p.then(function (r) { if (!r.ok) ALL.p = null; });
     return ALL.p;
   }
+  // accessibility: a table wider than its box scrolls; make that box reachable and named for keyboard users
+  (function () {
+    var t = null;
+    function mark() {
+      t = null;
+      document.querySelectorAll(".table-wrap").forEach(function (w) {
+        var scrolls = w.scrollWidth > w.clientWidth + 1;
+        if (scrolls && !w.hasAttribute("tabindex")) {
+          w.setAttribute("tabindex", "0"); w.setAttribute("role", "region");
+          var h = w.closest(".card") && w.closest(".card").querySelector("h2, h3");
+          w.setAttribute("aria-label", (h ? h.textContent.trim() + " — " : "") + "table, scrolls sideways");
+        } else if (!scrolls && w.getAttribute("role") === "region") { w.removeAttribute("tabindex"); w.removeAttribute("role"); w.removeAttribute("aria-label"); }
+      });
+    }
+    new MutationObserver(function () { if (!t) t = setTimeout(mark, 300); }).observe(document.body, { childList: true, subtree: true });
+    window.addEventListener("resize", function () { if (!t) t = setTimeout(mark, 300); });
+  })();
+  // a loading placeholder in the shape of what is coming (no layout jump); screen readers hear "Loading"
+  function skel(lines, card) {
+    var w = [92, 76, 84, 60, 88, 70, 80];
+    var inner = '<div class="skel" role="status" aria-label="Loading">' + Array.apply(null, Array(lines)).map(function (_, i) { return '<span class="skel-line" style="width:' + w[i % w.length] + '%"></span>'; }).join("") + '<span class="sr-only">Loading…</span></div>';
+    return card ? '<div class="card">' + inner + '</div>' : inner;
+  }
+  // ---------- search everything (Ctrl+K): pages, sessions, data sets, models ----------
+  var GS = { items: [], shown: [], sel: 0, last: null };
+  var GS_PAGES = [["Home", "#/", "start latest"], ["New benchmark", "#/new", "run upload prepare csv pcap"], ["Sessions", "#/sessions", "runs list history"],
+    ["Data sets", "#/datasets", "prepared sets flows fingerprint"], ["Leaderboard — by setup", "#/leaderboard", "rank ranking"], ["Leaderboard — Compare models", "#/compare", "compare models side by side"],
+    ["Repeatability", "#/trends", "trends history stable moved"], ["GPU & Queue", "#/gpu", "queue running waiting gpu now"], ["Settings", "#/settings", "theme telegram alerts limits"],
+    ["How to use", "#/help", "help guide"], ["Methodology", "#/help", "saw formula statistics how measured"], ["Profile", "#/profile", "password devices"], ["Admin", "#/admin", "users audit log problems limits models"]];
+  function gsBuild() {
+    var items = GS_PAGES.filter(function (x) { return (x[1] !== "#/admin" || (AUTH.user && AUTH.user.role === "admin")) && (x[1] !== "#/profile" || CP); })
+      .map(function (x) { return { kind: "Page", label: x[0], sub: "", href: x[1], hay: (x[0] + " " + x[2]).toLowerCase(), rank: 0 }; });
+    return allSessions().then(function (r) {
+      var rows = r.ok ? r.data.sessions || [] : [], sets = {}, models = {};
+      rows.forEach(function (s) {
+        var ms = (s.models || []).map(short).join(", ");
+        items.push({ kind: "Session", label: ms || shortId(s.session_id), sub: [s.status, s.run_name ? s.run_name.split("/").pop() : null, fmtDate(s.finished_at || s.created_at)].filter(Boolean).join(" · "),
+                     href: "#/session/" + enc(s.session_id), rank: 2,
+                     hay: [s.session_id, (s.models || []).join(" "), s.run_name, s.notes, (s.tags || []).join(" "), s.owner || s.owner_username, s.gpu, s.status].join(" ").toLowerCase() });
+        if (s.run_name && !sets[s.run_name]) sets[s.run_name] = 1;
+        (s.models || []).forEach(function (m) { models[m] = (models[m] || 0) + 1; });
+      });
+      Object.keys(sets).forEach(function (n) {
+        items.push({ kind: "Data set", label: n.split("/").pop(), sub: n.split("/")[0] === "pcap_runs" ? "PCAP" : "CSV", href: "#/datasets", hay: n.toLowerCase(), rank: 1, ds: n });
+      });
+      Object.keys(models).forEach(function (m) {
+        items.push({ kind: "Model", label: short(m), sub: models[m] + " session" + (models[m] === 1 ? "" : "s") + " — show them", href: "#/sessions", hay: m.toLowerCase(), rank: 1, model: m });
+      });
+      return items;
+    });
+  }
+  function gsRender() {
+    var q = $("gs-q").value.trim().toLowerCase(), words = q.split(/\s+/).filter(Boolean);
+    GS.shown = GS.items.filter(function (x) { return words.every(function (w) { return x.hay.indexOf(w) >= 0; }); })
+      .sort(function (a, b) {
+        var pa = words.length && a.label.toLowerCase().indexOf(words[0]) === 0 ? 0 : 1, pb = words.length && b.label.toLowerCase().indexOf(words[0]) === 0 ? 0 : 1;
+        return pa - pb || a.rank - b.rank;
+      }).slice(0, words.length ? 40 : 14);
+    GS.sel = Math.min(GS.sel, Math.max(0, GS.shown.length - 1));
+    $("gs-list").innerHTML = GS.shown.length ? GS.shown.map(function (x, i) {
+      return '<li role="option" id="gs-o' + i + '" data-i="' + i + '" aria-selected="' + (i === GS.sel) + '"><span class="gs-kind">' + esc(x.kind) + '</span><span>' + esc(x.label) + '</span><span class="gs-sub">' + esc(x.sub) + '</span></li>';
+    }).join("") : '<li class="muted" aria-disabled="true">Nothing matches.</li>';
+    $("gs-q").setAttribute("aria-activedescendant", GS.shown.length ? "gs-o" + GS.sel : "");
+  }
+  function gsOpen() {
+    if (!$("gs").hidden) return;
+    GS.last = document.activeElement;
+    $("gs").hidden = false; $("gs-q").value = ""; GS.sel = 0; GS.items = GS.items.length ? GS.items : [];
+    gsRender(); $("gs-q").focus();
+    gsBuild().then(function (items) { GS.items = items; if (!$("gs").hidden) gsRender(); });
+  }
+  function gsClose() { $("gs").hidden = true; if (GS.last && GS.last.focus) GS.last.focus(); }
+  function gsGo(x) {
+    if (!x) return;
+    gsClose();
+    if (x.model) { location.hash = "#/sessions"; setTimeout(function () { $("flt-q").value = x.model; loadSessions(); }, 0); return; }
+    if (x.ds) { DS.open = (DS.rows || []).filter(function (g) { return g.names.indexOf(x.ds) >= 0; }).map(function (g) { return g.key; })[0] || null; }
+    if (location.hash === x.href) route(); else location.hash = x.href;
+    if (x.label === "Methodology") setTimeout(function () { var m = $("help-method"); if (m) m.scrollIntoView({ block: "start" }); }, 50);
+  }
+  $("gs-open").addEventListener("click", gsOpen);
+  $("gs-q").addEventListener("input", function () { GS.sel = 0; gsRender(); });
+  $("gs-q").addEventListener("keydown", function (ev) {
+    if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+      ev.preventDefault();
+      GS.sel = (GS.sel + (ev.key === "ArrowDown" ? 1 : -1) + Math.max(1, GS.shown.length)) % Math.max(1, GS.shown.length);
+      gsRender(); var o = $("gs-o" + GS.sel); if (o) o.scrollIntoView({ block: "nearest" });
+    } else if (ev.key === "Enter") { ev.preventDefault(); gsGo(GS.shown[GS.sel]); }
+  });
+  $("gs-list").addEventListener("click", function (ev) { var li = ev.target.closest("li[data-i]"); if (li) gsGo(GS.shown[+li.getAttribute("data-i")]); });
+  $("gs").addEventListener("click", function (ev) { if (ev.target.id === "gs") gsClose(); });
+  document.addEventListener("keydown", function (ev) {
+    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test((document.activeElement || {}).tagName || "") || (document.activeElement || {}).isContentEditable;
+    if ((ev.key === "k" || ev.key === "K") && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); if ($("gs").hidden) gsOpen(); else gsClose(); return; }
+    if (ev.key === "/" && !typing && $("gs").hidden && document.querySelector(".mainnav") && !document.querySelector(".mainnav").hidden) { ev.preventDefault(); gsOpen(); return; }
+    if (ev.key === "Escape" && !$("gs").hidden) { ev.preventDefault(); gsClose(); }
+    if (ev.key === "Tab" && !$("gs").hidden) { ev.preventDefault(); $("gs-q").focus(); }      // focus stays in the dialog
+  });
   // ---------- NEW BENCHMARK (wizard) ----------
   var WIZ = { prep: null, set: null, summary: null, src: "file" };
   function wizStep(step) {
@@ -2224,7 +2357,7 @@
     api("/api/jobs?limit=50").then(function (r) {
       var sets = ((r.ok && r.data.jobs) || []).filter(function (j) { return j.kind === "prepare" && j.status === "done" && j.prepared; });
       $("svc-recent-sets").innerHTML = !r.ok ? esc(r.data.error) : !sets.length ? "Nothing prepared on this server yet." :
-        '<div class="table-wrap"><table id="svc-sets-table"><thead><tr><th>Prepared set</th><th>From</th><th>Prepared</th><th></th></tr></thead><tbody>' +
+        '<div class="table-wrap"><table id="svc-sets-table"><thead><tr><th>Prepared set</th><th>From</th><th>Prepared</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
         sets.slice(0, 10).map(function (j) {
           return '<tr><td class="mono">' + esc(j.prepared) + '</td><td>' + esc(j.run_name) + '</td><td class="small">' + esc(fmtDate(j.finished_at)) +
             '</td><td><a href="#/new/models?set=' + enc(j.prepared) + '" data-set="' + esc(j.prepared) + '">Use</a></td></tr>';
@@ -2244,7 +2377,7 @@
         seen[key] = 1; return true;
       });
       $("svc-stored-sets").innerHTML = !r.ok ? esc(r.data.error) : !sets.length ? "No stored prepared sets yet — they appear here after a session finishes." :
-        '<div class="table-wrap"><table id="svc-stored-table"><thead><tr><th>Prepared set</th><th>Input</th><th class="num">Flows</th><th>From session</th><th></th></tr></thead><tbody>' +
+        '<div class="table-wrap"><table id="svc-stored-table"><thead><tr><th>Prepared set</th><th>Input</th><th class="num">Flows</th><th>From session</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
         sets.slice(0, 20).map(function (s) {
           return '<tr><td class="mono">' + esc(s.run_name || "—") + '<br><span class="muted small" title="Prepared-set hash">set ' + esc(String(s.prepared_set_sha256 || "").slice(0, 12)) + '</span></td><td>' +
             esc(s.input_type || "—") + '</td><td class="num">' + fmtNum(s.n_flows) + '</td><td class="mono small" title="' + esc(s.session_id) + '">' + esc(shortId(s.session_id)) +
@@ -3088,7 +3221,7 @@
     if (FLT_TAG) q.push("tag=" + enc(FLT_TAG));
     $("flt-tag-row").hidden = !FLT_TAG; $("flt-tag").textContent = FLT_TAG + " ✕";
     var box = $("sessions-table-box");
-    box.innerHTML = '<p class="muted" style="padding:12px">Loading…</p>';
+    box.innerHTML = skel(6);
     pagedSessions(q.join("&")).then(function (r) {
       if (!r.ok) { box.innerHTML = '<p class="notice error" style="margin:12px">' + esc(r.data.error) + '</p>'; return; }
       var rows = r.data.sessions || [];
@@ -4458,7 +4591,7 @@
         .map(function (o) { return '<option value="' + o[0] + '"' + (FLOWS.filter === o[0] ? " selected" : "") + '>' + o[1] + '</option>'; }).join("") + '</select></div>' +
       '<div class="field" style="flex:1 1 220px"><label for="flows-q">Find</label><input type="search" id="flows-q" class="wide" placeholder="flow id, class or answer" value="' + esc(FLOWS.q) + '" autocomplete="off"></div></div>' +
       '<div class="table-wrap"><table id="flows-table"><thead><tr><th>Flow</th>' + (labelled ? "<th>True class</th>" : "") +
-      d.models.map(function (m) { return '<th><i class="sw" style="--c:' + modelColor(m) + '"></i>' + esc(short(m)) + '</th><th class="num">Time</th>'; }).join("") + '<th></th></tr></thead><tbody>' +
+      d.models.map(function (m) { return '<th><i class="sw" style="--c:' + modelColor(m) + '"></i>' + esc(short(m)) + '</th><th class="num">Time</th>'; }).join("") + '<th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
       list.slice(FLOWS.page * per, FLOWS.page * per + per).map(function (f) {
         return '<tr' + (FLOWS.open === f.scenario_id ? ' class="changed"' : "") + '><td class="mono">' + esc(f.scenario_id) + '</td>' + (labelled ? '<td>' + esc(f.truth || "—") + '</td>' : "") +
           d.models.map(function (m) { var pm = f.per_model[m]; return '<td>' + mark(pm) + '</td><td class="num">' + (pm ? fmtTime(pm.latency_s) : "—") + '</td>'; }).join("") +
@@ -4501,7 +4634,7 @@
     if (q.metric) TR.metric = q.metric;
     if (q.demo === "1") $("tr-demo").checked = true;
     try { var sw = localStorage.getItem("agentmeter.stableWithin"); if (sw != null) $("tr-within").value = sw; } catch (e) { /* the default */ }
-    $("tr-summary").innerHTML = '<p class="muted">Loading…</p>'; $("tr-body").innerHTML = ""; $("tr-drifts").innerHTML = "";
+    $("tr-summary").innerHTML = skel(5, true); $("tr-body").innerHTML = ""; $("tr-drifts").innerHTML = "";
     allSessions().then(function (r) {
       if (!r.ok) { $("tr-summary").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
       TR.data = r.data.sessions || [];
@@ -4546,7 +4679,15 @@
     var rows = INSIGHTS.repeatSummary(t, { within: within });
     if (TR.series && !t.series.some(function (s) { return s.id === TR.series; })) TR.series = null;
     if (!t.metrics.some(function (m) { return m.key === TR.metric; })) TR.metric = t.metrics[0].key;
-    $("tr-summary").innerHTML = '<div class="card" id="tr-summary-card"><h2>Is each model\'s result the same every time?</h2>' +
+    var cnt = { stable: 0, varies: 0, moved: 0, few: 0 };
+    rows.forEach(function (x) { cnt[x.status]++; });
+    var mv = rows.filter(function (x) { return x.status === "moved"; });
+    var plain = 'In short: of ' + rows.length + ' model' + (rows.length === 1 ? "" : "s") + ' on ' + (rows.length === 1 ? "its setup" : "their setups") + ', ' +
+      [cnt.stable ? cnt.stable + " " + (cnt.stable === 1 ? "is" : "are") + " stable" : null, cnt.varies ? cnt.varies + " var" + (cnt.varies === 1 ? "ies" : "y") : null,
+       cnt.moved ? cnt.moved + " moved" : null, cnt.few ? cnt.few + " " + (cnt.few === 1 ? "has" : "have") + " too few runs for a verdict" : null].filter(Boolean).join(", ") + "." +
+      (mv.length ? " Check " + mv.slice(0, 3).map(function (x) { return short(x.model) + (x.moved[0] ? " (" + x.moved[0].metric_label.toLowerCase() + " " + (x.moved[0].change > 0 ? "+" : "") + fmtNum(100 * x.moved[0].change, 0) + "%)" : ""); }).join(", ") + " first." :
+       cnt.few === rows.length ? " Run each again (Run again on its session, or Repeat on a schedule) to get a verdict." : "");
+    $("tr-summary").innerHTML = '<p class="tab-summary" id="tr-plain">' + esc(plain) + '</p><div class="card" id="tr-summary-card"><h2>Is each model\'s result the same every time?</h2>' +
       '<p class="muted small" style="margin-top:0">One row per model and setup (same flows, GPU and settings). <b>Stable</b>: every run within ' +
       (within != null ? Math.round(100 * within) + '% of the median' : 'the limit of each measure (latency 10%, tokens and VRAM 5%) of the median') + '. <b>Varies</b>: runs differ by more. <b>Moved</b>: the latest run left the usual spread. Click a row to see its runs.' + infoI(t.rule) + '</p>' +
       '<div class="table-wrap"><table id="tr-summary-table"><thead><tr><th>Model</th><th>Setup</th><th class="num">Runs</th><th>Result</th><th class="num">Latency spread</th><th>Last run</th></tr></thead><tbody>' +
@@ -4621,7 +4762,7 @@
       }
       TR.sched = r.data.schedules || [];
       host.innerHTML = '<h2>Scheduled re-runs</h2><p class="muted small" style="margin-top:0">Each one repeats a finished session on this GPU (same flows, models and settings) and adds its runs to Repeatability above. Start one from a session\'s Overview tab.</p>' +
-        (TR.sched.length ? '<div class="table-wrap"><table id="tr-sched-table"><thead><tr><th>Repeats</th><th>Models</th><th>How often</th><th class="num">Runs</th><th>Next</th><th>Owner</th><th></th></tr></thead><tbody>' +
+        (TR.sched.length ? '<div class="table-wrap"><table id="tr-sched-table"><thead><tr><th>Repeats</th><th>Models</th><th>How often</th><th class="num">Runs</th><th>Next</th><th>Owner</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
           TR.sched.map(schedRow).join("") + '</tbody></table></div>' : '<p class="muted" id="tr-sched-none" style="margin-bottom:0">No schedules yet.</p>');
     });
   }
@@ -5605,7 +5746,7 @@
     cost: ["cost_per_1k_flows_usd", "wh_per_flow", "wh_per_1k_flows", "wh_per_flow_net_idle"]
   };
   function runMerged(ids, pick) {
-    $("cmp-result").innerHTML = '<p class="muted">Loading…</p>';
+    $("cmp-result").innerHTML = skel(6, true);
     api("/api/compare/merged?sessions=" + ids.map(enc).join(",")).then(function (r) {
       if (!r.ok) { $("cmp-result").innerHTML = ""; showError($("cmp-error"), r.data); return; }
       CMP.data = r.data; CMP.tab = "overview"; CMP.pick = pick || {};
@@ -5667,6 +5808,23 @@
     return mr ? mr.runs.map(function (r) { var row = cmpRow(r.session_id); return row && row.metrics && row.metrics[model] ? row.metrics[model][k] : null; })
       .filter(function (v) { return v != null; }) : [];
   }
+  // the comparison in one plain sentence (what a reader should take away), from the shown values
+  function cmpPlain() {
+    var cols = cmpCols(), pick = function (k, lower) {
+      var vs = cols.map(function (c) { return { c: c, v: c.val(k) }; }).filter(function (x) { return x.v != null; });
+      if (vs.length < 2) return null;
+      vs.sort(function (a, b) { return lower ? a.v - b.v : b.v - a.v; });
+      return { best: vs[0], worst: vs[vs.length - 1], tie: vs[0].v === vs[1].v };
+    };
+    var bits = [], lat = pick("mean_latency_s", true), vr = pick("mean_peak_vram_mb", true), tok = pick("mean_tokens_per_flow", true), saw = pick("saw_eff_composite_100", false);
+    if (lat && !lat.tie) bits.push("<b>" + esc(lat.best.c.head) + "</b> is the fastest (" + esc(fmtTime(lat.best.v)) + " per flow" +
+      (lat.worst.v ? ", " + fmtNum(100 * (1 - lat.best.v / lat.worst.v), 0) + "% quicker than " + esc(lat.worst.c.head) : "") + ")");
+    if (vr && !vr.tie) bits.push("<b>" + esc(vr.best.c.head) + "</b> needs the least working memory (" + esc(fmtMB(vr.best.v)) + ")");
+    if (tok && !tok.tie) bits.push("<b>" + esc(tok.best.c.head) + "</b> uses the fewest tokens");
+    if (saw && !saw.tie) bits.push("the best balance (SAW score) is <b>" + esc(saw.best.c.head) + "</b>'s");
+    if (!bits.length) return '<p class="tab-summary" id="cmp-plain">These models are level on every measure shown here.</p>';
+    return '<p class="tab-summary" id="cmp-plain">In short: ' + bits.join("; ") + "." + (CMP.basis === "all" ? " (Means over every run.)" : cols.some(function (c) { return c.runs > 1; }) ? " (Latest runs; switch to Every run to see whether the gaps hold.)" : "") + '</p>';
+  }
   function cmpDiffCard() {
     var row = cmpDef(CMP.bar || "mean_latency_s"), f = cmpFmt(row), byModel = {};
     cmpCols().forEach(function (c) { byModel[c.model] = cmpRunValues(c.model, row.metric); });
@@ -5724,7 +5882,7 @@
     if (!tabs.some(function (t) { return t[0] === CMP.tab; })) CMP.tab = "overview";
     var body;
     if (CMP.tab === "overview") {
-      body = cmpTiles() + cmpRanking() + cmpBars() + cmpDiffCard();
+      body = cmpPlain() + cmpTiles() + cmpRanking() + cmpBars() + cmpDiffCard();
     } else {
       body = '<div class="card">' + cmpTable("cmp-" + CMP.tab + "-table", CMP_GROUPS[CMP.tab]) + '</div>';
     }
@@ -5783,7 +5941,7 @@
   function loadDatasets(q) {
     q = q || {};
     if (q.open) DS.open = q.open;
-    $("ds-body").innerHTML = '<p class="muted">Loading…</p>';
+    $("ds-body").innerHTML = skel(5, true);
     var gpuJobs = CP && !ONLINE ? Promise.resolve({ ok: false }) : api("/api/jobs?limit=200");
     Promise.all([allSessions(), gpuJobs]).then(function (rs) {
       if (!rs[0].ok) { $("ds-body").innerHTML = '<div class="notice error">' + esc(rs[0].data.error || "Could not load the sessions.") + '</div>'; return; }
@@ -5808,7 +5966,7 @@
     $("ds-body").innerHTML = (off ? '<p class="notice small" id="ds-offline">The GPU server is offline: sets that have been benchmarked are listed; sets prepared but not yet benchmarked appear when it is back.</p>' : "") +
       '<div class="card"><p class="muted small" style="margin-top:0">' + rows.length + ' of ' + DS.rows.length + ' set' + (DS.rows.length === 1 ? "" : "s") +
       '. The fingerprint is the hash of the prepared flows: two sessions with the same fingerprint answered exactly the same flows.</p>' +
-      '<div class="table-wrap"><table id="ds-table"><thead><tr><th>Data set</th><th class="num">Flows</th><th>Fingerprint</th><th class="num">Sessions</th><th class="num">Models</th><th>Last used</th><th></th></tr></thead><tbody>' +
+      '<div class="table-wrap"><table id="ds-table"><thead><tr><th>Data set</th><th class="num">Flows</th><th>Fingerprint</th><th class="num">Sessions</th><th class="num">Models</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
       rows.map(function (g) {
         var open = DS.open === g.key, nm = g.name ? g.name.split("/").pop() : "(unnamed set)";
         return '<tr data-ds="' + esc(g.key) + '"><td><b class="mono small">' + esc(nm) + '</b><br><span class="chip">' + esc(g.type || "—") + '</span>' +
@@ -5882,7 +6040,7 @@
   function loadGpu() {
     var token = pollToken;
     GQ.hist = []; GQ.last = null;
-    $("gq-status").innerHTML = '<p class="muted">Loading…</p>';
+    $("gq-status").innerHTML = skel(3, true);
     ["gq-gpu", "gq-prep", "gq-running", "gq-queued", "gq-upcoming", "gq-recent"].forEach(function (id) { $(id).innerHTML = ""; });
     var tick = function () {
       if (token !== pollToken) return;                        // left the page
@@ -5986,7 +6144,7 @@
   function loadLeaderboard() { if (LB.tab === "overall") loadOverall(); else loadPerSetup(); }
   function loadPerSetup() {
     var sort = (document.querySelector('input[name="lb-sort"]:checked') || {}).value || "efficiency";
-    $("lb-groups").innerHTML = '<p class="muted">Loading…</p>';
+    $("lb-groups").innerHTML = skel(5, true);
     api("/api/leaderboard?view=per_setup&sort=" + enc(sort)).then(function (r) {
       if (!r.ok) { $("lb-groups").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
       var gs = r.data.groups || [];
@@ -6009,7 +6167,7 @@
   var LB_BY = { efficiency: "SAW score (efficiency)" };
   function loadOverall() {
     var by = (document.querySelector('input[name="lb-by"]:checked') || {}).value || "efficiency";
-    $("lb-overall").innerHTML = '<p class="muted">Loading…</p>';
+    $("lb-overall").innerHTML = skel(4, true);
     api("/api/leaderboard?view=overall&by=" + enc(by) + ($("lb-demo").checked ? "&demo=1" : "")).then(function (r) {
       if (!r.ok) { $("lb-overall").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
       var d = r.data, rows = d.rows || [];
@@ -6177,7 +6335,7 @@
             : '<span class="small muted">first use downloads' + (x.download_gb != null ? " ~" + fmtNum(x.download_gb, 1) + " GB" : "") + '</span>') +
           '</td><td><input type="checkbox" data-dlstart="' + esc(x.id) + '" aria-label="Download ' + esc(x.id) + ' at start-up"' + (dl ? " checked" : "") + '></td></tr>';
       }).join("") + '</tbody></table><p class="small muted">Extra models:</p>';
-    $("adm-models").innerHTML = studyHtml + '<table id="adm-models-table"><thead><tr><th>Model</th><th>Suitability</th><th>4-bit verification</th><th>Offered to users</th><th>Enabled</th><th>Download at start-up</th><th></th></tr></thead><tbody>' +
+    $("adm-models").innerHTML = studyHtml + '<table id="adm-models-table"><thead><tr><th>Model</th><th>Suitability</th><th>4-bit verification</th><th>Offered to users</th><th>Enabled</th><th>Download at start-up</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
       rows.map(function (x) {
         var c = cfg[x.id] || {}, v = x.verification || (c.verified ? c.verified : { status: "not_verified" });
         // the control plane holds the admin's choices; the GPU's copy can be a heartbeat behind
@@ -6477,7 +6635,7 @@
     api("/api/me/devices").then(function (r) {
       if (!r.ok) { showError($("prof-error"), r.data); return; }
       var ds = r.data.devices || [];
-      $("prof-devices").innerHTML = '<table id="prof-devices-table"><thead><tr><th>Device</th><th>Logged in</th><th>Last active</th><th>Kept</th><th></th></tr></thead><tbody>' +
+      $("prof-devices").innerHTML = '<table id="prof-devices-table"><thead><tr><th>Device</th><th>Logged in</th><th>Last active</th><th>Kept</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
         ds.map(function (d) {
           return '<tr data-device="' + esc(d.id) + '"><td>' + esc(deviceName(d.user_agent)) + (d.current ? ' <span class="chip ok">this device</span>' : "") + '</td>' +
             '<td class="small">' + esc(fmtDate(d.created_at)) + '</td><td class="small">' + esc(fmtDate(d.last_used_at)) + '</td>' +

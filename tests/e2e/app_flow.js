@@ -153,7 +153,7 @@ async function frameOf(p) {
   log(await p.isHidden('#home-empty'), 'Home: empty state gone');
   log((await p.$$('#home-sessions-table tbody tr')).length >= 2, 'Home: recent sessions table lists the sessions');
   const homeCols = await p.$$eval('#home-sessions-table th', ths => ths.map(t => t.textContent.trim()));
-  log(homeCols.join('|') === 'Session|Input|Flows|GPU|More efficient|Status|', 'Home table columns: ' + homeCols.join(', '));
+  log(homeCols.join('|') === 'Session|Input|Flows|GPU|More efficient|Status|Actions', 'Home table columns: ' + homeCols.join(', '));
   log((await p.$$eval('#home-sessions-table .status', ss => ss.map(s => s.textContent))).every(s => s === 'Demo'), 'status chips: Demo (mock runs)');
   log((await p.$$('#home-latest .hbar')).length >= 2, 'Home: head-to-head bars for the latest session');
   await p.screenshot({ path: S + '/04-home.png', fullPage: true });

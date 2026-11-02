@@ -1,7 +1,10 @@
 # AgentMeter web front-end (static)
 
-This directory is the whole front-end: `index.html` (the whole app: Home, New benchmark, Sessions
-with their tabs, Compare, Leaderboard, Settings), `analysis.html` with `saw.js`, `report.js` and `insights.js` (the only copies: the GPU backend
+This directory is the whole front-end: `index.html` (the page: its markup and styles) with the app's
+code in `js/` — loaded in this order and sharing one global scope: `core.js` (helpers, access to the
+backend and the control plane, routing), `home.js`, `wizard.js` (New benchmark), `session.js`,
+`analysis.js` (Repeatability, charts, exports), `compare.js` (Compare models, Data sets, GPU & Queue,
+Leaderboard), `settings.js` (Settings, Admin, login, profile) and `boot.js` (start-up) — `analysis.html` with `saw.js`, `report.js` and `insights.js` (the only copies: the GPU backend
 serves these same files) and `config.json`. There is no build step and there are no
 server functions.
 

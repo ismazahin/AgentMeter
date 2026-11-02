@@ -25,7 +25,7 @@ from agentmeter.session.scoring import score_session
 FIXTURE = Path(__file__).parent / "fixtures" / "golden_session"
 MODELS = ["Qwen/Qwen2.5-7B-Instruct", "microsoft/Phi-3-mini-4k-instruct"]
 SAMPLE_CSV = PROJECT_ROOT / "data" / "sample_csv" / "cicids2017_sample.csv"
-WEB = (PROJECT_ROOT / "web" / "index.html").read_text()
+WEB = (PROJECT_ROOT / "web" / "index.html").read_text() + "".join(f.read_text() for f in sorted((PROJECT_ROOT / "web" / "js").glob("*.js")))
 
 
 @pytest.fixture()

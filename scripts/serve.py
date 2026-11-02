@@ -227,6 +227,13 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
         return send_from_directory(WEB_DIR / "prep", asset,
                                    mimetype="text/javascript" if asset.endswith(".js") else "application/octet-stream")
 
+    @app.route("/js/<asset>", methods=["GET"])
+    def app_script(asset):
+        # the web app's own scripts (web/js/*.js, loaded in order by web/index.html)
+        if not (asset.endswith(".js") and (WEB_DIR / "js" / asset).is_file() and "/" not in asset):
+            return jsonify({"error": "not found"}), 404
+        return send_from_directory(WEB_DIR / "js", asset, mimetype="text/javascript")
+
     @app.route("/docs/", methods=["GET"])
     @app.route("/docs/<path:asset>", methods=["GET"])
     def api_docs(asset="index.html"):

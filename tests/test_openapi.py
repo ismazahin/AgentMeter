@@ -19,7 +19,7 @@ def _mod(name, rel):
 
 B = _mod("build_openapi", "scripts/build_openapi.py")
 SKEL = lambda path: re.sub(r"\{[^}]+\}", "{}", path)                                    # noqa: E731
-UI_ROUTES = {"/", "/{}", "/analysis", "/baseline", "/config.json", "/prep/{}", "/service", "/service/benchmark", "/service/prepare", "/docs/", "/docs/{}"}
+UI_ROUTES = {"/", "/{}", "/analysis", "/baseline", "/config.json", "/prep/{}", "/service", "/service/benchmark", "/service/prepare", "/docs/", "/docs/{}", "/js/{}"}
 
 
 def documented(server):

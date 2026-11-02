@@ -93,7 +93,7 @@ def test_web_is_static_and_report_js_is_in_sync():
 
 
 def test_front_end_only_talks_to_the_configured_backend():
-    html = (WEB / "index.html").read_text()
+    html = (WEB / "index.html").read_text() + "".join(f.read_text() for f in sorted((WEB / "js").glob("*.js")))   # the page + its scripts
     assert 'fetch("config.json"' in html and "?api=" in html.replace("api=<url>", "?api=")
     import re
     assert not re.search(r"""fetch\(\s*["']/""", html)             # no same-origin absolute fetches
@@ -113,6 +113,10 @@ def test_backend_serves_the_same_page_same_origin(make):
     page = c.get("/service").get_data(as_text=True)
     assert page == (WEB / "index.html").read_text()
     assert c.get("/report.js").status_code == 200
+    for f in sorted((WEB / "js").glob("*.js")):                       # the app's scripts, same origin
+        r = c.get(f"/js/{f.name}")
+        assert r.status_code == 200 and r.get_data() == f.read_bytes() and "javascript" in r.content_type
+    assert c.get("/js/../index.html").status_code == 404 and c.get("/js/nope.js").status_code == 404
 
 
 # ---------------------------------------------------------------------------

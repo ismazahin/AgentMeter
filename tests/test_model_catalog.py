@@ -14,6 +14,14 @@ from test_control_plane import app, auth, tok  # noqa: F401  (app is a fixture)
 GB = 1024 ** 3
 
 
+
+def _app_source():
+    """web/index.html and the app's scripts (web/js/*.js): the whole front-end's code."""
+    from agentmeter.config import PROJECT_ROOT
+    web = PROJECT_ROOT / "web"
+    return (web / "index.html").read_text(encoding="utf-8") + "".join(f.read_text(encoding="utf-8") for f in sorted((web / "js").glob("*.js")))
+
+
 def repo(model_id, params_b=3.0, *, files=None, tags=(), config=None, gated=False, license_="apache-2.0",
          pipeline="text-generation"):
     """A Hugging Face /api/models/<id>?blobs=true record (only the fields we read)."""
@@ -230,7 +238,7 @@ def test_the_apps_study_model_list_matches_the_locked_config():
 
     from agentmeter.config import PROJECT_ROOT
     from agentmeter.session.benchmark import canonical_models
-    html = (PROJECT_ROOT / "web" / "index.html").read_text(encoding="utf-8")
+    html = _app_source()
     m = re.search(r"var STUDY_MODELS = (\[[^\]]*\]);", html)
     assert m and json.loads(m.group(1)) == canonical_models()
 

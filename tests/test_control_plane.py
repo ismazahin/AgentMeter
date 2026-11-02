@@ -32,6 +32,12 @@ SAMPLE_CSV = PROJECT_ROOT / "data" / "sample_csv" / "cicids2017_sample.csv"
 MODEL = "microsoft/Phi-3-mini-4k-instruct"
 
 
+
+def _app_source():
+    """web/index.html and the app's scripts (web/js/*.js): the whole front-end's code."""
+    web = PROJECT_ROOT / "web"
+    return (web / "index.html").read_text(encoding="utf-8") + "".join(f.read_text(encoding="utf-8") for f in sorted((web / "js").glob("*.js")))
+
 def tok(kind, sub="u1", uname="alice", ttl=300, **extra):
     now = int(time.time())
     return runtoken.sign({"typ": "run", "aud": "agentmeter-backend", "jti": secrets.token_hex(16), "sub": sub,
@@ -507,7 +513,7 @@ def test_pages_csp_is_strict_and_current():
 
 
 def test_front_end_never_shows_identification_columns():
-    html = (PROJECT_ROOT / "web" / "index.html").read_text()
+    html = _app_source()
     for col in control_plane.IDENTIFICATION_COLUMNS:            # as a field / key (prose naming them is fine)
         assert not re.search(rf"""(["'.\[]){col}(["'\]])""", html) and not re.search(rf"\.{col}\b", html), col
     assert "src_ip" not in html and "dst_ip" not in html

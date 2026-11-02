@@ -142,6 +142,19 @@ async function grab(p, click) {
     await p.goto(BASE + '/#/help'); await p.waitForSelector('#help-method');
     const m = await p.textContent('#help-method');
     log(/target ÷ value/.test(m) && /Kruskal-Wallis/.test(m) && /1\.4826/.test(m) && /SHA-256/.test(m), 'How to use › Methodology: setup, measures, SAW formula, statistics');
+    // API documentation: the three OpenAPI documents, rendered without any third-party script
+    await p.goto(BASE + '/docs/'); await p.waitForSelector('details.op');
+    const cpOps = (await p.$$('details.op')).length;
+    await p.click('.tab[data-doc="openapi-gpu-backend.json"]'); await p.waitForSelector('#benchmarks');
+    const beOps = (await p.$$('details.op')).length;
+    log(cpOps >= 50 && beOps >= 30, `API docs: control plane (${cpOps}) and GPU backend (${beOps}) endpoints listed`);
+    await p.fill('#q', 'gpu queue'); await p.waitForTimeout(200);
+    const shown = await p.$$eval('details.op .path', x => x.map(e => e.textContent));
+    log(shown.includes('/api/gpu'), 'API docs: the filter finds /api/gpu');
+    await p.click('#get__api_gpu summary');
+    log(/run token: read/.test(await p.textContent('#get__api_gpu')) && /live reading/.test(await p.textContent('#get__api_gpu')), 'API docs: who may call each endpoint, and what it does');
+    await p.goto(BASE + '/#/help'); await p.waitForSelector('#help-method');
+    log(!!(await p.$('a[href="docs/"]')), 'How to use links the API documentation');
     log(!errs.length, 'no JS errors ' + errs.join(' | '));
   } catch (e) {
     out.push('CRASH ' + e.message);

@@ -1,0 +1,154 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "AgentMeter API — cloud preparation",
+  "version": "1.1.0",
+  "description": "Prepares an uploaded file or a link into a set of flows while the GPU is busy, with the same code as the GPU backend (identical flows and hash).",
+  "license": {
+   "name": "See the repository"
+  }
+ },
+ "servers": [
+  {
+   "url": "{prep}",
+   "description": "Cloud preparation service (Cloud Run / Space)",
+   "variables": {
+    "prep": {
+     "default": "https://your-cloudprep.example"
+    }
+   }
+  }
+ ],
+ "tags": [
+  {
+   "name": "Data preparation"
+  }
+ ],
+ "paths": {
+  "/health": {
+   "get": {
+    "operationId": "get__health",
+    "tags": [
+     "Data preparation"
+    ],
+    "summary": "Is the preparation service up",
+    "security": [],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
+   }
+  },
+  "/prepare": {
+   "post": {
+    "operationId": "post__prepare",
+    "tags": [
+     "Data preparation"
+    ],
+    "summary": "Prepare one input (a signed job from the control plane)",
+    "security": [
+     {
+      "controlPlaneSignature": []
+     }
+    ],
+    "responses": {
+     "202": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "Reads the input from a single-use URL, runs the server's own preparation code (identical flows and hash), uploads the files to single-use URLs and reports progress, signed.",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "job_id": {
+          "type": "string"
+         },
+         "filename": {
+          "type": "string"
+         },
+         "source": {
+          "type": "object"
+         },
+         "max_flows": {
+          "type": "integer"
+         },
+         "limits": {
+          "type": "object"
+         },
+         "outputs": {
+          "type": "object"
+         },
+         "report_url": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "securitySchemes": {
+   "userToken": {
+    "type": "http",
+    "scheme": "bearer",
+    "description": "Access token from POST /api/auth/login on the control plane (15 minutes). Scope admin: the user's role must be admin."
+   },
+   "runToken": {
+    "type": "http",
+    "scheme": "bearer",
+    "description": "Run token from POST /api/runs/authorize on the control plane (5 minutes; single use for actions); its scope is the token's kind. Not needed in one-user mode (no control plane)."
+   },
+   "backendSignature": {
+    "type": "apiKey",
+    "in": "header",
+    "name": "X-AM-Signature",
+    "description": "hex HMAC-SHA256(BACKEND_SECRET, method\\npath\\nX-AM-Timestamp\\nsha256(body)); X-AM-Timestamp (unix seconds) within 120 s."
+   },
+   "prepSignature": {
+    "type": "apiKey",
+    "in": "header",
+    "name": "X-AM-Signature",
+    "description": "The same signature with CLOUD_PREP_SECRET (preparation service → control plane)."
+   },
+   "controlPlaneSignature": {
+    "type": "apiKey",
+    "in": "header",
+    "name": "X-AM-Signature",
+    "description": "The same signature with CLOUD_PREP_SECRET (control plane → preparation service)."
+   }
+  },
+  "schemas": {
+   "Error": {
+    "type": "object",
+    "properties": {
+     "error": {
+      "type": "string",
+      "description": "A sentence for people"
+     },
+     "code": {
+      "type": "string",
+      "description": "A stable code for programs"
+     }
+    }
+   }
+  }
+ }
+}

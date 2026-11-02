@@ -108,6 +108,7 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
                app_db_path: Path = None, local_results_dir: Path = None,
                start_watcher: bool = False, job_manager=None, mode: str = None):
     from flask import Flask, jsonify, request, send_from_directory
+    from agentmeter.server.apiversion import API_VERSION
 
     from agentmeter import appdb, hf_metadata
     from agentmeter.server import access, jobs as _jobs, jobs_api, notify, runtime, service_api
@@ -226,6 +227,14 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
         return send_from_directory(WEB_DIR / "prep", asset,
                                    mimetype="text/javascript" if asset.endswith(".js") else "application/octet-stream")
 
+    @app.route("/docs/", methods=["GET"])
+    @app.route("/docs/<path:asset>", methods=["GET"])
+    def api_docs(asset="index.html"):
+        # the API documentation (web/docs: built by scripts/build_openapi.py, shown by docs.js)
+        if asset not in ("index.html", "docs.js", "openapi-control-plane.json", "openapi-gpu-backend.json", "openapi-cloud-prep.json"):
+            return jsonify({"error": "not found"}), 404
+        return send_from_directory(WEB_DIR / "docs", asset)
+
     @app.route("/<path:asset>", methods=["GET"])
     def dashboard_asset(asset):
         if asset not in _ALLOWED_ASSETS:
@@ -284,6 +293,7 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
             "queue": {"running": jm.running_job() is not None,
                       "queued": sum(1 for j in jobs if j["status"] == "queued")},
             "auth_required": bool(acc.get("auth_required")),
+            "api_version": API_VERSION,
             "control_plane": bool(acc.get("control_plane")),
         })
 

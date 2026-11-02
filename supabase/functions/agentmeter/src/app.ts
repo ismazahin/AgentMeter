@@ -13,9 +13,12 @@ import { backendModelState, backendModelVerified, getAdminModels, putAdminModels
 import { type Env, corsHeaders, fail, json } from "./util.ts";
 import { getAudit } from "./audit.ts";
 
+// the API version (semantic versioning): the same as agentmeter/server/apiversion.py (tests/test_openapi.py)
+export const API_VERSION = "1.1.0";
+
 type Handler = (req: Request, env: Env, ...params: string[]) => Promise<Response>;
 const ROUTES: [string, RegExp, Handler][] = [
-  ["GET", /^\/api\/health$/, async () => json({ ok: true, service: "AgentMeter control plane — measures LLM resource efficiency (not a threat-detection product)" })],
+  ["GET", /^\/api\/health$/, async () => json({ ok: true, service: "AgentMeter control plane — measures LLM resource efficiency (not a threat-detection product)", api_version: API_VERSION })],
   // auth
   ["POST", /^\/api\/auth\/login$/, login],
   ["POST", /^\/api\/auth\/refresh$/, refresh],

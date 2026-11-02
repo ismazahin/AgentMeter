@@ -1,0 +1,1555 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "AgentMeter API — GPU backend",
+  "version": "1.1.0",
+  "description": "Data preparation, benchmarks, live progress and the live GPU, on the rented GPU. With a control plane every call needs a run token; in one-user mode (no control plane) the same routes are open and also serve sessions, Compare and the Leaderboard.",
+  "license": {
+   "name": "See the repository"
+  }
+ },
+ "servers": [
+  {
+   "url": "{backend}",
+   "description": "GPU backend (Flask on the rented GPU): preparation, benchmarks, live GPU and queue",
+   "variables": {
+    "backend": {
+     "default": "https://your-gpu-backend.example"
+    }
+   }
+  }
+ ],
+ "tags": [
+  {
+   "name": "GPU backend"
+  },
+  {
+   "name": "New benchmark"
+  },
+  {
+   "name": "Data preparation"
+  },
+  {
+   "name": "Data sets"
+  },
+  {
+   "name": "Benchmarks"
+  },
+  {
+   "name": "GPU & Queue"
+  },
+  {
+   "name": "Sessions"
+  },
+  {
+   "name": "Compare"
+  },
+  {
+   "name": "Admin"
+  },
+  {
+   "name": "Repeatability"
+  },
+  {
+   "name": "Settings"
+  }
+ ],
+ "paths": {
+  "/api/compare": {
+   "get": {
+    "operationId": "get__api_compare",
+    "tags": [
+     "Compare"
+    ],
+    "summary": "Two sessions side by side (one-user mode)",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "a",
+      "in": "query",
+      "required": true,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "b",
+      "in": "query",
+      "required": true,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/compare/candidates": {
+   "get": {
+    "operationId": "get__api_compare_candidates",
+    "tags": [
+     "Compare"
+    ],
+    "summary": "Sessions on the same setup (one-user mode)",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "session",
+      "in": "query",
+      "required": true,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/compare/merged": {
+   "get": {
+    "operationId": "get__api_compare_merged",
+    "tags": [
+     "Compare"
+    ],
+    "summary": "Every model of 2–20 sessions on one setup (one-user mode)",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "sessions",
+      "in": "query",
+      "required": true,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/gpu": {
+   "get": {
+    "operationId": "get__api_gpu",
+    "tags": [
+     "GPU & Queue"
+    ],
+    "summary": "The GPU now, the running job, the queue, the last finished jobs",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "A live reading (NVML); none in demo mode. The page polls it every 3 s."
+   }
+  },
+  "/api/jobs": {
+   "get": {
+    "operationId": "get__api_jobs",
+    "tags": [
+     "Benchmarks"
+    ],
+    "summary": "Jobs on this server, newest first",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "description": "",
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   },
+   "post": {
+    "operationId": "post__api_jobs",
+    "tags": [
+     "Benchmarks"
+    ],
+    "summary": "Start a benchmark",
+    "security": [
+     {
+      "runToken": [
+       "benchmark"
+      ]
+     }
+    ],
+    "responses": {
+     "202": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "Authorization: Bearer <run token from POST /api/runs/authorize>. Without a control plane (one-user mode) no token is needed.",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "run": {
+          "type": "string"
+         },
+         "after_prepare": {
+          "type": "string"
+         },
+         "models": {
+          "type": "array",
+          "description": "array (1–4)"
+         },
+         "pipeline": {
+          "type": "array",
+          "description": "array"
+         },
+         "load_test": {
+          "type": "boolean"
+         },
+         "repeat_check": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/jobs/{job_id}": {
+   "get": {
+    "operationId": "get__api_jobs_job_id",
+    "tags": [
+     "Benchmarks"
+    ],
+    "summary": "A job's status and progress",
+    "security": [],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    },
+    "description": "Open for 128-bit job ids (the id is the secret); older short ids need a read token.",
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "description": "Job id",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/jobs/{job_id}/constraints": {
+   "get": {
+    "operationId": "get__api_jobs_job_id_constraints",
+    "tags": [
+     "Benchmarks"
+    ],
+    "summary": "Fit check against limits",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "description": "Job id",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/jobs/{job_id}/flows": {
+   "get": {
+    "operationId": "get__api_jobs_job_id_flows",
+    "tags": [
+     "Benchmarks"
+    ],
+    "summary": "Every flow's answers per agent (flow explorer)",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "description": "Job id",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/jobs/{job_id}/report.pdf": {
+   "get": {
+    "operationId": "get__api_jobs_job_id_report_pdf",
+    "tags": [
+     "Benchmarks"
+    ],
+    "summary": "The PDF report",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "description": "Job id",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/jobs/{job_id}/result": {
+   "get": {
+    "operationId": "get__api_jobs_job_id_result",
+    "tags": [
+     "Benchmarks"
+    ],
+    "summary": "A finished job's results",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "not_ready",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "description": "Job id",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/jobs/{job_id}/resume": {
+   "post": {
+    "operationId": "post__api_jobs_job_id_resume",
+    "tags": [
+     "Benchmarks"
+    ],
+    "summary": "Resume a failed or interrupted benchmark",
+    "security": [
+     {
+      "runToken": [
+       "resume"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "description": "Job id",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/jobs/{job_id}/stop": {
+   "post": {
+    "operationId": "post__api_jobs_job_id_stop",
+    "tags": [
+     "Benchmarks"
+    ],
+    "summary": "Stop a running benchmark (owner or admin)",
+    "security": [
+     {
+      "runToken": [
+       "stop"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "description": "Job id",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/jobs/{job_id}/telemetry": {
+   "get": {
+    "operationId": "get__api_jobs_job_id_telemetry",
+    "tags": [
+     "Benchmarks"
+    ],
+    "summary": "Live progress events and a GPU reading",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "description": "Job id",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "since",
+      "in": "query",
+      "required": false,
+      "description": "",
+      "schema": {
+       "type": "integer"
+      }
+     }
+    ]
+   }
+  },
+  "/api/leaderboard": {
+   "get": {
+    "operationId": "get__api_leaderboard",
+    "tags": [
+     "Compare"
+    ],
+    "summary": "Leaderboard (one-user mode)",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "view",
+      "in": "query",
+      "required": false,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "sort",
+      "in": "query",
+      "required": false,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "by",
+      "in": "query",
+      "required": false,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "demo",
+      "in": "query",
+      "required": false,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/logs/recent": {
+   "get": {
+    "operationId": "get__api_logs_recent",
+    "tags": [
+     "GPU & Queue"
+    ],
+    "summary": "Warnings, errors and failed runs of the last hours (admins)",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "forbidden",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "Kept in the server's memory since it started. With a control plane, admins only.",
+    "parameters": [
+     {
+      "name": "hours",
+      "in": "query",
+      "required": false,
+      "description": "1–168 (24)",
+      "schema": {
+       "type": "number"
+      }
+     }
+    ]
+   }
+  },
+  "/api/model-metadata": {
+   "get": {
+    "operationId": "get__api_model_metadata",
+    "tags": [
+     "New benchmark"
+    ],
+    "summary": "Hugging Face metadata of a model (licence, size)",
+    "security": [],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    },
+    "parameters": [
+     {
+      "name": "model",
+      "in": "query",
+      "required": true,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/models/catalog": {
+   "get": {
+    "operationId": "get__api_models_catalog",
+    "tags": [
+     "New benchmark"
+    ],
+    "summary": "Models offered on this server (study + extra), with download sizes",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/models/verify": {
+   "post": {
+    "operationId": "post__api_models_verify",
+    "tags": [
+     "Admin"
+    ],
+    "summary": "4-bit test-load of a catalogue model",
+    "security": [
+     {
+      "runToken": [
+       "verify"
+      ]
+     }
+    ],
+    "responses": {
+     "202": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "model": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/notify-check": {
+   "post": {
+    "operationId": "post__api_notify_check",
+    "tags": [
+     "Settings"
+    ],
+    "summary": "Look for new results to notify about (one-user mode)",
+    "security": [],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
+   }
+  },
+  "/api/notify-status": {
+   "get": {
+    "operationId": "get__api_notify_status",
+    "tags": [
+     "Settings"
+    ],
+    "summary": "Local Telegram notifier status (one-user mode)",
+    "security": [],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
+   }
+  },
+  "/api/notify-test": {
+   "post": {
+    "operationId": "post__api_notify_test",
+    "tags": [
+     "Settings"
+    ],
+    "summary": "Local Telegram test (one-user mode)",
+    "security": [],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
+   }
+  },
+  "/api/prepare": {
+   "post": {
+    "operationId": "post__api_prepare",
+    "tags": [
+     "Data preparation"
+    ],
+    "summary": "Prepare an uploaded file or a link into a set of flows",
+    "security": [
+     {
+      "runToken": [
+       "prepare"
+      ]
+     }
+    ],
+    "responses": {
+     "202": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "Authorization: Bearer <run token from POST /api/runs/authorize>. Without a control plane (one-user mode) no token is needed.",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "file": {
+          "type": "string",
+          "format": "binary",
+          "description": "binary (multipart)"
+         },
+         "url": {
+          "type": "string"
+         },
+         "max_flows": {
+          "type": "integer"
+         },
+         "other_attack": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/prepared/import": {
+   "post": {
+    "operationId": "post__api_prepared_import",
+    "tags": [
+     "Data preparation"
+    ],
+    "summary": "Import a set prepared elsewhere (browser or cloud)",
+    "security": [
+     {
+      "runToken": [
+       "import"
+      ]
+     }
+    ],
+    "responses": {
+     "201": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "The prepared-set hash is recomputed and must match. Authorization: Bearer <run token from POST /api/runs/authorize>. Without a control plane (one-user mode) no token is needed.",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "manifest": {
+          "type": "string",
+          "format": "binary",
+          "description": "binary"
+         },
+         "features": {
+          "type": "string",
+          "format": "binary",
+          "description": "binary"
+         },
+         "labels": {
+          "type": "string",
+          "format": "binary",
+          "description": "binary"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/prepared/{kind}/{name}": {
+   "get": {
+    "operationId": "get__api_prepared_kind_name",
+    "tags": [
+     "Data sets"
+    ],
+    "summary": "A prepared set's summary (rows, class counts, files)",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "kind",
+      "in": "path",
+      "required": true,
+      "description": "csv_runs | pcap_runs",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "name",
+      "in": "path",
+      "required": true,
+      "description": "set name",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/prepared/{kind}/{name}/{fname}": {
+   "get": {
+    "operationId": "get__api_prepared_kind_name_fname",
+    "tags": [
+     "Data sets"
+    ],
+    "summary": "A prepared file",
+    "security": [
+     {
+      "runToken": [
+       "files"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "kind",
+      "in": "path",
+      "required": true,
+      "description": "csv_runs | pcap_runs",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "name",
+      "in": "path",
+      "required": true,
+      "description": "set name",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "fname",
+      "in": "path",
+      "required": true,
+      "description": "features.csv | labels.csv | manifest.json",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/schedules": {
+   "get": {
+    "operationId": "get__api_schedules",
+    "tags": [
+     "Repeatability"
+    ],
+    "summary": "Scheduled re-runs",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "operationId": "post__api_schedules",
+    "tags": [
+     "Repeatability"
+    ],
+    "summary": "Repeat a finished session on a schedule",
+    "security": [
+     {
+      "runToken": [
+       "schedule"
+      ]
+     }
+    ],
+    "responses": {
+     "201": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "job_id": {
+          "type": "string"
+         },
+         "every_hours": {
+          "type": "integer"
+         },
+         "runs": {
+          "type": "integer"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/schedules/{schedule_id}/cancel": {
+   "post": {
+    "operationId": "post__api_schedules_schedule_id_cancel",
+    "tags": [
+     "Repeatability"
+    ],
+    "summary": "Cancel a schedule",
+    "security": [
+     {
+      "runToken": [
+       "schedule"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "schedule_id",
+      "in": "path",
+      "required": true,
+      "description": "sch_<12 hex>",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "job_id": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/service/config": {
+   "get": {
+    "operationId": "get__api_service_config",
+    "tags": [
+     "New benchmark"
+    ],
+    "summary": "Models offered, limits, demo mode",
+    "security": [],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
+   }
+  },
+  "/api/sessions": {
+   "get": {
+    "operationId": "get__api_sessions",
+    "tags": [
+     "Sessions"
+    ],
+    "summary": "Sessions on this server (one-user mode), paged",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "limit",
+      "in": "query",
+      "required": false,
+      "description": "",
+      "schema": {
+       "type": "integer"
+      }
+     },
+     {
+      "name": "offset",
+      "in": "query",
+      "required": false,
+      "description": "",
+      "schema": {
+       "type": "integer"
+      }
+     },
+     {
+      "name": "status",
+      "in": "query",
+      "required": false,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "input",
+      "in": "query",
+      "required": false,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "q",
+      "in": "query",
+      "required": false,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     },
+     {
+      "name": "tag",
+      "in": "query",
+      "required": false,
+      "description": "",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/sessions/{job_id}": {
+   "get": {
+    "operationId": "get__api_sessions_job_id",
+    "tags": [
+     "Sessions"
+    ],
+    "summary": "One session (one-user mode)",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "description": "Job id",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   },
+   "patch": {
+    "operationId": "patch__api_sessions_job_id",
+    "tags": [
+     "Sessions"
+    ],
+    "summary": "Notes and tags (one-user mode)",
+    "security": [],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    },
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "description": "Job id",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "notes": {
+          "type": "string"
+         },
+         "tags": {
+          "type": "array",
+          "description": "array"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/health": {
+   "get": {
+    "operationId": "get__health",
+    "tags": [
+     "GPU backend"
+    ],
+    "summary": "Is the backend up: provider, GPU, queue, api_version",
+    "security": [],
+    "responses": {
+     "200": {
+      "description": "OK"
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "securitySchemes": {
+   "userToken": {
+    "type": "http",
+    "scheme": "bearer",
+    "description": "Access token from POST /api/auth/login on the control plane (15 minutes). Scope admin: the user's role must be admin."
+   },
+   "runToken": {
+    "type": "http",
+    "scheme": "bearer",
+    "description": "Run token from POST /api/runs/authorize on the control plane (5 minutes; single use for actions); its scope is the token's kind. Not needed in one-user mode (no control plane)."
+   },
+   "backendSignature": {
+    "type": "apiKey",
+    "in": "header",
+    "name": "X-AM-Signature",
+    "description": "hex HMAC-SHA256(BACKEND_SECRET, method\\npath\\nX-AM-Timestamp\\nsha256(body)); X-AM-Timestamp (unix seconds) within 120 s."
+   },
+   "prepSignature": {
+    "type": "apiKey",
+    "in": "header",
+    "name": "X-AM-Signature",
+    "description": "The same signature with CLOUD_PREP_SECRET (preparation service → control plane)."
+   },
+   "controlPlaneSignature": {
+    "type": "apiKey",
+    "in": "header",
+    "name": "X-AM-Signature",
+    "description": "The same signature with CLOUD_PREP_SECRET (control plane → preparation service)."
+   }
+  },
+  "schemas": {
+   "Error": {
+    "type": "object",
+    "properties": {
+     "error": {
+      "type": "string",
+      "description": "A sentence for people"
+     },
+     "code": {
+      "type": "string",
+      "description": "A stable code for programs"
+     }
+    }
+   }
+  }
+ }
+}

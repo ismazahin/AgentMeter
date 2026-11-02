@@ -841,6 +841,7 @@
     </div>
   </div>
   <div id="svc-demo" class="notice warn" hidden></div>
+  <div id="svc-api-old" class="notice warn" role="status" hidden></div>
   <div id="svc-gpu-off" class="notice" role="status" hidden><b>GPU offline — viewing mode.</b> Every page still opens on the stored results; new benchmarks (demo runs too) start again when the GPU server is back. Checked every 30 seconds.
     <button type="button" class="btn small-btn" id="svc-gpu-retry" style="margin-left:6px">Check now</button></div>
 
@@ -965,6 +966,7 @@
     <div class="card" id="help-manage">
       <h2>4. Sessions, Leaderboard and Repeatability</h2>
       <ul class="guide-steps">
+        <li><a href="docs/" target="_blank" rel="noopener">API documentation</a> describes every endpoint of the control plane, the GPU backend and the cloud preparation service (who may call it, its parameters and answers). The services AgentMeter calls (Hugging Face, Telegram, Vast.ai, Supabase) are described in <code>docs/INTEGRATIONS.md</code>.</li>
         <li><a href="#/datasets">Data sets</a> lists every prepared set of flows: its size, labels, flow mix and fingerprint, which sessions and models used it, and buttons to benchmark it again or compare the models measured on it.</li>
         <li><a href="#/gpu">GPU &amp; Queue</a> shows the GPU server right now: live utilisation, memory, power and temperature, the run on it with its progress, the runs waiting in order, scheduled re-runs coming up, what just finished, and where a new file would be prepared.</li>
         <li><a href="#/sessions">Sessions</a> lists every run. Search by text, filter by tag, open a session, add a note, or delete a finished session (with an account).</li>
@@ -6701,7 +6703,7 @@
   function gpuOffline() { if (CP) { API = ""; goOffline(); } }
   function goOnline(h) {
     var first = !ONLINE;
-    ONLINE = true; HEALTH = h; badge(h); runModeLine();
+    ONLINE = true; HEALTH = h; badge(h); runModeLine(); apiVersionCheck(h);
     $("view-offline").hidden = true; $("svc-gpu-off").hidden = true; SHOWN = true;
     if (CP) { clearTimeout(offlineTimer); offlineTimer = setTimeout(checkControlPlaneBackend, 30000); }
     if (!first) return Promise.resolve();
@@ -6720,6 +6722,16 @@
       if (CP) { if (!$("view-new").hidden) routeWizard(parseHash().parts, parseHash().q); }
       else route();
     });
+  }
+  // the GPU backend must speak at least this API version (agentmeter/server/apiversion.py); an older
+  // one (the site was deployed, the backend not restarted) is named instead of failing quietly
+  var MIN_BACKEND = [1, 1];
+  function apiVersionCheck(h) {
+    var v = String((h && h.api_version) || "1.0.0").split(".").map(Number), old = v[0] < MIN_BACKEND[0] || (v[0] === MIN_BACKEND[0] && (v[1] || 0) < MIN_BACKEND[1]);
+    var box = $("svc-api-old");
+    box.hidden = !old;
+    if (old) box.innerHTML = '<b>The GPU backend is older than this website</b> (its API ' + esc((h && h.api_version) || "1.0") + '; this site needs ' + MIN_BACKEND.join(".") +
+      '). Pull the latest code on the GPU server and restart it; until then GPU &amp; Queue and the newest features may not work.';
   }
   function checkBackend() { return health().then(function (h) { if (h) goOnline(h); else goOffline(); }); }
   // control plane: where is the GPU backend, and is it up? (it registers + heartbeats itself)

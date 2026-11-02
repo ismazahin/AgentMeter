@@ -7,6 +7,7 @@ import { mapJobStatus as STATUS_FROM_JOB, parseBody, verifyBackend } from "./bac
 import { ConstraintError, type Summary, compare, compareMany, comparable, evaluateFacts, leaderboard, leaderboardOverall, LEADERBOARD_SORTS, OVERALL_BY } from "./analytics.ts";
 import { notifyFinal } from "./notify.ts";
 import { type Env, fail, intVar, json, nowIso, readJson } from "./util.ts";
+import { audit } from "./audit.ts";
 
 const SESSION_ID = /^job_\d{8}_\d{6}_([0-9a-f]{6}|[0-9a-f]{32})$/;
 export const FILES = ["report.pdf", "manifest.json", "features.csv", "labels.csv", "flows.json"] as const;
@@ -149,6 +150,7 @@ export async function deleteSession(req: Request, env: Env, id: string): Promise
   if (keys.length) await env.STORE.delete(keys);
   await env.DB.prepare("UPDATE sessions SET deleted_at=?, results_json=NULL, results_key=NULL, files_json=NULL, updated_at=? WHERE id=?")
     .bind(nowIso(), nowIso(), id).run();
+  await audit(env, a.user, "session.delete", id, { owner: r.owner_username ?? null, own: !!r.owner_id && r.owner_id === a.user.id });
   return json({ ok: true });
 }
 

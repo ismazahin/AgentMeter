@@ -2,6 +2,7 @@
 import { hashPassword, randomHex, randomToken, sha256Hex, signToken, verifyPassword, verifyToken } from "./crypto.ts";
 import { loadLimits } from "./settings.ts";
 import { type Env, HttpError, clientIp, fail, intVar, json, nowIso, nowS, readJson } from "./util.ts";
+import { audit } from "./audit.ts";
 
 export const ACCESS_TTL_S = 15 * 60;
 export const REFRESH_TTL_S = 30 * 24 * 3600;          // "Remember me" on
@@ -194,6 +195,7 @@ export async function changePassword(req: Request, env: Env): Promise<Response> 
     env.DB.prepare("UPDATE auth_sessions SET revoked_at=? WHERE user_id=? AND id<>? AND revoked_at IS NULL")
       .bind(nowIso(), a.user.id, a.sid),                     // other devices are logged out
   ]);
+  await audit(env, a.user, "password.change", a.user.username);
   return json({ ok: true });
 }
 

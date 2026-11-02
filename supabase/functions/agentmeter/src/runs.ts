@@ -31,7 +31,8 @@ export async function authorize(req: Request, env: Env): Promise<Response> {
   const now = nowS();
   const base = { typ: "run", jti: randomHex(16), sub: a.user.id, uname: a.user.username, kind, aud: "agentmeter-backend", iat: now, exp: now + RUN_TTL_S };
 
-  if (kind === "read") return json({ token: await signToken(env.RUN_TOKEN_SECRET, base), expires_in: RUN_TTL_S, backend: be.url });
+  // read: admin is carried so the backend can serve admins' views (GET /api/logs/recent) — nothing else reads it
+  if (kind === "read") return json({ token: await signToken(env.RUN_TOKEN_SECRET, { ...base, admin: a.user.role === "admin" }), expires_in: RUN_TTL_S, backend: be.url });
   if (kind === "files") {
     if (!SET_ID.test(String(b.set || ""))) fail(400, "bad_request", "set: csv_runs/<name> or pcap_runs/<name>");
     return json({ token: await signToken(env.RUN_TOKEN_SECRET, { ...base, set: b.set }), expires_in: RUN_TTL_S, backend: be.url });

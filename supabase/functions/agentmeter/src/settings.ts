@@ -3,6 +3,7 @@
 // as a threat detector" wording (tests/settings.test.ts checks this).
 import { requireUser } from "./auth.ts";
 import { type Env, fail, json, nowIso, readJson } from "./util.ts";
+import { audit } from "./audit.ts";
 
 export const DEFAULT_SETTINGS = {
   theme: "system",
@@ -157,5 +158,6 @@ export async function putLimits(req: Request, env: Env): Promise<Response> {
     env.DB.prepare("INSERT INTO system_settings (key,value,updated_by,updated_at) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_by=excluded.updated_by, updated_at=excluded.updated_at")
       .bind(k, JSON.stringify(v), a.user.username, nowIso()));
   if (stmts.length) await env.DB.batch(stmts);
+  if (stmts.length) await audit(env, a.user, "limits.update", null, patch as Record<string, unknown>);
   return json({ limits: await loadLimits(env) });
 }

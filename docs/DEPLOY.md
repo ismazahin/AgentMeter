@@ -178,6 +178,7 @@ npx supabase db push                                # creates the tables and the
 npx supabase secrets set ACCESS_TOKEN_SECRET=<value> RUN_TOKEN_SECRET=<value> BACKEND_SECRET=<value> PASSWORD_PEPPER=<value>
 npx supabase secrets set ALLOWED_ORIGINS=https://agentmeter.pages.dev    # the site's exact origin(s), comma-separated
 npx supabase secrets set TELEGRAM_BOT_TOKEN=<token>                      # optional: "notify me" in Settings
+# Rotating a secret later (e.g. one that was shared by mistake): docs/SECURITY.md
 
 npx supabase functions deploy agentmeter --no-verify-jwt --use-api
 curl -s https://<project-ref>.supabase.co/functions/v1/agentmeter/api/health

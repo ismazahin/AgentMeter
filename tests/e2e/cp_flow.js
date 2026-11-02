@@ -149,6 +149,12 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.waitForFunction(() => !document.querySelector('tr[data-model="ibm-granite/granite-3.3-8b-instruct"]'), null, { timeout: 15000 });
     log(true, 'admin removes an added model');
     await p.screenshot({ path: path.join(OUT, '02b-admin-models.png'), fullPage: true });
+    await p.goto(APP + '/#/'); await p.goto(APP + '/#/admin'); await p.waitForSelector('#adm-audit-table');
+    const audit = await p.textContent('#adm-audit-table');
+    log(/changed the model catalog/.test(audit) && /granite-3\.3-8b-instruct/.test(audit) && /admin/.test(audit), 'Admin › Audit log: the model catalog changes, by whom');
+    await p.waitForFunction(() => { const h = document.querySelector('#adm-health'); return h && !/Loading/.test(h.textContent); }, null, { timeout: 20000 });
+    const health = await p.textContent('#adm-health');
+    log(/all clear|error|warning|failed run|GPU server is offline/.test(health) && !/Could not|forbidden/.test(health), 'Admin › Problems in the last 24 hours: read from the GPU server (admin read token), or offline said plainly');
 
     // 3. alice logs in, forced password change
     await logout(p);

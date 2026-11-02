@@ -11,6 +11,7 @@ import { createPrepJob, getPrepFile, getPrepJob, prepEvents, startPrepJob, wakeP
 import { getLimits, getSettings, putLimits, putSettings } from "./settings.ts";
 import { backendModelState, backendModelVerified, getAdminModels, putAdminModels } from "./models.ts";
 import { type Env, corsHeaders, fail, json } from "./util.ts";
+import { getAudit } from "./audit.ts";
 
 type Handler = (req: Request, env: Env, ...params: string[]) => Promise<Response>;
 const ROUTES: [string, RegExp, Handler][] = [
@@ -32,6 +33,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["PATCH", /^\/api\/admin\/users\/([0-9a-f]{32})$/, patchUser],
   ["DELETE", /^\/api\/admin\/users\/([0-9a-f]{32})$/, deleteUser],
   ["GET", /^\/api\/admin\/credentials$/, credentials],
+  ["GET", /^\/api\/admin\/audit$/, getAudit],
   ["GET", /^\/api\/admin\/limits$/, getLimits],
   ["GET", /^\/api\/admin\/models$/, getAdminModels],
   ["PUT", /^\/api\/admin\/models$/, putAdminModels],

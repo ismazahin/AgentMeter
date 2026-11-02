@@ -9,6 +9,7 @@
 import { requireUser } from "./auth.ts";
 import { verifyBackend } from "./backend.ts";
 import { type Env, fail, json, nowIso, readJson } from "./util.ts";
+import { audit } from "./audit.ts";
 
 export const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]{1,96}$/;
 const PREQUANT = /-(gptq|awq|gguf|exl2|4bit|8bit|int4|int8|fp8|bnb)$/i;
@@ -78,6 +79,7 @@ export async function putAdminModels(req: Request, env: Env): Promise<Response> 
     st.models[id] = cur;
   }
   await saveModelState(env, st, a.user.username);
+  await audit(env, a.user, "models.update", null, { added: (b.add || []).map((x) => x?.id), removed: b.remove || [], set: b.set || {} });
   return json({ state: st });
 }
 

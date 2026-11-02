@@ -2,6 +2,7 @@
 import { MAX_USERS, type User, checkPassword, checkUsername, iterations, publicUser, requireUser } from "./auth.ts";
 import { hashPassword, randomHex } from "./crypto.ts";
 import { type Env, fail, json, nowIso, readJson } from "./util.ts";
+import { audit } from "./audit.ts";
 
 export async function createUser(env: Env, username: string, password: string, role: string, mustChange = true) {
   if (!["admin", "user"].includes(role)) fail(400, "bad_role", "role: admin | user");
@@ -29,9 +30,10 @@ export async function listUsers(req: Request, env: Env): Promise<Response> {
 }
 
 export async function postUser(req: Request, env: Env): Promise<Response> {
-  await requireUser(req, env, "admin");
+  const a = await requireUser(req, env, "admin");
   const b = await readJson<{ username?: string; password?: string; role?: string }>(req);
   const u = await createUser(env, checkUsername(b.username), checkPassword(b.password), String(b.role || "user"), true);
+  await audit(env, a.user, "user.create", u.username, { role: u.role });
   return json({ user: publicUser(u) }, 201);
 }
 
@@ -68,6 +70,9 @@ export async function patchUser(req: Request, env: Env, id: string): Promise<Res
     stmts.push(env.DB.prepare("UPDATE auth_sessions SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL").bind(nowIso(), id));
   await env.DB.batch(stmts);
   const u = await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(id).first<User>();
+  await audit(env, a.user, "user.update", target!.username, {
+    ...(b.disabled !== undefined ? { disabled: b.disabled } : {}), ...(b.role !== undefined ? { role: b.role } : {}),
+    ...(b.password !== undefined ? { password_reset: true } : {}) });
   return json({ user: publicUser(u!) });
 }
 
@@ -84,6 +89,7 @@ export async function deleteUser(req: Request, env: Env, id: string): Promise<Re
     env.DB.prepare("DELETE FROM run_grants WHERE user_id=?").bind(id),
     env.DB.prepare("DELETE FROM users WHERE id=?").bind(id),
   ]);
+  await audit(env, a.user, "user.delete", target!.username);
   return json({ ok: true });
 }
 

@@ -299,6 +299,9 @@ def latency_block(sr: list[dict], label_of: dict[str, str]) -> dict[str, Any]:
             first, rest = float(np.median(xs[:WARMUP_N])), float(np.median(xs[WARMUP_N:]))
             ratio = first / rest if rest else None
             warm = {"n_first": WARMUP_N, "median_first_s": first, "median_rest_s": rest, "ratio": ratio,
+                    # the steady-state mean (warm-up left out) next to the headline mean, which keeps every flow
+                    "mean_steady_s": float(np.mean(xs[WARMUP_N:])), "mean_all_s": float(np.mean(xs)),
+                    "steady_change": (float(np.mean(xs[WARMUP_N:])) - float(np.mean(xs))) / float(np.mean(xs)) if np.mean(xs) else None,
                     "warmup_effect": bool(ratio is not None and ratio > WARMUP_RATIO),
                     "note": (f"The first {WARMUP_N} flows were {ratio:.2f}x the median of the rest: a warm-up "
                              "effect; the mean includes it." if ratio and ratio > WARMUP_RATIO else
@@ -846,6 +849,69 @@ def model_windows(sr: list[dict], label_of: dict[str, str]) -> dict[str, Optiona
     return out
 
 
+# ---------------------------------------------------------------------------
+# GPU health during the run: was the GPU in a normal state while each model ran?
+# ---------------------------------------------------------------------------
+THROTTLE_BAD = {0x8: "hardware slowdown", 0x20: "thermal slowdown (software)", 0x40: "thermal slowdown (hardware)",
+                0x80: "power-brake slowdown"}
+THROTTLE_POWER_CAP = 0x4
+HEALTH_LIMITS = {"throttled_share": 0.05, "clock_share": 0.80, "temp_c": 85.0}
+
+
+def gpu_health_block(sr: list[dict], label_of: dict[str, str], *, real: bool,
+                     energy: Optional[dict] = None) -> dict[str, Any]:
+    """Per model, over its run window: the share of samples the driver reported a slowdown
+    (thermal, hardware, power brake), the median SM clock against the GPU's maximum, the highest
+    temperature, and other processes holding GPU memory. A model is "check" when any limit is
+    broken: its latency and energy may then reflect the GPU's state, not the model."""
+    energy = energy or {}
+    hs = energy.get("health_samples") or []
+    synthetic = str(energy.get("method") or "").startswith("synthetic")     # test only: never a measurement
+    if (not real and not synthetic) or not hs:
+        return {"available": False,
+                "reason": "demo run: no GPU" if not real else "the GPU's clock, temperature and throttle state were not sampled"}
+    windows, max_sm = model_windows(sr, label_of), energy.get("max_sm_mhz")
+    per, any_check = [], False
+    for model, win in windows.items():
+        if not win:
+            continue
+        ins = [h for h in hs if win[0] <= h[0] <= win[1]]
+        if not ins:
+            continue
+        reasons = [h[3] for h in ins if h[3] is not None]
+        bad = [r for r in reasons if any(r & bit for bit in THROTTLE_BAD)]
+        kinds = sorted({name for r in bad for bit, name in THROTTLE_BAD.items() if r & bit})
+        cap = sum(1 for r in reasons if r & THROTTLE_POWER_CAP)
+        clocks = [h[1] for h in ins if h[1] is not None]
+        temps = [h[2] for h in ins if h[2] is not None]
+        med = float(np.median(clocks)) if clocks else None
+        share_clock = med / max_sm if med and max_sm else None
+        foreign = (energy.get("foreign_processes") or {}).get(label_of.get(model, model)) or (energy.get("foreign_processes") or {}).get(model) or []
+        why = []
+        if reasons and len(bad) / len(reasons) > HEALTH_LIMITS["throttled_share"]:
+            why.append(f"the driver slowed the GPU down ({', '.join(kinds)}) in {100 * len(bad) / len(reasons):.0f}% of samples")
+        if share_clock is not None and share_clock < HEALTH_LIMITS["clock_share"]:
+            why.append(f"the median SM clock was {100 * share_clock:.0f}% of its maximum ({med:.0f} of {max_sm:.0f} MHz)")
+        if temps and max(temps) >= HEALTH_LIMITS["temp_c"]:
+            why.append(f"the GPU reached {max(temps):.0f} °C")
+        if foreign:
+            why.append(f"{len(foreign)} other process{'es' if len(foreign) != 1 else ''} held GPU memory "
+                       f"({sum(p.get('used_mb') or 0 for p in foreign):,.0f} MB) — the GPU was shared")
+        any_check = any_check or bool(why)
+        per.append({"model": model, "status": "check" if why else "normal", "reasons": why, "n_samples": len(ins),
+                    "throttled_share": len(bad) / len(reasons) if reasons else None, "throttle_kinds": kinds,
+                    "power_cap_share": cap / len(reasons) if reasons else None,
+                    "median_sm_mhz": med, "max_sm_mhz": max_sm, "clock_share": share_clock,
+                    "max_temp_c": max(temps) if temps else None, "mean_temp_c": float(np.mean(temps)) if temps else None,
+                    "other_processes": foreign})
+    return {"available": bool(per), "status": "check" if any_check else "normal", "per_model": per,
+            "limits": HEALTH_LIMITS, "synthetic": str(energy.get("method") or "").startswith("synthetic"),
+            "rule": "A model's run is flagged when the driver reported a thermal, hardware or power-brake slowdown in more "
+                    "than 5% of the samples, the median SM clock was under 80% of the maximum, the GPU reached 85 °C, or "
+                    "other processes held GPU memory. Hitting the power limit alone (power cap) is normal under load and "
+                    "is only reported. A flagged run's latency and energy may reflect the GPU's state, not the model."}
+
+
 def cost_energy_block(payload: dict[str, Any], sr: list[dict], label_of: dict[str, str],
                       *, real: bool, price: Optional[dict] = None,
                       energy: Optional[dict] = None) -> dict[str, Any]:
@@ -875,7 +941,10 @@ def cost_energy_block(payload: dict[str, Any], sr: list[dict], label_of: dict[st
                 row.update(wh_per_flow=wh / n, wh_per_1k_flows=wh / n * 1000.0, energy_wh_total=wh,
                            mean_power_w=float(np.mean(inwin)) if inwin else None,
                            window_s=win[1] - win[0], n_samples=len(inwin), energy_status="measured",
-                           energy_reason=None)
+                           energy_reason=None,
+                           # half a sample interval of unknown power at each end of the window, plus the
+                           # 1 s resolution of the flow timestamps: the share of the window that is uncertain
+                           energy_uncertainty=min(1.0, (float(energy.get("interval_s") or 0.5) + 1.0) / max(1e-9, win[1] - win[0])))
                 # net of idle: the idle board power sampled right before this model's worker
                 iw = (energy.get("idle") or {}).get(label_of.get(m, m)) or (energy.get("idle") or {}).get(m)
                 idle = [w for t, w in samples if iw and iw["t0"] <= t <= iw["t1"]]
@@ -909,6 +978,9 @@ def cost_energy_block(payload: dict[str, Any], sr: list[dict], label_of: dict[st
                       "1 s timestamp resolution) and divided by its flows. Whole-board power, including "
                       "idle power between agent calls; model loading excluded. Sampling runs in a separate "
                       "process from the measured worker, so it does not add to the measured latency.",
+            "energy_uncertainty": "Uncertainty of energy per flow ≈ (sampling interval + 1 s timestamp resolution) "
+                                  "÷ the model's window: the power at the window's edges is not known exactly. "
+                                  "It is small for long runs and large for short ones.",
             "energy_net": "Net of idle = the same energy minus the idle board power (mean of the samples "
                           "taken for a few seconds right before the model's worker started, GPU idle) x the "
                           "window length. The GPU can still be leaving a high-power state when the idle "
@@ -1164,6 +1236,7 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     payload["latency_trend"] = latency_trend_block(sr, label_of)
     payload["effect_sizes"] = effect_block(sr, am, label_of, payload.get("statistics"))
     payload["cost_energy"] = cost_energy_block(payload, sr, label_of, real=real, price=price, energy=energy)
+    payload["gpu_health"] = gpu_health_block(sr, label_of, real=real, energy=energy)
     payload["gpu_timeline"] = gpu_timeline_block(sr, label_of, real=real, energy=energy,
                                                  flow_times=read_extras(db_path, run_id, labels, "flow_times"))
     payload["load_scaling"] = load_scaling_block(db_path, run_id, label_of)

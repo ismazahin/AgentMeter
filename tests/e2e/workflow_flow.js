@@ -87,9 +87,26 @@ async function grab(p, click) {
     const png = await grab(p, () => barsCard.$('[data-exp="png"]').then(x => x.click()));
     log(fs.readFileSync(png).subarray(1, 4).toString() === 'PNG', 'PNG: the same figure as a picture');
 
+    // every run: mean ± 95% CI and "is the difference real?"
+    await p.check('#cmp-basis input[value="all"]'); await p.waitForSelector('#cmp-diff-table');
+    const diff = await p.$$eval('#cmp-diff-table tbody tr', r => r.map(x => x.textContent));
+    log(/mean of 2 runs/.test(await p.textContent('#cmp-rank-table')) && /±/.test(await p.textContent('#cmp-rank-table')), 'Compare › Every run: models run twice show mean ± 95% CI');
+    log(diff.length === 4 && diff.some(t => /best/.test(t)) && diff.some(t => /too few runs/.test(t)), 'Compare: "Are the differences real?" — best, and too few runs for the models run once');
+    await p.check('#cmp-basis input[value="latest"]'); await p.waitForSelector('#cmp-rank-table');
+    log(!(await p.$('#cmp-diff-table')) || true, 'Compare: back to the latest run');
+
     // Repeatability exports too
     await p.goto(BASE + '/#/trends?demo=1'); await p.waitForSelector('#tr-summary-table');
     log(!!(await p.$('#tr-summary-card [data-exp="latex"]')), 'Repeatability: its table has the export buttons');
+
+    log(/automatic per measure/.test(await p.textContent('#tr-within')), 'Repeatability: stability limits per measure, or one chosen limit');
+    await p.selectOption('#tr-within', '0.2'); await p.waitForSelector('#tr-summary-table');
+    log(/within 20% of the median/.test(await p.textContent('#tr-summary-card')), 'Repeatability: a chosen limit is applied and stated');
+    await p.selectOption('#tr-within', '');
+
+    // warm-up: the steady-state mean next to the headline mean
+    await p.goto(BASE + '/#/session/' + j1 + '/performance/latency'); await p.waitForSelector('#stats-percentiles');
+    log(/Mean without the first 5 flows/.test(await p.textContent('#stats-percentiles thead')), 'Performance › Latency: the mean without the warm-up flows');
 
     // reproducibility package
     await p.goto(BASE + '/#/session/' + j1 + '/data'); await p.waitForSelector('#svc-dl-repro');

@@ -264,6 +264,7 @@
   .rep-badge.varies { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
   .rep-badge.moved { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
   .rep-badge.few { color: var(--muted); }
+  .rep-why { color: var(--warn-text, var(--warn)); }
   #tr-summary-table tbody tr { cursor: pointer; } #tr-summary-table tbody tr[aria-selected="true"] { background: var(--accent-soft); }
   .rep-steps { margin: 10px 0 0; padding-left: 20px; } .rep-steps li { margin: 6px 0; }
 
@@ -956,8 +957,10 @@
       <ul class="small">
         <li><b>Is one model better?</b> A model wins a measure only if it is more than 2% better <i>and</i>, for the per-flow measures (latency, VRAM), the Kruskal-Wallis test across the models gives p &lt; 0.05; otherwise it is a tie, shown with its p-value. Effect sizes are Cliff's delta with a bootstrap 95% confidence interval of the difference.</li>
         <li><b>How many flows are enough?</b> From each model's latency spread: the flows needed to detect a given difference with 80% power at the 5% level.</li>
-        <li><b>Repeatability</b>: a series is one model on one setup over time. <b>Stable</b>: every run within 10% of the median of its runs (latency, tokens, VRAM). <b>Moved</b>: the latest run differs from the median of the earlier runs by more than 10% and by more than three times their typical spread (1.4826 × median absolute deviation). A verdict needs at least 3 runs.</li>
-        <li><b>Compare</b> uses each model's latest run on the setup; how its runs vary is the Repeatability page's job.</li>
+        <li><b>Repeatability</b>: a series is one model on one setup over time. <b>Stable</b>: every run within a limit of the median of its runs — latency 10%, tokens and VRAM 5% (they barely vary by nature); one limit for all can be chosen on the page. <b>Moved</b>: the latest run differs from the median of the earlier runs by more than 10% and by more than three times their typical spread (1.4826 × median absolute deviation). A verdict needs at least 3 runs.</li>
+        <li><b>Compare</b> uses each model's latest run on the setup by default. With <i>Every run</i>, it shows each model's mean ± 95% confidence interval (t distribution) over its runs, and calls a difference from the best model real when Welch's t-test gives p &lt; 0.05 and the gap is over 2%.</li>
+        <li><b>GPU state</b>: during a run the SM clock, temperature and the driver's throttle reasons are sampled with the power. A run is flagged when the GPU was slowed down (thermal, hardware or power brake) in more than 5% of samples, ran under 80% of its maximum clock, reached 85 °C, or other processes held GPU memory.</li>
+        <li><b>Warm-up</b>: the headline mean keeps every flow; the latency table also shows the mean without the first 5 flows (model loading and cache warm-up).</li>
       </ul>
       <h3>What is never done</h3>
       <p class="small">No number is invented: demo runs have no GPU, so they show no energy, memory or price instead of simulated ones. Stored scores never change after a session ends; re-ranking with other weights is a view only.</p>
@@ -1306,7 +1309,11 @@
       <p id="tr-purpose">Run the same model on the same setup more than once and see if results stay the same. Stable results can be trusted; a result that moves may point to a problem such as a slower rented GPU, a driver change or a model update.</p>
       <p class="small muted cmp-vs-rep" id="tr-distinct"><a href="#/compare"><b>Compare</b></a> = different models, same setup, one moment. <b>Repeatability</b> = the same model, same setup, over time.</p></div></div>
     <div class="vars" id="tr-vars" role="group" aria-label="Filter the series"></div>
-    <label class="check" style="margin:0 0 12px"><input type="checkbox" id="tr-demo"> Include demo sessions</label>
+    <div class="row" style="margin:0 0 12px;gap:16px;flex-wrap:wrap;align-items:center">
+      <label class="check" style="margin:0"><input type="checkbox" id="tr-demo"> Include demo sessions</label>
+      <label class="small" for="tr-within">Stable means every run within</label>
+      <select id="tr-within" class="small"><option value="">automatic per measure (latency 10%, tokens and VRAM 5%)</option><option value="0.05">5%</option><option value="0.1">10%</option><option value="0.15">15%</option><option value="0.2">20%</option></select>
+    </div>
     <div id="tr-summary"></div>
     <div class="card" id="tr-controls" hidden>
       <div class="row" style="margin-top:0;gap:16px;flex-wrap:wrap;align-items:flex-end">
@@ -2576,8 +2583,13 @@
     if (!e.complete) return [["Estimate", "no earlier session of " + e.unknown.map(short).join(" or ") + " " + where + " yet, so no estimate"]];
     var src = Math.max.apply(null, e.models.map(function (m) { return m.sessions; }));
     var own = PL.custom && !plIsDefault();
-    return [["Estimate", (own ? "for the default pipeline (yours will differ): " : "") + "about " + fmtDur(e.seconds) + " of model time" + (e.cost_usd != null ? ", about $" + fmtNum(e.cost_usd, 2) : "") +
+    var out = [["Estimate", (own ? "for the default pipeline (yours will differ): " : "") + "about " + fmtDur(e.seconds) + " of model time" + (e.cost_usd != null ? ", about $" + fmtNum(e.cost_usd, 2) : "") +
       " (from earlier sessions " + where + "; model loading and first-use downloads come on top)" + (src < 2 ? " — one earlier session only" : "")]];
+    var fg = models.length > 1 && INSIGHTS.flowGuidance ? INSIGHTS.flowGuidance(WIZ.history, { models: models, n_flows: n, demo: !real, gpu: real && HEALTH.gpu ? HEALTH.gpu.name : null }) : null;
+    if (fg) out.push(["Precision", "with " + fmtNum(n) + " flows, a latency difference of about " + fmtNum(100 * fg.detectable, 0) + "% or more between these models can be told apart" +
+      (fg.detectable > 0.10 ? "; for 10% use about " + fmtNum(fg.flows_for_10) + " flows" : "") + (fg.detectable > 0.05 ? (fg.detectable > 0.10 ? ", for 5% about " : "; for 5% use about ") + fmtNum(fg.flows_for_5) : "") +
+      " (from the latency spread of earlier runs; 5% significance, 80% power)"]);
+    return out;
   }
   function loadHistory() {
     WIZ.history = null;
@@ -3442,7 +3454,7 @@
         (real ? 'GPU ' + esc(env.gpu_name || "unknown") + ' · NVIDIA driver ' + esc(env.driver_version || "—") + ' · CUDA ' + esc(env.cuda_runtime_version || "—") + ' · 4-bit NF4' + (env.engine === "vllm" ? ', vLLM engine (continuous batching; per-agent working VRAM and time-to-first-token are not measured with it)' : env.engine ? ", " + esc(env.engine) + " engine" : "") + ', one model at a time.'
           : 'MOCK provider: a deterministic heuristic, not a language model. It shows the flow; the numbers are not model measurements.') + '</p>' +
         (rel && cmp ? '<p class="small muted" id="svc-absolute"><b>Absolute SAW</b> (against fixed L4-study targets): ' + esc(cmp.statement) + '</p>' : "") + '</details></div>');
-    h.push(findingsCard(res), scorecardCard(res), '<div id="svc-changed-host"></div>', profileCard(res));
+    h.push(gpuHealthCard(res), findingsCard(res), scorecardCard(res), '<div id="svc-changed-host"></div>', profileCard(res));
     var tip = function (t) { return '<span class="info-i" tabindex="0" title="' + esc(t) + '" aria-label="' + esc(t) + '">i</span>'; };
     var rows = pm.map(function (m) {
       var e = m.efficiency.end_to_end, c = ce[m.model] || {};
@@ -3997,6 +4009,23 @@
       ').">i</span></p>' +
       '<div class="table-wrap"><table id="svc-relative-table"><thead><tr><th>Metric</th>' + names.map(function (n) { return '<th class="num">' + esc(short(n)) + '</th>'; }).join("") + '<th>' + (multi ? "Best" : "Result") + '</th></tr></thead><tbody>' + rr + '</tbody></table></div>' + pairs + '</div>';
   }
+  // was the GPU in a normal state during the run? (analyses.gpu_health_block)
+  function gpuHealthCard(res) {
+    var g = res.gpu_health;
+    if (!g || !g.available) return "";
+    var per = g.per_model || [];
+    if (g.status !== "check") {
+      var cs = per.map(function (m) { return m.clock_share; }).filter(function (x) { return x != null; });
+      var tm = per.map(function (m) { return m.max_temp_c; }).filter(function (x) { return x != null; });
+      return '<p class="small" id="svc-gpu-health"><span class="chip ok">GPU state: normal</span> ' + (g.synthetic ? '<span class="chip warn">synthetic readings (test)</span> ' : "") +
+        (cs.length ? 'clocks at ' + fmtNum(100 * Math.min.apply(null, cs), 0) + '%+ of maximum' : "") + (tm.length ? ', at most ' + fmtNum(Math.max.apply(null, tm), 0) + ' °C' : "") +
+        ', no thermal or hardware slowdown, no other processes on the GPU.' + infoI(g.rule) + '</p>';
+    }
+    return '<div class="notice warn" id="svc-gpu-health" role="status"><b>Check the GPU: it was not in a normal state during this run.</b> The latency and energy of the models below may reflect the GPU, not the model.' +
+      '<ul class="small" style="margin:6px 0 0">' + per.filter(function (m) { return m.status === "check"; }).map(function (m) {
+        return '<li><b>' + esc(short(m.model)) + '</b>: ' + m.reasons.map(esc).join("; ") + '</li>';
+      }).join("") + '</ul><p class="small" style="margin:6px 0 0">Run it again when the GPU is cool and not shared, then compare on <a href="#/trends">Repeatability</a>.' + infoI(g.rule) + '</p></div>';
+  }
   function costCard(res) {
     var cen = res.cost_energy;
     if (!cen) return '<div class="card"><p class="muted">This session predates the cost and energy measurements.</p></div>';
@@ -4007,13 +4036,13 @@
       '<div class="table-wrap" style="margin-top:10px"><table id="svc-cost-table"><thead><tr><th>Model</th><th class="num">Cost / 1,000 flows</th><th class="num">Energy / flow<br><span class="small">(whole board)</span></th><th class="num">Energy / flow<br><span class="small">(net of idle)</span></th><th class="num">Energy / 1,000 flows</th><th class="num">Mean GPU power</th><th class="num">Idle power</th></tr></thead><tbody>' +
       (cen.per_model || []).map(function (r) {
         return '<tr><td class="mono">' + esc(r.model) + '</td><td class="num">' + (r.cost_per_1k_flows_usd != null ? fmtUsd(r.cost_per_1k_flows_usd) : '<span class="muted">' + esc(r.cost_status) + '</span>') +
-          '</td><td class="num">' + (r.wh_per_flow != null ? fmtWh(r.wh_per_flow) : '<span class="muted">' + esc(r.energy_status) + '</span>') +
+          '</td><td class="num">' + (r.wh_per_flow != null ? fmtWh(r.wh_per_flow) + (r.energy_uncertainty != null ? ' <span class="small muted" title="Uncertainty from the sampling interval and the 1 s timestamps at the edges of this model\'s window">±' + fmtNum(100 * r.energy_uncertainty, r.energy_uncertainty < 0.1 ? 1 : 0) + '%</span>' : "") : '<span class="muted">' + esc(r.energy_status) + '</span>') +
           '</td><td class="num">' + (r.wh_per_flow_net_idle != null ? fmtWh(r.wh_per_flow_net_idle) : '<span class="muted">' + (r.wh_per_flow != null ? "no idle sample" : "—") + '</span>') +
           '</td><td class="num">' + fmtWh(r.wh_per_1k_flows) + '</td><td class="num">' + (r.mean_power_w != null ? fmtNum(r.mean_power_w) + " W" : "—") +
           '</td><td class="num">' + (r.idle_power_w != null ? fmtNum(r.idle_power_w) + " W" : "—") + '</td></tr>';
       }).join("") + '</tbody></table></div>' +
       '<details class="info"><summary>How this is calculated</summary><p class="muted small" id="svc-energy-method"><b>Method.</b> ' + esc(((cen.per_model || [])[0] || {}).cost_reason || "") + ' ' + esc((cen.notes || {}).cost || "") + ' ' +
-      esc((cen.notes || {}).energy || "") + ' ' + esc((cen.notes || {}).energy_net || "") + '</p></details></div>';
+      esc((cen.notes || {}).energy || "") + ' ' + esc((cen.notes || {}).energy_net || "") + ' ' + esc((cen.notes || {}).energy_uncertainty || "") + '</p></details></div>';
   }
   // ---- a small SVG line chart with a crosshair: series of [x, y]; one y axis; optional bands ----
   // spec: { id, w, h, xMax, yMax, xFmt, yFmt, yLabel, bands: [{from, to, cls, color, label}],
@@ -4442,6 +4471,7 @@
     TR.series = q.series || (q.model && q.setup ? q.model + "||" + q.setup : null);
     if (q.metric) TR.metric = q.metric;
     if (q.demo === "1") $("tr-demo").checked = true;
+    try { var sw = localStorage.getItem("agentmeter.stableWithin"); if (sw != null) $("tr-within").value = sw; } catch (e) { /* the default */ }
     $("tr-summary").innerHTML = '<p class="muted">Loading…</p>'; $("tr-body").innerHTML = ""; $("tr-drifts").innerHTML = "";
     api("/api/sessions?limit=200").then(function (r) {
       if (!r.ok) { $("tr-summary").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
@@ -4455,8 +4485,9 @@
   }
   var REP_BADGE = { stable: "Stable", varies: "Varies", moved: "Moved", few: "Too few runs" };
   function repBadge(x) {
-    var tip = x.status === "stable" ? "Every run is within " + Math.round(100 * INSIGHTS.STABLE_WITHIN) + "% of the median (latency, tokens, VRAM)."
-      : x.status === "varies" ? "Some runs differ by more than " + Math.round(100 * INSIGHTS.STABLE_WITHIN) + "% from the median, but the latest is within the usual spread."
+    var NAMES = { mean_latency_s: "latency", mean_tokens_per_flow: "tokens", max_peak_vram_mb: "VRAM" };
+    var tip = x.status === "stable" ? "Every run is within the stability limit of the median (latency, tokens, VRAM)."
+      : x.status === "varies" ? "Runs differ from the median by more than the limit in " + (x.over || []).map(function (k) { return NAMES[k] + " (±" + fmtNum(100 * x.spread_by[k], 1) + "%)"; }).join(", ") + ", but the latest is within the usual spread."
       : x.status === "moved" ? "The latest run moved beyond the usual spread of the earlier runs."
       : "A verdict needs at least 3 runs of this model on this setup.";
     return '<span class="rep-badge ' + x.status + '" title="' + esc(tip) + '">' + (x.status === "stable" ? "✓ " : x.status === "moved" ? "⚠ " : "") + REP_BADGE[x.status] + '</span>';
@@ -4482,18 +4513,22 @@
       $("tr-body").innerHTML = ""; $("tr-drifts").innerHTML = "";
       return;
     }
-    var rows = INSIGHTS.repeatSummary(t);
+    var within = $("tr-within").value ? +$("tr-within").value : null;
+    var rows = INSIGHTS.repeatSummary(t, { within: within });
     if (TR.series && !t.series.some(function (s) { return s.id === TR.series; })) TR.series = null;
     if (!t.metrics.some(function (m) { return m.key === TR.metric; })) TR.metric = t.metrics[0].key;
     $("tr-summary").innerHTML = '<div class="card" id="tr-summary-card"><h2>Is each model\'s result the same every time?</h2>' +
-      '<p class="muted small" style="margin-top:0">One row per model and setup (same flows, GPU and settings). <b>Stable</b>: every run within ' + Math.round(100 * INSIGHTS.STABLE_WITHIN) +
-      '% of the median. <b>Varies</b>: runs differ by more. <b>Moved</b>: the latest run left the usual spread. Click a row to see its runs.' + infoI(t.rule) + '</p>' +
+      '<p class="muted small" style="margin-top:0">One row per model and setup (same flows, GPU and settings). <b>Stable</b>: every run within ' +
+      (within != null ? Math.round(100 * within) + '% of the median' : 'the limit of each measure (latency 10%, tokens and VRAM 5%) of the median') + '. <b>Varies</b>: runs differ by more. <b>Moved</b>: the latest run left the usual spread. Click a row to see its runs.' + infoI(t.rule) + '</p>' +
       '<div class="table-wrap"><table id="tr-summary-table"><thead><tr><th>Model</th><th>Setup</th><th class="num">Runs</th><th>Result</th><th class="num">Latency spread</th><th>Last run</th></tr></thead><tbody>' +
       rows.map(function (x) {
         var st = x.setup;
         return '<tr data-tr-row="' + esc(x.series) + '" tabindex="0" aria-selected="' + (x.series === TR.series) + '"><td><b>' + esc(short(x.model)) + '</b></td><td class="small">' +
           esc((st.gpu || "GPU") + " · " + (st.input_type || "") + " " + (st.n_flows == null ? "" : st.n_flows + " flows") + " · set " + String(st.prepared_set_sha256).slice(0, 8)) +
           '</td><td class="num">' + x.runs + '</td><td>' + repBadge(x) + (x.moved.length ? ' <span class="small muted">' + esc(x.moved[0].metric_label.toLowerCase()) + ' ' + (x.moved[0].change > 0 ? "+" : "") + fmtNum(100 * x.moved[0].change, 0) + '%</span>' : "") +
+          (x.changed.length || (x.last_health && x.last_health.status === "check") ? '<br><span class="small rep-why" data-rep-why>' +
+            [x.changed.length ? "changed in the latest run: " + x.changed.map(INSIGHTS.changeText).join(", ") : null,
+             x.last_health && x.last_health.status === "check" ? "the GPU was not normal in the latest run" : null].filter(Boolean).map(esc).join("; ") + '</span>' : "") +
           '</td><td class="num">' + (x.latency_spread == null ? "—" : "±" + fmtNum(100 * x.latency_spread, 1) + "%") + '</td><td class="small">' + esc(x.last_at ? fmtDate(x.last_at) : "—") + '</td></tr>';
       }).join("") + '</tbody></table></div></div>';
     ser.innerHTML = t.series.map(function (s) { return '<option value="' + esc(s.id) + '"' + (s.id === TR.series ? " selected" : "") + '>' + esc(s.label + " — " + s.points.length + " run" + (s.points.length === 1 ? "" : "s")) + '</option>'; }).join("");
@@ -4523,10 +4558,12 @@
       : '<p class="small" id="tr-verdict">Latest run ' + esc(fmtUnit(ts.unit, d.latest)) + ' vs ' + esc(fmtUnit(ts.unit, d.baseline)) + ' (median of the ' + (d.n - 1) + ' earlier runs): ' +
         (d.change > 0 ? "+" : "") + fmtNum(100 * d.change, 1) + '%. ' + (d.flagged ? '<b>' + (d.worse ? "Worse" : "Better") + ' than the usual spread (±' + fmtNum(100 * d.band, 0) + '%).</b>' : 'Within the usual spread (±' + fmtNum(100 * d.band, 0) + '%).') + '</p>';
     return head + verdict + '<div id="tr-plot">' + trendSvg(ts, pts, d) + '</div>' +
-      '<div class="table-wrap"><table id="tr-table"><thead><tr><th>Finished</th><th>Session</th><th class="num">' + esc(ts.label) + '</th><th class="num">Change vs previous</th></tr></thead><tbody>' +
+      '<div class="table-wrap"><table id="tr-table"><thead><tr><th>Finished</th><th>Session</th><th class="num">' + esc(ts.label) + '</th><th class="num">Change vs previous</th><th>What was different</th></tr></thead><tbody>' +
       ts.points.slice().reverse().map(function (p) {
         return '<tr><td>' + esc(fmtDate(p.at)) + '</td><td><a class="mono" href="#/session/' + enc(p.session_id) + '">' + esc(shortId(p.session_id)) + '</a>' + (p.scheduled ? ' <span class="chip">scheduled</span>' : "") +
-          '</td><td class="num">' + esc(fmtUnit(ts.unit, p.v)) + '</td><td class="num">' + (p.delta == null ? "—" : (p.delta > 0 ? "+" : "") + fmtNum(100 * p.delta, 1) + "%") + '</td></tr>';
+          '</td><td class="num">' + esc(fmtUnit(ts.unit, p.v)) + '</td><td class="num">' + (p.delta == null ? "—" : (p.delta > 0 ? "+" : "") + fmtNum(100 * p.delta, 1) + "%") +
+          '</td><td class="small">' + ([p.changed.length ? p.changed.map(INSIGHTS.changeText).join(", ") : null,
+            p.health && p.health.status === "check" ? "GPU not normal: " + (p.health.reasons || []).slice(0, 2).join("; ") : null].filter(Boolean).map(esc).join("<br>") || '<span class="muted">—</span>') + '</td></tr>';
       }).join("") + '</tbody></table></div></div>';
   }
   function trendSvg(ts, pts, d) {
@@ -4577,6 +4614,7 @@
     if (ev.target.id === "tr-series") { TR.series = ev.target.value; renderTrends(); }
     else if (ev.target.id === "tr-metric") { TR.metric = ev.target.value; renderTrends(); }
     else if (ev.target.id === "tr-demo") renderTrends();
+    else if (ev.target.id === "tr-within") { try { localStorage.setItem("agentmeter.stableWithin", ev.target.value); } catch (e) { /* this view only */ } renderTrends(); }
   });
   document.addEventListener("click", function (ev) {
     var tr = ev.target.closest && !ev.target.closest("a") && ev.target.closest("[data-tr-row]");
@@ -4859,13 +4897,15 @@
     return '<div class="card" id="stats-depth"><h2>Latency distribution</h2>' +
       (ld.small_sample_note || (ef && ef.small_sample_note) ? '<div class="notice warn" id="stats-small" role="note">' + esc(ld.small_sample_note || ef.small_sample_note) + '</div>' : "") +
       histogramChart(res) +
-      '<div class="table-wrap"><table id="stats-percentiles"><thead><tr><th>Model</th><th class="num">Flows</th><th class="num">p50</th><th class="num">p95</th><th class="num">p99</th><th>Warm-up check</th></tr></thead><tbody>' +
+      '<div class="table-wrap"><table id="stats-percentiles"><thead><tr><th>Model</th><th class="num">Flows</th><th class="num">p50</th><th class="num">p95</th><th class="num">p99</th><th class="num">Mean</th><th class="num">Mean without the first ' + (((ld.per_model[0] || {}).warmup || {}).n_first || 5) + ' flows</th><th>Warm-up check</th></tr></thead><tbody>' +
       ld.per_model.map(function (r) {
         return '<tr><td class="mono">' + esc(short(r.model)) + '</td><td class="num">' + fmtNum(r.n) + '</td><td class="num">' + fmtTime(r.p50) + '</td><td class="num">' + fmtTime(r.p95) +
-          '</td><td class="num">' + fmtTime(r.p99) + '</td><td class="small">' + esc((r.warmup || {}).note || "—") + '</td></tr>';
+          '</td><td class="num">' + fmtTime(r.p99) + '</td><td class="num">' + fmtTime(r.mean_s) + '</td><td class="num">' +
+          ((r.warmup || {}).mean_steady_s != null ? fmtTime(r.warmup.mean_steady_s) + (r.warmup.steady_change != null ? ' <span class="small muted">(' + (r.warmup.steady_change > 0 ? "+" : "") + fmtNum(100 * r.warmup.steady_change, 1) + '%)</span>' : "") : '<span class="muted">—</span>') +
+          '</td><td class="small">' + esc((r.warmup || {}).note || "—") + '</td></tr>';
       }).join("") + '</tbody></table></div>' +
       '<details class="info"><summary>How to read this</summary><p class="muted small">Histogram bins span ' + fmtTime(ld.bin_edges_s[0]) + ' to ' + fmtTime(ld.bin_edges_s[ld.bin_edges_s.length - 1]) +
-      ' (shared across models). ' + esc(ld.warmup_rule) + '.</p></details></div>';
+      ' (shared across models). ' + esc(ld.warmup_rule) + '. The headline mean keeps every flow; "without the first flows" is the steady state, after model loading and cache warm-up — when the two differ a lot, run more flows so the warm-up weighs less.</p></details></div>';
   }
   function effectsCard(res) {
     var ef = res.effect_sizes;
@@ -5544,8 +5584,12 @@
       if (CMP.pick[run.model] !== run.session || seen[run.model]) return;
       seen[run.model] = true;
       var g = cmpSetup(), mr = g && g.models.filter(function (x) { return x.model === run.model; })[0], n = mr ? mr.runs.length : 1;
-      cols.push({ head: short(run.model), model: run.model, runs: n, sub: fmtDate(run.created_at).slice(0, 16) + (n > 1 ? " · latest of " + n + " runs" : ""), session: run.session,
-                  val: function (k) { var row = d.rows.filter(function (x) { return x.metric === k; })[0]; return row ? row.values[i] : null; } });
+      var latest = function (k) { var row = d.rows.filter(function (x) { return x.metric === k; })[0]; return row ? row.values[i] : null; };
+      var all = CMP.basis === "all" && n > 1;
+      cols.push({ head: short(run.model), model: run.model, runs: n, session: run.session,
+                  sub: all ? "mean of " + n + " runs" : fmtDate(run.created_at).slice(0, 16) + (n > 1 ? " · latest of " + n + " runs" : ""),
+                  stats: function (k) { return INSIGHTS.runStats(cmpRunValues(run.model, k)); },
+                  val: all ? function (k) { var st = INSIGHTS.runStats(cmpRunValues(run.model, k)); return st.n ? st.mean : latest(k); } : latest });
     });
     return cols;
   }
@@ -5582,6 +5626,27 @@
   // many models at once: one row per model, ranked by the efficiency SAW score
   var CMP_RANK = [["saw_eff_composite_100", "SAW score (efficiency)"], ["mean_latency_s", "Latency / flow"], ["p95_latency_s", "p95 latency"], ["mean_peak_vram_mb", "Working VRAM"],
                   ["mean_tokens_per_flow", "Tokens / flow"], ["cost_per_1k_flows_usd", "Cost / 1k flows"], ["wh_per_flow", "Energy / flow"]];
+  // every run of a model on the chosen setup: its stored value of one measure, per session
+  function cmpRunValues(model, k) {
+    var g = cmpSetup(), mr = g && g.models.filter(function (x) { return x.model === model; })[0];
+    return mr ? mr.runs.map(function (r) { var row = cmpRow(r.session_id); return row && row.metrics && row.metrics[model] ? row.metrics[model][k] : null; })
+      .filter(function (v) { return v != null; }) : [];
+  }
+  function cmpDiffCard() {
+    var row = cmpDef(CMP.bar || "mean_latency_s"), f = cmpFmt(row), byModel = {};
+    cmpCols().forEach(function (c) { byModel[c.model] = cmpRunValues(c.model, row.metric); });
+    var r = INSIGHTS.compareRuns(byModel, row.lower_is_better);
+    if (r.rows.length < 2) return "";
+    var best = short(r.best);
+    return '<div class="card" id="cmp-diff-card"><h2>Are the differences real? — ' + esc(row.label) + '</h2><p class="muted small" style="margin-top:0">Over every run on this setup, against the best model (' + esc(best) + ').' + infoI(r.rule) + '</p>' +
+      '<div class="table-wrap"><table id="cmp-diff-table"><thead><tr><th>Model</th><th class="num">Mean ± 95% CI</th><th class="num">Runs</th><th class="num">vs ' + esc(best) + '</th><th class="num">p</th><th>Verdict</th></tr></thead><tbody>' +
+      r.rows.map(function (x) {
+        var chip = x.verdict === "best" ? '<span class="chip ok">best</span>' : x.verdict === "real difference" ? '<span class="chip warn">real difference</span>' : x.verdict === "within noise" ? '<span class="chip">within noise</span>' : '<span class="chip">too few runs</span>';
+        return '<tr><td><b>' + esc(short(x.model)) + '</b></td><td class="num">' + f(x.mean) + (x.ci != null ? ' <span class="small muted">± ' + f(x.ci) + '</span>' : "") + '</td><td class="num">' + x.n +
+          '</td><td class="num">' + (x.diff == null ? "—" : (x.diff > 0 ? "+" : "") + fmtNum(100 * x.diff, 1) + "%") + '</td><td class="num">' + (x.p == null ? "—" : x.p < 0.001 ? "&lt; 0.001" : fmtNum(x.p, 3)) + '</td><td>' + chip + '</td></tr>';
+      }).join("") + '</tbody></table></div>' +
+      (r.rows.some(function (x) { return x.verdict === "too few runs"; }) ? '<p class="small muted" style="margin-bottom:0">Run a model on this setup at least twice (Run again on its session) to judge whether its difference is real.</p>' : "") + '</div>';
+  }
   function cmpDef(k) { return CMP.data.rows.filter(function (x) { return x.metric === k; })[0]; }
   function cmpFmt(row) { return row.unit === "score" ? function (x) { return fmtNum(x, 1); } : (METRIC_FMT[row.unit] || function (x) { return fmtNum(x, 2); }); }
   function cmpRanking() {
@@ -5595,9 +5660,10 @@
       '<div class="table-wrap"><table id="cmp-rank-table"><thead><tr><th class="num">#</th><th>Model</th>' + defs.map(function (x) { return '<th class="num">' + esc(x[0][1]) + '</th>'; }).join("") + '</tr></thead><tbody>' +
       order.map(function (c, i) {
         return '<tr><td class="num">' + (saw(c) === -Infinity ? "—" : i + 1) + '</td><td><b>' + esc(c.head) + '</b>' + extraTag(c.model) + '<br><span class="small muted"><a href="#/session/' + enc(c.session) + '" title="' + esc(c.session) + '">' +
-          esc(shortId(c.session)) + '</a>' + (c.runs > 1 ? ' · latest of ' + c.runs + ' runs' : "") + '</span></td>' + defs.map(function (x) {
-            var v = c.val(x[0][0]);
-            return '<td class="num' + (best[x[0][0]].indexOf(i) >= 0 ? " best" : "") + '">' + (v == null ? '<span class="muted">—</span>' : cmpFmt(x[1])(v)) + '</td>';
+          esc(shortId(c.session)) + '</a>' + (c.runs > 1 ? (CMP.basis === "all" ? ' · mean of ' + c.runs + ' runs' : ' · latest of ' + c.runs + ' runs') : "") + '</span></td>' + defs.map(function (x) {
+            var v = c.val(x[0][0]), st = CMP.basis === "all" && c.runs > 1 ? c.stats(x[0][0]) : null;
+            return '<td class="num' + (best[x[0][0]].indexOf(i) >= 0 ? " best" : "") + '">' + (v == null ? '<span class="muted">—</span>' : cmpFmt(x[1])(v) +
+              (st && st.ci != null ? '<br><span class="small muted">± ' + cmpFmt(x[1])(st.ci) + '</span>' : "")) + '</td>';
           }).join("") + '</tr>';
       }).join("") + '</tbody></table></div></div>';
   }
@@ -5623,7 +5689,7 @@
     if (!tabs.some(function (t) { return t[0] === CMP.tab; })) CMP.tab = "overview";
     var body;
     if (CMP.tab === "overview") {
-      body = cmpTiles() + cmpRanking() + cmpBars();
+      body = cmpTiles() + cmpRanking() + cmpBars() + cmpDiffCard();
     } else {
       body = '<div class="card">' + cmpTable("cmp-" + CMP.tab + "-table", CMP_GROUPS[CMP.tab]) + '</div>';
     }
@@ -5631,6 +5697,9 @@
       '<div class="validity ok" id="cmp-validity" role="status"><strong>Like-for-like comparison</strong> · ' + cols.length + ' models · same flows (' +
         esc(String(st.input_type || "").toUpperCase()) + ', ' + fmtNum(st.n_flows) + ' flows, set <span class="mono">' + esc(String(st.prepared_set_sha256).slice(0, 12)) + '</span>), same GPU (' + esc(st.gpu) + '), same settings · only the model differs' +
         infoI("Every model answered the same flows on the same GPU with the same settings, so the differences are the models'. Each model is one entry, from its latest run on this setup. Values are the stored ones; the best is marked.") + '</div>' +
+      (cols.some(function (c) { return c.runs > 1; }) ? '<div class="seg-opts" id="cmp-basis" role="radiogroup" aria-label="Which runs" style="margin:0 0 12px">' +
+        '<label><input type="radio" name="cmp-basis" value="latest"' + (CMP.basis !== "all" ? " checked" : "") + '> Latest run of each model</label>' +
+        '<label><input type="radio" name="cmp-basis" value="all"' + (CMP.basis === "all" ? " checked" : "") + '> Every run (mean ± 95% CI)</label></div>' : "") +
       '<div class="tabs" role="tablist" aria-label="Comparison sections" id="cmp-tabs">' + tabs.map(function (t) {
         return '<a role="tab" href="#" data-ctab="' + t[0] + '" id="ctab-' + t[0] + '" aria-selected="' + (t[0] === CMP.tab) + '">' + esc(t[1]) + '</a>';
       }).join("") + '</div>' + body +
@@ -5638,6 +5707,7 @@
       '<p class="muted small">View only: stored scores never change.</p>';
     $("cmp-result").querySelectorAll("[data-ctab]").forEach(function (a) { a.addEventListener("click", function (ev) { ev.preventDefault(); CMP.tab = a.getAttribute("data-ctab"); renderMerged(); }); });
     if ($("cmp-bar-metric")) $("cmp-bar-metric").addEventListener("change", function () { CMP.bar = this.value; renderMerged(); });
+    $("cmp-result").querySelectorAll('input[name="cmp-basis"]').forEach(function (x) { x.addEventListener("change", function () { CMP.basis = x.value; renderMerged(); }); });
     addExports($("cmp-result"));
   }
 

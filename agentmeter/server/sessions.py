@@ -157,8 +157,27 @@ def session_summary(job: dict[str, Any], res: Optional[dict[str, Any]] = None,
                                               else {"mixed": "mixed", "tie": "tie"}.get(v["kind"], "—")),
                    metrics=model_metrics(res),
                    prepared_set_sha256=ident.get("prepared_set_sha256"),
-                   settings_fingerprint=ident.get("settings_fingerprint"))
+                   settings_fingerprint=ident.get("settings_fingerprint"),
+                   env=env_brief(res), gpu_health=health_brief(res))
     return out
+
+
+ENV_KEYS = ("driver_version", "cuda_runtime_version", "torch", "transformers", "bitsandbytes", "vllm", "python", "host", "engine")
+
+
+def env_brief(res: dict[str, Any]) -> dict[str, Any]:
+    """The versions that can change between two runs on the same setup (Repeatability's "what changed")."""
+    env = res.get("environment") or {}
+    return {k: env.get(k) for k in ENV_KEYS if env.get(k) is not None}
+
+
+def health_brief(res: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """Was the GPU in a normal state during the run? (analyses.gpu_health_block)"""
+    h = res.get("gpu_health") or {}
+    if not h.get("available"):
+        return None
+    reasons = [f"{m['model'].split('/')[-1]}: {r}" for m in h.get("per_model") or [] for r in m.get("reasons") or []]
+    return {"status": h.get("status"), "reasons": reasons[:6], "synthetic": bool(h.get("synthetic"))}
 
 
 NOTES_MAX, TAGS_MAX = 2000, 10

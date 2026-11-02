@@ -77,7 +77,7 @@ if [ "$WHAT" = all ] || [ "$WHAT" = unit ]; then
   (cd controlplane && npx vitest run > "$OUT/vitest.out" 2>&1); code=$?
   line=$(grep -E "Tests " "$OUT/vitest.out" | tail -1 | sed 's/^ *//')
   if [ "$code" -ne 0 ]; then FAILED=1; note "✗ vitest: $line"; else note "✓ vitest: $line"; fi
-  timeout 1800 "$PY" -m pytest -q -p no:warnings > "$OUT/pytest.out" 2>&1; code=$?
+  timeout 1800 "$PY" -m pytest -p no:warnings > "$OUT/pytest.out" 2>&1; code=$?
   line=$(grep -E "passed|failed|error" "$OUT/pytest.out" | tail -1)
   if [ "$code" -ne 0 ]; then FAILED=1; note "✗ pytest: $line"; else note "✓ pytest: $line"; fi
 fi

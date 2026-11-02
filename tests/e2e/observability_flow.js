@@ -42,6 +42,10 @@ async function dragAcross(p, sel, fromFrac, toFrac) {
     await p.waitForSelector('#gpu-power', { timeout: 30000 });
 
     log(/Synthetic test readings/.test(await p.textContent('#gpu-timeline')), 'synthetic readings are labelled as not a measurement');
+    await p.goto(ORIGIN + '/#/session/' + encodeURIComponent(id) + '/overview'); await p.waitForSelector('#svc-gpu-health');
+    log(/GPU state: normal/.test(await p.textContent('#svc-gpu-health')) && /synthetic readings \(test\)/.test(await p.textContent('#svc-gpu-health')),
+        'Overview: the GPU state during the run (normal; synthetic readings labelled)');
+    await p.goto(ORIGIN + '/#/session/' + encodeURIComponent(id) + '/cost'); await p.waitForSelector('#gpu-power', { timeout: 30000 });
     const segs = await p.$$eval('#gpu-lane .lane-seg', x => x.length);
     log(segs >= 12 * 2 * 4 * 0.9, `the agent lane shows each agent's turn (${segs} turns for 12 flows × 2 models × 4 agents)`);
     log(/Perceive|perceive/.test(await p.textContent('#gpu-lane-legend')), 'the lane has an agent legend');

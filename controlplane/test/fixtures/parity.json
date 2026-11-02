@@ -85,6 +85,11 @@
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
    "settings_fingerprint": "fp1",
+   "env": {
+    "python": "3.13.16",
+    "host": "vm"
+   },
+   "gpu_health": null,
    "identity": {
     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "prepared_set_hash_version": 2,
@@ -210,6 +215,11 @@
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
    "settings_fingerprint": "fp1",
+   "env": {
+    "python": "3.13.16",
+    "host": "vm"
+   },
+   "gpu_health": null,
    "identity": {
     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "prepared_set_hash_version": 2,
@@ -335,6 +345,11 @@
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
    "settings_fingerprint": "fp2",
+   "env": {
+    "python": "3.13.16",
+    "host": "vm"
+   },
+   "gpu_health": null,
    "identity": {
     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "prepared_set_hash_version": 2,
@@ -434,6 +449,11 @@
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
    "settings_fingerprint": "fp1",
+   "env": {
+    "python": "3.13.16",
+    "host": "vm"
+   },
+   "gpu_health": null,
    "identity": {
     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "prepared_set_hash_version": 2,
@@ -552,6 +572,11 @@
    },
    "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
    "settings_fingerprint": "fpm",
+   "env": {
+    "python": "3.13.16",
+    "host": "vm"
+   },
+   "gpu_health": null,
    "identity": {
     "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     "prepared_set_hash_version": 2,
@@ -677,6 +702,11 @@
    },
    "prepared_set_sha256": null,
    "settings_fingerprint": null,
+   "env": {
+    "python": "3.13.16",
+    "host": "vm"
+   },
+   "gpu_health": null,
    "identity": {},
    "provider": "hf",
    "facts": [
@@ -791,6 +821,11 @@
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
    "settings_fingerprint": "fp1",
+   "env": {
+    "python": "3.13.16",
+    "host": "vm"
+   },
+   "gpu_health": null,
    "identity": {
     "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "prepared_set_hash_version": 2,
@@ -922,6 +957,11 @@
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "settings_fingerprint": "fp1",
+     "env": {
+      "python": "3.13.16",
+      "host": "vm"
+     },
+     "gpu_health": null,
      "provider": "hf",
      "weights_used": {
       "weights": {
@@ -1019,6 +1059,11 @@
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "settings_fingerprint": "fp1",
+     "env": {
+      "python": "3.13.16",
+      "host": "vm"
+     },
+     "gpu_health": null,
      "provider": "hf",
      "weights_used": {
       "weights": {
@@ -1442,6 +1487,11 @@
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "settings_fingerprint": "fp1",
+     "env": {
+      "python": "3.13.16",
+      "host": "vm"
+     },
+     "gpu_health": null,
      "provider": "hf",
      "weights_used": {
       "weights": {
@@ -1539,6 +1589,11 @@
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "settings_fingerprint": "fp2",
+     "env": {
+      "python": "3.13.16",
+      "host": "vm"
+     },
+     "gpu_health": null,
      "provider": "hf",
      "weights_used": {
       "weights": {
@@ -1952,6 +2007,11 @@
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "settings_fingerprint": "fp1",
+     "env": {
+      "python": "3.13.16",
+      "host": "vm"
+     },
+     "gpu_health": null,
      "provider": "hf",
      "weights_used": {
       "weights": {
@@ -2023,6 +2083,11 @@
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "settings_fingerprint": "fp1",
+     "env": {
+      "python": "3.13.16",
+      "host": "vm"
+     },
+     "gpu_health": null,
      "provider": "hf",
      "weights_used": {
       "weights": {
@@ -2423,6 +2488,11 @@
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "settings_fingerprint": "fp1",
+     "env": {
+      "python": "3.13.16",
+      "host": "vm"
+     },
+     "gpu_health": null,
      "provider": "hf",
      "weights_used": {
       "weights": {
@@ -2520,6 +2590,11 @@
      },
      "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
      "settings_fingerprint": "fpm",
+     "env": {
+      "python": "3.13.16",
+      "host": "vm"
+     },
+     "gpu_health": null,
      "provider": "mock",
      "weights_used": {
       "weights": {
@@ -2949,6 +3024,11 @@
      },
      "prepared_set_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
      "settings_fingerprint": "fpm",
+     "env": {
+      "python": "3.13.16",
+      "host": "vm"
+     },
+     "gpu_health": null,
      "provider": "mock",
      "weights_used": {
       "weights": {
@@ -3046,6 +3126,11 @@
      },
      "prepared_set_sha256": null,
      "settings_fingerprint": null,
+     "env": {
+      "python": "3.13.16",
+      "host": "vm"
+     },
+     "gpu_health": null,
      "provider": "hf",
      "weights_used": {
       "weights": {
@@ -3477,6 +3562,11 @@
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "settings_fingerprint": "fp2",
+     "env": {
+      "python": "3.13.16",
+      "host": "vm"
+     },
+     "gpu_health": null,
      "provider": "hf",
      "weights_used": {
       "weights": {
@@ -3548,6 +3638,11 @@
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
      "settings_fingerprint": "fp1",
+     "env": {
+      "python": "3.13.16",
+      "host": "vm"
+     },
+     "gpu_health": null,
      "provider": "hf",
      "weights_used": {
       "weights": {

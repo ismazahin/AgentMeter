@@ -503,6 +503,28 @@
              unknown: models.filter(function (m) { return m.seconds == null; }).map(function (m) { return m.model; }) };
   }
 
+  // ---- before a run: how precise will n flows be? (from earlier sessions of the same models) ----
+  // The spread of latency per flow is estimated from stored summaries: (p95 − median) / 1.645 as an
+  // SD, divided by the mean (CV). Detectable difference at n flows per model (two-sided 5%, 80%
+  // power): (1.96 + 0.84) × CV × √(2 / n); flows for a target d: 2 × ((1.96 + 0.84) × CV / d)².
+  function flowGuidance(sessions, opts) {
+    var gpu = opts.gpu || null, demo = !!opts.demo, n = Math.max(0, +opts.n_flows || 0), cvs = [];
+    (opts.models || []).forEach(function (m) {
+      var mine = [];
+      (sessions || []).forEach(function (s) {
+        if ((s.status !== "Done" && s.status !== "Demo") || !!s.demo !== demo || (!demo && s.gpu !== gpu)) return;
+        var r = (s.metrics || {})[m];
+        var mean = r && num(r.mean_latency_s), med = r && num(r.median_latency_s), p95 = r && num(r.p95_latency_s);
+        if (mean && med != null && p95 != null && p95 >= med) mine.push((p95 - med) / 1.645 / mean);
+      });
+      if (mine.length) cvs.push(mine.sort(function (a, b) { return a - b; })[Math.floor(mine.length / 2)]);
+    });
+    if (!cvs.length || !n) return null;
+    var cv = Math.max.apply(null, cvs), zs = 1.959964 + 0.841621;
+    var need = function (d) { return Math.ceil(2 * Math.pow(zs * cv / d, 2)); };
+    return { cv: cv, n_flows: n, detectable: zs * cv * Math.sqrt(2 / n), flows_for_10: need(0.10), flows_for_5: need(0.05), models_known: cvs.length };
+  }
+
   // ---- Performance -> Statistics: how many flows are enough? -------------------------------
   // Normal approximation, two-sided alpha 0.05, power 0.80 (z = 1.96 + 0.84), from each model's
   // stored per-flow latency spread (advanced.latency_cov: sample SD, mean, n).
@@ -848,7 +870,8 @@
       Object.keys(s.metrics).forEach(function (m) {
         var k = m + "||" + sk;
         if (!by[k]) by[k] = { id: k, model: m, setup: st, points: [] };
-        by[k].points.push({ session_id: s.session_id, at: s.finished_at || s.created_at, scheduled: !!s.schedule_id, metrics: s.metrics[m] });
+        by[k].points.push({ session_id: s.session_id, at: s.finished_at || s.created_at, scheduled: !!s.schedule_id, metrics: s.metrics[m],
+                            env: s.env || null, health: s.gpu_health || null });
       });
     });
     var series = Object.keys(by).map(function (k) {
@@ -873,7 +896,8 @@
   }
   function trendSeries(series, key) {
     var m = TREND_METRICS.filter(function (x) { return x[0] === key; })[0] || TREND_METRICS[0];
-    var pts = series.points.map(function (p) { return { session_id: p.session_id, at: p.at, scheduled: p.scheduled, v: num((p.metrics || {})[m[0]]) }; });
+    var pts = series.points.map(function (p, i) { return { session_id: p.session_id, at: p.at, scheduled: p.scheduled, v: num((p.metrics || {})[m[0]]),
+                                                           health: p.health || null, changed: i ? envChanges(p, series.points.slice(0, i)) : [] }; });
     var prev = null;
     pts.forEach(function (p) { p.delta = p.v != null && prev != null && prev ? (p.v - prev) / Math.abs(prev) : null; if (p.v != null) prev = p.v; });
     return { key: m[0], label: m[1], unit: m[2], lower_is_better: m[3], points: pts, drift: drift(series.points, m[0], m[3]) };
@@ -932,8 +956,101 @@
     return out;
   }
 
+  // ---- Compare over every run: mean ± 95% CI per model and Welch's t-test between models ----
+  var T95 = [[1, 12.706], [2, 4.303], [3, 3.182], [4, 2.776], [5, 2.571], [6, 2.447], [7, 2.365], [8, 2.306], [9, 2.262], [10, 2.228],
+             [12, 2.179], [15, 2.131], [20, 2.086], [30, 2.042], [60, 2.0], [120, 1.98]];
+  function t95(df) {                                  // two-sided 95% critical value (conservative: the next smaller df)
+    var c = 1.96;
+    for (var i = T95.length - 1; i >= 0; i--) if (df >= T95[i][0]) { c = T95[i][1]; break; }
+    return df < 1 ? null : c;
+  }
+  function runStats(vals) {
+    var v = (vals || []).map(num).filter(function (x) { return x != null; }), n = v.length;
+    if (!n) return { n: 0 };
+    var mean = v.reduce(function (a, x) { return a + x; }, 0) / n;
+    if (n < 2) return { n: 1, mean: mean };
+    var sd = Math.sqrt(v.reduce(function (a, x) { return a + (x - mean) * (x - mean); }, 0) / (n - 1));
+    return { n: n, mean: mean, sd: sd, ci: t95(n - 1) * sd / Math.sqrt(n) };
+  }
+  function lgam(x) {                                  // Lanczos log-gamma
+    var c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5];
+    var y = x, t = x + 5.5, s = 1.000000000190015;
+    t -= (x + 0.5) * Math.log(t);
+    for (var j = 0; j < 6; j++) s += c[j] / ++y;
+    return -t + Math.log(2.5066282746310005 * s / x);
+  }
+  function betacf(a, b, x) {
+    var qab = a + b, qap = a + 1, qam = a - 1, c = 1, d = 1 - qab * x / qap, m, m2, aa, del, h;
+    if (Math.abs(d) < 1e-30) d = 1e-30;
+    d = 1 / d; h = d;
+    for (m = 1; m <= 200; m++) {
+      m2 = 2 * m;
+      aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < 1e-30) d = 1e-30; c = 1 + aa / c; if (Math.abs(c) < 1e-30) c = 1e-30; d = 1 / d; h *= d * c;
+      aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < 1e-30) d = 1e-30; c = 1 + aa / c; if (Math.abs(c) < 1e-30) c = 1e-30; d = 1 / d;
+      del = d * c; h *= del;
+      if (Math.abs(del - 1) < 3e-12) break;
+    }
+    return h;
+  }
+  function ibeta(a, b, x) {                           // regularized incomplete beta I_x(a, b)
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    var bt = Math.exp(lgam(a + b) - lgam(a) - lgam(b) + a * Math.log(x) + b * Math.log(1 - x));
+    return x < (a + 1) / (a + b + 2) ? bt * betacf(a, b, x) / a : 1 - bt * betacf(b, a, 1 - x) / b;
+  }
+  function tTwoSided(t, df) { return ibeta(df / 2, 0.5, df / (df + t * t)); }
+  function welch(a, b) {
+    var A = runStats(a), B = runStats(b);
+    if (A.n < 2 || B.n < 2) return null;
+    var va = A.sd * A.sd / A.n, vb = B.sd * B.sd / B.n;
+    if (va + vb === 0) return { t: A.mean === B.mean ? 0 : Infinity, df: A.n + B.n - 2, p: A.mean === B.mean ? 1 : 0 };
+    var t = (A.mean - B.mean) / Math.sqrt(va + vb), df = (va + vb) * (va + vb) / (va * va / (A.n - 1) + vb * vb / (B.n - 1));
+    return { t: t, df: df, p: tTwoSided(Math.abs(t), df) };
+  }
+  /** Every run of each model on one setup: mean ± 95% CI, and each model against the best one.
+   *  runsByModel: {model: [value of each run]}. A difference is "real" when Welch's t-test gives
+   *  p < 0.05 and it is more than 2%; with fewer than 2 runs on either side there is no verdict. */
+  function compareRuns(runsByModel, lowerBetter) {
+    var rows = Object.keys(runsByModel).map(function (m) { var st = runStats(runsByModel[m]); st.model = m; st.values = runsByModel[m]; return st; })
+      .filter(function (r) { return r.n > 0; })
+      .sort(function (a, b) { return lowerBetter ? a.mean - b.mean : b.mean - a.mean; });
+    var best = rows[0];
+    rows.forEach(function (r, i) {
+      if (!i) { r.verdict = "best"; return; }
+      r.diff = best.mean ? (r.mean - best.mean) / Math.abs(best.mean) : null;
+      var w = welch(r.values, best.values);
+      r.p = w ? w.p : null;
+      r.verdict = !w ? "too few runs" : w.p < 0.05 && Math.abs(r.diff || 0) > 0.02 ? "real difference" : "within noise";
+    });
+    return { rows: rows, best: best ? best.model : null,
+             rule: "Each model's runs on this setup: mean ± 95% confidence interval (t distribution). Against the best model, a difference is called real when Welch's t-test on the run values gives p < 0.05 and the gap is over 2%; with fewer than two runs on either side there is no verdict." };
+  }
+
+  // ---- what changed: the versions of one run against the runs before it (session summaries' env) ----
+  var ENV_LABEL = { driver_version: "NVIDIA driver", cuda_runtime_version: "CUDA", torch: "torch", transformers: "transformers",
+                    bitsandbytes: "bitsandbytes", vllm: "vLLM", python: "Python", host: "host", engine: "engine" };
+  function envChanges(point, before) {
+    var env = point && point.env, out = [];
+    if (!env) return out;
+    var prev = (before || []).filter(function (p) { return p.env; });
+    if (!prev.length) return out;
+    var last = prev[prev.length - 1].env;
+    Object.keys(ENV_LABEL).forEach(function (k) {
+      var seen = prev.map(function (p) { return p.env[k]; }).filter(function (v) { return v != null; });
+      if (env[k] == null || !seen.length || seen.indexOf(env[k]) >= 0) return;
+      out.push({ key: k, label: ENV_LABEL[k], from: last[k] != null ? last[k] : seen[seen.length - 1], to: env[k] });
+    });
+    return out;
+  }
+  function changeText(c) { return c.label + " " + c.from + " → " + c.to; }
+
   // ---- Repeatability: is a model's result on one setup the same each time it is run? ----
   var STABLE_WITHIN = 0.10;
+  // "Stable" per measure: latency on a GPU varies by nature; token counts and memory barely do, so
+  // they must hold tighter. A user can replace these with one threshold for all (opts.within).
+  var STABLE_BY = { mean_latency_s: 0.10, mean_tokens_per_flow: 0.05, max_peak_vram_mb: 0.05 };
   var STABILITY_KEYS = ["mean_latency_s", "mean_tokens_per_flow", "max_peak_vram_mb"];
   function spreadOf(points, key) {
     var vs = points.map(function (p) { return num((p.metrics || {})[key]); }).filter(function (v) { return v != null; });
@@ -943,15 +1060,22 @@
   }
   /** One row per model and setup: Stable (every run within 10% of the median), Varies, or Moved
    *  (the latest run broke the drift rule above); fewer than 3 runs gives no verdict yet. */
-  function repeatSummary(t) {
+  function repeatSummary(t, opts) {
+    opts = opts || {};
+    var limit = function (k) { return opts.within != null ? opts.within : STABLE_BY[k]; };
     var moved = {};
     (t.drifts || []).forEach(function (d) { (moved[d.series] = moved[d.series] || []).push(d); });
     return (t.series || []).map(function (s) {
       var n = s.points.length, lat = spreadOf(s.points, "mean_latency_s");
-      var spreads = STABILITY_KEYS.map(function (k) { return spreadOf(s.points, k); }).filter(function (v) { return v != null; });
+      var by = {}, over = [];
+      STABILITY_KEYS.forEach(function (k) { var v = spreadOf(s.points, k); if (v != null) { by[k] = v; if (v > limit(k)) over.push(k); } });
+      var spreads = Object.keys(by).map(function (k) { return by[k]; });
       var worst = spreads.length ? Math.max.apply(null, spreads) : null;
-      var status = n < 3 ? "few" : moved[s.id] ? "moved" : worst == null || worst <= STABLE_WITHIN ? "stable" : "varies";
-      return { series: s.id, model: s.model, setup: s.setup, label: s.label, runs: n, status: status, latency_spread: lat, spread: worst,
+      var status = n < 3 ? "few" : moved[s.id] ? "moved" : over.length ? "varies" : "stable";
+      var lastP = n ? s.points[n - 1] : null;
+      return { series: s.id, model: s.model, setup: s.setup, label: s.label, runs: n, status: status, latency_spread: lat, spread: worst, spread_by: by, over: over,
+               changed: n > 1 ? envChanges(lastP, s.points.slice(0, -1)) : [], last_health: lastP && lastP.health,
+               checked_runs: s.points.filter(function (p) { return p.health && p.health.status === "check"; }).length,
                moved: moved[s.id] || [], last_at: n ? s.points[n - 1].at : null, sessions: s.points.map(function (p) { return p.session_id; }) };
     }).sort(function (a, b) { return ({ moved: 0, varies: 1, stable: 2, few: 3 })[a.status] - ({ moved: 0, varies: 1, stable: 2, few: 3 })[b.status] || b.runs - a.runs; });
   }
@@ -961,7 +1085,7 @@
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
               workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, energyEfficiency: energyEfficiency, priceCompare: priceCompare, idleCost: idleCost, recommend: recommend, removeAgent: removeAgent, budgetTuning: budgetTuning, pipelineCompare: pipelineCompare, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, runningAt: runningAt, repeatability: repeatability,
-              loadScaling: loadScaling, trends: trends, trendSeries: trendSeries, setupKey: setupKey, compareSetups: compareSetups, excludedFrom: excludedFrom, repeatSummary: repeatSummary, STABLE_WITHIN: STABLE_WITHIN, runEstimate: runEstimate, sampleSize: sampleSize, tabSummaries: tabSummaries };
+              loadScaling: loadScaling, trends: trends, trendSeries: trendSeries, setupKey: setupKey, compareSetups: compareSetups, excludedFrom: excludedFrom, repeatSummary: repeatSummary, STABLE_WITHIN: STABLE_WITHIN, STABLE_BY: STABLE_BY, envChanges: envChanges, changeText: changeText, runStats: runStats, welch: welch, compareRuns: compareRuns, tTwoSided: tTwoSided, runEstimate: runEstimate, flowGuidance: flowGuidance, sampleSize: sampleSize, tabSummaries: tabSummaries };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

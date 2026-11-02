@@ -122,3 +122,50 @@ describe("Compare by setup and the Repeatability verdict (web/insights.js)", () 
     expect(mv.moved[0].metric).toBe("mean_latency_s");
   });
 });
+
+describe("Compare over every run, what changed, flow guidance (web/insights.js)", () => {
+  it("mean ± 95% CI and Welch's t-test agree with SciPy", () => {
+    const st = INSIGHTS.runStats([1, 2, 3, 4]);
+    expect(st.mean).toBe(2.5);
+    expect(st.ci).toBeCloseTo(3.182 * 1.2909944 / 2, 5);                                // t(3) × sd / √n
+    const w = INSIGHTS.welch([10, 11, 12, 10.5], [13, 14, 13.5, 14.5]);
+    expect(w.t).toBeCloseTo(-5.3716427147145085, 9);                                     // scipy.stats.ttest_ind(equal_var=False)
+    expect(w.df).toBeCloseTo(5.584615384615386, 9);
+    expect(w.p).toBeCloseTo(0.0021421139298311463, 9);
+    expect(INSIGHTS.tTwoSided(2.228, 10)).toBeCloseTo(0.05, 3);
+  });
+
+  it("calls a difference real only with enough runs, p < 0.05 and a gap over 2%", () => {
+    const r = INSIGHTS.compareRuns({ fast: [1.0, 1.02, 0.98], slow: [1.5, 1.52, 1.49], twin: [1.0, 1.01, 0.99], once: [2.0] }, true);
+    const v = Object.fromEntries(r.rows.map((x: any) => [x.model, x.verdict]));
+    expect(v).toEqual({ fast: "best", twin: "within noise", slow: "real difference", once: "too few runs" });
+    expect(r.rows.find((x: any) => x.model === "slow").diff).toBeCloseTo(0.5033, 3);
+  });
+
+  it("lists the versions that changed in the latest run", () => {
+    const pts = [{ env: { driver_version: "550.54", torch: "2.4.0" } }, { env: { driver_version: "550.54", torch: "2.4.0" } }];
+    expect(INSIGHTS.envChanges({ env: { driver_version: "560.35", torch: "2.4.0" } }, pts).map(INSIGHTS.changeText)).toEqual(["NVIDIA driver 550.54 → 560.35"]);
+    expect(INSIGHTS.envChanges({ env: { driver_version: "550.54", torch: "2.4.0" } }, pts)).toEqual([]);
+    expect(INSIGHTS.envChanges({ env: null }, pts)).toEqual([]);
+  });
+
+  it("repeatability: a limit per measure, or one limit for all", () => {
+    // latency 1.00 / 1.03 (±1.5% of the median), tokens 100 / 112 (±5.7%): tokens break their 5% limit
+    const ss = [0, 1, 2, 3, 4].map((i) => summary(i, 1, { metrics: { "m/fast": { mean_latency_s: i % 2 ? 1.03 : 1, mean_tokens_per_flow: i % 2 ? 112 : 100 } } }));   // the last run is not a jump
+    const t = INSIGHTS.trends(ss, {});
+    const auto = INSIGHTS.repeatSummary(t)[0];
+    expect(auto.status).toBe("varies");
+    expect(auto.over).toEqual(["mean_tokens_per_flow"]);
+    expect(auto.spread_by.mean_tokens_per_flow).toBeCloseTo(12 / 100, 9);                // median 100: the 112 runs are 12% away
+    expect(INSIGHTS.repeatSummary(t, { within: 0.15 })[0].status).toBe("stable");       // one 15% limit for all
+  });
+
+  it("estimates the detectable difference before a run", () => {
+    const hist = [{ status: "Done", demo: false, gpu: "L4", metrics: { a: { mean_latency_s: 2, median_latency_s: 1.9, p95_latency_s: 2.6 } } }];
+    const g = INSIGHTS.flowGuidance(hist, { models: ["a"], n_flows: 50, gpu: "L4" });
+    expect(g.cv).toBeCloseTo(0.7 / 1.645 / 2, 9);
+    expect(g.detectable).toBeCloseTo((1.959964 + 0.841621) * g.cv * Math.sqrt(2 / 50), 9);
+    expect(g.flows_for_5).toBe(Math.ceil(2 * ((1.959964 + 0.841621) * g.cv / 0.05) ** 2));
+    expect(INSIGHTS.flowGuidance(hist, { models: ["a"], n_flows: 50, gpu: "A100" })).toBeNull();      // another GPU: no basis
+  });
+});

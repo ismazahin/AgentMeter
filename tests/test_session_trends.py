@@ -267,3 +267,45 @@ def test_the_timeline_carries_markers_and_a_synthetic_source_is_labelled(golden)
     assert gt["sampled"] and gt["synthetic"] and len(gt["markers"]["flows"]) == len(label_of)
     assert gt["markers"]["flows"][0]["agents"] == [["perceive", 10.0, 11.0]]
     assert analyses.gpu_timeline_block(sr, label_of, real=False, energy={"method": "nvml", "samples": [(1.0, 1.0)]})["sampled"] is False
+
+
+# ---------------------------------------------------------------------------
+# GPU health: was the GPU normal while each model ran?
+# ---------------------------------------------------------------------------
+def _health(monkeypatch, samples, foreign=None, max_sm=2000.0):
+    monkeypatch.setattr(analyses, "model_windows", lambda sr, label_of: {"m/a": (0.0, 100.0), "m/b": (200.0, 300.0)})
+    energy = {"health_samples": samples, "max_sm_mhz": max_sm, "foreign_processes": foreign or {}, "method": "nvml"}
+    return analyses.gpu_health_block([], {"m/a": "m/a", "m/b": "m/b"}, real=True, energy=energy)
+
+
+def test_gpu_health_normal_when_clocks_and_temperature_are_fine(monkeypatch):
+    s = [(t, 1900.0, 60.0, 0x4 if t % 20 == 0 else 0) for t in range(0, 101, 5)] + [(t, 1950.0, 58.0, 0) for t in range(200, 301, 5)]
+    h = _health(monkeypatch, s)
+    assert h["available"] and h["status"] == "normal"
+    a = next(m for m in h["per_model"] if m["model"] == "m/a")
+    assert a["status"] == "normal" and a["reasons"] == [] and a["power_cap_share"] > 0     # power cap is only reported
+    assert a["clock_share"] == pytest.approx(0.95)
+
+
+def test_gpu_health_flags_thermal_throttling_low_clocks_heat_and_a_shared_gpu(monkeypatch):
+    s = [(t, 1100.0, 88.0, 0x20) for t in range(0, 101, 5)] + [(t, 1950.0, 58.0, 0) for t in range(200, 301, 5)]
+    h = _health(monkeypatch, s, foreign={"m/b": [{"pid": 4242, "used_mb": 3000}]})
+    assert h["status"] == "check"
+    a, b = (next(m for m in h["per_model"] if m["model"] == x) for x in ("m/a", "m/b"))
+    assert a["status"] == "check" and a["throttle_kinds"] == ["thermal slowdown (software)"]
+    assert any("slowed the GPU down" in r for r in a["reasons"]) and any("55%" in r for r in a["reasons"]) and any("88 °C" in r for r in a["reasons"])
+    assert b["status"] == "check" and b["reasons"] == ["1 other process held GPU memory (3,000 MB) — the GPU was shared"]
+
+
+def test_gpu_health_not_available_without_samples_or_on_demo():
+    assert analyses.gpu_health_block([], {}, real=False)["available"] is False
+    assert "not sampled" in analyses.gpu_health_block([], {}, real=True, energy={})["reason"]
+
+
+def test_session_summary_carries_versions_and_gpu_health():
+    from agentmeter.server.sessions import env_brief, health_brief
+    res = {"environment": {"driver_version": "550.54", "torch": "2.4.0", "gpu_name": "L4", "engine": "transformers"},
+           "gpu_health": {"available": True, "status": "check", "per_model": [{"model": "org/m", "reasons": ["the GPU reached 90 °C"]}]}}
+    assert env_brief(res) == {"driver_version": "550.54", "torch": "2.4.0", "engine": "transformers"}
+    assert health_brief(res) == {"status": "check", "reasons": ["m: the GPU reached 90 °C"], "synthetic": False}
+    assert health_brief({}) is None

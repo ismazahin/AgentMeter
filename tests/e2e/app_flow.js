@@ -73,7 +73,7 @@ async function frameOf(p) {
   await p.waitForSelector('#home-empty:not([hidden])', { timeout: 15000 });
   log(true, 'Home empty state shown on first launch');
   const nav = await p.$$eval('.mainnav a:not([hidden])', as => as.map(a => a.textContent.trim()));
-  log(nav.join('|') === 'Home|New benchmark|Sessions|Compare|Leaderboard|Trends', 'header nav: ' + nav.join(', '));
+  log(nav.join('|') === 'Home|New benchmark|Sessions|Compare|Leaderboard|Repeatability', 'header nav: ' + nav.join(', '));
   log(await p.getAttribute('.top-right a.iconbtn', 'aria-label') === 'Settings', 'Settings icon button has an aria-label');
   log(/Demo mode \(no GPU\)/.test(await p.textContent('#svc-backend-badge')), 'GPU chip: ' + await p.textContent('#svc-backend-badge'));
   const body0 = await p.textContent('body');
@@ -276,30 +276,40 @@ async function frameOf(p) {
   const job3 = await pickAndRun(p, [1, 3]);
   log(true, 'reused prepared set ' + csvSet + ' -> session ' + job3);
 
-  // 8. Compare
-  await p.click('#session-compare'); await p.waitForSelector('#cmp-a option[value="' + job3 + '"]', { state: 'attached' });
-  await p.waitForFunction(id => document.querySelector('#cmp-a').value === id, job3);
-  log(await p.$eval('#cmp-a', s => s.value) === job3, 'Compare is preselected from the session page');
-  await p.waitForSelector('#cmp-list input');
+  // 8. Compare: setup first, then 2-4 models measured on it; only the model may differ
+  await p.click('#session-compare'); await p.waitForSelector('#cmp-locked-box');
+  const lockTxt = await p.textContent('#cmp-locked-box');
+  log(/Locked conditions/.test(lockTxt) && /Data set/.test(lockTxt) && /Flows/.test(lockTxt) && /GPU/.test(lockTxt) && /Pipeline/.test(lockTxt) && /4-bit NF4/.test(lockTxt) &&
+      /Only the LLM model differs/.test(lockTxt) && (await p.$$('#cmp-locked-box .lk-ok')).length === 5, 'Compare: the locked conditions are listed, each ticked; only the model differs');
+  log(/Compare.*different models, same setup, one moment.*Repeatability.*same model, same setup, over time/.test(await p.textContent('#cmp-distinct')), 'Compare: says how it differs from Repeatability');
+  const setupOpt = await p.$eval('#cmp-setup', s => s.options[s.selectedIndex].textContent);
+  log(/2 models/.test(setupOpt), 'Compare is preselected on the session\'s setup (' + setupOpt + ')');
   const offered = await p.$$eval('#cmp-list input', xs => xs.map(x => x.value));
-  log(offered.includes(job1) && !offered.includes(job2) && !offered.includes(job3), 'Compare offers only sessions on the same setup (CSV session 1; not the PCAP one)');
+  const job3models = await p.evaluate(id => fetch('/api/jobs/' + id).then(r => r.json()).then(j => j.models), job3);
+  log(offered.length === 2 && job3models.every(m => offered.includes(m)), 'Compare: each model of the setup is offered once, though it was measured in 2 sessions');
+  log(/2 runs/.test(await p.textContent('#cmp-list')) && !!(await p.$('#cmp-list a[data-rep-link]')), 'Compare: a model measured twice points to Repeatability');
+  await p.waitForSelector('#cmp-excluded-card');
+  const exTxt = await p.textContent('#cmp-excluded-table');
+  log(exTxt.includes(job2.slice(-8)) || /different flows/.test(exTxt), 'Compare: the PCAP session is listed as left out');
+  log(/different flows/.test(exTxt), 'Compare: with the reason (different flows)');
+  await p.uncheck('#cmp-list input >> nth=1');
+  log(await p.isDisabled('#cmp-go'), 'Compare: one model is not enough');
+  await p.check('#cmp-list input >> nth=1');
   await p.click('#cmp-go');
   await p.waitForSelector('#cmp-validity');
-  log(/Like-for-like comparison/.test(await p.textContent('#cmp-validity')) && /2 sessions/.test(await p.textContent('#cmp-validity')), 'Compare: merged view, like-for-like, 2 sessions');
-  log((await p.$$('#cmp-table thead th')).length === 5 && (await p.$$('#cmp-table tbody tr')).length >= 15, 'Compare: every metric (+ SAW, accuracy), 4 run columns');
-  log((await p.$$('#cmp-tiles .tile')).length === 4 && !!(await p.$('#cmp-overview-table td.best')), 'Compare › Overview: who is fastest / least VRAM / fewest tokens / top SAW, best marked');
-  if (await p.$('#cmp-mode')) {
-    await p.check('#cmp-mode input[value="mean"]');
-    log((await p.$$('#cmp-overview-table thead th')).length < 5, 'Compare: "Mean per model" folds the same model of both sessions into one column');
-    await p.check('#cmp-mode input[value="runs"]');
-  }
+  log(/Like-for-like comparison/.test(await p.textContent('#cmp-validity')) && /2 models/.test(await p.textContent('#cmp-validity')) && /only the model differs/.test(await p.textContent('#cmp-validity')),
+      'Compare: like-for-like, 2 models, only the model differs');
+  log((await p.$$('#cmp-table thead th')).length === 3 && (await p.$$('#cmp-table tbody tr')).length >= 15, 'Compare: every metric (+ SAW, accuracy), one column per model (not per run)');
+  log(/latest is shown/.test(await p.textContent('#cmp-rep-note')), 'Compare: says the latest run of a repeated model is shown');
+  log((await p.$$('#cmp-tiles .tile')).length === 4, 'Compare › Overview: who is fastest / least VRAM / fewest tokens / top SAW');
+  log(!(await p.$('#cmp-mode')), 'Compare: no per-run mode (the same model twice belongs to Repeatability)');
   await p.click('#ctab-performance');
   log(!!(await p.$('#cmp-performance-table')), 'Compare › Performance');
   log(!(await p.$('#ctab-accuracy')) && /SAW \(efficiency\)|efficiency only/i.test(await p.textContent('#cmp-result')), 'Compare: no accuracy tab; the SAW shown is efficiency-only');
   await p.screenshot({ path: S + '/09-compare-like.png', fullPage: true });
   await p.goto(BASE + '/#/compare?a=' + job2); await p.waitForSelector('#cmp-none');
-  log(/No other session uses the same flows/.test(await p.textContent('#cmp-none')) && /Benchmark these flows again/.test(await p.textContent('#cmp-none')),
-      'Compare: a session with no match says so and offers to benchmark its flows again');
+  log(/Only one model/.test(await p.textContent('#cmp-none')) && /Benchmark these flows again/.test(await p.textContent('#cmp-none')),
+      'Compare: a setup with one model says so and offers to benchmark its flows again');
   await p.goto(BASE + '/#/compare?a=' + job1 + '&b=' + job2); await p.waitForSelector('#cmp-error:not([hidden])');
   log(/same flows, GPU and settings/.test(await p.textContent('#cmp-error')), 'an old link to two different setups is refused (not merged)');
   await p.screenshot({ path: S + '/10-compare-none.png', fullPage: true });
@@ -331,19 +341,32 @@ async function frameOf(p) {
   await p.click('.lb-group .lb-compare'); await p.waitForSelector('#cmp-validity');
   log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Open in Compare opens the merged view of that setup');
 
-  // History & Trends: one model on one setup over time; demo sessions only when asked
+  // Repeatability (#/trends): the same model on one setup over time; demo sessions only when asked
   await p.click('.mainnav a[data-nav="trends"]'); await p.waitForSelector('#view-trends:not([hidden])');
+  log(/Repeatability/.test(await p.textContent('.mainnav a[data-nav="trends"]')) && /Repeatability/.test(await p.textContent('#h-trends')), 'Trends is now called Repeatability');
+  log(/same model on the same setup more than once/.test(await p.textContent('#tr-purpose')) && /different models, same setup, one moment/.test(await p.textContent('#tr-distinct')),
+      'Repeatability: says what it is for, and how it differs from Compare');
   await p.waitForSelector('#tr-empty');
-  log(/demo sessions are hidden/.test(await p.textContent('#tr-empty')), 'Trends: demo sessions are left out by default (said plainly)');
-  await p.check('#tr-demo'); await p.waitForSelector('#tr-chart-card');
+  log(/Demo sessions are hidden/.test(await p.textContent('#tr-empty')) && (await p.$$('#tr-empty .rep-steps li')).length === 3, 'Repeatability: a guided empty state (3 steps); demo sessions hidden, said plainly');
+  await p.check('#tr-demo'); await p.waitForSelector('#tr-summary-table');
+  const sumRows = await p.$$eval('#tr-summary-table tbody tr', r => r.map(x => x.textContent));
+  const runsCol = await p.$$eval('#tr-summary-table tbody tr td:nth-child(3)', r => r.map(x => x.textContent));
+  log(sumRows.length >= 2 && /Too few runs/.test(sumRows[0]) && runsCol[0] === '2', 'Repeatability: a summary row per model and setup with its runs and badge (' + sumRows[0].slice(0, 80) + ')');
+  log(!(await p.$('#tr-chart-card')) && await p.isHidden('#tr-controls'), 'Repeatability: the chart waits for a row click');
+  await p.click('#tr-summary-table tbody tr >> nth=0'); await p.waitForSelector('#tr-chart-card');
   const trOpts = await p.$$eval('#tr-series option', o => o.map(x => x.textContent));
-  log(trOpts.length >= 2 && /2 runs/.test(trOpts[0]) && trOpts.every(t => /Demo \(no GPU\)/.test(t)), 'Trends: a series per model and setup; the reused set gives 2 runs (' + trOpts[0] + ')');
+  log(trOpts.length >= 2 && trOpts.every(t => /Demo \(no GPU\)/.test(t)), 'Repeatability: a series per model and setup (' + trOpts[0] + ')');
   log((await p.$$('#tr-table tbody tr')).length === 2 && (await p.$$('#tr-plot circle')).length === 2 && /needs at least 3/.test(await p.textContent('#tr-verdict')),
-      'Trends: chart and table list both runs; no judgement from 2 runs');
+      'Repeatability: chart and table list both runs; no judgement from 2 runs');
   await p.selectOption('#tr-metric', 'wh_per_flow'); await p.waitForSelector('#tr-none');
-  log(/Not measured/.test(await p.textContent('#tr-none')), 'Trends: a measure the demo never records says so');
+  log(/Not measured/.test(await p.textContent('#tr-none')), 'Repeatability: a measure the demo never records says so');
   await p.selectOption('#tr-metric', 'mean_latency_s');
-  log(/No series moved/.test(await p.textContent('#tr-drift-card')) && /No schedules yet/.test(await p.textContent('#tr-schedules')), 'Trends: nothing flagged; no schedules yet');
+  log(/No series moved/.test(await p.textContent('#tr-drift-card')) && /No schedules yet/.test(await p.textContent('#tr-schedules')), 'Repeatability: nothing flagged; no schedules yet');
+  await p.goto(BASE + '/#/session/' + job3 + '/overview'); await p.waitForSelector('#svc-rep-line:not([hidden])');
+  const repLine = await p.textContent('#svc-rep-line');
+  log(/Repeatability/.test(repLine) && /2 runs on this setup/.test(repLine) && !!(await p.$('#svc-rep-list a[href^="#/trends?model="]')), 'Session Overview: a Repeatability line per model, linking to its runs');
+  await p.click('#svc-rep-list a'); await p.waitForSelector('#tr-chart-card');
+  log((await p.$$('#tr-table tbody tr')).length === 2, 'the Overview link opens that model\'s runs on Repeatability');
   await p.screenshot({ path: S + '/11d-trends.png', fullPage: true });
   // Repeat on a schedule (session Overview) -> listed on Trends -> cancel
   await p.goto(BASE + '/#/session/' + job1 + '/overview'); await p.waitForSelector('#svc-schedule');
@@ -385,8 +408,8 @@ async function frameOf(p) {
   const ph = await (await b.newContext({ viewport: { width: 375, height: 800 }, colorScheme: 'dark' })).newPage();
   ph.on('pageerror', e => errs.push('phone: ' + e.message));
   for (const [hash, sel] of [['#/', '#home-latest:not([hidden])'], ['#/new', '#svc-upload-form:not([hidden])'],
-                             ['#/session/' + job1, '#session-body:not([hidden])'], ['#/leaderboard', '.lb-group'], ['#/trends?demo=1', '#tr-chart-card'],
-                             ['#/compare?a=' + job1 + '&b=' + job3, '#cmp-validity']]) {
+                             ['#/session/' + job1, '#session-body:not([hidden])'], ['#/leaderboard', '.lb-group'], ['#/trends?demo=1', '#tr-summary-card'],
+                             ['#/compare?sessions=' + job1 + ',' + job3, '#cmp-validity']]) {
     await ph.goto(BASE + '/' + hash); await ph.waitForSelector(sel, { timeout: 20000 });
     const over = await ph.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     log(over <= 0, 'phone 375px: no horizontal page scroll on ' + hash + ' (' + over + ')');

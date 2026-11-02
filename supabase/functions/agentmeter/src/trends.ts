@@ -1,6 +1,6 @@
 // "Runs that moved", server side: when a session finishes, its results are checked against the
 // earlier runs of the same model on the same setup (same prepared set, GPU and settings) with
-// the rule the Trends page uses (web/insights.js drift(); tests/parity keeps the two equal), so
+// the rule the Repeatability page uses (web/insights.js drift(); tests/parity keeps the two equal), so
 // the owner can be alerted on Telegram when a model got worse. Reads stored summaries only.
 
 export const TREND_METRICS: [string, string, string, boolean][] = [

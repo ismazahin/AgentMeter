@@ -549,13 +549,13 @@ What changes, and how the app reports it:
 Settings (in the base config, `model.vllm`): `gpu_memory_utilization` (0.1-0.95),
 `max_model_len` (default 8192), `enforce_eager` (default true), `seed`.
 
-## Scheduled re-runs (History & Trends)
+## Scheduled re-runs (Repeatability)
 
 A finished session can be repeated on a schedule from its Overview tab (**Repeat on a
 schedule**): every 6 hours to weekly, 1 to 30 runs. The schedule lives on the GPU backend
 (`<jobs dir>/schedules.json`, `agentmeter/server/schedules.py`), which queues each run as an
 ordinary benchmark session owned by whoever created the schedule. The runs use the same GPU,
-prepared set, models, settings and pipeline, so the **Trends** page can line them up.
+prepared set, models, settings and pipeline, so the **Repeatability** page (`#/trends`) can line them up.
 
 - A run never stacks: while the previous scheduled run is queued or running, or the queue is
   full, the next one waits and is retried every 10 minutes.

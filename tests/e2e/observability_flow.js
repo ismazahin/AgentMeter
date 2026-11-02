@@ -105,7 +105,7 @@ async function dragAcross(p, sel, fromFrac, toFrac) {
     // variables: one Model / Pipeline filter for Compare and Trends
     const models = await p.evaluate(() => fetch('/api/jobs?limit=20').then(r => r.json()).then(d => d.jobs.find(j => j.kind !== 'prepare').models));
     await p.goto(ORIGIN + '/#/compare'); await p.waitForSelector('#cmp-vars-model');
-    const opts = () => p.$$eval('#cmp-a option', x => x.length - 1);
+    const opts = () => p.$$eval('#cmp-setup option', x => x.length - 1);
     const all = await opts();
     await p.selectOption('#cmp-vars-model', models[0]);
     const one = await opts();
@@ -114,10 +114,11 @@ async function dragAcross(p, sel, fromFrac, toFrac) {
     log(await opts() === all, 'Compare: the default pipeline matches it too');
     await p.goto(ORIGIN + '/#/trends?demo=1'); await p.waitForSelector('#tr-vars-model');      // mock runs are demo sessions
     log(await p.inputValue('#tr-vars-model') === models[0], 'Trends uses the same Model filter');
-    const series = await p.$$eval('#tr-series option', x => x.map(o => o.textContent));
+    await p.waitForSelector('#tr-summary-table');
+    const series = await p.$$eval('#tr-summary-table tbody tr td:first-child', x => x.map(o => o.textContent));
     log(series.length >= 1 && series.every(t => t.indexOf(models[0].split('/').pop()) >= 0), `Trends: only that model's series (${series.length})`);
     await p.selectOption('#tr-vars-model', '');
-    log((await p.$$eval('#tr-series option', x => x.length)) >= 2, 'Trends: "All" shows every model again');
+    log((await p.$$eval('#tr-summary-table tbody tr', x => x.length)) >= 2, 'Trends: "All" shows every model again');
     await p.screenshot({ path: S + '/trends-vars.png', fullPage: false });
   } catch (e) {
     log(false, 'walk-through crashed: ' + e.message.split('\n')[0]);

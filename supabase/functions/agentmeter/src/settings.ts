@@ -8,7 +8,7 @@ export const DEFAULT_SETTINGS = {
   theme: "system",
   telegram_chat_id: "",
   notify_on: "none",
-  alert_on_drift: true,     // Telegram alert when a finished run got worse than its usual range (Trends rule)
+  alert_on_drift: true,     // Telegram alert when a finished run got worse than its usual range (Repeatability rule)
   default_models: [] as string[],
   default_flows: 50,
   default_other_attack: false,

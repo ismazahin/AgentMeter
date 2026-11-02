@@ -243,6 +243,17 @@
   .validity.ok { border-color: var(--success); background: var(--success-soft); }
   .validity.bad { border-color: var(--accent); background: var(--accent-soft); }
   .validity strong { font-size: 17px; }
+  .step-n { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 12px; font-weight: 700; margin-right: 6px; vertical-align: 1px; }
+  .validity.locked { margin: 12px 0 0; }
+  .lk-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+  .lk-ok { color: var(--success); font-weight: 700; }
+  .rep-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--border-2); white-space: nowrap; }
+  .rep-badge.stable { color: var(--success); border-color: var(--success); background: var(--success-soft); }
+  .rep-badge.varies { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
+  .rep-badge.moved { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+  .rep-badge.few { color: var(--muted); }
+  #tr-summary-table tbody tr { cursor: pointer; } #tr-summary-table tbody tr[aria-selected="true"] { background: var(--accent-soft); }
+  .rep-steps { margin: 10px 0 0; padding-left: 20px; } .rep-steps li { margin: 6px 0; }
 
   /* progress */
   .bar { height: 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; margin: 12px 0 8px; }
@@ -743,7 +754,7 @@
       <a href="#/sessions" data-nav="sessions" title="Sessions"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg><span class="nl">Sessions</span></a>
       <a href="#/compare" data-nav="compare" title="Compare"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h13l-4-4M17 17H4l4 4"/></svg><span class="nl">Compare</span></a>
       <a href="#/leaderboard" data-nav="leaderboard" title="Leaderboard"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 20V11M12 20V4M18 20v-6"/></svg><span class="nl">Leaderboard</span></a>
-      <a href="#/trends" data-nav="trends" title="History &amp; Trends"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-5 4 4 8-8M15 8h5v5"/></svg><span class="nl">Trends</span></a>
+      <a href="#/trends" data-nav="trends" title="Repeatability"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-5 4 4 8-8M15 8h5v5"/></svg><span class="nl">Repeatability</span></a>
     </nav>
     <nav class="sidenav-account" id="side-account" aria-label="Account">
       <span class="nav-group" aria-hidden="true">Account</span>
@@ -898,15 +909,15 @@
         <tr><td>Recommendations</td><td>Does a model fit my latency, memory and budget limits, and what should I do next?</td></tr>
         <tr><td>Data &amp; Exports</td><td>Where are the PDF report, the raw results and the per-flow outputs?</td></tr>
       </tbody></table></div>
-      <p class="small" id="help-charts"><b>Reading the charts.</b> On <i>GPU over the run</i> (Cost &amp; Energy), hover any chart to read power, utilisation and memory at that moment together with the flow and agent that were running; drag across a chart to zoom all of them, double-click to zoom out. <i>Inspect data</i> under a chart shows the numbers behind it, and <i>Chart data (CSV)</i> downloads them. The limits you enter under Recommendations are drawn as threshold lines and colour the values that break them. Compare and Trends share a Model and Pipeline filter. In Settings, you can be alerted on Telegram when a finished run got worse than its usual range on the same setup.</p>
+      <p class="small" id="help-charts"><b>Reading the charts.</b> On <i>GPU over the run</i> (Cost &amp; Energy), hover any chart to read power, utilisation and memory at that moment together with the flow and agent that were running; drag across a chart to zoom all of them, double-click to zoom out. <i>Inspect data</i> under a chart shows the numbers behind it, and <i>Chart data (CSV)</i> downloads them. The limits you enter under Recommendations are drawn as threshold lines and colour the values that break them. Compare and Repeatability share a Model and Pipeline filter. In Settings, you can be alerted on Telegram when a finished run got worse than its usual range on the same setup.</p>
     </div>
     <div class="card" id="help-manage">
       <h2>4. Sessions, Compare and Leaderboard</h2>
       <ul class="guide-steps">
         <li><a href="#/sessions">Sessions</a> lists every run. Search by text, filter by tag, open a session, add a note, or delete a finished session (with an account).</li>
-        <li><a href="#/compare">Compare</a> puts two sessions side by side, for example the same model on two GPUs or two data sets.</li>
+        <li><a href="#/compare">Compare</a> puts different models side by side on one setup: choose the data set, GPU and settings, then tick 2 to 4 models measured on it. Sessions on other flows, GPUs or settings are listed with the reason they are left out.</li>
         <li><a href="#/leaderboard">Leaderboard</a> ranks models across all sessions, overall or per GPU and data setup.</li>
-        <li><a href="#/trends">Trends</a> follows one model on one setup (same flows, GPU and settings) across sessions over time and flags a run that moved beyond the usual spread. To collect such runs automatically, open a finished session and use <b>Repeat on a schedule</b> on its Overview tab.</li>
+        <li><a href="#/trends">Repeatability</a> checks that the same model on the same setup gives the same result each time it runs: each model gets a verdict — Stable, Varies or Moved — after 3 runs. To collect such runs automatically, open a finished session and use <b>Repeat on a schedule</b> on its Overview tab. In short: Compare = different models, same setup, one moment; Repeatability = the same model, same setup, over time.</li>
       </ul>
     </div>
     <div class="card" id="help-terms">
@@ -1162,15 +1173,18 @@
   <!-- COMPARE -->
   <section id="view-compare" class="view" hidden aria-labelledby="h-compare">
     <div class="page-head"><div><h1 id="h-compare">Compare</h1>
-      <p>Pick a session; only sessions on the same flows, GPU and settings can join it.<span class="info-i" tabindex="0" role="button" data-tip="Same flows = the same prepared set (its hash), so every model answered exactly the same flows. Same GPU and same settings (4-bit, token caps, agents) mean the differences are the models', not the setup.">i</span></p></div></div>
-    <div class="vars" id="cmp-vars" role="group" aria-label="Filter the sessions"></div>
+      <p>Different models on the same setup: the same flows, GPU and settings, so the only difference is the model.</p>
+      <p class="small muted cmp-vs-rep" id="cmp-distinct"><b>Compare</b> = different models, same setup, one moment. <a href="#/trends"><b>Repeatability</b></a> = the same model, same setup, over time.</p></div></div>
+    <div class="vars" id="cmp-vars" role="group" aria-label="Filter the setups"></div>
     <form class="card" id="cmp-form" novalidate>
-      <div class="field" style="max-width:720px"><label for="cmp-a">Session</label><select id="cmp-a"></select></div>
+      <div class="field" style="max-width:720px"><label for="cmp-setup"><span class="step-n">1</span> Setup <span class="hint">(data set, GPU and settings)</span></label><select id="cmp-setup" class="wide"></select></div>
+      <div id="cmp-locked" aria-live="polite"></div>
       <div id="cmp-cands" aria-live="polite"></div>
       <div class="row"><button type="submit" class="btn primary" id="cmp-go" disabled>Compare</button></div>
       <div id="cmp-error" class="notice error" role="alert" hidden></div>
     </form>
     <div id="cmp-result"></div>
+    <div id="cmp-excluded"></div>
   </section>
 
   <!-- LEADERBOARD -->
@@ -1212,17 +1226,19 @@
     </div>
   </section>
 
-  <!-- HISTORY & TRENDS -->
+  <!-- REPEATABILITY (route #/trends) -->
   <section id="view-trends" class="view" hidden aria-labelledby="h-trends">
-    <div class="page-head"><div><h1 id="h-trends">History &amp; Trends</h1>
-      <p>The same model on the same flows, GPU and settings, measured again over time. Each line stays on one setup: models on different GPUs are never mixed.</p></div></div>
+    <div class="page-head"><div><h1 id="h-trends">Repeatability</h1>
+      <p id="tr-purpose">Run the same model on the same setup more than once and see if results stay the same. Stable results can be trusted; a result that moves may point to a problem such as a slower rented GPU, a driver change or a model update.</p>
+      <p class="small muted cmp-vs-rep" id="tr-distinct"><a href="#/compare"><b>Compare</b></a> = different models, same setup, one moment. <b>Repeatability</b> = the same model, same setup, over time.</p></div></div>
     <div class="vars" id="tr-vars" role="group" aria-label="Filter the series"></div>
-    <div class="card" id="tr-controls">
+    <label class="check" style="margin:0 0 12px"><input type="checkbox" id="tr-demo"> Include demo sessions</label>
+    <div id="tr-summary"></div>
+    <div class="card" id="tr-controls" hidden>
       <div class="row" style="margin-top:0;gap:16px;flex-wrap:wrap;align-items:flex-end">
         <div class="field" style="margin:0;min-width:0;flex:2 1 280px"><label for="tr-series">Model and setup</label><select id="tr-series" class="wide"></select></div>
         <div class="field" style="margin:0;min-width:0;flex:1 1 200px"><label for="tr-metric">Measure</label><select id="tr-metric" class="wide"></select></div>
       </div>
-      <label class="check" style="margin-top:10px"><input type="checkbox" id="tr-demo"> Include demo sessions</label>
     </div>
     <div id="tr-body"></div>
     <div id="tr-drifts"></div>
@@ -1252,7 +1268,7 @@
           <select id="set-notify"><option value="none">never</option><option value="done">is done</option><option value="failed">failed</option><option value="both">is done or failed</option></select></div>
         <button type="button" class="btn" id="set-tg-test" style="align-self:flex-end">Send a test message</button>
       </div>
-      <label class="check"><input type="checkbox" id="set-drift"> <span>Alert me when a finished run got worse than its usual range <span class="muted small">— compared with earlier runs of the same model on the same flows, GPU and settings (the Trends rule); sent even when "Notify me" is set to never.</span></span></label>
+      <label class="check"><input type="checkbox" id="set-drift"> <span>Alert me when a finished run got worse than its usual range <span class="muted small">— compared with earlier runs of the same model on the same flows, GPU and settings (the Repeatability rule); sent even when "Notify me" is set to never.</span></span></label>
       <p class="small muted" id="set-tg-status"></p>
       <hr class="sep">
       <h2>New benchmark defaults</h2>
@@ -3098,7 +3114,7 @@
     var SUM = window.INSIGHTS ? INSIGHTS.tabSummaries(res) : {};
     var lead = function (k) { return SUM[k] ? '<p class="tab-summary" data-summary="' + k + '">' + esc(SUM[k]) + '</p>' : ""; };
     LC = {};                                         // line charts of this session (wired after render)
-    $("spanel-overview").innerHTML = pane("main", overviewTab(res) + notesCard(job) + scheduleCard(job));
+    $("spanel-overview").innerHTML = pane("main", overviewTab(res) + '<div class="card" id="svc-rep-line" hidden></div>' + notesCard(job) + scheduleCard(job));
     $("spanel-ranking").innerHTML = lead("ranking") + pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
         'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", rankStabilityCard(res) + stabilityCard(res)) + pane("tradeoffs", frontierCard(res)) + pane("guide", "");
     $("spanel-reliability").innerHTML = lead("reliability") + pane("main", reliabilityCard(res) + consistencyCard(res) + failureCard(res));
@@ -3109,7 +3125,7 @@
     $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
     resetEmbed();
     wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); SAME_SETUP = {};       // fresh per render: a later session on these flows must show up
-    wireRepeat(res, job); wireNotes(job); wireSchedule(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePipelineCompare(job); wirePrices(res); wirePicker(res);
+    wireRepeat(res, job); wireRepLine(job); wireNotes(job); wireSchedule(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePipelineCompare(job); wirePrices(res); wirePicker(res);
     addExports($("session-body")); paintLimits($("session-body"));
   }
 
@@ -4157,22 +4173,33 @@
           }).join("") + '</div>';
       }).join("") + '</div></div>';
   }
-  // ---------- HISTORY & TRENDS ----------
+  // ---------- REPEATABILITY (History & Trends) ----------
   var TR = { data: null, series: null, metric: null, sched: [] };
   var SCHED_EVERY = [[6, "every 6 hours"], [12, "every 12 hours"], [24, "daily"], [48, "every 2 days"], [168, "weekly"]];
   function everyLabel(h) { var e = SCHED_EVERY.filter(function (x) { return x[0] === h; })[0]; return e ? e[1] : "every " + h + " hours"; }
   function loadTrends(q) {
     q = q || {};
-    if (q.series) TR.series = q.series;
+    TR.series = q.series || (q.model && q.setup ? q.model + "||" + q.setup : null);
     if (q.metric) TR.metric = q.metric;
     if (q.demo === "1") $("tr-demo").checked = true;
-    $("tr-body").innerHTML = '<p class="muted">Loading…</p>'; $("tr-drifts").innerHTML = "";
+    $("tr-summary").innerHTML = '<p class="muted">Loading…</p>'; $("tr-body").innerHTML = ""; $("tr-drifts").innerHTML = "";
     api("/api/sessions?limit=200").then(function (r) {
-      if (!r.ok) { $("tr-body").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
+      if (!r.ok) { $("tr-summary").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
       TR.data = r.data.sessions || [];
+      // a link to a demo series opens with demo sessions shown
+      if (TR.series && !$("tr-demo").checked && TR.data.some(function (s) { return s.status === "Demo"; }) &&
+          !INSIGHTS.trends(TR.data).series.some(function (x) { return x.id === TR.series; })) $("tr-demo").checked = true;
       renderTrends();
     });
     loadSchedules();
+  }
+  var REP_BADGE = { stable: "Stable", varies: "Varies", moved: "Moved", few: "Too few runs" };
+  function repBadge(x) {
+    var tip = x.status === "stable" ? "Every run is within " + Math.round(100 * INSIGHTS.STABLE_WITHIN) + "% of the median (latency, tokens, VRAM)."
+      : x.status === "varies" ? "Some runs differ by more than " + Math.round(100 * INSIGHTS.STABLE_WITHIN) + "% from the median, but the latest is within the usual spread."
+      : x.status === "moved" ? "The latest run moved beyond the usual spread of the earlier runs."
+      : "A verdict needs at least 3 runs of this model on this setup.";
+    return '<span class="rep-badge ' + x.status + '" title="' + esc(tip) + '">' + (x.status === "stable" ? "✓ " : x.status === "moved" ? "⚠ " : "") + REP_BADGE[x.status] + '</span>';
   }
   function renderTrends() {
     if (!TR.data || !window.INSIGHTS) return;
@@ -4184,18 +4211,38 @@
     }
     var ser = $("tr-series"), met = $("tr-metric");
     if (!t.series.length) {
-      ser.innerHTML = ""; met.innerHTML = "";
-      $("tr-body").innerHTML = '<div class="card empty" id="tr-empty"><p>No finished sessions' + ($("tr-demo").checked ? "" : " (demo sessions are hidden)") +
-        '. A trend needs the same model run more than once on the same flows, GPU and settings — run a session again, or repeat one on a schedule from its Overview tab.</p></div>';
-      $("tr-drifts").innerHTML = "";
+      ser.innerHTML = ""; met.innerHTML = ""; $("tr-controls").hidden = true;
+      var demoHidden = !$("tr-demo").checked && TR.data.some(function (s) { return s.status === "Demo"; });
+      $("tr-summary").innerHTML = '<div class="card empty" id="tr-empty"><h2>No repeated runs yet</h2>' +
+        (demoHidden ? '<p class="small muted">Demo sessions are hidden — tick <i>Include demo sessions</i> to see them.</p>' : "") +
+        '<ol class="rep-steps" style="text-align:left">' +
+        '<li><b>Run a benchmark.</b> <a href="#/new">New benchmark</a></li>' +
+        '<li><b>Run it again on the same setup</b> — open the finished session and use <i>Repeat on a schedule</i> on its Overview, or start the same flows with the same model again.</li>' +
+        '<li><b>Come back after 3 or more runs</b> — each model then gets a verdict: Stable, Varies or Moved.</li></ol></div>';
+      $("tr-body").innerHTML = ""; $("tr-drifts").innerHTML = "";
       return;
     }
-    if (!t.series.some(function (s) { return s.id === TR.series; })) TR.series = t.series[0].id;
+    var rows = INSIGHTS.repeatSummary(t);
+    if (TR.series && !t.series.some(function (s) { return s.id === TR.series; })) TR.series = null;
     if (!t.metrics.some(function (m) { return m.key === TR.metric; })) TR.metric = t.metrics[0].key;
+    $("tr-summary").innerHTML = '<div class="card" id="tr-summary-card"><h2>Is each model\'s result the same every time?</h2>' +
+      '<p class="muted small" style="margin-top:0">One row per model and setup (same flows, GPU and settings). <b>Stable</b>: every run within ' + Math.round(100 * INSIGHTS.STABLE_WITHIN) +
+      '% of the median. <b>Varies</b>: runs differ by more. <b>Moved</b>: the latest run left the usual spread. Click a row to see its runs.' + infoI(t.rule) + '</p>' +
+      '<div class="table-wrap"><table id="tr-summary-table"><thead><tr><th>Model</th><th>Setup</th><th class="num">Runs</th><th>Result</th><th class="num">Latency spread</th><th>Last run</th></tr></thead><tbody>' +
+      rows.map(function (x) {
+        var st = x.setup;
+        return '<tr data-tr-row="' + esc(x.series) + '" tabindex="0" aria-selected="' + (x.series === TR.series) + '"><td><b>' + esc(short(x.model)) + '</b></td><td class="small">' +
+          esc((st.gpu || "GPU") + " · " + (st.input_type || "") + " " + (st.n_flows == null ? "" : st.n_flows + " flows") + " · set " + String(st.prepared_set_sha256).slice(0, 8)) +
+          '</td><td class="num">' + x.runs + '</td><td>' + repBadge(x) + (x.moved.length ? ' <span class="small muted">' + esc(x.moved[0].metric_label.toLowerCase()) + ' ' + (x.moved[0].change > 0 ? "+" : "") + fmtNum(100 * x.moved[0].change, 0) + '%</span>' : "") +
+          '</td><td class="num">' + (x.latency_spread == null ? "—" : "±" + fmtNum(100 * x.latency_spread, 1) + "%") + '</td><td class="small">' + esc(x.last_at ? fmtDate(x.last_at) : "—") + '</td></tr>';
+      }).join("") + '</tbody></table></div></div>';
     ser.innerHTML = t.series.map(function (s) { return '<option value="' + esc(s.id) + '"' + (s.id === TR.series ? " selected" : "") + '>' + esc(s.label + " — " + s.points.length + " run" + (s.points.length === 1 ? "" : "s")) + '</option>'; }).join("");
     met.innerHTML = t.metrics.map(function (m) { return '<option value="' + esc(m.key) + '"' + (m.key === TR.metric ? " selected" : "") + '>' + esc(m.label) + '</option>'; }).join("");
-    var s = t.series.filter(function (x) { return x.id === TR.series; })[0], ts = INSIGHTS.trendSeries(s, TR.metric);
-    $("tr-body").innerHTML = historyCard(s, ts, t);
+    $("tr-controls").hidden = !TR.series;
+    if (TR.series) {
+      var s = t.series.filter(function (x) { return x.id === TR.series; })[0], ts = INSIGHTS.trendSeries(s, TR.metric);
+      $("tr-body").innerHTML = historyCard(s, ts, t);
+    } else $("tr-body").innerHTML = "";
     $("tr-drifts").innerHTML = '<div class="card" id="tr-drift-card"><h2>Runs that moved</h2>' +
       (t.drifts.length ? '<p class="muted small" style="margin-top:0">The latest run of a series against the median of its earlier runs.' + infoI(t.rule) + '</p><ul class="tr-drift-list">' + t.drifts.map(function (d) {
         return '<li><span class="chip ' + (d.worse ? "bad" : "ok") + '">' + (d.worse ? "worse" : "better") + '</span> <b>' + esc(d.label) + '</b>: ' + esc(d.metric_label) + ' ' +
@@ -4246,7 +4293,7 @@
         return;
       }
       TR.sched = r.data.schedules || [];
-      host.innerHTML = '<h2>Scheduled re-runs</h2><p class="muted small" style="margin-top:0">Each one repeats a finished session on this GPU (same flows, models and settings) and adds its runs to the trends above. Start one from a session\'s Overview tab.</p>' +
+      host.innerHTML = '<h2>Scheduled re-runs</h2><p class="muted small" style="margin-top:0">Each one repeats a finished session on this GPU (same flows, models and settings) and adds its runs to Repeatability above. Start one from a session\'s Overview tab.</p>' +
         (TR.sched.length ? '<div class="table-wrap"><table id="tr-sched-table"><thead><tr><th>Repeats</th><th>Models</th><th>How often</th><th class="num">Runs</th><th>Next</th><th>Owner</th><th></th></tr></thead><tbody>' +
           TR.sched.map(schedRow).join("") + '</tbody></table></div>' : '<p class="muted" id="tr-sched-none" style="margin-bottom:0">No schedules yet.</p>');
     });
@@ -4271,16 +4318,44 @@
     else if (ev.target.id === "tr-demo") renderTrends();
   });
   document.addEventListener("click", function (ev) {
+    var tr = ev.target.closest && !ev.target.closest("a") && ev.target.closest("[data-tr-row]");
+    if (tr) { TR.series = tr.getAttribute("data-tr-row"); renderTrends(); $("tr-chart-card").scrollIntoView({ block: "nearest" }); return; }
     var o = ev.target.closest && ev.target.closest("[data-tr-open]");
     if (o) { TR.series = o.getAttribute("data-tr-open"); TR.metric = o.getAttribute("data-tr-metric"); renderTrends(); $("tr-chart-card").scrollIntoView({ block: "start" }); return; }
     var c = ev.target.closest && ev.target.closest("[data-sch-cancel]");
     if (c && c.closest("#tr-schedules")) cancelSchedule(c.getAttribute("data-sch-cancel"), c.getAttribute("data-sch-job"), loadSchedules);
   });
+  document.addEventListener("keydown", function (ev) {
+    if ((ev.key === "Enter" || ev.key === " ") && ev.target.matches && ev.target.matches("[data-tr-row]")) { ev.preventDefault(); ev.target.click(); }
+  });
+  // Overview: how often this session's models were measured on its setup, and whether they held
+  function wireRepLine(job) {
+    var host = $("svc-rep-line");
+    if (!host || !window.INSIGHTS) return;
+    var st = String(job.status || "").toLowerCase();
+    if (!(st === "done" || st === "demo")) return;
+    api("/api/sessions?limit=200").then(function (r) {
+      if (!r.ok || !$("svc-rep-line") || $("svc-rep-line") !== host) return;
+      var all = r.data.sessions || [], me = all.filter(function (x) { return x.session_id === job.job_id; })[0];
+      var key = me && INSIGHTS.setupKey(me);
+      if (!key) return;
+      var rows = INSIGHTS.repeatSummary(INSIGHTS.trends(all, { includeDemo: me.status === "Demo" })).filter(function (x) {
+        return x.series.slice(x.series.indexOf("||") + 2) === key && (me.models || []).indexOf(x.model) >= 0;
+      });
+      if (!rows.length) return;
+      host.innerHTML = '<h2 style="margin-bottom:6px">Repeatability</h2><ul class="lk-list" id="svc-rep-list">' + rows.map(function (x) {
+        var what = x.runs < 3 ? x.runs + " run" + (x.runs === 1 ? "" : "s") + " on this setup — a verdict needs 3" :
+          x.runs + " runs, " + (x.status === "stable" ? "stable ✓" : x.status === "moved" ? "moved ⚠" : "varies") + (x.latency_spread == null ? "" : " (latency ±" + fmtNum(100 * x.latency_spread, 1) + "%)");
+        return '<li><b>' + esc(short(x.model)) + '</b>: <a href="' + repLink(x.model, key) + '">' + esc(what) + '</a></li>';
+      }).join("") + '</ul>' + (rows.every(function (x) { return x.runs < 3; }) ? '<p class="small muted" style="margin:6px 0 0">Run this setup again (or repeat it on a schedule below) to check that the results hold.</p>' : "");
+      host.hidden = false;
+    });
+  }
   // Overview: repeat this session on a schedule (finished sessions; the owner or an admin)
   function scheduleCard(job) {
     var st = String(job.status || "").toLowerCase();
     if (!(st === "done" || st === "demo") || !canEditNotes(job)) return "";
-    return '<form class="card" id="svc-schedule" novalidate><h2>Repeat on a schedule</h2><p class="muted small" style="margin-top:0">Runs this session again on this GPU — the same flows, models and settings — so <a href="#/trends">Trends</a> can show whether the numbers hold over time. Each run is an ordinary session in the queue; a run waits while the previous one is still going.</p>' +
+    return '<form class="card" id="svc-schedule" novalidate><h2>Repeat on a schedule</h2><p class="muted small" style="margin-top:0">Runs this session again on this GPU — the same flows, models and settings — so <a href="#/trends">Repeatability</a> can show whether the numbers hold over time. Each run is an ordinary session in the queue; a run waits while the previous one is still going.</p>' +
       '<div class="row" style="gap:16px;flex-wrap:wrap;align-items:flex-end"><div class="field" style="margin:0"><label for="sch-every">How often</label><select id="sch-every">' +
       SCHED_EVERY.map(function (e) { return '<option value="' + e[0] + '"' + (e[0] === 24 ? " selected" : "") + '>' + esc(e[1]) + '</option>'; }).join("") + '</select></div>' +
       '<div class="field" style="margin:0"><label for="sch-runs">Number of runs <span class="hint">(1–30)</span></label><input type="number" id="sch-runs" min="1" max="30" step="1" value="7" inputmode="numeric"></div>' +
@@ -4940,7 +5015,7 @@
   // ---------- COMPARE ----------
   // Compare: one session + the sessions on the SAME setup (same flows hash, GPU, settings) —
   // only those are offered. The merged view shows every run side by side (stored values).
-  var CMP = { rows: [], data: null, mode: "runs", tab: "overview" };
+  var CMP = { rows: [], data: null, tab: "overview", setups: [], key: null, given: [], want: [], pick: {}, old: null };
   function sessionLabel(s) {
     return (s.models || []).map(short).join(" vs ") + " · " + (s.input_type || "") + " · " + fmtNum(s.n_flows) + " flows · " +
       (s.gpu || "") + " · " + fmtDate(s.finished_at || s.created_at);
@@ -4973,60 +5048,146 @@
       });
     });
   }
+  // Compare: setup first (one prepared set, one GPU, one group of settings), then the models
+  // measured on it. Only the model differs; a model measured several times is one column (its
+  // latest run, or the run the link names) — how its runs vary is the Repeatability page's job.
+  function cmpRow(id) { return CMP.rows.filter(function (s) { return s.session_id === id; })[0] || null; }
+  function cmpSetup() { return (CMP.setups || []).filter(function (g) { return g.key === CMP.key; })[0] || null; }
+  function setupName(g) {
+    var st = g.setup;
+    return (g.name || "prepared set " + String(st.prepared_set_sha256).slice(0, 8)) + " · " + (st.input_type || "") + " · " + fmtNum(st.n_flows) + " flows · " + (st.gpu || "GPU") + " · " + g.pipeline;
+  }
+  function repLink(model, key) { return "#/trends?model=" + enc(model) + "&setup=" + enc(key); }
   function loadCompare(q) {
     $("cmp-error").hidden = true;
     if (q.a && q.b && !q.sessions) { location.replace("#/compare?sessions=" + enc(q.a) + "," + enc(q.b)); return; }   // old links
     var ids = (q.sessions || "").split(",").filter(Boolean), first = ids[0] || q.a || "";
+    var want = (q.models || "").split(",").filter(Boolean);
     api("/api/sessions?limit=200").then(function (r) {
       if (!r.ok) { showError($("cmp-error"), r.data); return; }
       CMP.rows = (r.data.sessions || []).filter(function (s) { return s.status === "Done" || s.status === "Demo"; });
-      var fill = function () {
-        var keep = $("cmp-a").value, shown = CMP.rows.filter(function (s) { return varsMatch(s); });
-        $("cmp-a").innerHTML = '<option value="">Choose a session… (' + shown.length + (shown.length === CMP.rows.length ? "" : " of " + CMP.rows.length) + ')</option>' + shown.map(function (s) {
-          return '<option value="' + esc(s.session_id) + '">' + esc(sessionLabel(s)) + '</option>';
-        }).join("");
-        if (keep && shown.some(function (s) { return s.session_id === keep; })) $("cmp-a").value = keep;
-        else if (keep) { $("cmp-a").value = ""; $("cmp-cands").innerHTML = ""; $("cmp-go").disabled = true; }
-      };
-      varsBar($("cmp-vars"), CMP.rows, fill);
-      fill();
-      $("cmp-result").innerHTML = CMP.rows.length ? "" : '<div class="card empty"><p>No finished sessions yet.</p><a class="btn primary" href="#/new">New benchmark</a></div>';
-      $("cmp-cands").innerHTML = ""; $("cmp-go").disabled = true;
-      if (first) { $("cmp-a").value = first; loadCandidates(first, ids.slice(1)); }
-      if (ids.length >= 2) runMerged(ids);
-    });
-  }
-  $("cmp-a").addEventListener("change", function () { $("cmp-result").innerHTML = ""; loadCandidates($("cmp-a").value, null); });
-  function loadCandidates(id, picked) {
-    var box = $("cmp-cands");
-    $("cmp-go").disabled = true;
-    if (!id) { box.innerHTML = ""; return; }
-    box.innerHTML = '<p class="muted small">Finding sessions on the same setup…</p>';
-    api("/api/compare/candidates?session=" + enc(id)).then(function (r) {
-      if (!r.ok) { box.innerHTML = ""; showError($("cmp-error"), r.data); return; }
-      var c = r.data, list = c.sessions || [], me = CMP.rows.filter(function (s) { return s.session_id === id; })[0] || {};
-      if (!c.setup) { box.innerHTML = '<p class="notice warn small" id="cmp-none">This session predates the setup fingerprint, so it cannot be compared.</p>'; return; }
-      if (!list.length) {
-        box.innerHTML = '<div class="notice" id="cmp-none"><b>No other session uses the same flows, GPU and settings.</b> Run these flows again with other models to compare them.' +
-          (me.run_name ? '<div class="actions"><a class="btn" href="#/new/models?set=' + enc(me.run_name) + '">Benchmark these flows again</a></div>' : "") + '</div>';
+      CMP.setups = window.INSIGHTS ? INSIGHTS.compareSetups(CMP.rows).setups : [];
+      CMP.given = ids.length ? ids : first ? [first] : [];
+      CMP.want = want;
+      CMP.old = null;
+      $("cmp-result").innerHTML = ""; $("cmp-excluded").innerHTML = "";
+      var target = first ? cmpRow(first) : null;
+      if (first) {
+        CMP.key = target ? INSIGHTS.setupKey(target) : null;
+        if (target && !CMP.key) CMP.old = target;
+        if (!CMP.want.length) CMP.given.forEach(function (id) { ((cmpRow(id) || {}).models || []).forEach(function (m) { if (CMP.want.indexOf(m) < 0) CMP.want.push(m); }); });
+      }
+      var off = ids.filter(function (id) { var s = cmpRow(id); return !s || !CMP.key || INSIGHTS.setupKey(s) !== CMP.key; });
+      varsBar($("cmp-vars"), CMP.rows, fillSetups);
+      fillSetups();
+      if (!CMP.rows.length) { $("cmp-result").innerHTML = '<div class="card empty"><p>No finished sessions yet.</p><a class="btn primary" href="#/new">New benchmark</a></div>'; return; }
+      if (off.length) {
+        showError($("cmp-error"), { error: "These sessions do not share the same flows, GPU and settings, so they are not compared (" + off.map(shortId).join(", ") +
+          "). Choose a setup below and tick the models measured on it." });
         return;
       }
-      box.innerHTML = '<fieldset style="border:0;padding:0;margin:12px 0 0"><legend class="small" style="font-weight:600">Same flows, GPU and settings (' + list.length + ')</legend>' +
-        '<div class="models" id="cmp-list">' + list.map(function (s) {
-          var on = !picked || !picked.length || picked.indexOf(s.session_id) >= 0;
-          return '<label class="model"><input type="checkbox" value="' + esc(s.session_id) + '"' + (on ? " checked" : "") + '><span><b>' + esc((s.models || []).map(short).join(" vs ")) +
-            '</b><br><span class="muted small">' + esc(fmtDate(s.finished_at || s.created_at)) + (s.owner_username ? " · " + esc(s.owner_username) : "") + '</span></span></label>';
-        }).join("") + '</div></fieldset>';
-      var sync = function () { $("cmp-go").disabled = !box.querySelector("input:checked"); };
+      if (ids.length && CMP.want.length >= 2) runPicked();
+    });
+  }
+  function fillSetups() {
+    var all = CMP.setups || [], shown = all.filter(function (g) { return g.key === CMP.key || g.sessions.some(function (s) { return varsMatch(s); }); });
+    $("cmp-setup").innerHTML = '<option value="">Choose a setup… (' + shown.length + (shown.length === all.length ? "" : " of " + all.length) + ')</option>' + shown.map(function (g) {
+      return '<option value="' + esc(g.key) + '"' + (g.key === CMP.key ? " selected" : "") + '>' + esc(setupName(g) + " — " + g.models.length + " model" + (g.models.length === 1 ? "" : "s")) + '</option>';
+    }).join("");
+    renderSetup();
+  }
+  $("cmp-setup").addEventListener("change", function () {
+    CMP.key = this.value || null; CMP.given = []; CMP.want = []; CMP.old = null;
+    $("cmp-result").innerHTML = ""; $("cmp-error").hidden = true;
+    renderSetup();
+  });
+  function renderSetup() {
+    var g = cmpSetup(), box = $("cmp-cands");
+    $("cmp-go").disabled = true;
+    if (CMP.old) {
+      $("cmp-locked").innerHTML = ""; $("cmp-excluded").innerHTML = "";
+      box.innerHTML = '<p class="notice warn small" id="cmp-none">This session predates the setup fingerprint, so it cannot be compared.</p>';
+      return;
+    }
+    if (!g) { $("cmp-locked").innerHTML = ""; box.innerHTML = ""; $("cmp-excluded").innerHTML = ""; return; }
+    var st = g.setup, ok = '<span class="lk-ok" aria-hidden="true">✓</span> ';
+    $("cmp-locked").innerHTML = '<div class="validity ok locked" id="cmp-locked-box" role="status"><strong>Locked conditions</strong>' +
+      '<ul class="lk-list">' +
+      '<li>' + ok + 'Data set: <b>' + esc(g.name || "—") + '</b> (' + esc(st.input_type || "") + ')</li>' +
+      '<li>' + ok + 'Flows: <b>' + fmtNum(st.n_flows) + '</b>, the same flows for every model (set <span class="mono">' + esc(String(st.prepared_set_sha256).slice(0, 12)) + '</span>)</li>' +
+      '<li>' + ok + 'GPU: <b>' + esc(st.gpu || "—") + '</b></li>' +
+      '<li>' + ok + 'Pipeline: <b>' + esc(g.pipeline) + '</b></li>' +
+      '<li>' + ok + 'Settings: <b>4-bit NF4</b>, the same token caps and engine (settings <span class="mono">' + esc(String(st.settings_fingerprint).slice(0, 8)) + '</span>)</li>' +
+      '</ul><p class="small" style="margin:6px 0 0"><b>Only the LLM model differs.</b></p></div>';
+    var one = g.models.length < 2;
+    if (one) {
+      var last = g.sessions[0];
+      box.innerHTML = '<div class="notice" id="cmp-none"><b>Only one model (' + esc(short(g.models[0].model)) + ') has been measured on this setup.</b> Run these flows again with other models to compare them.' +
+        (g.models[0].runs.length > 1 ? ' Its ' + g.models[0].runs.length + ' runs are on <a href="' + repLink(g.models[0].model, g.key) + '">Repeatability</a>.' : "") +
+        (last.run_name ? '<div class="actions"><a class="btn" href="#/new/models?set=' + enc(last.run_name) + '">Benchmark these flows again</a></div>' : "") + '</div>';
+    } else {
+      var want = CMP.want.filter(function (m) { return g.models.some(function (x) { return x.model === m; }); });
+      if (!want.length) want = g.models.slice(0, 4).map(function (x) { return x.model; });
+      box.innerHTML = '<fieldset style="border:0;padding:0;margin:12px 0 0"><legend class="small" style="font-weight:600"><span class="step-n">2</span> Models measured on this setup (' + g.models.length + ') — tick 2 to 4</legend>' +
+        '<div class="models" id="cmp-list">' + g.models.map(function (m) {
+          var on = want.indexOf(m.model) >= 0;
+          return '<label class="model"><input type="checkbox" value="' + esc(m.model) + '"' + (on ? " checked" : "") + '><span><b>' + esc(short(m.model)) + '</b>' + extraTag(m.model) +
+            '<br><span class="muted small">' + (m.runs.length === 1 ? "1 run · " + esc(fmtDate(m.runs[0].at)) : m.runs.length + ' runs · latest ' + esc(fmtDate(m.runs[0].at)) +
+              ' · <a href="' + repLink(m.model, g.key) + '" data-rep-link>how they vary</a>') + '</span></span></label>';
+        }).join("") + '</div></fieldset>' +
+        '<p class="small muted" id="cmp-pick-note" style="margin:6px 0 0">A model measured more than once is shown once, from its latest run. How its runs differ is on <a href="#/trends">Repeatability</a>.</p>';
+      var sync = function () {
+        var on = box.querySelectorAll("input:checked").length;
+        box.querySelectorAll("input").forEach(function (x) { x.disabled = !x.checked && on >= 4; });
+        $("cmp-go").disabled = on < 2;
+      };
       box.querySelectorAll("input").forEach(function (x) { x.addEventListener("change", sync); });
       sync();
+    }
+    var ex = INSIGHTS.excludedFrom(g, CMP.rows);
+    $("cmp-excluded").innerHTML = !ex.length ? "" : '<details class="card info" id="cmp-excluded-card"><summary>Not on this setup (' + ex.length + ' session' + (ex.length === 1 ? "" : "s") + ') — left out of Compare</summary>' +
+      '<div class="table-wrap"><table id="cmp-excluded-table"><thead><tr><th>Session</th><th>Models</th><th>Data set</th><th>GPU</th><th>Why it is left out</th></tr></thead><tbody>' +
+      ex.slice(0, 100).map(function (x) {
+        var s = x.session;
+        return '<tr><td><a class="mono" href="#/session/' + enc(s.session_id) + '">' + esc(shortId(s.session_id)) + '</a></td><td class="small">' + esc((s.models || []).map(short).join(", ")) +
+          '</td><td class="small">' + esc((s.run_name || "—") + " · " + fmtNum(s.n_flows) + " flows") + '</td><td class="small">' + esc(s.gpu || "—") + '</td><td>' + esc(x.reasons.join("; ")) + '</td></tr>';
+      }).join("") + '</tbody></table></div>' + (ex.length > 100 ? '<p class="small muted">The first 100 are listed.</p>' : "") + '</details>';
+  }
+  // the session that stands for each model: the latest one the link names, else its latest run
+  function cmpPick(g, models) {
+    var pick = {};
+    models.forEach(function (m) {
+      var row = g.models.filter(function (x) { return x.model === m; })[0];
+      if (!row) return;
+      var named = row.runs.filter(function (r) { return CMP.given.indexOf(r.session_id) >= 0; })[0];
+      pick[m] = (named || row.runs[0]).session_id;
     });
+    return pick;
+  }
+  function runPicked() {
+    var g = cmpSetup();
+    if (!g) return;
+    var pick = cmpPick(g, CMP.want), ids = [];
+    Object.keys(pick).forEach(function (m) { if (ids.indexOf(pick[m]) < 0) ids.push(pick[m]); });
+    if (Object.keys(pick).length < 2) { showError($("cmp-error"), { error: "Tick at least two models measured on this setup." }); return; }
+    if (ids.length === 1) {                    // every model came from one session: merged needs two, so add another of this setup
+      var other = g.sessions.filter(function (s) { return s.session_id !== ids[0]; })[0];
+      if (!other) {
+        $("cmp-result").innerHTML = '<div class="notice" id="cmp-one-session">These models were measured together in one session, which already compares them: <a href="#/session/' + enc(ids[0]) + '">open it</a>.</div>';
+        return;
+      }
+      ids.push(other.session_id);
+    }
+    runMerged(ids, pick);
   }
   $("cmp-form").addEventListener("submit", function (ev) {
     ev.preventDefault();
-    var a = $("cmp-a").value, rest = Array.prototype.map.call($("cmp-cands").querySelectorAll("input:checked"), function (x) { return x.value; });
-    if (!a || !rest.length) { showError($("cmp-error"), { error: "Pick a session and at least one session to compare it with." }); return; }
-    location.hash = "#/compare?sessions=" + [a].concat(rest).map(enc).join(",");
+    var g = cmpSetup(), models = Array.prototype.map.call($("cmp-cands").querySelectorAll("input:checked"), function (x) { return x.value; });
+    if (!g || models.length < 2) { showError($("cmp-error"), { error: "Choose a setup and tick at least two models measured on it." }); return; }
+    var pick = cmpPick(g, models), ids = [];
+    models.forEach(function (m) { if (ids.indexOf(pick[m]) < 0) ids.push(pick[m]); });
+    var h = "#/compare?sessions=" + ids.map(enc).join(",") + "&models=" + models.map(enc).join(",");
+    if (location.hash === h) loadCompare(parseHash().q); else location.hash = h;
   });
   var CMP_TABS = [["overview", "Overview"], ["performance", "Performance"], ["cost", "Cost & Energy"]];
   var CMP_GROUPS = {
@@ -5034,23 +5195,24 @@
                   "weights_mb", "mean_tokens_per_flow", "mean_input_tokens_per_flow", "mean_output_tokens_per_flow", "handoff_share_of_total", "throughput_flows_per_s"],
     cost: ["cost_per_1k_flows_usd", "wh_per_flow", "wh_per_1k_flows", "wh_per_flow_net_idle"]
   };
-  function runMerged(ids) {
+  function runMerged(ids, pick) {
     $("cmp-result").innerHTML = '<p class="muted">Loading…</p>';
     api("/api/compare/merged?sessions=" + ids.map(enc).join(",")).then(function (r) {
       if (!r.ok) { $("cmp-result").innerHTML = ""; showError($("cmp-error"), r.data); return; }
-      CMP.data = r.data; CMP.tab = "overview";
-      CMP.mode = "runs";
+      CMP.data = r.data; CMP.tab = "overview"; CMP.pick = pick || {};
       renderMerged();
     });
   }
-  // the columns of the current mode: each run, or each model's flow-weighted mean (a view only)
+  // one column per model: the run of the session picked for it (model against model only)
   function cmpCols() {
-    var d = CMP.data;
-    if (CMP.mode === "mean") return d.by_model.map(function (m) { return { head: short(m.model), model: m.model, sub: m.n_runs + " run" + (m.n_runs === 1 ? "" : "s") + " · mean", val: function (k) { return m.values[k]; } }; });
-    return d.runs.map(function (run, i) {
-      return { head: short(run.model), model: run.model, sub: fmtDate(run.created_at).slice(0, 16) + (run.owner ? " · " + run.owner : ""), session: run.session,
-               val: function (k) { var row = d.rows.filter(function (x) { return x.metric === k; })[0]; return row ? row.values[i] : null; } };
+    var d = CMP.data, seen = {}, cols = [];
+    d.runs.forEach(function (run, i) {
+      if (CMP.pick[run.model] !== run.session || seen[run.model]) return;
+      seen[run.model] = true;
+      cols.push({ head: short(run.model), model: run.model, sub: fmtDate(run.created_at).slice(0, 16) + (run.owner ? " · " + run.owner : ""), session: run.session,
+                  val: function (k) { var row = d.rows.filter(function (x) { return x.metric === k; })[0]; return row ? row.values[i] : null; } });
     });
+    return cols;
   }
   function bestIdx(vals, lower) {
     var p = vals.filter(function (v) { return v != null; });
@@ -5083,32 +5245,30 @@
     return '<div class="tiles" id="cmp-tiles">' + t.map(function (x) { return '<div class="tile"><div class="k">' + x[0] + '</div><div class="v" style="font-size:18px">' + esc(x[1]) + '</div></div>'; }).join("") + '</div>';
   }
   function renderMerged() {
-    var d = CMP.data, st = d.setup, multi = d.by_model.some(function (m) { return m.n_runs > 1; });
+    var d = CMP.data, st = d.setup, g = cmpSetup(), cols = cmpCols();
     var tabs = CMP_TABS;
     if (!tabs.some(function (t) { return t[0] === CMP.tab; })) CMP.tab = "overview";
     var body;
     if (CMP.tab === "overview") {
-      var cols = cmpCols();
-      body = cmpTiles() + '<div class="card"><h2>' + (CMP.mode === "mean" ? "Models" : "Runs") + '</h2>' +
+      body = cmpTiles() + '<div class="card"><h2>Models</h2>' +
         cmpTable("cmp-overview-table", ["mean_latency_s", "mean_peak_vram_mb", "mean_tokens_per_flow", "cost_per_1k_flows_usd", "saw_eff_composite_100"]) +
-        (CMP.mode === "runs" ? '<p class="small muted">Sessions: ' + d.sessions.map(function (sid) { return '<a href="#/session/' + enc(sid) + '" title="' + esc(sid) + '">' + esc(shortId(sid)) + '</a>'; }).join(" · ") + '</p>' : "") + '</div>';
+        '<p class="small muted">Each column is one run: ' + cols.map(function (c) { return esc(c.head) + ' from <a href="#/session/' + enc(c.session) + '" title="' + esc(c.session) + '">' + esc(shortId(c.session)) + '</a>'; }).join(" · ") + '.</p></div>';
     } else {
       body = '<div class="card">' + cmpTable("cmp-" + CMP.tab + "-table", CMP_GROUPS[CMP.tab]) + '</div>';
     }
+    var reps = g ? g.models.filter(function (m) { return CMP.pick[m.model] && m.runs.length > 1; }) : [];
     $("cmp-result").innerHTML =
-      '<div class="validity ok" id="cmp-validity" role="status"><strong>Like-for-like comparison</strong> · ' + d.sessions.length + ' sessions · same flows (' +
-        esc(String(st.input_type || "").toUpperCase()) + ', ' + fmtNum(st.n_flows) + ' flows, set <span class="mono">' + esc(String(st.prepared_set_sha256).slice(0, 12)) + '</span>), same GPU (' + esc(st.gpu) + '), same settings' +
+      '<div class="validity ok" id="cmp-validity" role="status"><strong>Like-for-like comparison</strong> · ' + cols.length + ' models · same flows (' +
+        esc(String(st.input_type || "").toUpperCase()) + ', ' + fmtNum(st.n_flows) + ' flows, set <span class="mono">' + esc(String(st.prepared_set_sha256).slice(0, 12)) + '</span>), same GPU (' + esc(st.gpu) + '), same settings · only the model differs' +
         infoI(d.note) + '</div>' +
-      (multi ? '<div class="seg-opts" id="cmp-mode" style="margin:12px 0" role="radiogroup" aria-label="Same model in several sessions">' +
-        '<label><input type="radio" name="cmp-mode" value="runs"' + (CMP.mode === "runs" ? " checked" : "") + '> Each run</label>' +
-        '<label><input type="radio" name="cmp-mode" value="mean"' + (CMP.mode === "mean" ? " checked" : "") + '> Mean per model</label></div>' : "") +
+      (reps.length ? '<p class="small muted" id="cmp-rep-note">' + reps.map(function (m) { return esc(short(m.model)) + ' has ' + m.runs.length + ' runs on this setup'; }).join("; ") +
+        ' — the latest is shown. <a href="' + repLink(reps[0].model, g.key) + '">See how the runs vary on Repeatability</a>.</p>' : "") +
       '<div class="tabs" role="tablist" aria-label="Comparison sections" id="cmp-tabs">' + tabs.map(function (t) {
         return '<a role="tab" href="#" data-ctab="' + t[0] + '" id="ctab-' + t[0] + '" aria-selected="' + (t[0] === CMP.tab) + '">' + esc(t[1]) + '</a>';
       }).join("") + '</div>' + body +
       '<details class="info"><summary>All metrics</summary>' + cmpTable("cmp-table", d.rows.map(function (x) { return x.metric; })) + '</details>' +
       '<p class="muted small">View only: stored scores never change.</p>';
     $("cmp-result").querySelectorAll("[data-ctab]").forEach(function (a) { a.addEventListener("click", function (ev) { ev.preventDefault(); CMP.tab = a.getAttribute("data-ctab"); renderMerged(); }); });
-    $("cmp-result").querySelectorAll('input[name="cmp-mode"]').forEach(function (x) { x.addEventListener("change", function () { CMP.mode = x.value; renderMerged(); }); });
   }
 
   // ---------- LEADERBOARD ----------

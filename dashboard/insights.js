@@ -846,7 +846,7 @@
       if (!st.prepared_set_sha256 || !st.gpu || !st.settings_fingerprint) { skipped++; return; }
       var sk = [st.prepared_set_sha256, st.gpu, st.settings_fingerprint].join("|");
       Object.keys(s.metrics).forEach(function (m) {
-        var k = m + "\u0000" + sk;
+        var k = m + "||" + sk;
         if (!by[k]) by[k] = { id: k, model: m, setup: st, points: [] };
         by[k].points.push({ session_id: s.session_id, at: s.finished_at || s.created_at, scheduled: !!s.schedule_id, metrics: s.metrics[m] });
       });
@@ -879,12 +879,89 @@
     return { key: m[0], label: m[1], unit: m[2], lower_is_better: m[3], points: pts, drift: drift(series.points, m[0], m[3]) };
   }
 
+  // ---- Compare: a setup = the same prepared set (flows), GPU and settings; only the model may differ ----
+  function setupKey(s) {
+    var st = setupOf(s);
+    return st.prepared_set_sha256 && st.gpu && st.settings_fingerprint ? [st.prepared_set_sha256, st.gpu, st.settings_fingerprint].join("|") : null;
+  }
+  function pipeLabel(s) { return s.pipeline && s.pipeline.length ? s.pipeline.join(" → ") : "Default (4 agents)"; }
+  function compareSetups(sessions) {
+    var by = {}, unknown = [];
+    (sessions || []).forEach(function (s) {
+      if (!(s.status === "Done" || s.status === "Demo")) return;
+      var k = setupKey(s);
+      if (!k) { unknown.push(s); return; }
+      if (!by[k]) by[k] = { key: k, setup: setupOf(s), name: null, pipeline: pipeLabel(s), sessions: [], models: {} };
+      by[k].sessions.push(s);
+    });
+    var setups = Object.keys(by).map(function (k) {
+      var g = by[k], at = function (x) { return String(x.finished_at || x.created_at || ""); };
+      g.sessions.sort(function (a, b) { return at(b).localeCompare(at(a)); });           // newest first
+      g.name = (g.sessions.filter(function (x) { return x.run_name; })[0] || {}).run_name || null;
+      g.sessions.forEach(function (x) {
+        (x.models || []).forEach(function (m) {
+          if (!g.models[m]) g.models[m] = { model: m, runs: [] };
+          g.models[m].runs.push({ session_id: x.session_id, at: at(x) });
+        });
+      });
+      g.models = Object.keys(g.models).map(function (m) { var o = g.models[m]; o.latest = o.runs[0].session_id; return o; })
+        .sort(function (a, b) { return short(a.model).localeCompare(short(b.model)); });
+      g.latest_at = at(g.sessions[0]);
+      return g;
+    }).sort(function (a, b) { return (b.models.length > 1) - (a.models.length > 1) || b.latest_at.localeCompare(a.latest_at); });
+    return { setups: setups, unknown: unknown, max_models: 4,
+             rule: "A setup is one prepared set (the same flows, by hash), one GPU and one group of settings (4-bit NF4, token caps, engine, agents). Only models measured on the same setup are compared, so the only difference is the model." };
+  }
+  /** Why each finished session outside `setup` cannot join it (the first difference that matters). */
+  function excludedFrom(setup, sessions) {
+    var out = [];
+    (sessions || []).forEach(function (s) {
+      if (!(s.status === "Done" || s.status === "Demo")) return;
+      var k = setupKey(s);
+      if (k === setup.key) return;
+      var st = setupOf(s), why = [];
+      if (!k) why.push("no recorded setup (an older session)");
+      else {
+        if (st.prepared_set_sha256 !== setup.setup.prepared_set_sha256) why.push("different flows");
+        if (st.gpu !== setup.setup.gpu) why.push("different GPU (" + st.gpu + ")");
+        if (st.settings_fingerprint !== setup.setup.settings_fingerprint)
+          why.push(pipeLabel(s) !== setup.pipeline ? "different pipeline (" + pipeLabel(s) + ")" : "different settings");
+      }
+      out.push({ session: s, reasons: why });
+    });
+    return out;
+  }
+
+  // ---- Repeatability: is a model's result on one setup the same each time it is run? ----
+  var STABLE_WITHIN = 0.10;
+  var STABILITY_KEYS = ["mean_latency_s", "mean_tokens_per_flow", "max_peak_vram_mb"];
+  function spreadOf(points, key) {
+    var vs = points.map(function (p) { return num((p.metrics || {})[key]); }).filter(function (v) { return v != null; });
+    if (vs.length < 2) return null;
+    var m = median(vs);
+    return m ? Math.max.apply(null, vs.map(function (v) { return Math.abs(v - m) / Math.abs(m); })) : null;
+  }
+  /** One row per model and setup: Stable (every run within 10% of the median), Varies, or Moved
+   *  (the latest run broke the drift rule above); fewer than 3 runs gives no verdict yet. */
+  function repeatSummary(t) {
+    var moved = {};
+    (t.drifts || []).forEach(function (d) { (moved[d.series] = moved[d.series] || []).push(d); });
+    return (t.series || []).map(function (s) {
+      var n = s.points.length, lat = spreadOf(s.points, "mean_latency_s");
+      var spreads = STABILITY_KEYS.map(function (k) { return spreadOf(s.points, k); }).filter(function (v) { return v != null; });
+      var worst = spreads.length ? Math.max.apply(null, spreads) : null;
+      var status = n < 3 ? "few" : moved[s.id] ? "moved" : worst == null || worst <= STABLE_WITHIN ? "stable" : "varies";
+      return { series: s.id, model: s.model, setup: s.setup, label: s.label, runs: n, status: status, latency_spread: lat, spread: worst,
+               moved: moved[s.id] || [], last_at: n ? s.points[n - 1].at : null, sessions: s.points.map(function (p) { return p.session_id; }) };
+    }).sort(function (a, b) { return ({ moved: 0, varies: 1, stable: 2, few: 3 })[a.status] - ({ moved: 0, varies: 1, stable: 2, few: 3 })[b.status] || b.runs - a.runs; });
+  }
+
   var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
               workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, energyEfficiency: energyEfficiency, priceCompare: priceCompare, idleCost: idleCost, recommend: recommend, removeAgent: removeAgent, budgetTuning: budgetTuning, pipelineCompare: pipelineCompare, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, runningAt: runningAt, repeatability: repeatability,
-              loadScaling: loadScaling, trends: trends, trendSeries: trendSeries, runEstimate: runEstimate, sampleSize: sampleSize, tabSummaries: tabSummaries };
+              loadScaling: loadScaling, trends: trends, trendSeries: trendSeries, setupKey: setupKey, compareSetups: compareSetups, excludedFrom: excludedFrom, repeatSummary: repeatSummary, STABLE_WITHIN: STABLE_WITHIN, runEstimate: runEstimate, sampleSize: sampleSize, tabSummaries: tabSummaries };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

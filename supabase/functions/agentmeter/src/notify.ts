@@ -33,7 +33,7 @@ export async function notifyFinal(env: Env, id: string, status: string, stoppedB
   if (!row?.owner_id) return false;
   const s = await loadSettings(env, row.owner_id);
   if (!s.telegram_chat_id) return false;
-  // an alert (Trends rule): a finished run that got worse than its usual range on the same setup
+  // an alert (Repeatability rule): a finished run that got worse than its usual range on the same setup
   const moved = status === "Done" ? await movedFor(env, id) : [];
   const alert = s.alert_on_drift && moved.some((m) => m.worse);
   if (!(WANTS[s.notify_on] || []).includes(status) && !alert) return false;

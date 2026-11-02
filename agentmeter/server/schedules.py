@@ -1,5 +1,5 @@
 """Scheduled re-runs: repeat a finished session's benchmark on a fixed interval, on THIS backend
-(same GPU, same prepared set, same models, settings and pipeline), so History & Trends can show
+(same GPU, same prepared set, same models, settings and pipeline), so Repeatability (History & Trends) can show
 the same models measured over time.
 
   GET  /api/schedules                  every schedule, newest first

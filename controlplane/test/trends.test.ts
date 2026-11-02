@@ -76,3 +76,49 @@ describe("Telegram alert when a finished run got worse", () => {
     expect((await api("/api/settings", { method: "PUT", token: u.token, body: { alert_on_drift: "yes" } })).status).toBe(400);
   });
 });
+
+describe("Compare by setup and the Repeatability verdict (web/insights.js)", () => {
+  const two = (i: number, extra: Record<string, unknown> = {}) => summary(i, 1, { models: ["m/fast", "m/slow"],
+    metrics: { "m/fast": { mean_latency_s: 1 }, "m/slow": { mean_latency_s: 2 } }, run_name: "csv_runs/set", ...extra });
+
+  it("groups sessions into setups and lists each model once, latest run first", () => {
+    const ss = [two(0), two(1), summary(2, 1, { models: ["m/other"], metrics: { "m/other": {} } })];
+    const { setups } = INSIGHTS.compareSetups(ss);
+    expect(setups).toHaveLength(1);
+    expect(setups[0].models.map((m: any) => m.model)).toEqual(["m/fast", "m/other", "m/slow"]);
+    expect(setups[0].models[0].runs.map((r: any) => r.session_id)).toEqual([ss[1].session_id, ss[0].session_id]);
+    expect(setups[0].models[0].latest).toBe(ss[1].session_id);
+    expect(setups[0].name).toBe("csv_runs/set");
+  });
+
+  it("says why a session on another setup is left out", () => {
+    const base = two(0);
+    const otherGpu = two(1, { gpu: "NVIDIA A100", identity: { ...base.identity, gpu_label: "NVIDIA A100" } });
+    const otherFlows = two(2, { identity: { ...base.identity, prepared_set_sha256: "b".repeat(64) } });
+    const otherPipe = two(3, { pipeline: ["triage", "decide"], identity: { ...base.identity, settings_fingerprint: "e".repeat(16) } });
+    const otherSettings = two(4, { identity: { ...base.identity, settings_fingerprint: "d".repeat(16) } });
+    const old = two(5, { identity: {}, prepared_set_sha256: null, settings_fingerprint: null });
+    const all = [base, otherGpu, otherFlows, otherPipe, otherSettings, old];
+    const setup = INSIGHTS.compareSetups(all).setups.find((g: any) => g.key === INSIGHTS.setupKey(base));
+    const why = Object.fromEntries(INSIGHTS.excludedFrom(setup, all).map((x: any) => [x.session.session_id, x.reasons.join("; ")]));
+    expect(why[base.session_id]).toBeUndefined();
+    expect(why[otherGpu.session_id]).toBe("different GPU (NVIDIA A100)");
+    expect(why[otherFlows.session_id]).toBe("different flows");
+    expect(why[otherPipe.session_id]).toBe("different pipeline (triage → decide)");
+    expect(why[otherSettings.session_id]).toBe("different settings");
+    expect(why[old.session_id]).toMatch(/no recorded setup/);
+  });
+
+  it("gives each model and setup a verdict: too few runs, stable, varies or moved", () => {
+    const verdict = (vs: number[]) => INSIGHTS.repeatSummary(INSIGHTS.trends(vs.map((v, i) => summary(i, v)), {}))[0];
+    expect(verdict([1, 1.02]).status).toBe("few");
+    const st = verdict([1, 1.02, 0.98, 1.01]);
+    expect(st.status).toBe("stable");
+    expect(st.runs).toBe(4);
+    expect(st.latency_spread).toBeCloseTo(0.025 / 1.005, 9);          // the furthest run from the median (1.005)
+    expect(verdict([1, 1.3, 0.8, 1.25, 1.0]).status).toBe("varies");
+    const mv = verdict([1, 1.02, 0.98, 1.0, 1.6]);
+    expect(mv.status).toBe("moved");
+    expect(mv.moved[0].metric).toBe("mean_latency_s");
+  });
+});

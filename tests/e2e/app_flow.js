@@ -73,7 +73,7 @@ async function frameOf(p) {
   await p.waitForSelector('#home-empty:not([hidden])', { timeout: 15000 });
   log(true, 'Home empty state shown on first launch');
   const nav = await p.$$eval('.mainnav a:not([hidden])', as => as.map(a => a.textContent.trim()));
-  log(nav.join('|') === 'Home|New benchmark|Sessions|Compare|Leaderboard|Repeatability', 'header nav: ' + nav.join(', '));
+  log(nav.join('|') === 'Home|New benchmark|Sessions|Leaderboard|Repeatability', 'header nav: ' + nav.join(', '));
   log(await p.getAttribute('.top-right a.iconbtn', 'aria-label') === 'Settings', 'Settings icon button has an aria-label');
   log(/Demo mode \(no GPU\)/.test(await p.textContent('#svc-backend-badge')), 'GPU chip: ' + await p.textContent('#svc-backend-badge'));
   const body0 = await p.textContent('body');
@@ -278,6 +278,8 @@ async function frameOf(p) {
 
   // 8. Compare: setup first, then 2-4 models measured on it; only the model may differ
   await p.click('#session-compare'); await p.waitForSelector('#cmp-locked-box');
+  log(await p.isVisible('#view-leaderboard') && await p.getAttribute('#lbtab-compare', 'aria-selected') === 'true' &&
+      await p.getAttribute('.mainnav a[data-nav="leaderboard"]', 'aria-current') === 'page', 'Compare opens as Leaderboard › Compare models');
   const lockTxt = await p.textContent('#cmp-locked-box');
   log(/Locked conditions/.test(lockTxt) && /Data set/.test(lockTxt) && /Flows/.test(lockTxt) && /GPU/.test(lockTxt) && /Pipeline/.test(lockTxt) && /4-bit NF4/.test(lockTxt) &&
       /Only the LLM model differs/.test(lockTxt) && (await p.$$('#cmp-locked-box .lk-ok')).length === 5, 'Compare: the locked conditions are listed, each ticked; only the model differs');
@@ -345,9 +347,12 @@ async function frameOf(p) {
   log(/Most often #1 by SAW score \(efficiency\)/.test(await p.textContent('#lb-overall-head')), 'Leaderboard Overall: names the model most often #1 on efficiency');
   log((await p.$$('#lb-by input')).length === 1, 'Leaderboard Overall: wins are counted on efficiency only (no accuracy option)');
   await p.screenshot({ path: S + '/11b-leaderboard-overall.png', fullPage: true });
-  await p.click('#lbtab-setup'); await p.waitForSelector('#lb-table-0');
+  await p.click('#lbtab-compare'); await p.waitForSelector('#lb-compare-panel:not([hidden]) #cmp-setup');
+  log(/^#\/compare/.test(await p.evaluate(() => location.hash)) && await p.isHidden('#lb-setup-panel'), 'Leaderboard › Compare models: its own tab and address');
+  await p.click('#lbtab-setup'); await p.waitForSelector('#lb-setup-panel:not([hidden]) #lb-table-0');
+  log(await p.evaluate(() => location.hash) === '#/leaderboard', 'back to By setup');
   await p.click('.lb-group .lb-compare'); await p.waitForSelector('#cmp-validity');
-  log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Open in Compare opens the merged view of that setup');
+  log(/Like-for-like/.test(await p.textContent('#cmp-validity')), '"Compare these models" opens that setup in Compare models');
 
   // Repeatability (#/trends): the same model on one setup over time; demo sessions only when asked
   await p.click('.mainnav a[data-nav="trends"]'); await p.waitForSelector('#view-trends:not([hidden])');

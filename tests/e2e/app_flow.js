@@ -73,7 +73,7 @@ async function frameOf(p) {
   await p.waitForSelector('#home-empty:not([hidden])', { timeout: 15000 });
   log(true, 'Home empty state shown on first launch');
   const nav = await p.$$eval('.mainnav a:not([hidden])', as => as.map(a => a.textContent.trim()));
-  log(nav.join('|') === 'Home|New benchmark|Sessions|Leaderboard|Repeatability', 'header nav: ' + nav.join(', '));
+  log(nav.join('|') === 'Home|New benchmark|Sessions|Data sets|Leaderboard|Repeatability|GPU & Queue', 'header nav: ' + nav.join(', '));
   log(await p.getAttribute('.top-right a.iconbtn', 'aria-label') === 'Settings', 'Settings icon button has an aria-label');
   log(/Demo mode \(no GPU\)/.test(await p.textContent('#svc-backend-badge')), 'GPU chip: ' + await p.textContent('#svc-backend-badge'));
   const body0 = await p.textContent('body');

@@ -237,6 +237,10 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Compare: like-for-like (same prepared set, same settings)');
     await p.goto(APP + '/#/leaderboard'); await p.waitForSelector('.lb-table');
     log(await p.$$eval('.lb-table tbody tr', r => r.length) >= 2, 'Leaderboard ranks the models');
+    await p.goto(APP + '/#/gpu'); await p.waitForSelector('#gq-state');
+    log(/Free|Busy/.test(await p.textContent('#gq-state')) && !!(await p.$('#gq-recent-table')), 'GPU & Queue reads the GPU server through the control plane (read token)');
+    await p.goto(APP + '/#/datasets'); await p.waitForSelector('#ds-table');
+    log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1 && /\b2\b/.test(await p.textContent('#ds-table tbody tr[data-ds]')), 'Data sets: the one set, used by both sessions');
 
     // 7. GPU off: stop the backend
     await stopBackend();
@@ -251,6 +255,10 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.goto(APP + `/#/compare?a=${job1}&b=${job2}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
     await p.goto(APP + '/#/leaderboard'); await p.waitForSelector('.lb-table');
     log(true, 'GPU off: Compare and Leaderboard work');
+    await p.goto(APP + '/#/gpu'); await p.waitForSelector('#gq-state');
+    log(/GPU offline/.test(await p.textContent('#gq-state')), 'GPU off: GPU & Queue says the GPU server is offline');
+    await p.goto(APP + '/#/datasets'); await p.waitForSelector('#ds-table');
+    log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1 && !!(await p.$('#ds-offline')), 'GPU off: Data sets still lists the benchmarked set');
     await p.goto(APP + '/#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
     log(await p.isDisabled('#svc-upload-btn'), 'GPU off: New benchmark says GPU offline; Prepare is disabled');
     // the Reuse tab must stay open while the GPU is off (it used to snap back to "Upload a file")

@@ -247,6 +247,10 @@
   .validity.locked { margin: 12px 0 0; }
   .lk-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
   .lk-ok { color: var(--success); font-weight: 700; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 16px; }
+  .grid2 > div > .card { height: calc(100% - 16px); }
+  .ds-actions { white-space: nowrap; } .ds-detail > td { background: var(--surface-2, transparent); }
+  .gq-job + .gq-job { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
   .hbars { display: grid; gap: 6px; margin-top: 8px; }
   .hbar { display: grid; grid-template-columns: minmax(120px, 220px) 1fr 90px; gap: 10px; align-items: center; font-size: 13px; }
   .hb-l { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -758,8 +762,10 @@
       <a href="#/" data-nav="home" title="Home"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span class="nl">Home</span></a>
       <a href="#/new" data-nav="new" class="nav-primary" title="New benchmark"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span class="nl">New benchmark</span></a>
       <a href="#/sessions" data-nav="sessions" title="Sessions"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg><span class="nl">Sessions</span></a>
+      <a href="#/datasets" data-nav="datasets" title="Data sets"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="8" ry="2.5"/><path d="M4 5.5v13c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-13M4 12c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5"/></svg><span class="nl">Data sets</span></a>
       <a href="#/leaderboard" data-nav="leaderboard" title="Leaderboard"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 20V11M12 20V4M18 20v-6"/></svg><span class="nl">Leaderboard</span></a>
       <a href="#/trends" data-nav="trends" title="Repeatability"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-5 4 4 8-8M15 8h5v5"/></svg><span class="nl">Repeatability</span></a>
+      <a href="#/gpu" data-nav="gpu" title="GPU &amp; Queue"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4M10 10h4v4h-4z"/></svg><span class="nl">GPU &amp; Queue</span></a>
     </nav>
     <nav class="sidenav-account" id="side-account" aria-label="Account">
       <span class="nav-group" aria-hidden="true">Account</span>
@@ -919,6 +925,8 @@
     <div class="card" id="help-manage">
       <h2>4. Sessions, Leaderboard and Repeatability</h2>
       <ul class="guide-steps">
+        <li><a href="#/datasets">Data sets</a> lists every prepared set of flows: its size, labels, flow mix and fingerprint, which sessions and models used it, and buttons to benchmark it again or compare the models measured on it.</li>
+        <li><a href="#/gpu">GPU &amp; Queue</a> shows the GPU server right now: live utilisation, memory, power and temperature, the run on it with its progress, the runs waiting in order, scheduled re-runs coming up, what just finished, and where a new file would be prepared.</li>
         <li><a href="#/sessions">Sessions</a> lists every run. Search by text, filter by tag, open a session, add a note, or delete a finished session (with an account).</li>
         <li><a href="#/leaderboard">Leaderboard</a> ranks and compares models, in three tabs. <b>By setup</b> ranks every model on each setup (the same flows, GPU and settings). <a href="#/compare"><b>Compare models</b></a> lets you choose one setup and the models on it — as many as you like, from any sessions — and puts them side by side with a ranking and a bar per model; sessions on other flows, GPUs or settings are listed with the reason they are left out. <b>Overall</b> counts how often each model ranks first across setups.</li>
         <li><a href="#/trends">Repeatability</a> checks that the same model on the same setup gives the same result each time it runs: each model gets a verdict — Stable, Varies or Moved — after 3 runs. To collect such runs automatically, open a finished session and use <b>Repeat on a schedule</b> on its Overview tab. In short: Compare = different models, same setup, one moment; Repeatability = the same model, same setup, over time.</li>
@@ -1229,6 +1237,30 @@
     </div>
   </section>
 
+  <!-- DATA SETS -->
+  <section id="view-datasets" class="view" hidden aria-labelledby="h-datasets">
+    <div class="page-head"><div><h1 id="h-datasets">Data sets</h1>
+      <p>Every prepared set of flows: what is in it, its fingerprint, and which sessions and models used it. Models are only compared on the same set, so this is the list of everything they can be compared on.</p></div>
+      <a class="btn primary" href="#/new">Prepare a new set</a></div>
+    <div class="card" id="ds-controls"><div class="row" style="margin-top:0;gap:16px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="margin:0;flex:2 1 260px"><label for="ds-q">Search</label><input type="search" id="ds-q" placeholder="Name, model or fingerprint"></div>
+      <div class="field" style="margin:0;flex:1 1 160px"><label for="ds-type">Type</label><select id="ds-type"><option value="">All</option><option value="CSV">CSV</option><option value="PCAP">PCAP</option></select></div>
+    </div></div>
+    <div id="ds-body"></div>
+  </section>
+
+  <!-- GPU & QUEUE -->
+  <section id="view-gpu" class="view" hidden aria-labelledby="h-gpu">
+    <div class="page-head"><div><h1 id="h-gpu">GPU &amp; Queue</h1>
+      <p>The GPU server right now: its live readings, the run on it, the runs waiting and the ones that just finished. One GPU runs one benchmark at a time, in order.</p></div></div>
+    <div id="gq-status"></div>
+    <div class="grid2" id="gq-grid"><div id="gq-gpu"></div><div id="gq-prep"></div></div>
+    <div id="gq-running"></div>
+    <div id="gq-queued"></div>
+    <div id="gq-upcoming"></div>
+    <div id="gq-recent"></div>
+  </section>
+
   <!-- REPEATABILITY (route #/trends) -->
   <section id="view-trends" class="view" hidden aria-labelledby="h-trends">
     <div class="page-head"><div><h1 id="h-trends">Repeatability</h1>
@@ -1514,7 +1546,7 @@
       if ((m = /^\/api\/jobs\/([^/]+)\/(resume|stop)$/.exec(p))) return { kind: m[2], job_id: decodeURIComponent(m[1]) };
       return null;
     }
-    if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog|schedules)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
+    if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog|schedules|gpu)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
     if ((m = /^\/api\/jobs\/([^/]+)(\/(result|report\.pdf|constraints|flows|telemetry))?$/.exec(p))) return m[2] || !STRONG_JOB.test(decodeURIComponent(m[1])) ? { kind: "read" } : null;
     if ((m = /^\/api\/prepared\/([^/]+)\/([^/]+)(\/[^/]+)?$/.exec(p)) && m[1] !== "import") return m[3] ? { kind: "files", set: decodeURIComponent(m[1]) + "/" + decodeURIComponent(m[2]) } : { kind: "read" };
     return null;
@@ -1726,7 +1758,7 @@
   function hoverTip(el) { openTip(el, el.getAttribute("data-hover")); if (TIP) { TIP._for = el; TIP._hover = true; } }
 
   // ---------- routing ----------
-  var VIEWS = ["home", "new", "sessions", "session", "leaderboard", "trends", "settings", "profile", "admin", "help", "login"];
+  var VIEWS = ["home", "new", "sessions", "session", "datasets", "gpu", "leaderboard", "trends", "settings", "profile", "admin", "help", "login"];
   function parseHash() {
     var h = location.hash.replace(/^#\/?/, ""), q = {}, qi = h.indexOf("?");
     if (qi >= 0) { new URLSearchParams(h.slice(qi + 1)).forEach(function (v, k) { q[k] = v; }); h = h.slice(0, qi); }
@@ -1765,6 +1797,8 @@
     else if (v === "session" && p[1]) loadSession(p[1], p[2] ? p[2] + (p[3] ? "/" + p[3] : "") : rememberedTab());
     else if (v === "leaderboard") lbTab(LB.tab === "compare" ? "setup" : LB.tab);
     else if (v === "trends") loadTrends(r.q);
+    else if (v === "datasets") loadDatasets(r.q);
+    else if (v === "gpu") loadGpu();
     else if (v === "settings") loadSettings();
     else if (v === "profile") loadProfile();
     else if (v === "admin") loadAdmin();
@@ -5316,6 +5350,226 @@
     if ($("cmp-bar-metric")) $("cmp-bar-metric").addEventListener("change", function () { CMP.bar = this.value; renderMerged(); });
   }
 
+  // ---------- DATA SETS: every prepared set, what is in it and who used it ----------
+  // One row per prepared set, keyed by its content hash (the like-for-like key), built from the
+  // finished sessions (always available) plus the sets the GPU server prepared but nobody has
+  // benchmarked yet (while it is online). Details come from the set's own summary.
+  var DS = { rows: null, open: null, offline: false };
+  function finishedRow(s) { return s.status === "Done" || s.status === "Demo"; }
+  function datasetRows(sessions, jobs) {
+    var by = {}, byName = {};
+    var at = function (x) { return String(x.finished_at || x.created_at || ""); };
+    sessions.filter(finishedRow).forEach(function (s) {
+      var sha = (s.identity || {}).prepared_set_sha256 || s.prepared_set_sha256 || null;
+      if (!sha && !s.run_name) return;
+      var k = sha || "name:" + s.run_name;
+      var g = by[k] || (by[k] = { key: k, sha: sha, names: [], type: s.input_type || null, n_flows: s.n_flows, labelled: s.labelled, sessions: [], models: [], gpus: [], prepared_at: null, source: null, last: "" });
+      if (s.run_name && g.names.indexOf(s.run_name) < 0) g.names.push(s.run_name);
+      g.sessions.push(s);
+      (s.models || []).forEach(function (m) { if (g.models.indexOf(m) < 0) g.models.push(m); });
+      if (s.gpu && g.gpus.indexOf(s.gpu) < 0) g.gpus.push(s.gpu);
+      if (at(s) > g.last) g.last = at(s);
+      if (s.run_name) byName[s.run_name] = k;
+    });
+    jobs.filter(function (j) { return j.kind === "prepare" && j.status === "done" && j.prepared; }).forEach(function (j) {
+      var k = byName[j.prepared] || "name:" + j.prepared;
+      var g = by[k] || (by[k] = { key: k, sha: null, names: [j.prepared], type: /^pcap/.test(j.prepared) ? "PCAP" : "CSV", n_flows: null, labelled: null, sessions: [], models: [], gpus: [], prepared_at: null, source: null, last: "" });
+      if (!g.prepared_at || String(j.finished_at) < g.prepared_at) { g.prepared_at = j.finished_at; g.source = j.run_name; }
+      if (String(j.finished_at || "") > g.last) g.last = String(j.finished_at || "");
+    });
+    return Object.keys(by).map(function (k) {
+      var g = by[k];
+      g.sessions.sort(function (a, b) { return at(b).localeCompare(at(a)); });
+      g.name = g.names[0] || null;
+      return g;
+    }).sort(function (a, b) { return b.last.localeCompare(a.last); });
+  }
+  function loadDatasets(q) {
+    q = q || {};
+    if (q.open) DS.open = q.open;
+    $("ds-body").innerHTML = '<p class="muted">Loading…</p>';
+    var gpuJobs = CP && !ONLINE ? Promise.resolve({ ok: false }) : api("/api/jobs?limit=200");
+    Promise.all([api("/api/sessions?limit=200"), gpuJobs]).then(function (rs) {
+      if (!rs[0].ok) { $("ds-body").innerHTML = '<div class="notice error">' + esc(rs[0].data.error || "Could not load the sessions.") + '</div>'; return; }
+      DS.offline = !rs[1].ok;
+      DS.rows = datasetRows(rs[0].data.sessions || [], rs[1].ok ? rs[1].data.jobs || [] : []);
+      renderDatasets();
+    });
+  }
+  function dsMatch(g) {
+    var t = $("ds-type").value, words = $("ds-q").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (t && g.type !== t) return false;
+    var hay = (g.names.join(" ") + " " + (g.sha || "") + " " + g.models.join(" ") + " " + (g.source || "")).toLowerCase();
+    return words.every(function (w) { return hay.indexOf(w) >= 0; });
+  }
+  function renderDatasets() {
+    if (!DS.rows) return;
+    var rows = DS.rows.filter(dsMatch), off = DS.offline && CP;
+    if (!DS.rows.length) {
+      $("ds-body").innerHTML = '<div class="card empty" id="ds-empty"><h2>No data sets yet</h2><p>Upload a CSV or PCAP file on <a href="#/new">New benchmark</a>: it is prepared into a set of flows that every model then answers.</p></div>';
+      return;
+    }
+    $("ds-body").innerHTML = (off ? '<p class="notice small" id="ds-offline">The GPU server is offline: sets that have been benchmarked are listed; sets prepared but not yet benchmarked appear when it is back.</p>' : "") +
+      '<div class="card"><p class="muted small" style="margin-top:0">' + rows.length + ' of ' + DS.rows.length + ' set' + (DS.rows.length === 1 ? "" : "s") +
+      '. The fingerprint is the hash of the prepared flows: two sessions with the same fingerprint answered exactly the same flows.</p>' +
+      '<div class="table-wrap"><table id="ds-table"><thead><tr><th>Data set</th><th class="num">Flows</th><th>Fingerprint</th><th class="num">Sessions</th><th class="num">Models</th><th>Last used</th><th></th></tr></thead><tbody>' +
+      rows.map(function (g) {
+        var open = DS.open === g.key, nm = g.name ? g.name.split("/").pop() : "(unnamed set)";
+        return '<tr data-ds="' + esc(g.key) + '"><td><b class="mono small">' + esc(nm) + '</b><br><span class="chip">' + esc(g.type || "—") + '</span>' +
+          (g.labelled === true ? ' <span class="chip ok">labelled</span>' : g.labelled === false ? ' <span class="chip">no labels</span>' : "") +
+          (g.sessions.length ? "" : ' <span class="chip warn">not benchmarked yet</span>') + '</td><td class="num">' + (g.n_flows == null ? "—" : fmtNum(g.n_flows)) +
+          '</td><td class="mono small">' + (g.sha ? esc(g.sha.slice(0, 12)) : "—") + '</td><td class="num">' + g.sessions.length + '</td><td class="num">' + g.models.length +
+          '</td><td class="small">' + esc(g.last ? fmtDate(g.last) : "—") + '</td><td class="ds-actions"><button type="button" class="btn small-btn" data-ds-open="' + esc(g.key) + '" aria-expanded="' + open + '">' + (open ? "Hide" : "Details") + '</button>' +
+          (g.name ? ' <a class="btn small-btn" href="#/new/models?set=' + enc(g.name) + '">Benchmark</a>' : "") +
+          (g.models.length > 1 ? ' <a class="btn small-btn" href="#/compare?a=' + enc(g.sessions[0].session_id) + '">Compare models</a>' : "") + '</td></tr>' +
+          (open ? '<tr class="ds-detail"><td colspan="7"><div id="ds-detail">' + dsDetail(g, null) + '</div></td></tr>' : "");
+      }).join("") + '</tbody></table></div>' + (rows.length ? "" : '<p class="muted" id="ds-none">No set matches.</p>') + '</div>';
+    var g = DS.rows.filter(function (x) { return x.key === DS.open; })[0];
+    if (g && g.name && !(CP && !ONLINE)) {
+      api("/api/prepared/" + setPath(g.name)).then(function (r) {
+        if (DS.open === g.key && $("ds-detail")) $("ds-detail").innerHTML = dsDetail(g, r);
+      });
+    }
+  }
+  function dsDetail(g, r) {
+    var sum = r && r.ok ? r.data : null, ccs = sum ? sum.class_counts || {} : {};
+    var cc = sum ? sum.label_distribution_selected || ccs.selected || {} : {}, inFile = ccs.in_file || {};   // flows kept per class (and how many the file had)
+    var classes = Object.keys(cc).sort(function (a, b) { return cc[b] - cc[a]; });
+    var tot = classes.reduce(function (a, k) { return a + cc[k]; }, 0);
+    var files = sum ? (sum.downloads || []).map(function (f) { return dlLink("/api/prepared/" + setPath(g.name) + "/" + enc(f), g.name.split("/").pop() + "_" + f, f, "btn small-btn"); }).join(" ") : "";
+    var about = !g.name ? "" : !r ? '<p class="muted small" id="ds-files">' + (CP && !ONLINE ? "The set's files are on the GPU server, which is offline." : "Loading the set's details…") + '</p>'
+      : !sum ? '<p class="muted small" id="ds-files">' + esc((r.data && r.data.error) || "The set's details are not on this GPU server.") + '</p>'
+      : '<div class="grid2"><div><h3>What is in it</h3><ul class="lk-list small">' +
+          '<li>Source file: <b>' + esc((sum.source || {}).filename || sum.source_file || g.source || "—") + '</b></li>' +
+          '<li>Rows read: <b>' + (sum.rows_total == null ? "—" : fmtNum(sum.rows_total)) + '</b>, flows kept: <b>' + (sum.rows_selected == null ? fmtNum(g.n_flows) : fmtNum(sum.rows_selected)) + '</b></li>' +
+          '<li>Labels: <b>' + (sum.accuracy_available ? "yes — the output check can compare with them" : "no — efficiency only") + '</b></li>' +
+          (g.prepared_at ? '<li>Prepared: ' + esc(fmtDate(g.prepared_at)) + '</li>' : "") +
+          (g.sha ? '<li>Fingerprint: <span class="mono">' + esc(g.sha) + '</span></li>' : "") + '</ul></div>' +
+        '<div><h3>Flow mix</h3>' + (classes.length ? '<div class="hbars" id="ds-mix">' + classes.map(function (k) {
+          return '<div class="hbar"><span class="hb-l">' + esc(k) + '</span><span class="hb-t"><span class="hb-f" style="width:' + (100 * cc[k] / tot).toFixed(1) + '%"></span></span><span class="hb-v num" title="' + (inFile[k] == null ? "" : fmtNum(inFile[k]) + ' in the file') + '">' + fmtNum(cc[k]) + '</span></div>';
+        }).join("") + '</div><p class="small muted" style="margin:6px 0 0">Flows kept per class' + (Object.keys(inFile).length ? ' (hover a number for how many the file had)' : "") + '.</p>'
+          : '<p class="muted small">No class labels in this set (PCAP traffic has none): every model answers the same flows, measured for efficiency.</p>') + '</div></div>' +
+        (files ? '<p class="small" id="ds-files" style="margin-bottom:0">Download: ' + files + '</p>' : "");
+    var used = g.sessions.length ? '<h3>Used by</h3><div class="table-wrap"><table class="ds-used"><thead><tr><th>Session</th><th>Models</th><th>GPU</th><th>Finished</th></tr></thead><tbody>' +
+      g.sessions.slice(0, 50).map(function (s) {
+        return '<tr><td><a class="mono" href="#/session/' + enc(s.session_id) + '">' + esc(shortId(s.session_id)) + '</a></td><td class="small">' + esc((s.models || []).map(short).join(", ")) +
+          '</td><td class="small">' + esc(s.gpu || "—") + '</td><td class="small">' + esc(fmtDate(s.finished_at || s.created_at)) + '</td></tr>';
+      }).join("") + '</tbody></table></div>' : '<p class="muted small">No session has used this set yet.</p>';
+    return about + used;
+  }
+  $("ds-q").addEventListener("input", renderDatasets);
+  $("ds-type").addEventListener("change", renderDatasets);
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest && ev.target.closest("[data-ds-open]");
+    if (!b) return;
+    var k = b.getAttribute("data-ds-open");
+    DS.open = DS.open === k ? null : k;
+    renderDatasets();
+  });
+  // ---------- GPU & QUEUE: the one GPU server right now (polled while the page is open) ----------
+  var GQ = { hist: [], last: null };
+  var KIND_LABEL = { benchmark: "Benchmark", prepare: "Data preparation" };
+  function gqSpark(vals, max, color) {
+    vals = vals.filter(function (v) { return v != null; });
+    if (vals.length < 2) return "";
+    var W = 120, H = 28, m = max || Math.max.apply(null, vals) || 1;
+    var pts = vals.map(function (x, i) { return (i * W / (vals.length - 1)).toFixed(1) + "," + (H - 2 - (H - 4) * Math.min(1, x / m)).toFixed(1); }).join(" ");
+    return '<svg class="tel-spark" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><polyline points="' + pts + '" style="stroke:' + color + '"/></svg>';
+  }
+  function secs(a, b) { var x = Date.parse(a), y = b ? Date.parse(b) : Date.now(); return isFinite(x) && isFinite(y) ? Math.max(0, (y - x) / 1000) : null; }
+  function fmtDur(s) {
+    if (s == null) return "—";
+    s = Math.round(s);
+    return s < 60 ? s + " s" : s < 3600 ? Math.floor(s / 60) + " min " + (s % 60) + " s" : Math.floor(s / 3600) + " h " + Math.round((s % 3600) / 60) + " min";
+  }
+  function loadGpu() {
+    var token = pollToken;
+    GQ.hist = []; GQ.last = null;
+    $("gq-status").innerHTML = '<p class="muted">Loading…</p>';
+    ["gq-gpu", "gq-prep", "gq-running", "gq-queued", "gq-upcoming", "gq-recent"].forEach(function (id) { $(id).innerHTML = ""; });
+    var tick = function () {
+      if (token !== pollToken) return;                        // left the page
+      var off = CP && !ONLINE;
+      (off ? Promise.resolve(null) : api("/api/gpu")).then(function (r) {
+        if (token !== pollToken) return;
+        renderGpu(r);
+        setTimeout(tick, off || !r || !r.ok ? 10000 : 3000);
+      });
+    };
+    tick();
+    if (!(CP && !ONLINE)) backendFetch("/api/schedules").then(function (r) { if (token === pollToken) renderUpcoming(r); });
+  }
+  function renderGpu(r) {
+    var off = !r || !r.ok, d = off ? null : r.data;
+    if (off) {
+      var why = !r ? "The GPU server is not connected right now." : (r.data && r.data.error) || "The GPU server did not answer.";
+      $("gq-status").innerHTML = '<div class="validity bad" id="gq-state" role="status"><strong>GPU offline</strong> · ' + esc(why) +
+        ' Sessions, data sets and results stay available; new benchmarks can start when it is back.</div>';
+      $("gq-gpu").innerHTML = ""; $("gq-running").innerHTML = ""; $("gq-queued").innerHTML = ""; $("gq-recent").innerHTML = "";
+      renderPrepWhere(null);
+      return;
+    }
+    GQ.last = d;
+    if (d.gpu) { GQ.hist.push(d.gpu); if (GQ.hist.length > 60) GQ.hist.shift(); }
+    var busy = d.running.length > 0;
+    $("gq-status").innerHTML = '<div class="validity ' + (busy ? "" : "ok") + '" id="gq-state" role="status"><strong>' + (busy ? "Busy" : "Free") + '</strong> · ' +
+      (busy ? "running " + esc(KIND_LABEL[d.running[0].kind] || d.running[0].kind).toLowerCase() : "nothing running") + ' · ' + d.queued.length + ' waiting' +
+      (d.provider === "mock" ? ' · <span class="small">demo mode (no GPU)</span>' : "") + '</div>';
+    var dev = d.device || {}, g = d.gpu, h = GQ.hist;
+    var cell = function (label, val, sp) { return '<div class="tel-metric"><span class="small muted">' + label + '</span><b>' + val + '</b>' + (sp || "") + '</div>'; };
+    $("gq-gpu").innerHTML = '<div class="card" id="gq-gpu-card"><h2>GPU now' + (g && g.name || dev.name ? ' <span class="small muted">' + esc((g && g.name) || dev.name) + '</span>' : "") + '</h2>' +
+      (g ? '<div class="tel-metrics" id="gq-metrics">' +
+        cell("Utilisation", fmtNum(g.util_pct) + " %", gqSpark(h.map(function (x) { return x.util_pct; }), 100, "var(--series-1)")) +
+        cell("Memory", fmtNum(g.mem_used_mb / 1024, 1) + " / " + fmtNum(g.mem_total_mb / 1024, 1) + " GB", gqSpark(h.map(function (x) { return x.mem_used_mb; }), g.mem_total_mb, "var(--series-2)")) +
+        cell("Power", g.power_w == null ? "—" : fmtNum(g.power_w) + " W", gqSpark(h.map(function (x) { return x.power_w; }), null, "var(--accent)")) +
+        cell("Temperature", g.temp_c == null ? "—" : fmtNum(g.temp_c) + " °C") + '</div>'
+        : '<p class="muted" id="gq-nogpu">' + (d.gpu_reason === "demo mode: no GPU" ? "Demo mode: this server has no GPU, so there are no live readings (nothing is simulated)." : "No GPU reading on this server (no NVIDIA driver found).") + '</p>') +
+      '<p class="small muted" style="margin-bottom:0">' + [dev.vram_total_mb ? fmtNum(dev.vram_total_mb / 1024, 1) + " GB VRAM" : null, dev.driver_version ? "driver " + dev.driver_version : null,
+        dev.cuda ? "CUDA " + dev.cuda : null, d.engine ? "engine " + d.engine : null, "4-bit NF4 models"].filter(Boolean).map(esc).join(" · ") +
+      '. Live readings only; a session\'s own GPU record is on its Cost &amp; Energy tab.</p></div>';
+    renderPrepWhere(d);
+    $("gq-running").innerHTML = '<div class="card" id="gq-running-card"><h2>Running now</h2>' + (d.running.length ? d.running.map(function (j) {
+      var p = j.progress || {}, pct = p.percent == null ? null : +p.percent, el = secs(j.started_at), left = pct && pct > 2 && el != null ? el * (100 - pct) / pct : null;
+      return '<div class="gq-job"><p style="margin:0 0 6px"><b>' + esc(KIND_LABEL[j.kind] || j.kind) + '</b>' + (j.models && j.models.length ? ': ' + esc(j.models.map(short).join(", ")) : "") +
+        (j.schedule_id ? ' <span class="chip">scheduled</span>' : "") + '<br><span class="small muted">' + esc([(j.prepared || j.run_name || "").split("/").pop(), j.owner ? "by " + j.owner : null, "started " + fmtDate(j.started_at)].filter(Boolean).join(" · ")) + '</span></p>' +
+        (j.kind === "prepare" ? '<p class="small" style="margin:0">' + esc(j.message || "Preparing…") + '</p>'
+          : '<div class="bar"><span style="width:' + (pct || 0).toFixed(1) + '%"></span></div><p class="small" style="margin:6px 0 0">' + (pct == null ? "" : fmtNum(pct, 0) + "% · ") +
+            (p.total ? fmtNum(p.completed) + " of " + fmtNum(p.total) + " flow answers" : esc(p.phase || "")) + (p.current_model ? " · now " + esc(short(p.current_model)) : "") +
+            ' · running ' + fmtDur(el) + (left != null ? ' · about ' + fmtDur(left) + ' left' : "") + ' · <a href="#/new/run/' + enc(j.job_id) + '">Watch live</a></p>') + '</div>';
+    }).join("") : '<p class="muted" id="gq-idle" style="margin-bottom:0">Nothing is running. A new benchmark starts at once.</p>') + '</div>';
+    $("gq-queued").innerHTML = '<div class="card" id="gq-queued-card"><h2>Waiting (' + d.queued.length + ')</h2>' + (d.queued.length ?
+      '<div class="table-wrap"><table id="gq-queue-table"><thead><tr><th class="num">#</th><th>What</th><th>Models</th><th>Data set</th><th>Owner</th><th>Queued</th></tr></thead><tbody>' +
+      d.queued.map(function (j, i) {
+        return '<tr><td class="num">' + (i + 1) + '</td><td>' + esc(KIND_LABEL[j.kind] || j.kind) + (j.schedule_id ? ' <span class="chip">scheduled</span>' : "") + '</td><td class="small">' + esc((j.models || []).map(short).join(", ") || "—") +
+          '</td><td class="small mono">' + esc((j.prepared || j.run_name || "—").split("/").pop()) + '</td><td>' + esc(j.owner || "—") + '</td><td class="small">' + esc(fmtDate(j.created_at)) + '</td></tr>';
+      }).join("") + '</tbody></table></div><p class="small muted" style="margin-bottom:0">One run at a time, first in first out.</p>'
+      : '<p class="muted" id="gq-noqueue" style="margin-bottom:0">Nobody is waiting.</p>') + '</div>';
+    $("gq-recent").innerHTML = '<div class="card" id="gq-recent-card"><h2>Just finished</h2>' + (d.recent.length ?
+      '<div class="table-wrap"><table id="gq-recent-table"><thead><tr><th>What</th><th>Result</th><th>Models</th><th>Finished</th><th class="num">Took</th></tr></thead><tbody>' +
+      d.recent.map(function (j) {
+        var ok = j.status === "done", link = ok && j.kind !== "prepare" ? '<a class="mono" href="#/session/' + enc(j.job_id) + '">' + esc(KIND_LABEL[j.kind] || j.kind) + '</a>' : esc(KIND_LABEL[j.kind] || j.kind);
+        return '<tr><td>' + link + '</td><td><span class="chip ' + (ok ? "ok" : j.status === "failed" ? "bad" : "") + '">' + esc(j.status) + '</span></td><td class="small">' + esc((j.models || []).map(short).join(", ") || "—") +
+          '</td><td class="small">' + esc(fmtDate(j.finished_at)) + '</td><td class="num">' + fmtDur(secs(j.started_at, j.finished_at)) + '</td></tr>';
+      }).join("") + '</tbody></table></div>' : '<p class="muted" style="margin-bottom:0">Nothing has run yet.</p>') + '</div>';
+  }
+  // where a file uploaded now would be prepared (the same rule as New benchmark: prepRoute)
+  function renderPrepWhere(d) {
+    var busy = d ? d.running.length + d.queued.length > 0 : true, cloud = !!(CP && BACKEND && BACKEND.cloud_prep);
+    var where = !d ? (cloud ? "in the cloud" : localPrepSupported() ? "in your browser" : "when the GPU server is back")
+      : !busy ? "on the GPU server" : cloud ? "in the cloud" : localPrepSupported() ? "in your browser" : "on the GPU server, after the queue";
+    var why = !d ? "the GPU server is offline" : !busy ? "it is free" : "the GPU is busy, so preparing does not wait in its queue";
+    $("gq-prep").innerHTML = '<div class="card" id="gq-prep-card"><h2>Data preparation</h2><p id="gq-prep-where">A file uploaded now is prepared <b>' + esc(where) + '</b> (' + esc(why) + ').</p>' +
+      '<p class="small muted" style="margin-bottom:0">Chosen automatically. Every place runs the same preparation code, so the flows and their fingerprint are identical wherever they are prepared.</p></div>';
+  }
+  function renderUpcoming(r) {
+    var host = $("gq-upcoming");
+    if (!host) return;
+    var next = r && r.ok ? (r.data.schedules || []).filter(function (x) { return x.active; }).sort(function (a, b) { return String(a.next_at).localeCompare(String(b.next_at)); }) : [];
+    host.innerHTML = '<div class="card" id="gq-upcoming-card"><h2>Coming up</h2>' + (next.length ? '<ul class="lk-list small">' + next.slice(0, 5).map(function (x) {
+      return '<li>' + esc(fmtDate(x.next_at)) + ' — repeat of <a class="mono" href="#/session/' + enc(x.source_job_id) + '">' + esc(shortId(x.source_job_id)) + '</a> (' + esc((x.models || []).map(short).join(", ")) + '), run ' + (x.runs_done + 1) + ' of ' + x.runs_total + '</li>';
+    }).join("") + '</ul>' : '<p class="muted" style="margin-bottom:0">No scheduled re-runs.</p>') +
+      '<p class="small muted" style="margin-bottom:0">Schedules are started from a session\'s Overview and managed on <a href="#/trends">Repeatability</a>.</p></div>';
+  }
   // ---------- LEADERBOARD ----------
   var LB_COLS = [["saw_eff_composite_100", "SAW (efficiency)", function (v) { return fmtNum(v, 1); }], ["mean_latency_s", "Latency / flow", fmtTime], ["mean_peak_vram_mb", "Working VRAM", fmtMB], ["total_peak_mb", "Total peak VRAM", fmtMB],
                  ["mean_tokens_per_flow", "Tokens / flow", function (v) { return fmtNum(v); }], ["cost_per_1k_flows_usd", "Cost / 1k flows", fmtUsd], ["wh_per_flow", "Energy / flow", fmtWh]];

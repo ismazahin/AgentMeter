@@ -237,6 +237,41 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
                         "gpu": gpu, "gpu_reason": None if gpu else ("demo mode: no GPU" if job.get("effective_provider") == "mock"
                                                                   else "no live GPU reading" if live else "finished")})
 
+    @app.route("/api/gpu", methods=["GET"])
+    def gpu_status():
+        """The GPU & Queue page: this server's one GPU right now, what runs on it, what waits and
+        what finished last. A live reading, never part of a measurement; no GPU (demo mode, no
+        driver) gives no reading rather than an invented one."""
+        from .. import telemetry
+        mgr = get_manager()
+        env = environment() if environment else {}
+
+        def brief(j: dict) -> dict:
+            full = mgr.get(j["job_id"])
+            u = full.get("user") if isinstance(full.get("user"), dict) else {}
+            out = {k: full.get(k) for k in ("job_id", "kind", "status", "models", "run_name", "prepared", "created_at",
+                                            "started_at", "finished_at", "message", "schedule_id", "queue_position",
+                                            "n_flows")}
+            out["kind"] = full.get("kind") or "benchmark"
+            out["owner"] = u.get("uname")
+            p = full.get("progress") or {}
+            out["progress"] = {k: p.get(k) for k in ("completed", "total", "percent", "current_model", "phase")}
+            return out
+
+        jobs = mgr.list_jobs(limit=500)
+        running = [brief(j) for j in jobs if j["status"] == "running"]
+        queued = sorted((brief(j) for j in jobs if j["status"] == "queued"), key=lambda x: x.get("queue_position") or 0)
+        recent = [brief(j) for j in jobs if j["status"] not in ("running", "queued")][:8]
+        mock = provider == "mock" or env.get("provider") == "mock"
+        gpu = None if mock else telemetry.gpu_sample()
+        return jsonify({
+            "provider": provider or env.get("provider"), "engine": env.get("engine"),
+            "gpu": gpu, "gpu_reason": None if gpu else ("demo mode: no GPU" if mock else "no GPU reading on this server"),
+            "device": {"name": env.get("gpu_name"), "vram_total_mb": env.get("gpu_vram_total_mb"),
+                       "driver_version": env.get("driver_version"), "cuda": env.get("cuda_runtime_version")},
+            "running": running, "queued": queued, "recent": recent,
+        })
+
     @app.route("/api/jobs/<job_id>/stop", methods=["POST"])
     def job_stop(job_id):
         mgr = get_manager()

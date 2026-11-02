@@ -18,7 +18,7 @@ every request that starts work or lists/reads stored work needs a run token the 
   POST /api/jobs/<id>/resume              kind resume      (single use; job_id = the token's)
   POST /api/jobs/<id>/stop                kind stop        (single use; job_id = the token's; the
                                           job's owner or an admin — checked by jobs_api)
-  GET  /api/jobs, /api/sessions, /api/sessions/<id>, /api/compare, /api/leaderboard, /api/models/catalog,
+  GET  /api/jobs, /api/sessions, /api/sessions/<id>, /api/compare, /api/leaderboard, /api/models/catalog, /api/gpu,
        /api/jobs/<id>/result|report.pdf|constraints, /api/prepared/<kind>/<name>     kind read
   GET  /api/prepared/<kind>/<name>/<file> kind files       (set = <kind>/<name>)
   GET  /api/jobs/<id>                     open for 128-bit job ids (status/progress only);
@@ -56,7 +56,7 @@ _WRITE = {"POST", "PUT", "PATCH", "DELETE"}
 _WRITE_KIND = {"/api/prepare": "prepare", "/api/prepared/import": "import", "/api/jobs": "benchmark",
                "/api/models/verify": "verify", "/api/schedules": "schedule"}
 _READ_EXACT = {"/api/jobs", "/api/sessions", "/api/compare", "/api/compare/candidates", "/api/compare/merged",
-               "/api/leaderboard", "/api/models/catalog", "/api/schedules"}
+               "/api/leaderboard", "/api/models/catalog", "/api/schedules", "/api/gpu"}
 _JOB_SUB = re.compile(r"^/api/jobs/([^/]+)(?:/(result|report\.pdf|constraints|flows|telemetry|resume|stop))?$")
 _SESSION = re.compile(r"^/api/sessions/[^/]+$")
 _SCHEDULE_CANCEL = re.compile(r"^/api/schedules/sch_[0-9a-f]{12}/cancel$")

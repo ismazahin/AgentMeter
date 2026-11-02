@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS = {
   theme: "system",
   telegram_chat_id: "",
   notify_on: "none",
+  alert_on_drift: true,     // Telegram alert when a finished run got worse than its usual range (Trends rule)
   default_models: [] as string[],
   default_flows: 50,
   default_other_attack: false,
@@ -44,6 +45,10 @@ export function mergeSettings(current: Settings, patch: Record<string, unknown>)
       case "notify_on":
         if (!["none", "done", "failed", "both"].includes(v as string)) fail(400, "bad_setting", "notify_on: none | done | failed | both");
         out.notify_on = v as string;
+        break;
+      case "alert_on_drift":
+        if (typeof v !== "boolean") fail(400, "bad_setting", "alert_on_drift: true | false");
+        out.alert_on_drift = v as boolean;
         break;
       case "default_models":
         if (!Array.isArray(v) || v.length > 4 || !v.every((m) => typeof m === "string" && MODEL_ID.test(m)))

@@ -189,6 +189,10 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
         from .power import PowerSampler
         sampler = PowerSampler(interval_s=ops["sample_interval_s"])
         sampler.start()
+    elif os.environ.get("AGENTMETER_TEST_SYNTHETIC_GPU") == "1":     # TEST ONLY: the GPU charts in E2E
+        from .power import PowerSampler
+        sampler = PowerSampler(interval_s=0.1)
+        sampler.start_synthetic()
     hook = None
     if sampler is not None and sampler.method and ops["idle_sample_s"] > 0:
         def hook(model_label: str) -> None:      # GPU idle between workers: idle power baseline

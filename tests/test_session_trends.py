@@ -236,3 +236,34 @@ def test_drift_direction_and_wording_never_disagree():
     d = drift_test(xs)
     assert d["spearman_rho"] > 0 and d["p_value"] < 0.05 and d["ratio"] < 1
     assert d["verdict"] == "stable" and d["note"].startswith("No lasting drift") and "above" not in d["note"]
+
+
+# --- annotations: flow starts and agent turns (run/extras.py "flow_times") ----------------------
+def test_timeline_markers_place_each_agent_turn_from_the_flow_start():
+    ft = {"m/a": {"flows": [{"scenario_id": "f1", "t": 105.0, "agents": [["perceive", 0.5], ["reason", 1.0], ["decide", 0.25]]},
+                            {"scenario_id": "f0", "t": 100.0, "agents": [["perceive", 0.4]]}]},
+          "m/b": None}
+    mk = analyses.timeline_markers(ft, t0=100.0)
+    assert [f["flow"] for f in mk["flows"]] == ["f0", "f1"]                       # in time order
+    f1 = mk["flows"][1]
+    assert f1["t_s"] == 5.0 and f1["end_s"] == 6.75
+    assert f1["agents"] == [["perceive", 5.0, 5.5], ["reason", 5.5, 6.5], ["decide", 6.5, 6.75]]
+    assert not mk["agent_turns_thinned"] and "outside every timed call" in mk["method"]
+
+
+def test_timeline_markers_thin_agent_turns_beyond_the_cap(monkeypatch):
+    monkeypatch.setattr(analyses, "MARKERS_MAX_AGENT_TURNS", 3)
+    ft = {"m": {"flows": [{"scenario_id": f"f{i}", "t": float(i), "agents": [["a", 0.1], ["b", 0.1]]} for i in range(3)]}}
+    mk = analyses.timeline_markers(ft, t0=0.0)
+    assert mk["agent_turns_thinned"] and len(mk["flows"]) == 3 and all(f["agents"] == [] for f in mk["flows"])
+
+
+def test_the_timeline_carries_markers_and_a_synthetic_source_is_labelled(golden):
+    label_of = {pm["model"]: pm["db_label"] for pm in golden["payload"]["per_model"]}
+    sr, _ = analyses.read_rows(golden["plan"]["db_path"], golden["run_id"])
+    ft = {m: {"flows": [{"scenario_id": "x", "t": 1010.0, "agents": [["perceive", 1.0]]}]} for m in label_of}
+    energy = {"method": "synthetic (test only)", "interval_s": 0.1, "samples": [(1000.0, 60.0), (1020.0, 90.0)]}
+    gt = analyses.gpu_timeline_block(sr, label_of, real=False, energy=energy, flow_times=ft)
+    assert gt["sampled"] and gt["synthetic"] and len(gt["markers"]["flows"]) == len(label_of)
+    assert gt["markers"]["flows"][0]["agents"] == [["perceive", 10.0, 11.0]]
+    assert analyses.gpu_timeline_block(sr, label_of, real=False, energy={"method": "nvml", "samples": [(1.0, 1.0)]})["sampled"] is False

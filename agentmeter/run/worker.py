@@ -20,6 +20,7 @@ parent orchestrator spawns it exactly the same way.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import time
@@ -264,11 +265,17 @@ def _run_model_sqlite(
         telemetry.emit("measure", f"{label}: running {len(todo)} flow(s) through the {len(agents)}-agent pipeline "
                        f"({' → '.join(agents)}), one flow at a time, timing every agent call.",
                        model=label, flows=len(todo), agents=agents)
+        from .extras import out_path as extra_path, write as write_extra
+        try:                                     # flow start times of an earlier (resumed) attempt
+            flow_times = json.loads(extra_path(db_path, run_id, label, "flow_times").read_text(encoding="utf-8")).get("flows", [])
+        except (OSError, ValueError):
+            flow_times = []
         try:
             for s in scenarios:
                 if s.scenario_id in done:
                     continue
                 offset = len(collector.rows)
+                t_flow = time.time()             # before the flow, outside every timed agent call
                 state = pipeline.run(s.scenario_id, s.feature_prompt)
                 new_rows = collector.rows[offset:]
 
@@ -293,6 +300,9 @@ def _run_model_sqlite(
                              for r in new_rows},
                 )
                 persisted += 1
+                flow_times.append({"scenario_id": s.scenario_id, "t": round(t_flow, 4),
+                                   "agents": [[r.agent_name, round(r.wall_time_s, 5)] for r in new_rows]})
+                write_extra(db_path, run_id, label, "flow_times", {"model": label, "flows": flow_times})
                 telemetry.emit("flow", f"{label} · {s.scenario_id}: "
                                + (f"{total_time:,.2f} s, " if total_time >= 1 else f"{total_time * 1000:,.1f} ms, ")
                                + f"{sum((r.input_tokens or 0) + (r.output_tokens or 0) for r in new_rows):,} tokens",

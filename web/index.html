@@ -359,6 +359,18 @@
   .lc .lc-band-l { font-size: 11px; fill: var(--muted-2); }
   .lc .lc-cross { stroke: var(--text); stroke-width: 1; stroke-dasharray: 3 3; }
   .lc .lc-hit { fill: transparent; }
+  .lc .lc-mark { stroke: var(--muted); stroke-width: 1; opacity: .35; }
+  .lc .lc-thr { stroke: var(--danger); stroke-width: 1.5; stroke-dasharray: 6 4; }
+  .lc .lc-thr-l { font-size: 11px; fill: var(--danger); }
+  .lc .lc-sel { fill: var(--accent); opacity: .15; }
+  .lc.lc-grouped .lc-hit { cursor: crosshair; }
+  .lc.lane .lane-bg { fill: var(--surface-2, var(--border)); opacity: .5; }
+  .lc.lane .lane-seg { opacity: .9; }
+  .over-limit { color: var(--danger); font-weight: 600; }
+  .in-limit { color: var(--success); }
+  .vars-row { gap: 12px; align-items: flex-end; flex-wrap: wrap; padding-top: 12px; padding-bottom: 12px; }
+  .vars-row .field { margin: 0; min-width: 0; flex: 1 1 220px; }
+  .gpu-zoom { gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0 4px; }
   .lc-h { font-size: 13px; margin: 12px 0 2px; color: var(--muted-2); }
   .trend-panel { margin: 10px 0 6px; }
   .load-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 10px; }
@@ -449,6 +461,8 @@
   .flow-agent { margin: 8px 0; }
   .flow-text { margin: 4px 0 0; padding: 8px 10px; background: var(--surface-2); border-radius: var(--radius); white-space: pre-wrap; overflow-wrap: anywhere; font: 12.5px/1.45 var(--mono, ui-monospace, monospace); max-height: 220px; overflow: auto; }
   .tab-summary { margin: 0 0 14px; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 var(--radius) var(--radius) 0; font-size: 14.5px; }
+  .inspect { margin-top: 10px; max-height: 340px; overflow: auto; border-top: 1px solid var(--border); }
+  .inspect .inspect-table td, .inspect .inspect-table th { padding: 3px 8px; }
   .exp-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 10px; }
   @media (max-width: 720px) { .small-btn, .exp-bar .btn { min-height: 44px; padding: 0 16px; } .tag-chip { min-height: 32px; } }
   .guide-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
@@ -884,6 +898,7 @@
         <tr><td>Recommendations</td><td>Does a model fit my latency, memory and budget limits, and what should I do next?</td></tr>
         <tr><td>Data &amp; Exports</td><td>Where are the PDF report, the raw results and the per-flow outputs?</td></tr>
       </tbody></table></div>
+      <p class="small" id="help-charts"><b>Reading the charts.</b> On <i>GPU over the run</i> (Cost &amp; Energy), hover any chart to read power, utilisation and memory at that moment together with the flow and agent that were running; drag across a chart to zoom all of them, double-click to zoom out. <i>Inspect data</i> under a chart shows the numbers behind it, and <i>Chart data (CSV)</i> downloads them. The limits you enter under Recommendations are drawn as threshold lines and colour the values that break them. Compare and Trends share a Model and Pipeline filter. In Settings, you can be alerted on Telegram when a finished run got worse than its usual range on the same setup.</p>
     </div>
     <div class="card" id="help-manage">
       <h2>4. Sessions, Compare and Leaderboard</h2>
@@ -1148,6 +1163,7 @@
   <section id="view-compare" class="view" hidden aria-labelledby="h-compare">
     <div class="page-head"><div><h1 id="h-compare">Compare</h1>
       <p>Pick a session; only sessions on the same flows, GPU and settings can join it.<span class="info-i" tabindex="0" role="button" data-tip="Same flows = the same prepared set (its hash), so every model answered exactly the same flows. Same GPU and same settings (4-bit, token caps, agents) mean the differences are the models', not the setup.">i</span></p></div></div>
+    <div class="vars" id="cmp-vars" role="group" aria-label="Filter the sessions"></div>
     <form class="card" id="cmp-form" novalidate>
       <div class="field" style="max-width:720px"><label for="cmp-a">Session</label><select id="cmp-a"></select></div>
       <div id="cmp-cands" aria-live="polite"></div>
@@ -1200,6 +1216,7 @@
   <section id="view-trends" class="view" hidden aria-labelledby="h-trends">
     <div class="page-head"><div><h1 id="h-trends">History &amp; Trends</h1>
       <p>The same model on the same flows, GPU and settings, measured again over time. Each line stays on one setup: models on different GPUs are never mixed.</p></div></div>
+    <div class="vars" id="tr-vars" role="group" aria-label="Filter the series"></div>
     <div class="card" id="tr-controls">
       <div class="row" style="margin-top:0;gap:16px;flex-wrap:wrap;align-items:flex-end">
         <div class="field" style="margin:0;min-width:0;flex:2 1 280px"><label for="tr-series">Model and setup</label><select id="tr-series" class="wide"></select></div>
@@ -1235,6 +1252,7 @@
           <select id="set-notify"><option value="none">never</option><option value="done">is done</option><option value="failed">failed</option><option value="both">is done or failed</option></select></div>
         <button type="button" class="btn" id="set-tg-test" style="align-self:flex-end">Send a test message</button>
       </div>
+      <label class="check"><input type="checkbox" id="set-drift"> <span>Alert me when a finished run got worse than its usual range <span class="muted small">— compared with earlier runs of the same model on the same flows, GPU and settings (the Trends rule); sent even when "Notify me" is set to never.</span></span></label>
       <p class="small muted" id="set-tg-status"></p>
       <hr class="sep">
       <h2>New benchmark defaults</h2>
@@ -3092,7 +3110,7 @@
     resetEmbed();
     wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); SAME_SETUP = {};       // fresh per render: a later session on these flows must show up
     wireRepeat(res, job); wireNotes(job); wireSchedule(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePipelineCompare(job); wirePrices(res); wirePicker(res);
-    addExports($("session-body"));
+    addExports($("session-body")); paintLimits($("session-body"));
   }
 
   function setDl(a, path, name) {
@@ -3220,15 +3238,15 @@
     var tip = function (t) { return '<span class="info-i" tabindex="0" title="' + esc(t) + '" aria-label="' + esc(t) + '">i</span>'; };
     var rows = pm.map(function (m) {
       var e = m.efficiency.end_to_end, c = ce[m.model] || {};
-      return '<tr><td class="mono">' + esc(m.model) + extraTag(m.model) + '</td><td class="num">' + fmtTime(e.mean_latency_s) + '</td><td class="num">' + fmtTime(e.p95_latency_s) +
+      return '<tr><td class="mono">' + esc(m.model) + extraTag(m.model) + '</td><td class="num"' + limAttr("max_mean_latency_s", e.mean_latency_s) + '>' + fmtTime(e.mean_latency_s) + '</td><td class="num"' + limAttr("max_p95_latency_s", e.p95_latency_s) + '>' + fmtTime(e.p95_latency_s) +
         '</td><td class="num">' + fmtNum(e.mean_tokens_per_flow) + '</td><td class="num">' + fmtMB(e.mean_peak_vram_mb) +
-        '</td><td class="num">' + ((mm[m.model] || {}).total_peak_mb != null ? fmtMB(mm[m.model].total_peak_mb) : '<span class="muted">' + esc((mm[m.model] || {}).status || "—") + '</span>') +
-        '</td><td class="num">' + (c.cost_per_1k_flows_usd != null ? fmtUsd(c.cost_per_1k_flows_usd) : '<span class="muted">' + esc(c.cost_status || "—") + '</span>') +
+        '</td><td class="num"' + limAttr("max_peak_vram_mb", (mm[m.model] || {}).total_peak_mb) + '>' + ((mm[m.model] || {}).total_peak_mb != null ? fmtMB(mm[m.model].total_peak_mb) : '<span class="muted">' + esc((mm[m.model] || {}).status || "—") + '</span>') +
+        '</td><td class="num"' + limAttr("max_cost_per_1k_flows_usd", c.cost_per_1k_flows_usd) + '>' + (c.cost_per_1k_flows_usd != null ? fmtUsd(c.cost_per_1k_flows_usd) : '<span class="muted">' + esc(c.cost_status || "—") + '</span>') +
         '</td><td class="num">' + (c.wh_per_flow != null ? fmtWh(c.wh_per_flow) : '<span class="muted">' + esc(c.energy_status || "—") + '</span>') + '</td>' +
         '<td class="num">' + (vr[m.model] ? fmtPct(vr[m.model].valid_rate) : '<span class="muted">—</span>') + '</td>' +
         '<td class="num">' + esc(sawE(m).composite_100) + ' <span class="muted">' + esc(sawE(m).tier) + '</span></td></tr>';
     }).join("");
-    h.push('<div class="card"><h2>Per model</h2><div class="table-wrap"><table id="svc-models-table"><thead><tr><th>Model</th><th class="num">Latency / flow</th><th class="num">p95</th><th class="num">Tokens / flow</th>' +
+    h.push('<div class="card"><h2>Per model</h2><p class="muted small" id="lim-note" hidden style="margin-top:0">Coloured against your limits: <span class="over-limit">over</span> or <span class="in-limit">within</span> (set them under Recommendations → Does a model fit your limits?).</p><div class="table-wrap"><table id="svc-models-table"><thead><tr><th>Model</th><th class="num">Latency / flow</th><th class="num">p95</th><th class="num">Tokens / flow</th>' +
       '<th class="num">Working VRAM' + tip("Excludes the model weights: the memory the agent calls add") + '</th><th class="num">Total peak VRAM' + tip("Model weights + working memory") + '</th>' +
       '<th class="num">Cost / 1k flows</th><th class="num">Energy / flow</th>' +
       '<th class="num">Valid answers' + tip("Share of flows with a usable answer (see Output Reliability)") + '</th><th class="num">SAW (efficiency)</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
@@ -3791,30 +3809,61 @@
   }
   // ---- a small SVG line chart with a crosshair: series of [x, y]; one y axis; optional bands ----
   // spec: { id, w, h, xMax, yMax, xFmt, yFmt, yLabel, bands: [{from, to, cls, color, label}],
-  //         series: [{name, color, points, kind: "line" | "dots"}], rows: [{x, text}] (crosshair text, by x) }
-  var LC = {};
+  //         series: [{name, color, points, kind: "line" | "dots"}], rows: [{x, text}] (crosshair text, by x),
+  //         marks: [{x}] (thin vertical annotation lines), threshold: {y, label} (a limit to stay under),
+  //         group: charts sharing one crosshair and one zoom (GROUPS[group]: {text(x), zoom(x0, x1)}) }
+  var LC = {}, GROUPS = {};
   function niceMax(v) { if (!(v > 0)) return 1; var e = Math.pow(10, Math.floor(Math.log10(v))), f = v / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }
   function lineChart(spec) {
     var W = spec.w || 720, H = spec.h || 150, L = 56, R = 10, T = 10, B = 24, pw = W - L - R, ph = H - T - B;
-    var ym = niceMax(spec.yMax), x0 = spec.xMin || 0, xm = spec.xMax || 1;
+    var th = spec.threshold && spec.threshold.y > 0 ? spec.threshold : null;
+    var ym = niceMax(Math.max(spec.yMax || 0, th ? th.y * 1.08 : 0)), x0 = spec.xMin || 0, xm = spec.xMax || 1;
     var X = function (x) { return L + pw * (x - x0) / ((xm - x0) || 1); }, Y = function (y) { return T + ph * (1 - y / ym); };
-    LC[spec.id] = { spec: spec, X: X, L: L, pw: pw, x0: x0, xm: xm };
+    LC[spec.id] = { spec: spec, X: X, L: L, pw: pw, x0: x0, xm: xm, group: spec.group || null };
     var grid = [0, 0.5, 1].map(function (f) {
       return '<line class="lc-grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(ym * f) + '" y2="' + Y(ym * f) + '"/><text class="lc-tick" x="' + (L - 6) + '" y="' + (Y(ym * f) + 4) + '" text-anchor="end">' + esc(f === 0 ? "0" : spec.yFmt(ym * f)) + '</text>';
     }).join("");
     var xt = [0, 0.5, 1].map(function (f) { var v = x0 + (xm - x0) * f; return '<text class="lc-tick" x="' + X(v) + '" y="' + (H - 6) + '" text-anchor="' + (f === 0 ? "start" : f === 1 ? "end" : "middle") + '">' + esc(spec.xFmt(v)) + '</text>'; }).join("");
-    var bands = (spec.bands || []).map(function (b) {
-      return '<rect class="lc-band ' + (b.cls || "") + '" x="' + X(b.from) + '" y="' + T + '" width="' + Math.max(1, X(b.to) - X(b.from)) + '" height="' + ph + '"' + (b.color ? ' style="fill:' + b.color + '"' : "") + '/>' +
-        (b.label ? '<text class="lc-band-l" x="' + (X(b.from) + 4) + '" y="' + (T + 12) + '">' + esc(b.label) + '</text>' : "");
+    var clip = function (v) { return Math.max(x0, Math.min(xm, v)); };
+    var bands = (spec.bands || []).filter(function (b) { return b.to >= x0 && b.from <= xm; }).map(function (b) {
+      var f = clip(b.from), t = clip(b.to);
+      return '<rect class="lc-band ' + (b.cls || "") + '" x="' + X(f) + '" y="' + T + '" width="' + Math.max(1, X(t) - X(f)) + '" height="' + ph + '"' + (b.color ? ' style="fill:' + b.color + '"' : "") + '/>' +
+        (b.label ? '<text class="lc-band-l" x="' + (X(f) + 4) + '" y="' + (T + 12) + '">' + esc(b.label) + '</text>' : "");
     }).join("");
+    var marks = (spec.marks || []).filter(function (m) { return m.x >= x0 && m.x <= xm; }).map(function (m) {
+      return '<line class="lc-mark" x1="' + X(m.x).toFixed(1) + '" x2="' + X(m.x).toFixed(1) + '" y1="' + T + '" y2="' + (T + ph) + '"/>';
+    }).join("");
+    var thr = th ? '<line class="lc-thr" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(th.y) + '" y2="' + Y(th.y) + '"/><text class="lc-thr-l" x="' + (W - R - 4) + '" y="' + (Y(th.y) - 4) + '" text-anchor="end">' + esc(th.label || "limit") + '</text>' : "";
     var series = spec.series.map(function (sr) {
       var pts = sr.points.filter(function (p) { return p[1] != null; });
       if (sr.kind === "dots") return pts.map(function (p) { return '<circle class="lc-dot' + (sr.r ? " big" : "") + '" cx="' + X(p[0]).toFixed(1) + '" cy="' + Y(p[1]).toFixed(1) + '" r="' + (sr.r || 2.2) + '" style="fill:' + sr.color + '"/>'; }).join("");
       return '<polyline class="lc-line" style="stroke:' + sr.color + '" points="' + pts.map(function (p) { return X(p[0]).toFixed(1) + "," + Y(p[1]).toFixed(1); }).join(" ") + '"/>';
     }).join("");
-    return '<div class="lc" id="' + spec.id + '"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(spec.label || "") + '">' + bands + grid + xt +
-      (spec.yLabel ? '<text class="lc-tick" x="4" y="' + (T + 4) + '">' + esc(spec.yLabel) + '</text>' : "") + series +
+    var clipId = "clip-" + spec.id;        // a zoomed series never draws outside the plot
+    return '<div class="lc' + (spec.group ? " lc-grouped" : "") + '" id="' + spec.id + '"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(spec.label || "") + '">' +
+      '<defs><clipPath id="' + clipId + '"><rect x="' + (L - 3) + '" y="' + (T - 3) + '" width="' + (pw + 6) + '" height="' + (ph + 6) + '"/></clipPath></defs>' + bands + grid + xt + marks + thr +
+      (spec.yLabel ? '<text class="lc-tick" x="4" y="' + (T + 4) + '">' + esc(spec.yLabel) + '</text>' : "") + '<g clip-path="url(#' + clipId + ')">' + series + '</g>' +
+      '<rect class="lc-sel" x="0" y="' + T + '" width="0" height="' + ph + '" visibility="hidden"/>' +
       '<line class="lc-cross" x1="0" x2="0" y1="' + T + '" y2="' + (T + ph) + '" visibility="hidden"/><rect class="lc-hit" x="' + L + '" y="' + T + '" width="' + pw + '" height="' + ph + '"/></svg></div>';
+  }
+  // a lane of coloured segments on the same x scale (the agent taking its turn), for a chart group
+  function laneChart(spec) {
+    var W = 720, H = spec.h || 40, L = 56, R = 10, T = 4, B = 4, pw = W - L - R, ph = H - T - B, x0 = spec.xMin || 0, xm = spec.xMax || 1;
+    var X = function (x) { return L + pw * (x - x0) / ((xm - x0) || 1); };
+    LC[spec.id] = { spec: spec, X: X, L: L, pw: pw, x0: x0, xm: xm, group: spec.group || null };
+    var segs = (spec.segments || []).filter(function (g) { return g.to >= x0 && g.from <= xm; }).map(function (g) {
+      var f = Math.max(x0, g.from), t = Math.min(xm, g.to);
+      return '<rect class="lane-seg" x="' + X(f).toFixed(2) + '" y="' + T + '" width="' + Math.max(0.6, X(t) - X(f)).toFixed(2) + '" height="' + ph + '" style="fill:' + g.color + '"/>';
+    }).join("");
+    return '<div class="lc lc-grouped lane" id="' + spec.id + '"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(spec.label || "") + '">' +
+      '<text class="lc-tick" x="' + (L - 6) + '" y="' + (T + ph / 2 + 4) + '" text-anchor="end">' + esc(spec.title || "") + '</text>' +
+      '<rect class="lane-bg" x="' + L + '" y="' + T + '" width="' + pw + '" height="' + ph + '"/>' + segs +
+      '<rect class="lc-sel" x="0" y="' + T + '" width="0" height="' + ph + '" visibility="hidden"/>' +
+      '<line class="lc-cross" x1="0" x2="0" y1="' + T + '" y2="' + (T + ph) + '" visibility="hidden"/><rect class="lc-hit" x="' + L + '" y="' + T + '" width="' + pw + '" height="' + ph + '"/></svg></div>';
+  }
+  function lcX(c, svg, clientX) {
+    var r = svg.getBoundingClientRect();
+    return c.x0 + ((clientX - r.left) * svg.viewBox.baseVal.width / r.width - c.L) / c.pw * (c.xm - c.x0);
   }
   function wireLineCharts() {
     Object.keys(LC).forEach(function (id) {
@@ -3822,16 +3871,49 @@
       if (!el || el._wired) return;
       el._wired = true;
       var svg = el.querySelector("svg"), cross = el.querySelector(".lc-cross"), rows = c.spec.rows || [];
+      var members = function () {   // this chart, or every chart of its group on the page
+        return c.group ? Object.keys(LC).filter(function (k) { return LC[k].group === c.group && $(k); }) : [id];
+      };
+      var tipAt = function (text, clientX) {
+        var r = svg.getBoundingClientRect();
+        openTip(el, text); if (TIP) { TIP._for = el; TIP._hover = true; TIP.style.top = (window.scrollY + r.bottom - 18) + "px"; TIP.style.left = Math.max(8, Math.min(clientX + window.scrollX + 12, window.scrollX + document.documentElement.clientWidth - TIP.offsetWidth - 8)) + "px"; }
+      };
       function at(clientX) {
-        var r = svg.getBoundingClientRect(), x = c.x0 + ((clientX - r.left) * svg.viewBox.baseVal.width / r.width - c.L) / c.pw * (c.xm - c.x0);
+        var x = lcX(c, svg, clientX), g = c.group && GROUPS[c.group];
+        if (g) {           // one crosshair across the group, at the same moment on every chart
+          if (x < c.x0 || x > c.xm) return;
+          members().forEach(function (k) { var o = LC[k], cr = $(k).querySelector(".lc-cross"); cr.setAttribute("x1", o.X(x)); cr.setAttribute("x2", o.X(x)); cr.setAttribute("visibility", "visible"); });
+          tipAt(g.text(x), clientX);
+          return;
+        }
         var best = null;
         rows.forEach(function (row) { if (!best || Math.abs(row.x - x) < Math.abs(best.x - x)) best = row; });
         if (!best) return;
         cross.setAttribute("x1", c.X(best.x)); cross.setAttribute("x2", c.X(best.x)); cross.setAttribute("visibility", "visible");
-        openTip(el, best.text); if (TIP) { TIP._for = el; TIP._hover = true; TIP.style.top = (window.scrollY + r.bottom - 18) + "px"; TIP.style.left = Math.max(8, Math.min(clientX + window.scrollX + 12, window.scrollX + document.documentElement.clientWidth - TIP.offsetWidth - 8)) + "px"; }
+        tipAt(best.text, clientX);
       }
-      el.addEventListener("mousemove", function (ev) { at(ev.clientX); });
-      el.addEventListener("mouseleave", function () { cross.setAttribute("visibility", "hidden"); closeTip(); });
+      var drag = null, sel = el.querySelector(".lc-sel");
+      el.addEventListener("mousemove", function (ev) {
+        at(ev.clientX);
+        if (drag) {
+          var x = lcX(c, svg, ev.clientX), a = Math.max(c.x0, Math.min(drag, x)), b = Math.min(c.xm, Math.max(drag, x));
+          sel.setAttribute("x", c.X(a)); sel.setAttribute("width", Math.max(0, c.X(b) - c.X(a))); sel.setAttribute("visibility", "visible");
+        }
+      });
+      el.addEventListener("mouseleave", function () {
+        members().forEach(function (k) { $(k).querySelector(".lc-cross").setAttribute("visibility", "hidden"); });
+        closeTip(); drag = null; sel.setAttribute("visibility", "hidden");
+      });
+      if (c.group && GROUPS[c.group] && GROUPS[c.group].zoom) {   // drag across a chart: every chart of the group zooms
+        el.addEventListener("mousedown", function (ev) { if (ev.button === 0) { drag = lcX(c, svg, ev.clientX); ev.preventDefault(); } });
+        el.addEventListener("mouseup", function (ev) {
+          if (drag == null) return;
+          var x = lcX(c, svg, ev.clientX), a = Math.max(c.x0, Math.min(drag, x)), b = Math.min(c.xm, Math.max(drag, x));
+          drag = null; sel.setAttribute("visibility", "hidden");
+          if (c.X(b) - c.X(a) > 6) { closeTip(); GROUPS[c.group].zoom(a, b); }
+        });
+        el.addEventListener("dblclick", function () { closeTip(); GROUPS[c.group].zoom(null, null); });
+      }
     });
   }
   // Performance -> Latency: latency over the run, per model (shared y scale)
@@ -3841,8 +3923,9 @@
     var xMax = Math.max.apply(null, tr.models.map(function (m) { return m.n || 1; }));
     var panels = tr.models.map(function (m, i) {
       var d = m.drift, chip = d.tested ? (d.verdict === "stable" ? '<span class="chip ok">stable</span>' : '<span class="chip bad">' + (d.verdict === "slows_down" ? "slows down" : "speeds up") + '</span>') : '<span class="chip">not tested</span>';
+      var p95 = userLimits().max_p95_latency_s;
       var chart = lineChart({ id: "trend-" + i, h: 140, xMin: 1, xMax: xMax, yMax: tr.ymax, xFmt: function (v) { return "flow " + Math.round(v); }, yFmt: fmtTime,
-        label: "Latency per flow over the run for " + short(m.model),
+        label: "Latency per flow over the run for " + short(m.model), threshold: p95 ? { y: p95, label: "your p95 limit " + fmtTime(p95) } : null,
         series: [{ name: "flows", kind: "dots", color: modelColor(m.model), points: m.points.map(function (p) { return [p.flow, p.latency_s]; }) },
                  { name: "rolling median", kind: "line", color: "var(--text)", points: m.points.map(function (p) { return [p.flow, p.median_s]; }) }],
         rows: m.points.map(function (p) { return { x: p.flow, text: short(m.model) + " · flow " + p.flow + ": " + fmtTime(p.latency_s) + " (rolling median " + fmtTime(p.median_s) + ")" }; }) });
@@ -3853,32 +3936,79 @@
       '<div class="ilegend"><span><i style="--c:var(--muted-2)"></i>one flow</span><span><i style="--c:var(--text);height:2px"></i>rolling median</span></div>' + panels +
       '<details class="info"><summary>Method</summary><p class="muted small">' + esc(tr.method || "") + '</p></details></div>';
   }
-  // Cost & Energy: board power, utilisation and memory over the session, model windows shaded
+  // Cost & Energy: board power, utilisation and memory over the session, model windows shaded.
+  // Observability-style: one crosshair across the charts (power, utilisation, memory and the
+  // agent lane at the same moment), drag to zoom them all, flow starts and agent turns annotated.
+  var GPU_RES = null, GPUZ = null;           // the session's results and the zoomed range {from, to}
+  var MARKS_MAX = 80;                        // flow-start lines drawn only when this few are in view
   function gpuTimelineCard(res) {
     var g = window.INSIGHTS && INSIGHTS.gpuTimeline(res);
     if (!g) return "";
     if (!g.sampled) return '<div class="card" id="gpu-timeline"><h2>GPU over the run</h2><p class="muted">Not sampled: ' + esc(g.reason) + '.</p></div>';
+    if (GPU_RES !== res) { GPU_RES = res; GPUZ = null; }
+    var x0 = GPUZ ? GPUZ.from : 0, x1 = GPUZ ? GPUZ.to : (g.t_max || 1), mk = g.markers;
     var bands = g.windows.map(function (w) { return { from: w.from_s, to: w.to_s, color: modelColor(w.model), cls: "win", label: short(w.model) }; })
-      .concat(g.idle.map(function (w) { return { from: w.from_s, to: w.to_s, cls: "idle" }; }));
-    var rows = g.points.map(function (p) {
-      var inw = g.windows.filter(function (w) { return p.t >= w.from_s && p.t <= w.to_s; })[0];
-      return { x: p.t, text: fmtNum(p.t, 1) + " s" + (inw ? " · " + short(inw.model) : "") + ": " + fmtNum(p.power_w, 0) + " W" + (p.util_pct != null ? " · " + fmtNum(p.util_pct, 0) + "% busy" : "") + (p.mem_mb != null ? " · " + fmtMB(p.mem_mb) : "") };
-    });
-    var sec = function (v) { return fmtNum(v, 0) + " s"; };
+      .concat(g.idle.map(function (w) { return { from: w.from_s, to: w.to_s, cls: "idle", label: "idle" }; }));
     var plain = bands.map(function (b) { return { from: b.from, to: b.to, color: b.color, cls: b.cls }; });   // names on the first chart only
-    var mk = function (id, key, yMax, yFmt, label, first) {
-      return lineChart({ id: id, h: 130, xMax: g.t_max || 1, yMax: yMax, xFmt: sec, yFmt: yFmt, bands: first ? bands : plain, label: label, rows: rows,
-        series: [{ name: key, kind: "line", color: "var(--text)", points: g.points.map(function (p) { return [p.t, p[key]]; }) }] });
+    var inView = mk.flows.filter(function (f) { return f.end_s >= x0 && f.t_s <= x1; });
+    var marks = inView.length <= MARKS_MAX ? inView.map(function (f) { return { x: f.t_s }; }) : [];
+    var pts = g.points.filter(function (p, i) { var n = g.points[i + 1], b = g.points[i - 1]; return (p.t >= x0 && p.t <= x1) || (n && n.t >= x0 && p.t < x0) || (b && b.t <= x1 && p.t > x1); });
+    var sec = function (v) { return fmtNum(v, x1 - x0 < 20 ? 1 : 0) + " s"; };
+    var limits = userLimits();
+    var memThr = limits.max_peak_vram_mb ? { y: limits.max_peak_vram_mb, label: "your limit " + fmtMB(limits.max_peak_vram_mb) } : null;
+    GROUPS.gpu = {
+      text: function (x) {
+        var near = null;
+        g.points.forEach(function (p) { if (!near || Math.abs(p.t - x) < Math.abs(near.t - x)) near = p; });
+        var run = INSIGHTS.runningAt(mk, x), inw = g.windows.filter(function (w) { return x >= w.from_s && x <= w.to_s; })[0], idle = g.idle.filter(function (w) { return x >= w.from_s && x <= w.to_s; })[0];
+        return fmtNum(x, 1) + " s" + (run ? " · " + short(run.model) + " · flow " + run.flow + (run.agent ? " · " + agName(run.agent) + " agent" : " · between agent calls") :
+          inw ? " · " + short(inw.model) + " (between flows)" : idle ? " · idle baseline (" + short(idle.model) + ")" : "") +
+          (near ? " — " + fmtNum(near.power_w, 0) + " W" + (near.util_pct != null ? " · " + fmtNum(near.util_pct, 0) + "% busy" : "") + (near.mem_mb != null ? " · " + fmtMB(near.mem_mb) : "") : "");
+      },
+      zoom: function (a, b) { GPUZ = a == null ? null : { from: a, to: b }; rerenderGpuTimeline(); }
     };
-    return '<div class="card" id="gpu-timeline"><h2>GPU over the run</h2><p class="muted small" style="margin-top:0">Sampled every ' + esc(g.interval_s) + ' s (' + esc(g.method) + ', ' + fmtNum(g.n_samples) + ' samples) from outside the measured process. Shaded in the model\'s colour: its measured window; grey: its idle baseline (sampled just before it loads).</p>' +
-      legendHtml(g.windows.map(function (w) { return w.model; })) +
-      '<h3 class="lc-h">Board power (W)</h3>' + mk("gpu-power", "power_w", g.power_max, function (v) { return fmtNum(v, 0) + " W"; }, "GPU board power over the session", true) +
-      (g.has_util ? '<h3 class="lc-h">GPU utilisation (%)</h3>' + mk("gpu-util", "util_pct", 100, function (v) { return fmtNum(v, 0) + "%"; }, "GPU utilisation over the session") : "") +
-      (g.has_mem ? '<h3 class="lc-h">Device memory used</h3>' + mk("gpu-mem", "mem_mb", g.mem_max, function (v) { return fmtNum(v / 1024, 1) + " GB"; }, "Device memory over the session") : "") +
+    var chart = function (id, key, yMax, yFmt, label, first, extra) {
+      return lineChart(Object.assign({ id: id, h: 120, xMin: x0, xMax: x1, yMax: yMax, xFmt: sec, yFmt: yFmt, bands: first ? bands : plain, marks: marks, label: label, group: "gpu",
+        series: [{ name: key, kind: "line", color: "var(--text)", points: pts.map(function (p) { return [p.t, p[key]]; }) }] }, extra || {}));
+    };
+    var segs = [];
+    inView.forEach(function (f) { f.agents.forEach(function (a) { segs.push({ from: a.from_s, to: a.to_s, color: agColor(a.agent) }); }); });
+    var lane = mk.flows.length ? '<h3 class="lc-h">Agent taking its turn</h3>' +
+      laneChart({ id: "gpu-lane", xMin: x0, xMax: x1, group: "gpu", segments: segs, title: mk.thinned ? "(too many to draw)" : "", label: "Which agent was running, over the session" }) +
+      '<div class="legend small" id="gpu-lane-legend">' + mk.agents.map(function (a) { return '<span style="--c:' + agColor(a) + '">' + esc(agName(a)) + '</span>'; }).join("") + '</div>' : "";
+    var zoomBtns = '<div class="row gpu-zoom" role="group" aria-label="Zoom the GPU charts">' +
+      (GPUZ ? '<button type="button" class="btn small-btn" data-gpu-zoom="reset">Show the whole run</button><span class="muted small">Showing ' + fmtNum(x0, 1) + '–' + fmtNum(x1, 1) + ' s</span>' :
+        '<span class="muted small">Drag across any chart to zoom them all; double-click to zoom out.</span>') +
+      g.windows.map(function (w, i) { return '<button type="button" class="btn small-btn" data-gpu-zoom="' + i + '">Zoom to ' + esc(short(w.model)) + '</button>'; }).join("") + '</div>';
+    return '<div class="card" id="gpu-timeline"><h2>GPU over the run</h2>' +
+      (g.synthetic ? '<div class="notice warn" id="gpu-synthetic">Synthetic test readings — not a measurement (test mode).</div>' : "") +
+      '<p class="muted small" style="margin-top:0">Sampled every ' + esc(g.interval_s) + ' s (' + esc(g.method) + ', ' + fmtNum(g.n_samples) + ' samples) from outside the measured process. Shaded in the model\'s colour: its measured window; grey: its idle baseline (sampled just before it loads). Hover any chart to read every chart at that moment, with the flow and agent that were running.' +
+      infoI(mk.method + (marks.length ? " Thin vertical lines: where each flow started." : mk.flows.length ? " Flow-start lines appear when you zoom in to " + MARKS_MAX + " flows or fewer." : "")) + '</p>' +
+      legendHtml(g.windows.map(function (w) { return w.model; })) + zoomBtns +
+      '<h3 class="lc-h">Board power (W)</h3>' + chart("gpu-power", "power_w", g.power_max, function (v) { return fmtNum(v, 0) + " W"; }, "GPU board power over the session", true) +
+      (g.has_util ? '<h3 class="lc-h">GPU utilisation (%)</h3>' + chart("gpu-util", "util_pct", 100, function (v) { return fmtNum(v, 0) + "%"; }, "GPU utilisation over the session") : "") +
+      (g.has_mem ? '<h3 class="lc-h">Device memory used</h3>' + chart("gpu-mem", "mem_mb", g.mem_max, function (v) { return fmtNum(v / 1024, 1) + " GB"; }, "Device memory over the session", false, { threshold: memThr }) : "") +
+      lane +
       '<div class="table-wrap"><table id="gpu-timeline-table"><thead><tr><th>Model</th><th class="num">Samples</th><th class="num">Mean power</th><th class="num">Peak power</th><th class="num">Mean utilisation</th><th class="num">Peak memory</th></tr></thead><tbody>' +
       g.per_model.map(function (m) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtNum(m.n_samples) + '</td><td class="num">' + (m.mean_power_w == null ? "—" : fmtNum(m.mean_power_w, 1) + " W") + '</td><td class="num">' + (m.peak_power_w == null ? "—" : fmtNum(m.peak_power_w, 0) + " W") +
         '</td><td class="num">' + (m.mean_util_pct == null ? "—" : fmtNum(m.mean_util_pct, 0) + "%") + '</td><td class="num">' + (m.peak_mem_mb == null ? "—" : fmtMB(m.peak_mem_mb)) + '</td></tr>'; }).join("") + '</tbody></table></div></div>';
   }
+  function rerenderGpuTimeline() {
+    var el = $("gpu-timeline");
+    if (!el || !GPU_RES) return;
+    var box = document.createElement("div");
+    box.innerHTML = gpuTimelineCard(GPU_RES);
+    var card = box.firstChild, parent = el.parentNode;
+    el.replaceWith(card);
+    wireLineCharts(); addExports(parent);
+  }
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest && ev.target.closest("[data-gpu-zoom]");
+    if (!b || !GPU_RES) return;
+    var v = b.getAttribute("data-gpu-zoom"), g = INSIGHTS.gpuTimeline(GPU_RES), w = g && g.windows[+v];
+    GPUZ = v === "reset" || !w ? null : { from: Math.max(0, w.from_s - 1), to: w.to_s + 1 };
+    rerenderGpuTimeline();
+  });
   // ---- downloads: CSV of a card's table, PNG of its SVG chart (computed colours, any theme) ----
   function addExports(root) {
     if (!root) return;
@@ -3888,7 +4018,10 @@
       if (!hasT && !hasS) return;
       var bar = document.createElement("div");
       bar.className = "exp-bar";
-      bar.innerHTML = '<span class="muted small">Download</span>' + (hasT ? '<button type="button" class="btn small-btn" data-exp="csv">CSV</button>' : "") +
+      var hasL = !!c.querySelector(".lc");
+      bar.innerHTML = (hasL ? '<button type="button" class="btn small-btn" data-exp="inspect" aria-expanded="false">Inspect data</button>' : "") +
+        '<span class="muted small">Download</span>' + (hasT ? '<button type="button" class="btn small-btn" data-exp="csv">CSV</button>' : "") +
+        (hasL ? '<button type="button" class="btn small-btn" data-exp="chartcsv">Chart data (CSV)</button>' : "") +
         (hasS ? '<button type="button" class="btn small-btn" data-exp="png">PNG</button>' : "");
       c.appendChild(bar);
     });
@@ -3923,10 +4056,39 @@
   document.addEventListener("click", function (ev) {
     var b = ev.target.closest && ev.target.closest("[data-exp]");
     if (!b) return;
-    var card = b.closest(".card");
-    if (b.getAttribute("data-exp") === "csv") download(expName(card, "csv"), tableCsv(card.querySelector("table")));
+    var card = b.closest(".card"), kind = b.getAttribute("data-exp");
+    if (kind === "csv") download(expName(card, "csv"), tableCsv(card.querySelector("table")));
+    else if (kind === "chartcsv") download(expName(card, "data.csv"), chartRows(card).map(function (r) { return r.map(csvCell).join(","); }).join("\n"));
+    else if (kind === "inspect") inspectCard(card, b);
     else svgPng(card.querySelector(".lc svg, .ho svg, svg.frontier"), expName(card, "png"));
   });
+  // ---- Inspect: the exact numbers behind every chart of a card (observability-style) ----
+  function csvCell(v) { var t = v == null ? "" : String(v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; }
+  function chartRows(card) {
+    var rows = [["chart", "series", "x", "y"]];
+    card.querySelectorAll(".lc[id]").forEach(function (el) {
+      var c = LC[el.id];
+      if (!c) return;
+      var name = c.spec.label || el.id;
+      (c.spec.series || []).forEach(function (sr) { sr.points.forEach(function (p) { if (p[1] != null) rows.push([name, sr.name, +(+p[0]).toFixed(4), +(+p[1]).toFixed(4)]); }); });
+      (c.spec.segments || []).forEach(function (g) { rows.push([name, "turn", +(+g.from).toFixed(4), +(+g.to).toFixed(4)]); });
+      if (c.spec.threshold) rows.push([name, "threshold", "", c.spec.threshold.y]);
+    });
+    return rows;
+  }
+  function inspectCard(card, btn) {
+    var open = card.querySelector(":scope > .inspect");
+    if (open) { open.remove(); btn.setAttribute("aria-expanded", "false"); return; }
+    var rows = chartRows(card), body = rows.slice(1), MAX = 200;
+    var box = document.createElement("div");
+    box.className = "inspect";
+    box.innerHTML = '<p class="muted small">' + fmtNum(body.length) + ' data points behind the chart' + (card.querySelectorAll(".lc[id]").length > 1 ? "s" : "") + ' of this card' +
+      (body.length > MAX ? ' (the first ' + MAX + ' shown; Chart data (CSV) has them all)' : "") + '. x is the chart\'s horizontal value (seconds, flow number, ...).</p>' +
+      '<div class="table-wrap"><table class="inspect-table"><thead><tr>' + rows[0].map(function (h) { return '<th>' + esc(h) + '</th>'; }).join("") + '</tr></thead><tbody>' +
+      body.slice(0, MAX).map(function (r) { return '<tr><td class="small">' + esc(r[0]) + '</td><td class="mono small">' + esc(r[1]) + '</td><td class="num">' + esc(r[2]) + '</td><td class="num">' + esc(r[3]) + '</td></tr>'; }).join("") + '</tbody></table></div>';
+    card.insertBefore(box, card.querySelector(":scope > .exp-bar"));
+    btn.setAttribute("aria-expanded", "true");
+  }
   // ---- Agent Analysis: flow explorer (flows_<run>.json; loaded when the tab opens) ----
   var FLOWS = { id: null, data: null, filter: "all", q: "", page: 0, open: null };
   function loadFlows() {
@@ -4014,7 +4176,12 @@
   }
   function renderTrends() {
     if (!TR.data || !window.INSIGHTS) return;
-    var t = INSIGHTS.trends(TR.data, { includeDemo: $("tr-demo").checked });
+    varsBar($("tr-vars"), TR.data.filter(function (x) { return x.metrics; }), renderTrends);
+    var t = INSIGHTS.trends(TR.data.filter(function (x) { return !VARS.pipeline || pipeName(x) === VARS.pipeline; }), { includeDemo: $("tr-demo").checked });
+    if (VARS.model) {
+      t.series = t.series.filter(function (x) { return x.model === VARS.model; });
+      t.drifts = t.drifts.filter(function (d) { return d.model === VARS.model; });
+    }
     var ser = $("tr-series"), met = $("tr-metric");
     if (!t.series.length) {
       ser.innerHTML = ""; met.innerHTML = "";
@@ -4595,6 +4762,46 @@
 
   // Recommendation tab: measured verdict, resource hint, stage 3 context, decision helper
   var DH_KEYS = ["max_mean_latency_s", "max_p95_latency_s", "max_peak_vram_mb", "max_cost_per_1k_flows_usd"];
+  // the limits the user last checked (Does a model fit your limits?): kept in this browser and
+  // drawn as threshold lines / colours on the charts and tables (Grafana-style thresholds)
+  var LIMITS_KEY = "agentmeter.limits";
+  function userLimits() {
+    var o = {};
+    try { o = JSON.parse(localStorage.getItem(LIMITS_KEY) || "{}") || {}; } catch (e) { o = {}; }
+    var out = {};
+    DH_KEYS.forEach(function (k) { var v = +o[k]; if (v > 0) out[k] = v; });
+    return out;
+  }
+  function saveLimits() {
+    var o = {};
+    DH_KEYS.forEach(function (k) { var v = +(($("dh-" + k) || {}).value || 0); if (v > 0) o[k] = v; });
+    try { localStorage.setItem(LIMITS_KEY, JSON.stringify(o)); } catch (e) { /* not kept */ }
+  }
+  // a value that has a limit: tagged so paintLimits() colours it against the user's limits
+  function limAttr(key, v) { return v == null || !isFinite(+v) ? "" : ' data-lim="' + key + '" data-v="' + (+v) + '"'; }
+  var LIM_LABEL = { max_mean_latency_s: "mean latency", max_p95_latency_s: "p95 latency", max_peak_vram_mb: "peak GPU memory", max_cost_per_1k_flows_usd: "cost per 1,000 flows" };
+  function paintLimits(root) {
+    var lim = userLimits(), any = false;
+    (root || document).querySelectorAll("[data-lim]").forEach(function (el) {
+      var cap = lim[el.getAttribute("data-lim")], v = +el.getAttribute("data-v");
+      el.classList.remove("over-limit", "in-limit"); el.removeAttribute("title");
+      if (!cap) return;
+      any = true;
+      el.classList.add(v > cap ? "over-limit" : "in-limit");
+      el.title = (v > cap ? "Over" : "Within") + " your " + LIM_LABEL[el.getAttribute("data-lim")] + " limit";
+    });
+    var note = $("lim-note");
+    if (note) note.hidden = !any;
+  }
+  // the limits changed: redraw the threshold lines and recolour the values on this session
+  function refreshLimits() {
+    if (SESSION.res) {
+      var t = $("stats-trend");
+      if (t) { var box = document.createElement("div"); box.innerHTML = trendCard(SESSION.res); t.replaceWith(box.firstChild); }
+      rerenderGpuTimeline(); wireLineCharts();
+    }
+    paintLimits();
+  }
   function recLimitsTab(res) {
     var rel = res.relative_comparison, dh = res.decision_helper, h = [];
     var hint = window.REPORT ? window.REPORT.optimisationHint(res, ((res.per_model || [])[0] || {}).db_label) : { text: "" };
@@ -4606,7 +4813,7 @@
         ' Rule set: <span class="mono">' + esc(dh.rulebase) + '</span>.</p><div class="row">' +
         DH_KEYS.map(function (k) {
           var inp = (dh.inputs || {})[k] || {};
-          return '<div class="field"><label for="dh-' + k + '">' + esc(inp.label || k) + ' <span class="hint">(' + esc(inp.unit || "") + ')</span></label><input type="number" min="0" step="any" id="dh-' + k + '" name="' + k + '" placeholder="no limit"></div>';
+          return '<div class="field"><label for="dh-' + k + '">' + esc(inp.label || k) + ' <span class="hint">(' + esc(inp.unit || "") + ')</span></label><input type="number" min="0" step="any" id="dh-' + k + '" name="' + k + '" placeholder="no limit" value="' + esc(userLimits()[k] || "") + '"></div>';
         }).join("") + '</div><div class="row"><button type="submit" class="btn primary" id="dh-go">Check models</button><a class="btn" id="dh-pdf" href="#" download>PDF with these limits</a></div>' +
         '<div id="dh-error" class="notice error" role="alert" hidden></div><div id="dh-result" style="margin-top:14px"></div></form>');
     }
@@ -4678,6 +4885,7 @@
       ev.preventDefault();
       $("dh-error").hidden = true;
       var q = dhQuery();
+      saveLimits(); refreshLimits();
       api((CP ? "/api/sessions/" : "/api/jobs/") + enc(SESSION.id) + "/constraints" + (q ? "?" + q : "")).then(function (r) {
         if (!r.ok) { showError($("dh-error"), r.data); return; }
         renderDecision(r.data);
@@ -4737,6 +4945,34 @@
     return (s.models || []).map(short).join(" vs ") + " · " + (s.input_type || "") + " · " + fmtNum(s.n_flows) + " flows · " +
       (s.gpu || "") + " · " + fmtDate(s.finished_at || s.created_at);
   }
+  // ---- variables (as on an observability dashboard): one Model and one Pipeline filter, shared
+  // by Compare and Trends; "All" shows everything. Kept in this browser.
+  var VARS = (function () { try { return JSON.parse(localStorage.getItem("agentmeter.vars") || "{}") || {}; } catch (e) { return {}; } })();
+  function pipeName(s) { return s.pipeline && s.pipeline.length ? s.pipeline.join(" → ") : "Default (4 agents)"; }
+  function varsMatch(s, model) {
+    return (!VARS.model || (model ? model === VARS.model : (s.models || []).indexOf(VARS.model) >= 0)) && (!VARS.pipeline || pipeName(s) === VARS.pipeline);
+  }
+  function varsBar(host, sessions, onChange) {
+    var models = [], pipes = [];
+    sessions.forEach(function (s) {
+      (s.models || []).forEach(function (m) { if (models.indexOf(m) < 0) models.push(m); });
+      var p = pipeName(s); if (pipes.indexOf(p) < 0) pipes.push(p);
+    });
+    if (VARS.model && models.indexOf(VARS.model) < 0) VARS.model = "";
+    if (VARS.pipeline && pipes.indexOf(VARS.pipeline) < 0) VARS.pipeline = "";
+    var sel = function (id, label, vals, cur, fmt) {
+      return '<div class="field"><label for="' + id + '">' + label + '</label><select id="' + id + '"><option value="">All</option>' +
+        vals.sort().map(function (v) { return '<option value="' + esc(v) + '"' + (v === cur ? " selected" : "") + '>' + esc(fmt ? fmt(v) : v) + '</option>'; }).join("") + '</select></div>';
+    };
+    host.innerHTML = '<div class="card row vars-row">' + sel(host.id + "-model", "Model", models, VARS.model, short) + sel(host.id + "-pipeline", "Pipeline", pipes, VARS.pipeline) + '</div>';
+    [["model", host.id + "-model"], ["pipeline", host.id + "-pipeline"]].forEach(function (k) {
+      $(k[1]).addEventListener("change", function () {
+        VARS[k[0]] = this.value;
+        try { localStorage.setItem("agentmeter.vars", JSON.stringify(VARS)); } catch (e) { /* not kept */ }
+        onChange();
+      });
+    });
+  }
   function loadCompare(q) {
     $("cmp-error").hidden = true;
     if (q.a && q.b && !q.sessions) { location.replace("#/compare?sessions=" + enc(q.a) + "," + enc(q.b)); return; }   // old links
@@ -4744,9 +4980,16 @@
     api("/api/sessions?limit=200").then(function (r) {
       if (!r.ok) { showError($("cmp-error"), r.data); return; }
       CMP.rows = (r.data.sessions || []).filter(function (s) { return s.status === "Done" || s.status === "Demo"; });
-      $("cmp-a").innerHTML = '<option value="">Choose a session…</option>' + CMP.rows.map(function (s) {
-        return '<option value="' + esc(s.session_id) + '">' + esc(sessionLabel(s)) + '</option>';
-      }).join("");
+      var fill = function () {
+        var keep = $("cmp-a").value, shown = CMP.rows.filter(function (s) { return varsMatch(s); });
+        $("cmp-a").innerHTML = '<option value="">Choose a session… (' + shown.length + (shown.length === CMP.rows.length ? "" : " of " + CMP.rows.length) + ')</option>' + shown.map(function (s) {
+          return '<option value="' + esc(s.session_id) + '">' + esc(sessionLabel(s)) + '</option>';
+        }).join("");
+        if (keep && shown.some(function (s) { return s.session_id === keep; })) $("cmp-a").value = keep;
+        else if (keep) { $("cmp-a").value = ""; $("cmp-cands").innerHTML = ""; $("cmp-go").disabled = true; }
+      };
+      varsBar($("cmp-vars"), CMP.rows, fill);
+      fill();
       $("cmp-result").innerHTML = CMP.rows.length ? "" : '<div class="card empty"><p>No finished sessions yet.</p><a class="btn primary" href="#/new">New benchmark</a></div>';
       $("cmp-cands").innerHTML = ""; $("cmp-go").disabled = true;
       if (first) { $("cmp-a").value = first; loadCandidates(first, ids.slice(1)); }
@@ -4975,7 +5218,7 @@
     $("set-intro").textContent = CP ? "Saved to your account." : "Saved in this browser only.";
     if (!CP) return;
     var S = SETTINGS || {};
-    $("set-tg").value = S.telegram_chat_id || ""; $("set-notify").value = S.notify_on || "none";
+    $("set-tg").value = S.telegram_chat_id || ""; $("set-notify").value = S.notify_on || "none"; $("set-drift").checked = S.alert_on_drift !== false;
     $("set-flows").value = S.default_flows || 50; $("set-other").checked = !!S.default_other_attack; $("set-tz").value = S.timezone || "UTC";
     $("set-tz-list").innerHTML = TZS.map(function (z) { return '<option value="' + esc(z) + '">'; }).join("");
     renderSetModels(S.default_models || []);
@@ -5016,7 +5259,7 @@
   $("set-account").addEventListener("submit", function (ev) {
     ev.preventDefault();
     $("set-error").hidden = true;
-    saveSettings({ theme: themePref(), telegram_chat_id: $("set-tg").value.trim(), notify_on: $("set-notify").value, default_flows: +$("set-flows").value || 50,
+    saveSettings({ theme: themePref(), telegram_chat_id: $("set-tg").value.trim(), notify_on: $("set-notify").value, alert_on_drift: $("set-drift").checked, default_flows: +$("set-flows").value || 50,
                    default_other_attack: $("set-other").checked, timezone: $("set-tz").value.trim() || "UTC", weight_presets: readPresets(),
                    default_models: Array.prototype.map.call($("set-models").querySelectorAll("input:checked"), function (i) { return i.value; }) })
       .then(function (r) { if (!r.ok) showError($("set-error"), r.data); else $("set-saved").textContent = "Saved."; });

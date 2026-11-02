@@ -2,6 +2,9 @@
 session DB (never into the measured tables, never part of a score):
 
   model_load/<run>__<model>.json    how long loading the model took (cold start), every run
+  flow_times/<run>__<model>.json    when each flow started (unix seconds) and each agent's wall time,
+                                    recorded between flows (outside every timed call) so the GPU
+                                    timeline can mark each agent's turn
   repeat_check/<run>__<model>.json  opt-in: the first flows answered a second time, after the
                                     measured flows, to see whether the answers repeat
 
@@ -16,7 +19,7 @@ from pathlib import Path
 from typing import Any, Optional, Sequence
 
 REPEAT_FLOWS = 10
-KINDS = ("model_load", "repeat_check")
+KINDS = ("model_load", "repeat_check", "flow_times")
 
 
 def out_path(db_path: str | Path, run_id: str, label: str, kind: str) -> Path:

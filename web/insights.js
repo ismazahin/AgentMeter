@@ -381,7 +381,29 @@
              t_max: pts.length ? pts[pts.length - 1].t : 0, power_max: max("power_w"), mem_max: max("mem_mb"), points: pts,
              windows: (g.windows || []).map(function (w) { return { model: bare(w.model), from_s: w.from_s, to_s: w.to_s }; }),
              idle: (g.idle || []).map(function (w) { return { model: bare(w.model), from_s: w.from_s, to_s: w.to_s }; }),
-             per_model: (g.per_model || []).map(function (m) { var o = {}; Object.keys(m).forEach(function (k) { o[k] = m[k]; }); o.model = bare(m.model); return o; }) };
+             per_model: (g.per_model || []).map(function (m) { var o = {}; Object.keys(m).forEach(function (k) { o[k] = m[k]; }); o.model = bare(m.model); return o; }),
+             synthetic: !!g.synthetic, markers: timelineMarkers(g.markers) };
+  }
+  // flows and agent turns on the GPU timeline (annotations), and what was running at time x
+  function timelineMarkers(mk) {
+    var flows = ((mk && mk.flows) || []).map(function (f) {
+      return { model: bare(f.model), flow: f.flow, t_s: f.t_s, end_s: f.end_s,
+               agents: (f.agents || []).map(function (a) { return { agent: a[0], from_s: a[1], to_s: a[2] }; }) };
+    });
+    var agents = [];
+    flows.forEach(function (f) { f.agents.forEach(function (a) { if (agents.indexOf(a.agent) < 0) agents.push(a.agent); }); });
+    return { flows: flows, agents: agents, thinned: !!(mk && mk.agent_turns_thinned), method: (mk && mk.method) || "" };
+  }
+  function runningAt(markers, x) {
+    var fl = (markers && markers.flows) || [];
+    for (var i = 0; i < fl.length; i++) {
+      var f = fl[i];
+      if (x >= f.t_s && x <= f.end_s) {
+        var a = f.agents.filter(function (t) { return x >= t.from_s && x <= t.to_s; })[0];
+        return { model: f.model, flow: f.flow, agent: a ? a.agent : null };
+      }
+    }
+    return null;
   }
 
   // ---- Repeatability: the same models on the same flows, GPU and settings, across sessions ----
@@ -861,7 +883,7 @@
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
               workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, energyEfficiency: energyEfficiency, priceCompare: priceCompare, idleCost: idleCost, recommend: recommend, removeAgent: removeAgent, budgetTuning: budgetTuning, pipelineCompare: pipelineCompare, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
-              latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, repeatability: repeatability,
+              latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, runningAt: runningAt, repeatability: repeatability,
               loadScaling: loadScaling, trends: trends, trendSeries: trendSeries, runEstimate: runEstimate, sampleSize: sampleSize, tabSummaries: tabSummaries };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;

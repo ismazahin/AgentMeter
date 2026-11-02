@@ -10,6 +10,9 @@ read is a few microseconds on a separate CPU thread.
   method "nvidia-smi"  one long-running `nvidia-smi --query-gpu=power.draw,memory.used,utilization.gpu -lms N`
                        process (no process spawn per sample)
   no GPU / mock        nothing is sampled; the session reports energy "not measured"
+  "synthetic (test only)"  AGENTMETER_TEST_SYNTHETIC_GPU=1 with the mock provider: invented readings
+                       so the end-to-end tests can exercise the GPU charts. Never a measurement; the
+                       method name says so wherever it is shown, and energy is never reported from it.
 
 Idle baseline: before each model's worker starts (GPU idle, the previous worker has
 exited), run_full's before_model hook calls idle_window(), which marks a few seconds of
@@ -95,6 +98,24 @@ class PowerSampler:
                 self.util_samples.append((t, float(parts[2])))
             except (ValueError, IndexError):
                 pass
+
+    def _loop_synthetic(self) -> None:
+        import math
+        t0 = time.time()
+        while not self._stop.is_set():
+            t = time.time()
+            x = t - t0
+            self.samples.append((t, 60.0 + 90.0 * (0.5 + 0.5 * math.sin(x * 1.7))))
+            self.util_samples.append((t, 50.0 + 45.0 * math.sin(x * 1.7)))
+            self.mem_samples.append((t, 4000.0 + 30.0 * x))
+            self._stop.wait(self.interval_s)
+
+    def start_synthetic(self) -> bool:
+        """TEST ONLY (AGENTMETER_TEST_SYNTHETIC_GPU=1): invented readings for the UI tests."""
+        self.method = "synthetic (test only)"
+        self._thread = threading.Thread(target=self._loop_synthetic, daemon=True, name="agentmeter-power-synthetic")
+        self._thread.start()
+        return True
 
     # --- public ---------------------------------------------------------------------
     def start(self) -> bool:

@@ -921,14 +921,16 @@ def cost_energy_block(payload: dict[str, Any], sr: list[dict], label_of: dict[st
 # GPU memory: working (per agent call, excludes weights) vs total peak (weights + working)
 # ---------------------------------------------------------------------------
 def gpu_timeline_block(sr: list[dict], label_of: dict[str, str], *, real: bool,
-                       energy: Optional[dict] = None) -> dict[str, Any]:
+                       energy: Optional[dict] = None, flow_times: Optional[dict] = None) -> dict[str, Any]:
     """Board power (W), GPU utilisation (%) and device memory (MB) over the session, as sampled
     by the parent process (power.py), thinned to bucket means; times are seconds from the first
     sample. Each model's measured window (first flow start .. last flow end) and its idle window
-    are marked. Nothing here changes a stored number."""
+    are marked, and (flow_times: run/extras.py) every flow's start and each agent's turn within it,
+    for the annotations on the charts. Nothing here changes a stored number."""
     energy = energy or {}
     samples = energy.get("samples") or []
-    if not real or not samples:
+    synthetic = str(energy.get("method") or "").startswith("synthetic")   # TEST ONLY (power.py)
+    if not (real or synthetic) or not samples:
         reason = ("mock/CPU run: no GPU to sample" if not real else
                   energy.get("error") or "no GPU power samples were recorded")
         return {"sampled": False, "reason": reason, "points": [], "windows": [], "idle": [], "per_model": []}
@@ -973,7 +975,39 @@ def gpu_timeline_block(sr: list[dict], label_of: dict[str, str], *, real: bool,
     return {"sampled": True, "method": energy.get("method"), "interval_s": energy.get("interval_s"),
             "n_samples": n, "thinned": n > TIMELINE_MAX_POINTS, "has_util": bool(util), "has_mem": bool(mem), "low_util_pct": LOW_UTIL_PCT,
             "point_fields": ["t_s", "power_w", "util_pct", "mem_mb"], "points": points,
-            "windows": windows, "idle": idle, "per_model": per}
+            "windows": windows, "idle": idle, "per_model": per, "synthetic": synthetic,
+            "markers": timeline_markers(flow_times or {}, t0)}
+
+
+MARKERS_MAX_AGENT_TURNS = 6000      # beyond this only flow starts are kept (the payload stays small)
+
+
+def timeline_markers(flow_times: dict[str, Optional[dict]], t0: float) -> dict[str, Any]:
+    """Annotations for the GPU timeline: per model, each flow's start and each agent's turn (start
+    and end, seconds from the first sample). An agent's turn is placed by adding the wall times of
+    the agents before it to the flow's start (they run one after another); the small gaps between
+    calls are not recorded, so a turn is an approximation of when it ran, never of how long."""
+    flows, turns = [], 0
+    for model, data in flow_times.items():
+        for f in (data or {}).get("flows") or []:
+            try:
+                t = float(f["t"]) - t0
+            except (KeyError, TypeError, ValueError):
+                continue
+            agents, at = [], t
+            for name, wall in f.get("agents") or []:
+                agents.append([str(name), round(at, 4), round(at + float(wall), 4)])
+                at += float(wall)
+            turns += len(agents)
+            flows.append({"model": model, "flow": str(f.get("scenario_id")), "t_s": round(t, 4), "end_s": round(at, 4), "agents": agents})
+    flows.sort(key=lambda x: x["t_s"])
+    thinned = turns > MARKERS_MAX_AGENT_TURNS
+    if thinned:
+        for f in flows:
+            f["agents"] = []
+    return {"flows": flows, "agent_turns_thinned": thinned,
+            "method": "Flow starts are recorded by the worker between flows (outside every timed call); each agent's turn is "
+                      "placed from the flow start by adding the wall times of the agents before it."}
 
 
 LOW_UTIL_PCT = 10.0     # GPU utilisation below this counts as "nearly idle"
@@ -1130,7 +1164,8 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     payload["latency_trend"] = latency_trend_block(sr, label_of)
     payload["effect_sizes"] = effect_block(sr, am, label_of, payload.get("statistics"))
     payload["cost_energy"] = cost_energy_block(payload, sr, label_of, real=real, price=price, energy=energy)
-    payload["gpu_timeline"] = gpu_timeline_block(sr, label_of, real=real, energy=energy)
+    payload["gpu_timeline"] = gpu_timeline_block(sr, label_of, real=real, energy=energy,
+                                                 flow_times=read_extras(db_path, run_id, labels, "flow_times"))
     payload["load_scaling"] = load_scaling_block(db_path, run_id, label_of)
     payload["memory"] = memory_block(payload, read_model_memory(db_path, run_id), label_of, real=real,
                                      agents=payload["agents"], sr=sr, energy=energy)

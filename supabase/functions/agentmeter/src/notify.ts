@@ -4,6 +4,7 @@
 // Telegram failure never fails the backend's upload.
 import { requireUser } from "./auth.ts";
 import { loadSettings } from "./settings.ts";
+import { type Moved, movedLines, movedRuns } from "./trends.ts";
 import { type Env, fail, json } from "./util.ts";
 
 const API = (env: Env) => env.TELEGRAM_API || "https://api.telegram.org";
@@ -31,15 +32,35 @@ export async function notifyFinal(env: Env, id: string, status: string, stoppedB
     .bind(id).first<{ owner_id: string | null; owner_username: string | null; more_efficient: string | null; models_json: string | null }>();
   if (!row?.owner_id) return false;
   const s = await loadSettings(env, row.owner_id);
-  if (!(WANTS[s.notify_on] || []).includes(status) || !s.telegram_chat_id) return false;
+  if (!s.telegram_chat_id) return false;
+  // an alert (Trends rule): a finished run that got worse than its usual range on the same setup
+  const moved = status === "Done" ? await movedFor(env, id) : [];
+  const alert = s.alert_on_drift && moved.some((m) => m.worse);
+  if (!(WANTS[s.notify_on] || []).includes(status) && !alert) return false;
   const claim = await env.DB.prepare("UPDATE sessions SET notified_status=? WHERE id=? AND notified_status IS NULL").bind(status, id).run();
   if (!claim.meta.changes) return false;                       // another request already sent it
   const models = row.models_json ? (JSON.parse(row.models_json) as string[]).join(" vs ") : "";
   const more = status === "Done" && row.more_efficient && row.more_efficient !== "—" ? `\nMore efficient (measured): ${row.more_efficient}` : "";
   const demo = status === "Demo" ? "\nDEMO (mock provider) — not a measurement." : "";
   const stop = status === "Stopped" ? `\nStopped${stoppedBy ? " by " + stoppedBy.slice(0, 32) : ""} before it finished — not scored.` : "";
+  const drift = moved.length ? `\n\nAgainst earlier runs on the same setup:\n${movedLines(moved).join("\n")}` : "";
   return sendTelegram(env, s.telegram_chat_id,
-    `AgentMeter: session ${id} — ${status}\n${models}${more}${demo}${stop}\nAgentMeter measures LLM efficiency; it is not a threat detector.`);
+    `${alert ? "AgentMeter ALERT: a result moved beyond its usual range" : "AgentMeter"}: session ${id} — ${status}\n${models}${more}${demo}${stop}${drift}` +
+    `\nAgentMeter measures LLM efficiency; it is not a threat detector.`);
+}
+
+/** The session's results that moved beyond their usual spread against earlier runs on its setup. */
+async function movedFor(env: Env, id: string): Promise<Moved[]> {
+  const cur = await env.DB.prepare("SELECT summary_json, prepared_set_sha256 FROM sessions WHERE id=?").bind(id)
+    .first<{ summary_json: string | null; prepared_set_sha256: string | null }>();
+  if (!cur?.summary_json || !cur.prepared_set_sha256) return [];
+  const rows = await env.DB.prepare("SELECT summary_json FROM sessions WHERE prepared_set_sha256=? AND status='Done' AND deleted_at IS NULL AND id<>? AND summary_json IS NOT NULL")
+    .bind(cur.prepared_set_sha256, id).all<{ summary_json: string }>();
+  try {
+    return movedRuns(JSON.parse(cur.summary_json), rows.results.map((r) => JSON.parse(r.summary_json)));
+  } catch {
+    return [];
+  }
 }
 
 /** POST /api/settings/telegram-test — a test message to the caller's own chat id. */

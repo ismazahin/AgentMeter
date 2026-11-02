@@ -41,7 +41,7 @@ describe("per-user settings", () => {
       expect(r.status).toBe(400);
       expect(r.data.code).toBe("unknown_setting");
     }
-    expect(Object.keys(DEFAULT_SETTINGS).sort()).toEqual(["default_flows", "default_models", "default_other_attack", "notify_on",
+    expect(Object.keys(DEFAULT_SETTINGS).sort()).toEqual(["alert_on_drift", "default_flows", "default_models", "default_other_attack", "notify_on",
       "telegram_chat_id", "theme", "timezone", "weight_presets"]);
   });
 });

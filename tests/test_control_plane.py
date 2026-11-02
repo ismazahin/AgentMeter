@@ -465,7 +465,7 @@ def test_control_plane_settings_cannot_hide_the_demo_banner_or_caveats():
     src = (PROJECT_ROOT / "supabase" / "functions" / "agentmeter" / "src" / "settings.ts").read_text()
     keys = set(re.findall(r"^\s{2}(\w+):", src.split("export const DEFAULT_SETTINGS")[1].split("};")[0], re.M))
     assert keys == {"theme", "telegram_chat_id", "notify_on", "default_models", "default_flows",
-                    "default_other_attack", "weight_presets", "timezone"}
+                    "default_other_attack", "weight_presets", "timezone", "alert_on_drift"}
     assert not any(re.search(r"demo|banner|caveat|endorse|disclaim", k) for k in keys)
 
 

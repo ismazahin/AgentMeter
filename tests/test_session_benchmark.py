@@ -39,10 +39,10 @@ def _db_hashes():
     return {str(p): _sha(p) for p in (PROJECT_ROOT / "results").glob("*.db")}
 
 
-def _rows(db, sql):
+def _rows(db, sql, params=()):
     con = sqlite3.connect(db)
     try:
-        return con.execute(sql).fetchall()
+        return con.execute(sql, params).fetchall()
     finally:
         con.close()
 
@@ -504,3 +504,20 @@ def test_prompt_composition_is_counted_and_stored(tmp_path):
     # the session list carries the pipeline and each model's valid-answer rate (pipeline vs pipeline)
     from agentmeter.server.sessions import model_metrics
     assert model_metrics(p)["mock-a"]["valid_rate"] == 1.0
+
+
+def test_the_worker_records_when_each_flow_started_outside_the_timed_calls(labelled):
+    """run/extras.py "flow_times": one entry per measured flow with its start (unix s) and each
+    agent's wall time, equal to the measured agent rows (it never measures anything itself)."""
+    from agentmeter.run.extras import read_all
+    run_dir, p = labelled
+    labels = {m["model"]: m["db_label"] for m in p["per_model"]}
+    ft = read_all(run_dir / "session.db", p["session"]["run_id"], labels, "flow_times")
+    for model, data in ft.items():
+        assert data and len(data["flows"]) == 15, model
+        starts = [f["t"] for f in data["flows"]]
+        assert starts == sorted(starts)                                     # one flow after another
+        assert all([a[0] for a in f["agents"]] == AGENTS for f in data["flows"])
+        walls = dict(_rows(run_dir / "session.db", "SELECT scenario_id, SUM(wall_time_s) FROM agent_metrics WHERE model=? GROUP BY scenario_id", (labels[model],)))
+        for f in data["flows"]:
+            assert sum(a[1] for a in f["agents"]) == pytest.approx(walls[f["scenario_id"]], abs=1e-3)

@@ -247,6 +247,8 @@
   .validity.locked { margin: 12px 0 0; }
   .lk-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
   .lk-ok { color: var(--success); font-weight: 700; }
+  .toast { position: fixed; right: 16px; bottom: 16px; z-index: 60; max-width: 420px; display: flex; gap: 10px; align-items: center; padding: 12px 14px;
+           background: var(--surface, var(--bg)); border: 1px solid var(--border-2); border-left: 4px solid var(--success); border-radius: var(--radius-lg); box-shadow: 0 6px 24px rgba(0,0,0,.18); font-size: 14px; }
   .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 16px; }
   .grid2 > div > .card { height: calc(100% - 16px); }
   .ds-actions { white-space: nowrap; } .ds-detail > td { background: var(--surface-2, transparent); }
@@ -934,6 +936,32 @@
         <li><a href="#/trends">Repeatability</a> checks that the same model on the same setup gives the same result each time it runs: each model gets a verdict — Stable, Varies or Moved — after 3 runs. To collect such runs automatically, open a finished session and use <b>Repeat on a schedule</b> on its Overview tab. In short: Compare = different models, same setup, one moment; Repeatability = the same model, same setup, over time.</li>
       </ul>
     </div>
+    <div class="card" id="help-method">
+      <h2>Methodology: how every number is measured and judged</h2>
+      <p class="small muted" style="margin-top:0">The rules AgentMeter applies everywhere, in one place — so a result can be checked by hand.</p>
+      <h3>What is held equal (a "setup")</h3>
+      <p class="small">Results are only compared when three things match: the <b>prepared set</b> (the exact flows, identified by the SHA-256 hash of the prepared files), the <b>GPU</b>, and the <b>settings</b> (4-bit NF4 quantisation, token caps, engine and the agent pipeline, identified by a settings fingerprint). Every model then answers exactly the same flows on the same hardware, so a difference belongs to the model.</p>
+      <h3>The measures</h3>
+      <ul class="small">
+        <li><b>Latency per flow</b>: wall-clock time from a flow entering the first agent to the last agent's answer, per model; mean, median, p95 and p99 over all flows.</li>
+        <li><b>Working VRAM</b>: the peak GPU memory a model needs while answering, above what was already allocated (PyTorch's peak counter is reset before each agent step and read after it); the session reports the mean and the maximum over all steps. <b>Total peak VRAM</b> adds the loaded weights.</li>
+        <li><b>Tokens per flow</b>: input + output tokens of all agents for one flow, from the model's own tokenizer. Hand-offs re-send earlier answers inside later prompts, so they count too.</li>
+        <li><b>Energy per flow</b>: GPU board power sampled during the run (NVML/nvidia-smi), integrated over each model's time window and divided by its flows. The idle board power, measured for a few seconds before each model starts, is shown separately and subtracted in "net of idle".</li>
+        <li><b>Cost per 1,000 flows</b>: mean latency per flow × the GPU's hourly price ÷ 3,600 × 1,000. Not shown when no price is set.</li>
+        <li><b>Usable answers</b>: the share of flows whose final answer had the required format; a validity check of the output, never part of the score.</li>
+      </ul>
+      <h3>The SAW score (efficiency)</h3>
+      <p class="small">Simple Additive Weighting over three criteria. Each value is normalised against a fixed target, as a cost criterion: <code>norm = min(1, target ÷ value)</code> — latency target 5 s per flow, VRAM target 16,000 MB, token target 1,200 per flow. The score is <code>100 × Σ weight × norm</code> with the weights latency 0.25, VRAM 0.20, tokens 0.15 renormalised to sum to 1 (≈ 0.42, 0.33, 0.25). Accuracy against reference labels is never weighted in: it is reported as context only. Ranking by setup uses this stored score; the Ranking tab shows how robust the order is to other weights.</p>
+      <h3>Statistics</h3>
+      <ul class="small">
+        <li><b>Is one model better?</b> A model wins a measure only if it is more than 2% better <i>and</i>, for the per-flow measures (latency, VRAM), the Kruskal-Wallis test across the models gives p &lt; 0.05; otherwise it is a tie, shown with its p-value. Effect sizes are Cliff's delta with a bootstrap 95% confidence interval of the difference.</li>
+        <li><b>How many flows are enough?</b> From each model's latency spread: the flows needed to detect a given difference with 80% power at the 5% level.</li>
+        <li><b>Repeatability</b>: a series is one model on one setup over time. <b>Stable</b>: every run within 10% of the median of its runs (latency, tokens, VRAM). <b>Moved</b>: the latest run differs from the median of the earlier runs by more than 10% and by more than three times their typical spread (1.4826 × median absolute deviation). A verdict needs at least 3 runs.</li>
+        <li><b>Compare</b> uses each model's latest run on the setup; how its runs vary is the Repeatability page's job.</li>
+      </ul>
+      <h3>What is never done</h3>
+      <p class="small">No number is invented: demo runs have no GPU, so they show no energy, memory or price instead of simulated ones. Stored scores never change after a session ends; re-ranking with other weights is a view only.</p>
+    </div>
     <div class="card" id="help-terms">
       <h2>5. Key terms</h2>
       <dl class="help-dl">
@@ -1044,6 +1072,7 @@
 
     <!-- step 2: models and settings (data prepares in the background) -->
     <div id="wiz-step-models" hidden>
+      <div id="wiz-again" class="notice small" role="status" hidden></div>
       <div class="card" id="wiz-data-card">
         <div class="row" style="margin-top:0;justify-content:space-between">
           <h2>Your data</h2><span id="wiz-data-chip" class="status Running">Preparing</span>
@@ -1065,6 +1094,11 @@
           <p class="small muted" id="svc-extra-note"></p>
         </details>
         <p id="svc-model-hint" class="muted small" aria-live="polite">Select 1 to 4 models.</p>
+        <div class="row" id="wiz-presets" style="gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:6px">
+          <div class="field" style="margin:0"><label for="wiz-preset">Run preset</label><select id="wiz-preset"><option value="">Choose a saved preset…</option></select></div>
+          <button type="button" class="btn small-btn" id="wiz-preset-save">Save these choices as a preset</button>
+          <button type="button" class="btn small-btn danger-lite" id="wiz-preset-del" hidden>Delete preset</button>
+        </div>
         <hr class="sep">
         <h2>Agents</h2>
         <div class="seg-opts" role="radiogroup" aria-label="Agent pipeline" id="pl-mode">
@@ -1089,6 +1123,8 @@
         <dl class="kv small" id="wiz-settings"></dl>
         <label class="check" style="margin-top:10px"><input type="checkbox" id="svc-load-test">
           <span>Also measure load scaling (1, 2 and 4 flows at once)</span></label><span class="info-i" tabindex="0" role="button" data-tip="After the measured flows, each model runs a few extra flows with 1, 2 and 4 in flight at once, to show whether throughput grows with concurrency. Adds time; it is reported separately and never changes a score, rank or verdict.">i</span>
+        <br><label class="check"><input type="checkbox" id="svc-notify" checked>
+          <span>Tell me when it finishes</span></label><span class="info-i" tabindex="0" role="button" data-tip="A notification from this browser (it asks for permission once) while AgentMeter is open in a tab, even on another page. Telegram alerts are set up in Settings.">i</span>
         <br><label class="check"><input type="checkbox" id="svc-repeat-check">
           <span>Also answer the first 10 flows a second time (repeat check)</span></label><span class="info-i" tabindex="0" role="button" data-tip="After the measured flows, each model answers its first 10 flows again with the same prompts and settings. Output Reliability then shows how often it gave the same answer. Adds a little time; it never changes a score, rank or verdict.">i</span>
         <div class="row">
@@ -1146,6 +1182,7 @@
         <div class="chips" id="session-chips" style="margin-top:8px"></div>
       </div>
       <div class="actions" style="margin-top:0">
+        <a class="btn" id="session-again" href="#/new" hidden title="A new session on the same data set, with the same models, pipeline and options">Run again</a>
         <a class="btn" id="session-compare" href="#/compare">Compare</a>
         <a class="btn primary" id="svc-dl-pdf" href="#" download>Download PDF</a>
       </div>
@@ -2247,6 +2284,10 @@
     extracting: "Extracting flows", selecting: "Selecting flows", writing: "Writing the prepared set", done: "Done" };
   function wizModels(q) {
     WIZ.prep = q.prep || null; WIZ.set = q.set || null; WIZ.summary = null; WIZ.from = q.from || null;
+    WIZ.want = q.models ? q.models.split(",").filter(Boolean) : null;          // Run again / a preset: these models
+    fillPresets();
+    $("wiz-again").hidden = true;
+    if (q.again) applyAgain(q.again);
     $("wiz-back").setAttribute("href", "#/new?src=" + enc(WIZ.src || "file"));
     $("svc-summary").innerHTML = ""; $("wiz-data-error").hidden = true; $("svc-run-error").hidden = true;
     renderModels();
@@ -2360,10 +2401,77 @@
       return '<label class="model"><input type="checkbox" name="model" value="' + esc(m) + '" id="svc-model-' + i + '"><span class="mono">' + esc(m) + '</span></label>';
     }).join("");
     box.querySelectorAll("input").forEach(function (inp) { inp.addEventListener("change", syncRun); });
-    var defs = (SETTINGS && SETTINGS.default_models) || [];
+    var defs = WIZ.want || (SETTINGS && SETTINGS.default_models) || [];
     box.querySelectorAll("input").forEach(function (inp) { if (defs.indexOf(inp.value) >= 0) inp.checked = true; });
     syncRun();
-    loadCatalog().then(function (cat) { renderStudyNotes(cat); renderExtras(cat); });
+    loadCatalog().then(function (cat) { renderStudyNotes(cat); renderExtras(cat); tickWanted(); });
+  }
+  // tick the wanted models (Run again, a preset) that are extras, once the catalogue is shown
+  function tickWanted() {
+    if (!WIZ.want) return;
+    var hit = false;
+    modelInputs().forEach(function (inp) { if (WIZ.want.indexOf(inp.value) >= 0 && !inp.checked && !inp.dataset.locked) { inp.checked = true; hit = true; } });
+    if (hit && $("svc-extra") && document.querySelector("#svc-extra-models input:checked")) $("svc-extra").open = true;
+    syncRun();
+  }
+  // run presets: models + options + pipeline under a name, kept in this browser
+  function runPresets() { try { return JSON.parse(localStorage.getItem("agentmeter.runPresets") || "[]") || []; } catch (e) { return []; } }
+  function saveRunPresets(list) { try { localStorage.setItem("agentmeter.runPresets", JSON.stringify(list)); return true; } catch (e) { return false; } }
+  function fillPresets(sel) {
+    var list = runPresets();
+    $("wiz-preset").innerHTML = '<option value="">' + (list.length ? "Choose a saved preset…" : "No presets yet") + '</option>' + list.map(function (p, i) {
+      return '<option value="' + i + '"' + (sel === p.name ? " selected" : "") + '>' + esc(p.name + " — " + p.models.map(short).join(", ")) + '</option>';
+    }).join("");
+    $("wiz-preset-del").hidden = !$("wiz-preset").value;
+  }
+  $("wiz-preset").addEventListener("change", function () {
+    var p = runPresets()[+this.value];
+    $("wiz-preset-del").hidden = !p;
+    if (!p) return;
+    modelInputs().forEach(function (inp) { if (!inp.dataset.locked) inp.checked = p.models.indexOf(inp.value) >= 0; });
+    WIZ.want = p.models.slice(); tickWanted();
+    $("svc-load-test").checked = !!p.load_test; $("svc-repeat-check").checked = !!p.repeat_check;
+    if (p.pipeline && Array.isArray(p.pipeline.agents)) { PL = JSON.parse(JSON.stringify(p.pipeline)); plRender(); }
+    syncRun();
+  });
+  $("wiz-preset-save").addEventListener("click", function () {
+    var models = picked();
+    if (!models.length) { alert("Tick at least one model first."); return; }
+    var name = (prompt("Name this preset (models, options and pipeline):", models.map(short).join(" + ")) || "").trim().slice(0, 60);
+    if (!name) return;
+    var list = runPresets().filter(function (p) { return p.name !== name; });
+    list.unshift({ name: name, models: models, load_test: $("svc-load-test").checked, repeat_check: $("svc-repeat-check").checked, pipeline: PL });
+    if (!saveRunPresets(list.slice(0, 20))) { alert("This browser does not allow saving presets."); return; }
+    fillPresets(name);
+  });
+  $("wiz-preset-del").addEventListener("click", function () {
+    var i = +$("wiz-preset").value, list = runPresets();
+    if (!list[i] || !confirm('Delete the preset "' + list[i].name + '"?')) return;
+    list.splice(i, 1); saveRunPresets(list); fillPresets();
+  });
+  // Run again: the pipeline and options of an earlier session (models come from the link)
+  function plFromJob(spec) {
+    return spec.map(function (a) {
+      if (typeof a === "string") return { builtin: a };
+      if (a.builtin) return { builtin: a.name };
+      return { name: a.name, title: a.title || a.name, kind: a.kind, instructions: a.instructions || "", reads: a.reads || [], features: !!a.features, tokens: a.max_new_tokens == null ? null : a.max_new_tokens };
+    });
+  }
+  function applyAgain(id) {
+    api("/api/jobs/" + enc(id)).then(function (r) {
+      var j = r.ok ? r.data : null, note = $("wiz-again");
+      if (j) {
+        $("svc-load-test").checked = !!j.load_test; $("svc-repeat-check").checked = !!j.repeat_check;
+        if (Array.isArray(j.pipeline) && j.pipeline.length) PL = { custom: true, agents: plFromJob(j.pipeline) };
+        else PL = { custom: false, agents: PL_DEFAULT.map(function (n) { return { builtin: n }; }) };
+        plRender();
+      }
+      note.innerHTML = '<b>Run again</b> of <a class="mono" href="#/session/' + enc(id) + '">' + esc(shortId(id)) + '</a>: the same data set and models' +
+        (j ? ', pipeline (' + esc(plChain()) + ') and options' : '; its pipeline and options were not found on this GPU server, so check them below') +
+        '. Running it again on the same GPU adds a run to <a href="#/trends">Repeatability</a>.';
+      note.hidden = false;
+      syncRun();
+    });
   }
   // study models: on this server already, or downloaded the first time a benchmark uses them
   function renderStudyNotes(cat) {
@@ -2681,9 +2789,46 @@
     $("svc-run").disabled = true;
     api("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
       if (!r.ok) { showError(err, r.data); syncRun(); return; }
+      if ($("svc-notify").checked) watchForFinish(r.data.job_id, picked());
       location.hash = "#/new/run/" + enc(r.data.job_id);
     });
   });
+  // "tell me when it finishes": a browser notification (or a message in the page) while the app is open
+  function watchedRuns() { try { return JSON.parse(localStorage.getItem("agentmeter.watch") || "[]") || []; } catch (e) { return []; } }
+  function setWatched(l) { try { localStorage.setItem("agentmeter.watch", JSON.stringify(l.slice(-10))); } catch (e) { /* this tab only */ } }
+  function watchForFinish(id, models) {
+    setWatched(watchedRuns().filter(function (x) { return x.id !== id; }).concat([{ id: id, models: models }]));
+    try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch (e) { /* not offered */ }
+  }
+  function toast(html) {
+    var t = document.createElement("div");
+    t.className = "toast"; t.setAttribute("role", "status"); t.innerHTML = html + '<button type="button" class="iconbtn" aria-label="Close">×</button>';
+    t.querySelector("button").addEventListener("click", function () { t.remove(); });
+    document.body.appendChild(t);
+    setTimeout(function () { t.remove(); }, 20000);
+  }
+  setInterval(function () {
+    var list = watchedRuns();
+    if (!list.length || !ONLINE) return;
+    list.forEach(function (w) {
+      api("/api/jobs/" + enc(w.id)).then(function (r) {
+        if (!r.ok) { if (r.status === 404) setWatched(watchedRuns().filter(function (x) { return x.id !== w.id; })); return; }
+        var st = r.data.status;
+        if (["done", "failed", "interrupted", "stopped"].indexOf(st) < 0) return;
+        setWatched(watchedRuns().filter(function (x) { return x.id !== w.id; }));
+        var ok = st === "done", what = (w.models || []).map(short).join(", ");
+        var title = ok ? "Benchmark finished" : "Benchmark " + st;
+        try {
+          if (window.Notification && Notification.permission === "granted" && document.hidden) {
+            var n = new Notification(title, { body: what + (ok ? " — results are ready." : ""), tag: w.id });
+            n.onclick = function () { window.focus(); location.hash = ok ? "#/session/" + enc(w.id) : "#/new/run/" + enc(w.id); n.close(); };
+            return;
+          }
+        } catch (e) { /* fall back to the page */ }
+        toast('<b>' + esc(title) + '</b> ' + esc(what) + ' · <a href="' + (ok ? "#/session/" : "#/new/run/") + enc(w.id) + '">' + (ok ? "Open the results" : "See what happened") + '</a>');
+      });
+    });
+  }, 15000);
 
   // step 3 (also the "Watch" view of a running session)
   function renderProgress(j, target) {
@@ -2993,7 +3138,7 @@
     $("session-body").hidden = true; $("session-watch").hidden = true;
     $("svc-dl-pdf").setAttribute("href", apiUrl("/api/jobs/" + enc(id) + "/report.pdf"));
     $("svc-dl-pdf").hidden = true;
-    $("session-compare").setAttribute("href", "#/compare?a=" + enc(id));
+    $("session-compare").setAttribute("href", "#/compare?a=" + enc(id)); $("session-again").hidden = true;
     (function tick() {
       if (token !== pollToken) return;
       api("/api/jobs/" + enc(id)).then(function (r) {
@@ -3043,7 +3188,7 @@
     $("session-chips").innerHTML = "";
     $("session-body").hidden = true; $("session-watch").hidden = true;
     $("svc-dl-pdf").hidden = true;
-    $("session-compare").setAttribute("href", "#/compare?a=" + enc(id));
+    $("session-compare").setAttribute("href", "#/compare?a=" + enc(id)); $("session-again").hidden = true;
     var w = $("session-watch");
     function fromWorker(attempt) {
       api("/api/sessions/" + enc(id)).then(function (r) {
@@ -3148,6 +3293,11 @@
       (job.owner ? '<span class="chip" title="Started by">' + esc(job.owner) + '</span>' : "");
     setDl($("svc-dl-pdf"), pdfPath(job), "agentmeter_report_" + job.job_id + ".pdf");
     $("svc-dl-pdf").hidden = false;
+    if (job.run_name) {
+      $("session-again").setAttribute("href", "#/new/models?set=" + enc(job.run_name) + "&models=" + (job.models || []).map(enc).join(",") + "&again=" + enc(job.job_id) +
+        (CP && (job.stored || SESSION.stored) ? "&from=" + enc(job.job_id) : ""));
+      $("session-again").hidden = false;
+    }
     $("session-body").hidden = false;
     var base = "#/session/" + enc(job.job_id) + "/";
     if (window.INSIGHTS) setModelSlots(res);
@@ -4072,7 +4222,7 @@
     if (!root) return;
     root.querySelectorAll(".card").forEach(function (c) {
       if (c.querySelector(":scope > .exp-bar")) return;
-      var hasT = !!c.querySelector("table"), hasS = !!c.querySelector(".lc svg, .ho svg, svg.frontier");
+      var hasT = !!c.querySelector("table"), hasS = !!c.querySelector(FIG_SEL);
       if (!hasT && !hasS) return;
       var bar = document.createElement("div");
       bar.className = "exp-bar";
@@ -4080,28 +4230,89 @@
       bar.innerHTML = (hasL ? '<button type="button" class="btn small-btn" data-exp="inspect" aria-expanded="false">Inspect data</button>' : "") +
         '<span class="muted small">Download</span>' + (hasT ? '<button type="button" class="btn small-btn" data-exp="csv">CSV</button>' : "") +
         (hasL ? '<button type="button" class="btn small-btn" data-exp="chartcsv">Chart data (CSV)</button>' : "") +
-        (hasS ? '<button type="button" class="btn small-btn" data-exp="png">PNG</button>' : "");
+        (hasT ? '<button type="button" class="btn small-btn" data-exp="latex" title="A LaTeX table (booktabs) with this card\'s title as its caption">LaTeX</button>' : "") +
+        (hasS ? '<button type="button" class="btn small-btn" data-exp="png" title="A picture with a caption">PNG</button><button type="button" class="btn small-btn" data-exp="svg" title="A vector figure with a caption: sharp at any size, for a thesis or paper">SVG</button>' : "");
       c.appendChild(bar);
     });
   }
   function expName(card, ext) {
     var h = ((card.querySelector("h2") || {}).textContent || "chart").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
-    return "agentmeter_" + (SESSION.id ? shortId(SESSION.id).replace(/…$/, "") + "_" : "") + h + "." + ext;
+    return "agentmeter_" + (SESSION.id && card.closest("#session-body") ? shortId(SESSION.id).replace(/…$/, "") + "_" : "") + h + "." + ext;
   }
   function tableCsv(t) {
     var q = function (v) { v = String(v).replace(/\s+/g, " ").trim(); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     return Array.prototype.map.call(t.rows, function (r) { return Array.prototype.map.call(r.cells, function (c) { return q(c.textContent); }).join(","); }).join("\n") + "\n";
   }
-  function svgPng(svg, name) {
+  // ---- thesis-ready figures: every chart as SVG (vector) or PNG, with a caption under it ----
+  var FIG_SEL = ".lc svg, .ho svg, svg.frontier, svg.trend, .hbars";
+  function figCaption(card) {
+    var h = ((card.querySelector("h2") || {}).textContent || "AgentMeter chart").replace(/\s+/g, " ").trim(), sel = card.querySelector("select");
+    if (sel && sel.selectedIndex >= 0 && card.querySelector(".hbars")) h += ": " + sel.options[sel.selectedIndex].textContent.trim();
+    return h + " — AgentMeter" + (SESSION.id && card.closest("#session-body") ? ", session " + shortId(SESSION.id) : "") + ", " + new Date().toISOString().slice(0, 10);
+  }
+  // HTML bar lists (.hbars) become a small SVG so they export like every other chart
+  function barsSvg(box) {
+    var rows = Array.prototype.map.call(box.querySelectorAll(".hbar"), function (r) {
+      return { l: r.querySelector(".hb-l").textContent, w: parseFloat(r.querySelector(".hb-f").style.width) || 0, v: r.querySelector(".hb-v").textContent, lead: r.querySelector(".hb-f").classList.contains("lead") };
+    });
+    var W = 640, rh = 26, L = 210, R = 90, H = rows.length * rh + 8, ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.innerHTML = rows.map(function (r, i) {
+      var y = 4 + i * rh, bw = (W - L - R) * r.w / 100;
+      return '<text x="0" y="' + (y + 16) + '" font-size="12">' + esc(r.l.length > 30 ? r.l.slice(0, 29) + "…" : r.l) + '</text>' +
+        '<rect x="' + L + '" y="' + (y + 5) + '" width="' + (W - L - R) + '" height="13" rx="3" fill="#e2e2dc"/>' +
+        '<rect x="' + L + '" y="' + (y + 5) + '" width="' + bw.toFixed(1) + '" height="13" rx="3" fill="' + (r.lead ? "#2e7d5b" : "#2455d6") + '"/>' +
+        '<text x="' + W + '" y="' + (y + 16) + '" font-size="12" text-anchor="end">' + esc(r.v) + '</text>';
+    }).join("");
+    svg.style.position = "absolute"; svg.style.left = "-10000px"; svg.style.width = W + "px";
+    document.body.appendChild(svg);
+    return svg;
+  }
+  function figSvg(card) {
+    var el = card.querySelector(FIG_SEL), tmp = null;
+    if (el && el.classList.contains("hbars")) { tmp = barsSvg(el); el = tmp; }
+    return { svg: el, done: function () { if (tmp) tmp.remove(); } };
+  }
+  // a standalone copy of a chart: computed styles inlined, a white background and a caption line
+  function svgStandalone(svg, caption) {
     var clone = svg.cloneNode(true), src = svg.querySelectorAll("*"), dst = clone.querySelectorAll("*");
-    var PROPS = ["fill", "stroke", "stroke-width", "stroke-dasharray", "opacity", "font-size", "font-family", "font-weight", "visibility"];
+    var PROPS = ["fill", "stroke", "stroke-width", "stroke-dasharray", "opacity", "font-size", "font-family", "font-weight", "visibility", "text-anchor"];
     Array.prototype.forEach.call(src, function (el, i) {
       var cs = getComputedStyle(el);
       dst[i].setAttribute("style", PROPS.map(function (p) { return p + ":" + cs.getPropertyValue(p); }).join(";"));
     });
-    var vb = svg.viewBox.baseVal, scale = 2, w = (vb && vb.width) || svg.clientWidth, h = (vb && vb.height) || svg.clientHeight;
-    clone.setAttribute("width", w); clone.setAttribute("height", h); clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    var url = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(clone)], { type: "image/svg+xml" }));
+    var vb = svg.viewBox.baseVal, w = (vb && vb.width) || svg.clientWidth, h = (vb && vb.height) || svg.clientHeight, x0 = (vb && vb.x) || 0, y0 = (vb && vb.y) || 0, capH = caption ? 30 : 0;
+    var ns = "http://www.w3.org/2000/svg", g = document.createElementNS(ns, "g");
+    while (clone.firstChild) g.appendChild(clone.firstChild);
+    clone.appendChild(g);
+    clone.setAttribute("xmlns", ns); clone.setAttribute("viewBox", x0 + " " + y0 + " " + w + " " + (h + capH)); clone.setAttribute("width", w); clone.setAttribute("height", h + capH);
+    clone.removeAttribute("class"); clone.removeAttribute("style");
+    var bg = document.createElementNS(ns, "rect");
+    bg.setAttribute("x", x0); bg.setAttribute("y", y0); bg.setAttribute("width", w); bg.setAttribute("height", h + capH); bg.setAttribute("fill", getComputedStyle(document.body).backgroundColor || "#fff");
+    clone.insertBefore(bg, g);
+    if (caption) {
+      var t = document.createElementNS(ns, "text");
+      t.setAttribute("x", x0 + w / 2); t.setAttribute("y", y0 + h + 20); t.setAttribute("text-anchor", "middle");
+      t.setAttribute("style", "font-size:12px;font-family:" + getComputedStyle(document.body).fontFamily + ";fill:" + getComputedStyle(document.body).color);
+      t.textContent = caption; clone.appendChild(t);
+    }
+    return { xml: new XMLSerializer().serializeToString(clone), w: w, h: h + capH };
+  }
+  function latexTable(t, caption) {
+    var esc2 = function (v) { return String(v).replace(/\s+/g, " ").trim().replace(/\\/g, "\\textbackslash{}").replace(/([&%$#_{}])/g, "\\$1").replace(/~/g, "\\textasciitilde{}").replace(/\^/g, "\\textasciicircum{}").replace(/—/g, "---").replace(/–/g, "--"); };
+    var rows = Array.prototype.map.call(t.rows, function (r) { return Array.prototype.map.call(r.cells, function (c) { return esc2(c.textContent); }); });
+    var n = Math.max.apply(null, rows.map(function (r) { return r.length; }));
+    var head = rows[0], body = rows.slice(1);
+    var label = "tab:" + caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30);
+    return "% AgentMeter export, " + new Date().toISOString().slice(0, 10) + " — needs \\usepackage{booktabs}\n" +
+      "\\begin{table}[htbp]\n  \\centering\n  \\caption{" + esc2(caption) + "}\n  \\label{" + label + "}\n  \\begin{tabular}{l" + "r".repeat(Math.max(0, n - 1)) + "}\n    \\toprule\n" +
+      "    " + head.join(" & ") + " \\\\\n    \\midrule\n" + body.map(function (r) { return "    " + r.join(" & ") + " \\\\"; }).join("\n") +
+      "\n    \\bottomrule\n  \\end{tabular}\n\\end{table}\n";
+  }
+  function svgPng(svg, name, caption) {
+    var st = svgStandalone(svg, caption), scale = 2, w = st.w, h = st.h;
+    var url = URL.createObjectURL(new Blob([st.xml], { type: "image/svg+xml" }));
     var img = new Image();
     img.onload = function () {
       var cv = document.createElement("canvas"); cv.width = w * scale; cv.height = h * scale;
@@ -4118,7 +4329,14 @@
     if (kind === "csv") download(expName(card, "csv"), tableCsv(card.querySelector("table")));
     else if (kind === "chartcsv") download(expName(card, "data.csv"), chartRows(card).map(function (r) { return r.map(csvCell).join(","); }).join("\n"));
     else if (kind === "inspect") inspectCard(card, b);
-    else svgPng(card.querySelector(".lc svg, .ho svg, svg.frontier"), expName(card, "png"));
+    else if (kind === "latex") download(expName(card, "tex"), latexTable(card.querySelector("table"), ((card.querySelector("h2") || {}).textContent || "AgentMeter table").trim()), "application/x-tex");
+    else {
+      var f = figSvg(card);
+      if (!f.svg) return;
+      if (kind === "svg") download(expName(card, "svg"), svgStandalone(f.svg, figCaption(card)).xml, "image/svg+xml");
+      else svgPng(f.svg, expName(card, "png"), figCaption(card));
+      f.done();
+    }
   });
   // ---- Inspect: the exact numbers behind every chart of a card (observability-style) ----
   function csvCell(v) { var t = v == null ? "" : String(v); return /[",\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; }
@@ -4292,6 +4510,7 @@
           '<button type="button" class="btn small-btn" data-tr-open="' + esc(d.series) + '" data-tr-metric="' + esc(d.metric) + '">Show</button></li>';
       }).join("") + '</ul>'
         : '<p class="muted" style="margin-bottom:0">No series moved beyond its usual spread' + (t.series.some(function (x) { return x.points.length >= 3; }) ? "." : " — a judgement needs at least three runs of the same model on the same setup.") + infoI(t.rule) + '</p>') + '</div>';
+    addExports($("view-trends"));
     if (t.skipped) $("tr-drifts").innerHTML += '<p class="muted small">' + t.skipped + ' finished session' + (t.skipped === 1 ? " has" : "s have") + ' no recorded setup (older sessions) and ' + (t.skipped === 1 ? "is" : "are") + ' left out.</p>';
   }
   function historyCard(s, ts, t) {
@@ -5015,13 +5234,80 @@
     return '<div class="card"><h2>Report and results</h2><div class="actions" id="svc-downloads-main">' +
       dlLink(pdfPath(job), "agentmeter_report_" + job.job_id + ".pdf", "PDF report", "btn primary") +
       '<button type="button" class="btn" id="svc-dl-json">session_results.json</button>' +
-      '<button type="button" class="btn" id="svc-dl-saw">SAW CSV</button><button type="button" class="btn" id="svc-dl-agent">Per-agent CSV</button></div></div>' +
+      '<button type="button" class="btn" id="svc-dl-saw">SAW CSV</button><button type="button" class="btn" id="svc-dl-agent">Per-agent CSV</button></div>' +
+      '<h3 style="margin-top:16px">Reproducibility package</h3><p class="muted small" style="margin-top:0">One .zip with everything needed to check or repeat this session: the results, the exact settings and pipeline, ' +
+      'the GPU, driver and library versions, the prepared flows with their fingerprint, the PDF and a README saying how to run it again.</p>' +
+      '<div class="actions"><button type="button" class="btn" id="svc-dl-repro">Download reproducibility package (.zip)</button><span class="small muted" id="svc-repro-status" aria-live="polite"></span></div></div>' +
       '<div class="card"><h2>Prepared set</h2><p class="muted small">The exact flows this session measured — download them to keep them, or reuse them in a new benchmark.</p>' +
       '<p class="mono small">' + esc(job.run_name || "") + '</p><div class="actions" id="svc-downloads"></div>' +
       '<div class="actions"><a class="btn" id="svc-again" href="#/new/models?set=' + enc(job.run_name || "") + (CP && job.stored ? "&from=" + enc(job.job_id) : "") + '">Benchmark these flows again</a></div></div>' +
       (CP && job.can_delete ? '<div class="card"><h2>Delete this session</h2><p class="muted small">Removes the stored session (results, PDF, prepared-set copy) for everyone. ' +
         'Only its owner or an admin can do this.</p><div class="actions"><button type="button" class="btn" id="svc-delete">Delete session</button></div>' +
         '<div id="svc-delete-error" class="notice error" role="alert" hidden></div></div>' : "");
+  }
+  // ---- reproducibility package: a .zip built in the browser (stored, no compression) ----
+  var CRC_T = (function () { var t = [], c, n, k; for (n = 0; n < 256; n++) { c = n; for (k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(u) { var c = 0xFFFFFFFF; for (var i = 0; i < u.length; i++) c = CRC_T[(c ^ u[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function makeZip(files) {
+    var enc8 = new TextEncoder(), parts = [], central = [], off = 0;
+    var le = function (n, b) { var a = new Uint8Array(b); for (var i = 0; i < b; i++) a[i] = (n >>> (8 * i)) & 0xFF; return a; };
+    var cat = function (arrs) { var n = arrs.reduce(function (a, x) { return a + x.length; }, 0), o = new Uint8Array(n), p = 0; arrs.forEach(function (x) { o.set(x, p); p += x.length; }); return o; };
+    var d = new Date(), dt = ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)), dd = (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate());
+    files.forEach(function (f) {
+      var name = enc8.encode(f.name), data = typeof f.data === "string" ? enc8.encode(f.data) : f.data, crc = crc32(data);
+      var head = cat([le(0x04034b50, 4), le(20, 2), le(0x0800, 2), le(0, 2), le(dt, 2), le(dd, 2), le(crc, 4), le(data.length, 4), le(data.length, 4), le(name.length, 2), le(0, 2), name]);
+      parts.push(head, data);
+      central.push(cat([le(0x02014b50, 4), le(20, 2), le(20, 2), le(0x0800, 2), le(0, 2), le(dt, 2), le(dd, 2), le(crc, 4), le(data.length, 4), le(data.length, 4),
+        le(name.length, 2), le(0, 2), le(0, 2), le(0, 2), le(0, 2), le(0, 4), le(off, 4), name]));
+      off += head.length + data.length;
+    });
+    var cd = cat(central);
+    return new Blob(parts.concat([cd, cat([le(0x06054b50, 4), le(0, 2), le(0, 2), le(files.length, 2), le(files.length, 2), le(cd.length, 4), le(off, 4), le(0, 2)])]), { type: "application/zip" });
+  }
+  function fetchBytes(path) {
+    var f = CP && WORKER_PATHS.test(path) ? cpFetch(path, { raw: true }) : backendFetch(path, { raw: true });
+    return f.then(function (r) { return r && r.ok && r.arrayBuffer ? r.arrayBuffer().then(function (b) { return new Uint8Array(b); }) : null; }, function () { return null; });
+  }
+  function reproPackage(res, job, btn) {
+    var st = $("svc-repro-status"), id = job.job_id, ident = res.session_identity || {}, env = res.environment || {};
+    btn.disabled = true; st.textContent = "Collecting the files…";
+    var setFiles = CP && job.stored ? ["manifest.json", "features.csv", "labels.csv"].filter(function (f) { return (job.files || []).indexOf(f) >= 0; }).map(function (f) { return ["/api/sessions/" + enc(id) + "/files/" + f, f]; })
+      : job.run_name ? ["manifest.json", "features.csv", "labels.csv"].map(function (f) { return ["/api/prepared/" + setPath(job.run_name) + "/" + f, f]; }) : [];
+    var wanted = setFiles.map(function (x) { return fetchBytes(x[0]).then(function (b) { return b ? { name: "prepared_set/" + x[1], data: b } : null; }); });
+    wanted.push(fetchBytes(pdfPath(job)).then(function (b) { return b ? { name: "report.pdf", data: b } : null; }));
+    Promise.all(wanted).then(function (got) {
+      got = got.filter(Boolean);
+      var run = { session_id: id, created_at: job.created_at || null, finished_at: job.finished_at || null, owner: job.owner || (job.user || {}).uname || null,
+                  models: job.models || (res.session || {}).models || [], prepared_set: job.run_name || null, n_flows: (res.session || {}).n_flows,
+                  pipeline: job.pipeline || null, load_test: !!job.load_test, repeat_check: !!job.repeat_check, provider: env.provider || null,
+                  quantization: "4-bit NF4", settings: ident.settings || null };
+      var again = location.origin + location.pathname + "#/new/models?set=" + enc(job.run_name || "") + "&models=" + (run.models || []).map(enc).join(",") + "&again=" + enc(id);
+      var readme = "# AgentMeter reproducibility package\n\nSession: " + id + "\nCreated: " + new Date().toISOString() + "\n\n" +
+        "AgentMeter measures how efficiently open-source LLMs (4-bit NF4) run a fixed multi-agent analysis of network flows: latency, GPU memory, tokens, cost and energy.\n\n" +
+        "## What is in this package\n\n" +
+        "- `session_results.json` — every stored result of the session (scores, per-model metrics, statistics, analyses).\n" +
+        "- `run.json` — what was run: models, prepared set, pipeline, options and the settings that make up the setup.\n" +
+        "- `identity.json` — the setup fingerprint (prepared-set hash, GPU, settings fingerprint) and the environment (GPU, driver, CUDA, library versions).\n" +
+        (got.some(function (f) { return /^prepared_set\//.test(f.name); }) ? "- `prepared_set/` — the exact flows the models answered (`features.csv`, `labels.csv` when labelled, `manifest.json` with the hash).\n" : "- (the prepared set's files could not be fetched when this package was made)\n") +
+        (got.some(function (f) { return f.name === "report.pdf"; }) ? "- `report.pdf` — the session report.\n" : "") +
+        "\n## The setup (what must match to compare)\n\n" +
+        "- Prepared set (flows) SHA-256: `" + (ident.prepared_set_sha256 || "unknown") + "` (hash version " + (ident.prepared_set_hash_version || "?") + ")\n" +
+        "- GPU: " + (ident.gpu_label || env.gpu_name || "unknown") + "\n" +
+        "- Settings fingerprint: `" + (ident.settings_fingerprint || "unknown") + "`\n" +
+        "- Driver / CUDA: " + (env.driver_version || "—") + " / " + (env.cuda_runtime_version || "—") + "; torch " + (env.torch || "—") + ", transformers " + (env.transformers || "—") + ", bitsandbytes " + (env.bitsandbytes || "—") + "\n" +
+        "\n## How to run it again\n\n" +
+        "1. Open AgentMeter and use **Run again** on the session page, or open: " + again + "\n" +
+        "   (if the prepared set is not on the GPU server, import `prepared_set/` under New benchmark › Reuse a prepared set; its hash stays the same).\n" +
+        "2. Use the same GPU type: results are only comparable on the same prepared set, GPU and settings.\n" +
+        "3. The new session appears on Repeatability next to this one; a change beyond the usual spread is flagged.\n";
+      var files = [{ name: "README.md", data: readme }, { name: "run.json", data: JSON.stringify(run, null, 2) },
+                   { name: "identity.json", data: JSON.stringify({ session_identity: ident, environment: env }, null, 2) },
+                   { name: "session_results.json", data: JSON.stringify(res, null, 2) }].concat(got);
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(makeZip(files)); a.download = "agentmeter_" + shortId(id).replace(/…$/, "") + "_reproducibility.zip";
+      document.body.appendChild(a); a.click(); a.remove();
+      st.textContent = files.length + " files packed."; btn.disabled = false;
+    });
   }
   function download(name, text, type) {
     var a = document.createElement("a");
@@ -5030,6 +5316,7 @@
   }
   function wireDownloads(res, job) {
     $("svc-dl-json").addEventListener("click", function () { download("session_results.json", JSON.stringify(res, null, 2), "application/json"); });
+    $("svc-dl-repro").addEventListener("click", function () { reproPackage(res, job, this); });
     $("svc-dl-saw").addEventListener("click", function () { download("agentmeter_session_saw.csv", window.REPORT.sawCsv(res)); });
     $("svc-dl-agent").addEventListener("click", function () { download("agentmeter_session_per_agent.csv", window.REPORT.perAgentCsv(res)); });
     if ($("svc-delete")) $("svc-delete").addEventListener("click", function () {
@@ -5351,6 +5638,7 @@
       '<p class="muted small">View only: stored scores never change.</p>';
     $("cmp-result").querySelectorAll("[data-ctab]").forEach(function (a) { a.addEventListener("click", function (ev) { ev.preventDefault(); CMP.tab = a.getAttribute("data-ctab"); renderMerged(); }); });
     if ($("cmp-bar-metric")) $("cmp-bar-metric").addEventListener("change", function () { CMP.bar = this.value; renderMerged(); });
+    addExports($("cmp-result"));
   }
 
   // ---------- DATA SETS: every prepared set, what is in it and who used it ----------
@@ -5427,6 +5715,7 @@
           (g.models.length > 1 ? ' <a class="btn small-btn" href="#/compare?a=' + enc(g.sessions[0].session_id) + '">Compare models</a>' : "") + '</td></tr>' +
           (open ? '<tr class="ds-detail"><td colspan="7"><div id="ds-detail">' + dsDetail(g, null) + '</div></td></tr>' : "");
       }).join("") + '</tbody></table></div>' + (rows.length ? "" : '<p class="muted" id="ds-none">No set matches.</p>') + '</div>';
+    addExports($("ds-body"));
     var g = DS.rows.filter(function (x) { return x.key === DS.open; })[0];
     if (g && g.name && !(CP && !ONLINE)) {
       api("/api/prepared/" + setPath(g.name)).then(function (r) {
@@ -5480,7 +5769,7 @@
     return '<svg class="tel-spark" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><polyline points="' + pts + '" style="stroke:' + color + '"/></svg>';
   }
   function secs(a, b) { var x = Date.parse(a), y = b ? Date.parse(b) : Date.now(); return isFinite(x) && isFinite(y) ? Math.max(0, (y - x) / 1000) : null; }
-  function fmtDur(s) {
+  function gqDur(s) {
     if (s == null) return "—";
     s = Math.round(s);
     return s < 60 ? s + " s" : s < 3600 ? Math.floor(s / 60) + " min " + (s % 60) + " s" : Math.floor(s / 3600) + " h " + Math.round((s % 3600) / 60) + " min";
@@ -5538,7 +5827,7 @@
         (j.kind === "prepare" ? '<p class="small" style="margin:0">' + esc(j.message || "Preparing…") + '</p>'
           : '<div class="bar"><span style="width:' + (pct || 0).toFixed(1) + '%"></span></div><p class="small" style="margin:6px 0 0">' + (pct == null ? "" : fmtNum(pct, 0) + "% · ") +
             (p.total ? fmtNum(p.completed) + " of " + fmtNum(p.total) + " flow answers" : esc(p.phase || "")) + (p.current_model ? " · now " + esc(short(p.current_model)) : "") +
-            ' · running ' + fmtDur(el) + (left != null ? ' · about ' + fmtDur(left) + ' left' : "") + ' · <a href="#/new/run/' + enc(j.job_id) + '">Watch live</a></p>') + '</div>';
+            ' · running ' + gqDur(el) + (left != null ? ' · about ' + gqDur(left) + ' left' : "") + ' · <a href="#/new/run/' + enc(j.job_id) + '">Watch live</a></p>') + '</div>';
     }).join("") : '<p class="muted" id="gq-idle" style="margin-bottom:0">Nothing is running. A new benchmark starts at once.</p>') + '</div>';
     $("gq-queued").innerHTML = '<div class="card" id="gq-queued-card"><h2>Waiting (' + d.queued.length + ')</h2>' + (d.queued.length ?
       '<div class="table-wrap"><table id="gq-queue-table"><thead><tr><th class="num">#</th><th>What</th><th>Models</th><th>Data set</th><th>Owner</th><th>Queued</th></tr></thead><tbody>' +
@@ -5552,7 +5841,7 @@
       d.recent.map(function (j) {
         var ok = j.status === "done", link = ok && j.kind !== "prepare" ? '<a class="mono" href="#/session/' + enc(j.job_id) + '">' + esc(KIND_LABEL[j.kind] || j.kind) + '</a>' : esc(KIND_LABEL[j.kind] || j.kind);
         return '<tr><td>' + link + '</td><td><span class="chip ' + (ok ? "ok" : j.status === "failed" ? "bad" : "") + '">' + esc(j.status) + '</span></td><td class="small">' + esc((j.models || []).map(short).join(", ") || "—") +
-          '</td><td class="small">' + esc(fmtDate(j.finished_at)) + '</td><td class="num">' + fmtDur(secs(j.started_at, j.finished_at)) + '</td></tr>';
+          '</td><td class="small">' + esc(fmtDate(j.finished_at)) + '</td><td class="num">' + gqDur(secs(j.started_at, j.finished_at)) + '</td></tr>';
       }).join("") + '</tbody></table></div>' : '<p class="muted" style="margin-bottom:0">Nothing has run yet.</p>') + '</div>';
   }
   // where a file uploaded now would be prepared (the same rule as New benchmark: prepRoute)
@@ -5609,6 +5898,7 @@
           }).join("") + '</tbody></table></div>' +
           (g.n_sessions > 1 ? '<p class="small" style="margin-bottom:0"><a class="lb-compare" href="#/compare?sessions=' + g.sessions.map(enc).join(",") + '">Compare these models →</a></p>' : "") + '</div>';
       }).join("");
+      addExports($("lb-groups"));
     });
   }
   var LB_BY = { efficiency: "SAW score (efficiency)" };
@@ -5636,6 +5926,7 @@
             return '<tr><td class="num">' + x.rank + '</td><td class="mono">' + esc(x.model) + extraTag(x.model) + (x.few_data ? ' <span class="chip warn" title="Measured on only one setup">few data</span>' : "") +
               '</td><td class="num">' + x.wins + '</td><td class="num">' + fmtPct(x.win_rate) + '</td><td class="num">' + fmtPct(x.rivals_beaten) + '</td><td class="num">' + x.setups + '</td><td class="num">' + x.n_sessions + '</td></tr>';
           }).join("") + '</tbody></table></div></div>';
+      addExports($("lb-overall"));
     });
   }
   document.querySelectorAll('input[name="lb-sort"]').forEach(function (r) { r.addEventListener("change", loadPerSetup); });

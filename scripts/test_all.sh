@@ -56,6 +56,7 @@ if [ "$WHAT" = all ] || [ "$WHAT" = e2e ]; then
   flow app_flow
   flow compare_many_flow
   flow datasets_gpu_flow AGENTMETER_MOCK_LATENCY_S=0.2
+  flow workflow_flow
   flow telemetry_flow AGENTMETER_MOCK_LATENCY_S=0.05
   flow prep_flow
   flow observability_flow AGENTMETER_TEST_SYNTHETIC_GPU=1 AGENTMETER_IDLE_SAMPLE_S=1 AGENTMETER_MOCK_LATENCY_S=0.02

@@ -215,3 +215,30 @@ describe("the session list says who may edit each row", () => {
     expect((await row(other)).can_edit).toBe(false);
   });
 });
+
+describe("the session list pages past 200", () => {
+  it("offset + next_offset walk the whole list, newest first, without repeats", async () => {
+    const u = await user();
+    await register();
+    const ids: string[] = [];
+    for (let i = 0; i < 7; i++) {
+      const id = `job_20261011_09000${i}_` + String(i).repeat(32);
+      const g = await api("/api/runs/authorize", { body: { kind: "benchmark", run: "csv_runs/x_1" }, token: u.token });
+      await backendCall("POST", "/api/backend/jobs", { job_id: id, kind: "benchmark", status: "queued", jti: g.data.jti, models: ["m/a"], input_type: "csv", n_flows: 5, provider: "hf" });
+      ids.push(id);
+    }
+    const seen: string[] = [];
+    let offset: number | null = 0, pages = 0;
+    while (offset != null) {
+      const r = await api(`/api/sessions?limit=3&offset=${offset}`, { token: u.token });
+      expect(r.status).toBe(200);
+      seen.push(...r.data.sessions.map((x: any) => x.session_id));
+      offset = r.data.next_offset;
+      pages++;
+    }
+    expect(pages).toBe(3);                                         // 3 + 3 + 1
+    expect(new Set(seen).size).toBe(7);
+    expect([...seen].sort()).toEqual([...ids].sort());
+    expect((await api("/api/sessions?limit=50", { token: u.token })).data.next_offset).toBeNull();
+  });
+});

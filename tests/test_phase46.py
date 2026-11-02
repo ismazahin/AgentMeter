@@ -518,6 +518,14 @@ def test_sessions_list_and_filters(app):
         all(r["status"] == "Failed" for r in c.get("/api/sessions?status=failed").get_json()["sessions"])
     one = c.get(f"/api/sessions/{app['j1']}").get_json()
     assert one["identity"]["prepared_set_sha256"]
+    # pages: offset + next_offset walk the whole list without repeats (no silent cap at 200)
+    seen, offset = [], 0
+    while offset is not None:
+        d = c.get(f"/api/sessions?limit=1&offset={offset}").get_json()
+        seen += [r["session_id"] for r in d["sessions"]]
+        offset = d["next_offset"]
+    assert seen == ids and len(set(seen)) == len(seen)
+    assert c.get("/api/sessions?limit=200").get_json()["next_offset"] is None
 
 
 def test_compare_api(app):

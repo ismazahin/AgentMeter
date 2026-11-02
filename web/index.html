@@ -1404,6 +1404,7 @@
   <section id="view-admin" class="view" hidden aria-labelledby="h-admin">
     <div class="page-head"><div><h1 id="h-admin">Admin</h1>
       <p>Users, credentials and limits. Secrets are never shown.</p></div></div>
+    <div class="card" id="adm-health"><h2>Problems in the last 24 hours</h2><p class="muted">Loading…</p></div>
     <div class="card">
       <div class="row" style="margin-top:0;justify-content:space-between"><h2>Users</h2><span class="chip" id="adm-count"></span></div>
       <div class="table-wrap" style="margin-top:10px" id="adm-users"></div>
@@ -1592,7 +1593,7 @@
       if ((m = /^\/api\/jobs\/([^/]+)\/(resume|stop)$/.exec(p))) return { kind: m[2], job_id: decodeURIComponent(m[1]) };
       return null;
     }
-    if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog|schedules|gpu)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
+    if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog|schedules|gpu|logs\/recent)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
     if ((m = /^\/api\/jobs\/([^/]+)(\/(result|report\.pdf|constraints|flows|telemetry))?$/.exec(p))) return m[2] || !STRONG_JOB.test(decodeURIComponent(m[1])) ? { kind: "read" } : null;
     if ((m = /^\/api\/prepared\/([^/]+)\/([^/]+)(\/[^/]+)?$/.exec(p)) && m[1] !== "import") return m[3] ? { kind: "files", set: decodeURIComponent(m[1]) + "/" + decodeURIComponent(m[2]) } : { kind: "read" };
     return null;
@@ -1938,6 +1939,32 @@
     });
   }
 
+  // every session (paged: 200 at a time), cached for 20 s so pages opened one after another share one read
+  var ALL = { at: 0, p: null };
+  function pagedSessions(query) {                    // every page of a filtered list
+    return (function page(offset, acc) {
+      return api("/api/sessions?limit=200&offset=" + offset + (query ? "&" + query : "")).then(function (r) {
+        if (!r.ok) return r;
+        acc = acc.concat(r.data.sessions || []);
+        if (r.data.next_offset != null && acc.length < 20000) return page(r.data.next_offset, acc);
+        return { ok: true, status: 200, data: { sessions: acc, statuses: r.data.statuses } };
+      });
+    })(0, []);
+  }
+  function allSessions(fresh) {
+    if (!fresh && ALL.p && Date.now() - ALL.at < 20000) return ALL.p;
+    ALL.at = Date.now();
+    ALL.p = (function page(offset, acc) {
+      return api("/api/sessions?limit=200&offset=" + offset).then(function (r) {
+        if (!r.ok) return r;
+        acc = acc.concat(r.data.sessions || []);
+        if (r.data.next_offset != null && acc.length < 20000) return page(r.data.next_offset, acc);
+        return { ok: true, status: 200, data: { sessions: acc, statuses: r.data.statuses } };
+      });
+    })(0, []);
+    ALL.p.then(function (r) { if (!r.ok) ALL.p = null; });
+    return ALL.p;
+  }
   // ---------- NEW BENCHMARK (wizard) ----------
   var WIZ = { prep: null, set: null, summary: null, src: "file" };
   function wizStep(step) {
@@ -2208,7 +2235,7 @@
     $("svc-stored-card").hidden = !CP;
     if (!CP) return;
     $("svc-stored-error").hidden = true;
-    api("/api/sessions?limit=200").then(function (r) {
+    allSessions().then(function (r) {
       var seen = {}, sets = ((r.ok && r.data.sessions) || []).filter(function (s) {
         var ok = (s.status === "Done" || s.status === "Demo") && (s.files || []).indexOf("manifest.json") >= 0 && (s.files || []).indexOf("features.csv") >= 0;
         var key = s.prepared_set_sha256 || s.session_id;
@@ -2593,7 +2620,7 @@
   }
   function loadHistory() {
     WIZ.history = null;
-    api("/api/sessions?limit=200").then(function (r) { if (r.ok) { WIZ.history = r.data.sessions || []; renderSettings(); } });
+    allSessions().then(function (r) { if (r.ok) { WIZ.history = r.data.sessions || []; renderSettings(); } });
   }
   function renderSettings() {
     var s = WIZ.summary;
@@ -3052,6 +3079,7 @@
   // ---------- SESSIONS ----------
   var FLT_TAG = "";
   function loadSessions() {
+    ALL.p = null;                                    // the list page always reads fresh
     var q = [], st = $("flt-status").value, it = $("flt-input").value, qs = $("flt-q").value.trim();
     if (st) q.push("status=" + enc(st));
     if (it) q.push("input=" + enc(it));
@@ -3060,7 +3088,7 @@
     $("flt-tag-row").hidden = !FLT_TAG; $("flt-tag").textContent = FLT_TAG + " ✕";
     var box = $("sessions-table-box");
     box.innerHTML = '<p class="muted" style="padding:12px">Loading…</p>';
-    api("/api/sessions?limit=200" + (q.length ? "&" + q.join("&") : "")).then(function (r) {
+    pagedSessions(q.join("&")).then(function (r) {
       if (!r.ok) { box.innerHTML = '<p class="notice error" style="margin:12px">' + esc(r.data.error) + '</p>'; return; }
       var rows = r.data.sessions || [];
       var any = st || it || qs || FLT_TAG;
@@ -3807,7 +3835,7 @@
   function wirePipelineCompare(job) {
     var host = $("agents-pipelines-host"), id = job.job_id;
     if (!host || !window.INSIGHTS) return;
-    api("/api/sessions?limit=200").then(function (r) {
+    allSessions().then(function (r) {
       if (SESSION.id !== id || !r.ok) return;
       var pc = INSIGHTS.pipelineCompare(r.data.sessions || [], id), name = function (l) { return l.map(agName).join(" → "); };
       host.innerHTML = '<div class="card" id="agents-pipelines"><h2>Other pipelines on these flows</h2>' + (!pc.current ? '<p class="muted small">This session has no prepared-set fingerprint.</p>'
@@ -4473,7 +4501,7 @@
     if (q.demo === "1") $("tr-demo").checked = true;
     try { var sw = localStorage.getItem("agentmeter.stableWithin"); if (sw != null) $("tr-within").value = sw; } catch (e) { /* the default */ }
     $("tr-summary").innerHTML = '<p class="muted">Loading…</p>'; $("tr-body").innerHTML = ""; $("tr-drifts").innerHTML = "";
-    api("/api/sessions?limit=200").then(function (r) {
+    allSessions().then(function (r) {
       if (!r.ok) { $("tr-summary").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
       TR.data = r.data.sessions || [];
       // a link to a demo series opens with demo sessions shown
@@ -4633,7 +4661,7 @@
     if (!host || !window.INSIGHTS) return;
     var st = String(job.status || "").toLowerCase();
     if (!(st === "done" || st === "demo")) return;
-    api("/api/sessions?limit=200").then(function (r) {
+    allSessions().then(function (r) {
       if (!r.ok || !$("svc-rep-line") || $("svc-rep-line") !== host) return;
       var all = r.data.sessions || [], me = all.filter(function (x) { return x.session_id === job.job_id; })[0];
       var key = me && INSIGHTS.setupKey(me);
@@ -5432,7 +5460,7 @@
     if (q.a && q.b && !q.sessions) { location.replace("#/compare?sessions=" + enc(q.a) + "," + enc(q.b)); return; }   // old links
     var ids = (q.sessions || "").split(",").filter(Boolean), first = ids[0] || q.a || "";
     var want = (q.models || "").split(",").filter(Boolean);
-    api("/api/sessions?limit=200").then(function (r) {
+    allSessions().then(function (r) {
       if (!r.ok) { showError($("cmp-error"), r.data); return; }
       CMP.rows = (r.data.sessions || []).filter(function (s) { return s.status === "Done" || s.status === "Demo"; });
       CMP.setups = window.INSIGHTS ? INSIGHTS.compareSetups(CMP.rows).setups : [];
@@ -5750,7 +5778,7 @@
     if (q.open) DS.open = q.open;
     $("ds-body").innerHTML = '<p class="muted">Loading…</p>';
     var gpuJobs = CP && !ONLINE ? Promise.resolve({ ok: false }) : api("/api/jobs?limit=200");
-    Promise.all([api("/api/sessions?limit=200"), gpuJobs]).then(function (rs) {
+    Promise.all([allSessions(), gpuJobs]).then(function (rs) {
       if (!rs[0].ok) { $("ds-body").innerHTML = '<div class="notice error">' + esc(rs[0].data.error || "Could not load the sessions.") + '</div>'; return; }
       DS.offline = !rs[1].ok;
       DS.rows = datasetRows(rs[0].data.sessions || [], rs[1].ok ? rs[1].data.jobs || [] : []);
@@ -6221,7 +6249,31 @@
     });
   });
 
+  // the GPU server's recent warnings, errors and failed runs (GET /api/logs/recent, admins only)
+  function loadAdminHealth() {
+    var host = $("adm-health");
+    if (!host) return;
+    if (CP && !ONLINE) { host.innerHTML = '<h2>Problems in the last 24 hours</h2><p class="muted" style="margin-bottom:0">The GPU server is offline: its logs are on it and can be read when it is back.</p>'; return; }
+    api("/api/logs/recent?hours=24").then(function (r) {
+      if (!r.ok) { host.innerHTML = '<h2>Problems in the last 24 hours</h2><p class="notice error small">' + esc(r.data.error || "Could not read the server's problems.") + '</p>'; return; }
+      var d = r.data, c = d.counts, ok = !c.errors && !c.failed_jobs;
+      host.innerHTML = '<div class="row" style="margin-top:0;justify-content:space-between"><h2>Problems in the last 24 hours</h2><span class="chip ' + (ok ? (c.warnings ? "" : "ok") : "bad") + '" id="adm-health-chip">' +
+        (ok && !c.warnings ? "all clear" : c.errors + " error" + (c.errors === 1 ? "" : "s") + " · " + c.warnings + " warning" + (c.warnings === 1 ? "" : "s") + " · " + c.failed_jobs + " failed run" + (c.failed_jobs === 1 ? "" : "s")) + '</span></div>' +
+        '<p class="muted small" style="margin-top:0">From the GPU server, kept in its memory since it started (a restart clears them). Newest first.</p>' +
+        (d.failed_jobs.length ? '<h3>Failed runs</h3><div class="table-wrap"><table id="adm-failed-table"><thead><tr><th>Run</th><th>What</th><th>When</th><th>Why</th></tr></thead><tbody>' +
+          d.failed_jobs.map(function (j) {
+            return '<tr><td><a class="mono" href="#/new/run/' + enc(j.job_id) + '">' + esc(shortId(j.job_id)) + '</a></td><td class="small">' + esc((j.kind === "prepare" ? "Data preparation" : "Benchmark") + ((j.models || []).length ? ": " + j.models.map(short).join(", ") : "")) +
+              '</td><td class="small">' + esc(fmtDate(j.finished_at)) + '</td><td class="small">' + esc(j.error || "—") + (j.error_code ? ' <code>' + esc(j.error_code) + '</code>' : "") + '</td></tr>';
+          }).join("") + '</tbody></table></div>' : "") +
+        (d.problems.length ? '<details class="info"' + (c.errors ? " open" : "") + '><summary>Log messages (' + d.problems.length + ')</summary><div class="table-wrap"><table id="adm-log-table"><thead><tr><th>When</th><th>Level</th><th>Where</th><th>Message</th></tr></thead><tbody>' +
+          d.problems.slice(0, 200).map(function (p) {
+            return '<tr><td class="small">' + esc(fmtDate(p.ts)) + '</td><td><span class="chip ' + (p.level === "WARNING" ? "warn" : "bad") + '">' + esc(p.level.toLowerCase()) + '</span></td><td class="small mono">' + esc(p.logger) +
+              '</td><td class="small">' + esc(p.msg) + (p.exc ? '<br><span class="muted">' + esc(p.exc) + '</span>' : "") + (p.job_id ? ' <a class="mono" href="#/new/run/' + enc(p.job_id) + '">' + esc(shortId(p.job_id)) + '</a>' : "") + '</td></tr>';
+          }).join("") + '</tbody></table></div></details>' : '<p class="muted small" style="margin-bottom:0">No warnings or errors logged.</p>');
+    });
+  }
   function loadAdmin() {
+    loadAdminHealth();
     loadAdminModels();
     $("adm-error").hidden = true; $("lim-error").hidden = true; $("lim-saved").textContent = "";
     api("/api/admin/users").then(function (r) {

@@ -33,6 +33,7 @@ Design (kept deliberately simple):
 from __future__ import annotations
 
 import json
+import logging
 import os
 import queue
 import re
@@ -282,12 +283,24 @@ class JobManager:
     def _all(self) -> list[dict[str, Any]]:
         if not self.jobs_dir.exists():
             return []
-        jobs = []
+        # Parsed records are cached by (mtime, size): a file is re-read only after _save replaced it,
+        # so listing the queue does not re-parse every job each time (the files stay the truth).
+        cache = self.__dict__.setdefault("_parsed", {})
+        jobs, seen = [], set()
         for p in self.jobs_dir.glob("job_*.json"):
             try:
-                jobs.append(json.loads(p.read_text(encoding="utf-8")))
+                st = p.stat()
+                key = (st.st_mtime_ns, st.st_size)
+                hit = cache.get(p.name)
+                if hit is None or hit[0] != key:
+                    hit = (key, json.loads(p.read_text(encoding="utf-8")))
+                    cache[p.name] = hit
+                seen.add(p.name)
+                jobs.append(dict(hit[1]))                     # a copy: callers may change top-level fields
             except (OSError, ValueError):
                 continue
+        for gone in set(cache) - seen:
+            cache.pop(gone, None)
         return sorted(jobs, key=_order)
 
     def _recover(self) -> None:
@@ -715,7 +728,9 @@ class JobManager:
                 return
             telemetry.emit("failed", f"Failed: {type(e).__name__}: {e}"[:400])
             telemetry.unbind()
-            self._update(job_id, status="failed", finished_at=_now(),
+            code = getattr(e, "code", None) or {"FlowTimeout": "flow_timeout", "WorkerError": "worker_failed"}.get(type(e).__name__, "failed")
+            logging.getLogger("agentmeter.jobs").error("benchmark %s failed (%s): %s", job_id, code, f"{type(e).__name__}: {e}"[:400])
+            self._update(job_id, status="failed", finished_at=_now(), error_code=code,
                          error=f"{type(e).__name__}: {e}",
                          error_trace=traceback.format_exc(limit=5),
                          final_progress=self.progress_fn(self._load(job_id)),

@@ -173,6 +173,8 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
                     environment=lambda: runtime.environment(mode))
     from agentmeter.server.sessions import register_sessions
     register_sessions(app, get_job_manager)                     # Phase 46: sessions, compare, leaderboard
+    from agentmeter.server.logbook import register_logs
+    register_logs(app, get_job_manager)                         # admins: problems in the last 24 h
     from agentmeter.server.schedules import Schedules, register_schedules
     sched = Schedules(get_job_manager, provider=runtime.job_provider(mode),        # scheduled re-runs (History & Trends)
                       base_config=(str(runtime.REAL_BASE_CONFIG) if mode == "real" else None),
@@ -360,6 +362,8 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    from agentmeter.server.logbook import install as install_logs
+    install_logs()                 # AGENTMETER_LOG_JSON=1: JSON lines; WARNING+ kept for /api/logs/recent
     envtools.load_env()            # .env tokens; existing environment values win; never logged
     envtools.log_token_status()
     if args.engine:

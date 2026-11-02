@@ -530,7 +530,11 @@ def register_sessions(app, get_manager) -> None:
             limit = max(1, min(200, int(request.args.get("limit", 50))))
         except ValueError:
             limit = 50
-        rows = []
+        try:                                          # pages: offset into the filtered, newest-first list
+            offset = max(0, int(request.args.get("offset", 0)))
+        except ValueError:
+            offset = 0
+        rows, skipped, more = [], 0, False
         for j in _benchmark_jobs(mgr):
             prep = None
             if j.get("after_prepare") and not j.get("run_dir"):
@@ -546,10 +550,15 @@ def register_sessions(app, get_manager) -> None:
             r["can_edit"] = True                     # no control plane: one user (the Worker checks owners)
             if itype and (r["input_type"] or "") != itype:
                 continue
-            rows.append(r)
+            if skipped < offset:
+                skipped += 1
+                continue
             if len(rows) >= limit:
+                more = True
                 break
-        return jsonify({"sessions": rows, "statuses": ["Done", "Demo", "Running", "Failed"]})
+            rows.append(r)
+        return jsonify({"sessions": rows, "statuses": ["Done", "Demo", "Running", "Failed"],
+                        "next_offset": offset + len(rows) if more else None})
 
     @app.route("/api/sessions/<job_id>", methods=["GET"])
     def session_one(job_id):

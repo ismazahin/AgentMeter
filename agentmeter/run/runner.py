@@ -53,6 +53,28 @@ class Stopped(RuntimeError):
     """A user stopped the benchmark (request_stop). The run is left incomplete, never scored."""
 
 
+class FlowTimeout(WorkerError):
+    """A worker made no progress for longer than the per-flow limit, twice in a row."""
+
+
+# Watchdog: a worker must show progress (a flow persisted, or a telemetry event: agent turns,
+# downloads, the load test) at least this often, or it is stopped and started once more (it
+# resumes at the stuck flow). Loading/downloading a model before its first flow gets longer.
+def _limit(name: str, default: float) -> float:
+    try:
+        return max(1.0, float(os.environ.get(name, default)))
+    except ValueError:
+        return default
+
+
+def flow_timeout_s() -> float:
+    return _limit("AGENTMETER_FLOW_TIMEOUT_S", 900.0)
+
+
+def load_timeout_s() -> float:
+    return _limit("AGENTMETER_LOAD_TIMEOUT_S", 3600.0)
+
+
 # One benchmark runs at a time (the job layer's single worker thread), so one slot is enough.
 _STOP = threading.Event()
 _PROC_LOCK = threading.Lock()
@@ -87,8 +109,13 @@ def _spawn_model_worker(
     vram_out: Optional[str] = None,
     load_test: bool = False,
     repeat_check: bool = False,
+    progress=None,
 ) -> int:
     """Spawn ONE per-model worker (sqlite mode) and BLOCK until it exits.
+
+    `progress()` (optional) returns anything that changes when the worker makes progress; with
+    it, a worker silent for longer than the watchdog limit is terminated and its exit code is
+    WATCHDOG_RC (the caller decides whether to retry).
 
     Sequential by construction: the parent waits here, so two workers never run
     at once. `baseline_vram_mb` is the fresh-context reference the worker checks
@@ -125,13 +152,41 @@ def _spawn_model_worker(
     with _PROC_LOCK:
         _PROC = proc
     try:
-        rc = proc.wait()
+        if progress is None:
+            rc = proc.wait()
+        else:
+            last, since, first = progress(), time.monotonic(), True
+            while True:
+                try:
+                    rc = proc.wait(timeout=2.0)
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+                now = progress()
+                if now != last:
+                    if first and isinstance(now, tuple) and isinstance(last, tuple) and now[0] != last[0]:
+                        first = False                      # a flow persisted: the model is loaded
+                    last, since = now, time.monotonic()
+                    continue
+                limit = load_timeout_s() if first else flow_timeout_s()
+                if time.monotonic() - since > limit:
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=15)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.wait()
+                    rc = WATCHDOG_RC
+                    break
     finally:
         with _PROC_LOCK:
             _PROC = None
     if _STOP.is_set():
         raise Stopped("stopped by a user")
     return rc
+
+
+WATCHDOG_RC = -1000
 
 
 def _read_worker_before_load(sidecar_path: str) -> Optional[float]:
@@ -348,11 +403,32 @@ def run_full(
             telemetry.emit("worker", f"Model {mi + 1} of {len(models)}: {label}. Starting a fresh worker process "
                            "(each model gets a clean GPU context).", model=label, index=mi + 1, count=len(models),
                            flows=len(remaining))
-            rc = _spawn_model_worker(
-                worker_config, model_name, run_id, n,
-                baseline_vram_mb=baseline_vram_mb, vram_out=vram_sidecar, load_test=load_test,
-                repeat_check=repeat_check,
-            )
+            tel = telemetry.current_path()
+
+            def progress(label=label):
+                n_done = sum(1 for (m, _sid) in store.completed_pairs(run_id) if m == label)
+                try:
+                    size = os.path.getsize(tel) if tel else 0
+                except OSError:
+                    size = 0
+                return (n_done, size)
+
+            for attempt in (1, 2):
+                rc = _spawn_model_worker(
+                    worker_config, model_name, run_id, n,
+                    baseline_vram_mb=baseline_vram_mb, vram_out=vram_sidecar, load_test=load_test,
+                    repeat_check=repeat_check, progress=progress,
+                )
+                if rc != WATCHDOG_RC:
+                    break
+                left = [s.scenario_id for s in scenarios if (label, s.scenario_id) not in store.completed_pairs(run_id)]
+                stuck = left[0] if left else "?"
+                if attempt == 1:
+                    telemetry.emit("retry", f"{label}: no progress for {flow_timeout_s():.0f} s (flow {stuck}); the worker was "
+                                   "stopped and is started once more — it resumes at that flow.", model=label, flow=stuck)
+                    continue
+                raise FlowTimeout(f"worker for model {label!r} made no progress for {flow_timeout_s():.0f} s twice "
+                                  f"(flow {stuck}). Run {run_id} left incomplete; the flows it finished are kept.")
             if rc != 0:
                 # A crashed/killed worker leaves this model incomplete; the run row
                 # stays 'running' so a later resume re-runs just this model. Its

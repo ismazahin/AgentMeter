@@ -86,6 +86,7 @@ export async function listSessions(req: Request, env: Env): Promise<Response> {
   const a = await requireUser(req, env);
   const q = new URL(req.url).searchParams;
   const limit = Math.max(1, Math.min(200, intVar(q.get("limit") || "", 50)));
+  const offset = Math.max(0, intVar(q.get("offset") || "", 0));        // pages: offset into the filtered, newest-first list
   const where = ["deleted_at IS NULL"], args: unknown[] = [];
   const st = (q.get("status") || "").trim();
   if (st) { where.push("LOWER(status)=LOWER(?)"); args.push(st); }
@@ -101,10 +102,13 @@ export async function listSessions(req: Request, env: Env): Promise<Response> {
   if (tag) { where.push("LOWER(COALESCE(tags_json,'')) LIKE ? ESCAPE '\\'"); args.push(like(JSON.stringify(tag))); }
   const r = await env.DB.prepare(
     `SELECT id, owner_id, owner_username, status, created_at, finished_at, input_type, n_flows, gpu, provider, models_json, prepared_set, summary_json, results_bytes, files_json, notes, tags_json
-     FROM sessions WHERE ${where.join(" AND ")} ORDER BY created_at DESC LIMIT ?`).bind(...args, limit).all<Row>();
+     FROM sessions WHERE ${where.join(" AND ")} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`).bind(...args, limit + 1, offset).all<Row>();
+  const more = r.results.length > limit;
+  if (more) r.results = r.results.slice(0, limit);
   // can_edit: the owner or an admin may delete the session and edit its notes (the rows' buttons)
   const mine = (x: Row) => a.user.role === "admin" || (!!x.owner_id && x.owner_id === a.user.id);
-  return json({ sessions: r.results.map((x) => ({ ...view(x), can_edit: mine(x) })), statuses: ["Done", "Demo", "Running", "Failed", "Interrupted", "Stopped"] });
+  return json({ sessions: r.results.map((x) => ({ ...view(x), can_edit: mine(x) })), statuses: ["Done", "Demo", "Running", "Failed", "Interrupted", "Stopped"],
+                next_offset: more ? offset + limit : null });
 }
 
 export async function getSession(req: Request, env: Env, id: string): Promise<Response> {

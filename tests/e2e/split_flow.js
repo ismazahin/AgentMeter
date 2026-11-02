@@ -23,21 +23,16 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
   const errs = []; p.on('pageerror', e => errs.push(e.message));
 
   if (PHASE === 'offline') {
-    await p.goto(FRONT); await p.waitForSelector('#view-offline:not([hidden])', { timeout: 15000 });
-    log(/GPU backend offline/.test(await p.textContent('#svc-backend-badge')), 'badge says GPU backend offline');
-    log(/GPU backend offline/.test(await p.textContent('#svc-offline-notice')), 'clear offline notice');
-    log(/measures/.test(await p.textContent('#view-offline .page-head')) && /not a threat-detection/.test(await p.textContent('#view-offline .page-head')),
-        'landing explains the service (measures LLM efficiency, not threat detection)');
-    log(await p.isHidden('#view-new') && await p.isHidden('#svc-upload-form') && await p.isHidden('#view-home'), 'no broken Home / wizard while offline');
-    log(await p.isVisible('.mainnav'), 'the one header stays while offline');
-    await p.goto(FRONT + '#/sessions'); await p.waitForSelector('#view-offline:not([hidden])');
-    log(await p.isHidden('#view-sessions'), 'Sessions also falls back to the offline landing');
+    // GPU offline = viewing mode: the menu and the pages stay, a banner explains, runs wait
+    await p.goto(FRONT); await p.waitForSelector('#svc-gpu-off:not([hidden])', { timeout: 15000 });
+    log(/GPU offline/.test(await p.textContent('#svc-backend-badge')), 'badge says GPU offline');
+    log(/viewing mode/.test(await p.textContent('#svc-gpu-off')), 'clear offline banner: viewing mode');
+    log(await p.isVisible('.mainnav') && await p.isVisible('#view-home') && await p.isHidden('#view-offline'), 'the menu and Home stay while offline');
+    await p.goto(FRONT + '#/sessions'); await p.waitForSelector('#view-sessions:not([hidden])');
+    log(true, 'Sessions opens while offline');
+    await p.goto(FRONT + '#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
+    log(await p.isDisabled('#svc-upload-btn'), 'New benchmark opens; starting is disabled until the GPU is back');
     await p.screenshot({ path: S + '/offline.png', fullPage: true });
-    const m = await (await b.newContext({ viewport: { width: 375, height: 800 } })).newPage();
-    await m.goto(FRONT); await m.waitForSelector('#view-offline:not([hidden])');
-    const sw = await m.evaluate(() => document.documentElement.scrollWidth);
-    log(sw <= 375, 'offline landing fits 375px (scrollWidth ' + sw + ')');
-    await m.screenshot({ path: S + '/offline-mobile.png', fullPage: true });
   } else {
     // 1. online: badge + mode line before anyone clicks Run
     await p.goto(FRONT + '#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])', { timeout: 15000 });

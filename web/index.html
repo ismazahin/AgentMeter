@@ -803,6 +803,8 @@
 
 <main class="wrap" id="main" tabindex="-1">
   <div id="svc-demo" class="notice warn" hidden></div>
+  <div id="svc-gpu-off" class="notice" role="status" hidden><b>GPU offline — viewing mode.</b> Every page still opens on the stored results; new benchmarks (demo runs too) start again when the GPU server is back. Checked every 30 seconds.
+    <button type="button" class="btn small-btn" id="svc-gpu-retry" style="margin-left:6px">Check now</button></div>
 
   <!-- LOGIN (control plane): accounts are created by the admin; no public sign-up -->
   <section id="view-login" class="view" hidden aria-labelledby="h-login">
@@ -958,7 +960,7 @@
   <!-- NEW BENCHMARK: one wizard -->
   <section id="view-new" class="view" hidden aria-labelledby="h-new">
     <div class="page-head"><div><h1 id="h-new">New benchmark</h1></div></div>
-    <div id="wiz-offline" class="notice error" role="status" hidden><b>GPU offline</b>: new benchmarks can't start. Your sessions are still available.<span class="info-i" tabindex="0" role="button" data-tip="The benchmark backend is not running (no GPU rented). Sessions, Compare and Leaderboard still work. This page notices by itself when the GPU comes back.">i</span></div>
+    <div id="wiz-offline" class="notice error" role="status" hidden><b>GPU offline</b>: new benchmarks — demo runs too — need the GPU server, so they can't start now. You can still look through the steps, and browse Sessions, Data sets, Leaderboard and Repeatability.<span class="info-i" tabindex="0" role="button" data-tip="The benchmark backend is not running (no GPU rented). Sessions, Compare and Leaderboard still work. This page notices by itself when the GPU comes back.">i</span></div>
     <ol class="stepper" id="wiz-steps" aria-label="Benchmark steps">
       <li data-step="data"><b>1</b>Data</li>
       <li data-step="models"><b>2</b>Models and settings</li>
@@ -1769,6 +1771,7 @@
     VIEWS.forEach(function (v) { $("view-" + v).hidden = v !== view; });
     $("view-offline").hidden = true;
     document.querySelector(".mainnav").hidden = view === "login";
+    if (view === "login") $("svc-gpu-off").hidden = true;
     $("side-account").hidden = view === "login";
     var nav = view === "session" ? "sessions" : view;
     document.querySelectorAll("[data-nav]").forEach(function (a) {
@@ -1902,7 +1905,7 @@
     });
   }
   function routeWizard(p, q) {
-    var off = !!CP && !ONLINE;
+    var off = !ONLINE;
     $("wiz-offline").hidden = !off;
     ["svc-upload-btn", "svc-import-btn"].forEach(function (id) { if ($(id)) $(id).disabled = off; });
     if (p[1] === "models") { wizStep("models"); wizModels(q); }
@@ -2434,7 +2437,7 @@
     var max = (CONFIG && CONFIG.max_models) || 2, n = picked().length;
     modelInputs().forEach(function (inp) { inp.disabled = !!inp.dataset.locked || (!inp.checked && n >= max); });
     if ($("wiz-settings")) renderSettings();
-    var failed = $("wiz-data-chip").textContent === "Failed", off = !!CP && !ONLINE;
+    var failed = $("wiz-data-chip").textContent === "Failed", off = !ONLINE;
     var plBad = typeof PL !== "undefined" && PL.custom && plProblems().length > 0;
     $("svc-run").disabled = n < 1 || n > max || failed || off || plBad;
     $("svc-run").textContent = off ? "GPU offline" : WIZ.set || failed ? "Run benchmark" : "Run when data is ready";
@@ -6049,7 +6052,7 @@
   // ---------- boot: config.json -> /health -> online | offline ----------
   function badge(h) {
     var b = $("svc-backend-badge");
-    if (!h) { b.className = "chip-gpu off"; b.textContent = CP ? "GPU offline" : "GPU backend offline"; return; }
+    if (!h) { b.className = "chip-gpu off"; b.textContent = "GPU offline · viewing"; b.title = "No GPU server connected: pages show stored results; new runs wait until it is back."; return; }
     if (h.provider === "real") {
       var g = h.gpu || {};
       b.className = "chip-gpu real";
@@ -6072,25 +6075,24 @@
       .then(function (r) { clearTimeout(t); return r.ok ? r.json() : null; })
       .then(function (h) { return h && h.ok ? h : null; }, function () { clearTimeout(t); return null; });
   }
+  // GPU offline = viewing mode: the menu and every page stay; pages show what is stored (with a
+  // control plane: every session, data set, ranking) and only starting a run waits for the GPU.
   function goOffline() {
+    var was = ONLINE;
     ONLINE = false; HEALTH = null; badge(null);
-    if (CP) {                                       // with a control plane only Run needs the GPU
-      if (!$("view-new").hidden) routeWizard(parseHash().parts, parseHash().q);
-      clearTimeout(offlineTimer);
-      offlineTimer = setTimeout(checkControlPlaneBackend, 30000);
-      return;
-    }
-    VIEWS.forEach(function (v) { $("view-" + v).hidden = true; });
-    $("view-offline").hidden = false; $("svc-demo").hidden = true;
-    $("svc-offline-detail").textContent = "Backend: " + (API || location.origin) + " — no answer from /health.";
+    $("svc-gpu-off").hidden = false; $("svc-demo").hidden = true; $("view-offline").hidden = true;
     clearTimeout(offlineTimer);
-    offlineTimer = setTimeout(checkBackend, 30000);   // comes back by itself when the GPU is rented
+    offlineTimer = setTimeout(CP ? checkControlPlaneBackend : checkBackend, 30000);   // comes back by itself when the GPU is rented
+    if (CP) { if (!$("view-new").hidden) routeWizard(parseHash().parts, parseHash().q); return; }
+    if (was || !SHOWN) { SHOWN = true; route(); }
   }
+  var SHOWN = false;
+  $("svc-gpu-retry").addEventListener("click", function () { this.disabled = true; var b = this; (CP ? checkControlPlaneBackend() : checkBackend()).then(function () { b.disabled = false; }); });
   function gpuOffline() { if (CP) { API = ""; goOffline(); } }
   function goOnline(h) {
     var first = !ONLINE;
     ONLINE = true; HEALTH = h; badge(h); runModeLine();
-    $("view-offline").hidden = true;
+    $("view-offline").hidden = true; $("svc-gpu-off").hidden = true; SHOWN = true;
     if (CP) { clearTimeout(offlineTimer); offlineTimer = setTimeout(checkControlPlaneBackend, 30000); }
     if (!first) return Promise.resolve();
     return api("/api/service/config").then(function (r) {
@@ -6121,7 +6123,7 @@
     });
   }
   $("svc-retry").addEventListener("click", function () { $("svc-offline-detail").textContent = "Checking…"; checkBackend(); });
-  window.addEventListener("hashchange", function () { if (ONLINE || CP) route(); });
+  window.addEventListener("hashchange", function () { route(); });
   if (window.matchMedia) {
     var mq = window.matchMedia("(prefers-color-scheme: dark)");
     var onScheme = function () { if (themePref() === "system") applyTheme("system", true); };

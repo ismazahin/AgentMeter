@@ -240,7 +240,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.goto(APP + '/#/gpu'); await p.waitForSelector('#gq-state');
     log(/Free|Busy/.test(await p.textContent('#gq-state')) && !!(await p.$('#gq-recent-table')), 'GPU & Queue reads the GPU server through the control plane (read token)');
     await p.goto(APP + '/#/datasets'); await p.waitForSelector('#ds-table');
-    log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1 && /\b2\b/.test(await p.textContent('#ds-table tbody tr[data-ds]')), 'Data sets: the one set, used by both sessions');
+    log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1 && await p.$eval('#ds-table tbody tr[data-ds]', r => r.children[3].textContent.trim()) === '2', 'Data sets: the one set, used by both sessions');
 
     // 7. GPU off: stop the backend
     await stopBackend();
@@ -259,6 +259,9 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(/GPU offline/.test(await p.textContent('#gq-state')), 'GPU off: GPU & Queue says the GPU server is offline');
     await p.goto(APP + '/#/datasets'); await p.waitForSelector('#ds-table');
     log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1 && !!(await p.$('#ds-offline')), 'GPU off: Data sets still lists the benchmarked set');
+    log(await p.isVisible('.mainnav') && await p.isVisible('#svc-gpu-off') && /viewing/.test(await p.textContent('#svc-backend-badge')), 'GPU off: viewing mode — the menu stays, a banner says so');
+    await p.goto(APP + '/#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
+    log(/demo runs too/.test(await p.textContent('#wiz-offline')) && await p.isVisible('#wiz-steps'), 'GPU off: New benchmark opens and says runs (demo too) need the GPU server');
     await p.goto(APP + '/#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
     log(await p.isDisabled('#svc-upload-btn'), 'GPU off: New benchmark says GPU offline; Prepare is disabled');
     // the Reuse tab must stay open while the GPU is off (it used to snap back to "Upload a file")

@@ -242,5 +242,6 @@ def test_normal_pcap_unaffected_by_the_defaults(make):
 def test_service_page_shows_the_limit_and_the_cap_notice(make):
     c, _, _ = make()
     html = c.get("/service").get_data(as_text=True)
+    html += "".join(c.get(f"/js/{f.name}").get_data(as_text=True) for f in sorted((PROJECT_ROOT / "web" / "js").glob("*.js")))   # the app's scripts
     for hook in ('id="svc-limits"', "svc-large-input", "max_upload_label", "large_input"):
         assert hook in html

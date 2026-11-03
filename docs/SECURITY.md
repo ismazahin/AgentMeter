@@ -27,7 +27,9 @@ secret. Replace it; the old value then stops working.
 openssl rand -hex 32
 ```
 ```powershell
--join ((1..32) | ForEach-Object { '{0:x2}' -f (Get-Random -Maximum 256) })
+# PowerShell (not Command Prompt: type `powershell` first if the prompt does not start with PS)
+$b = New-Object byte[] 32; [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b)
+-join ($b | ForEach-Object { $_.ToString('x2') })
 ```
 
 Check what is set (values are never shown): `npx supabase secrets list`.

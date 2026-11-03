@@ -1,5 +1,5 @@
 """AgentMeter — benchmarking open-source LLM resource efficiency
-in agentic network threat-detection pipelines.
+in agentic network traffic triage pipelines.
 
 The agentic pipeline is only the TEST SUBJECT. The contribution is the
 measurement harness, per-agent instrumentation, and comparison methodology.

@@ -275,7 +275,7 @@ function renderSession(res, job) {
   $("spanel-overview").innerHTML = pane("main", overviewTab(res) + '<div class="card" id="svc-rep-line" hidden></div>' + notesCard(job) + scheduleCard(job));
   $("spanel-ranking").innerHTML = lead("ranking") + pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
       'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", rankStabilityCard(res) + stabilityCard(res)) + pane("tradeoffs", frontierCard(res)) + pane("guide", "");
-  $("spanel-reliability").innerHTML = lead("reliability") + pane("main", reliabilityCard(res) + consistencyCard(res) + failureCard(res));
+  $("spanel-reliability").innerHTML = lead("reliability") + pane("main", reliabilityCard(res) + triageCard(res) + consistencyCard(res) + failureCard(res));
   $("spanel-performance").innerHTML = lead("performance") + pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("capacity", capacityCard(res) + coldStartCard(res)) + pane("drivers", driversCard(res) + scalingCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
   $("spanel-agents").innerHTML = lead("agents") + pane("main", agentsTab(res));
   $("spanel-cost").innerHTML = lead("cost") + pane("main", costCard(res) + energyEffCard(res) + gpuTimelineCard(res) + idleCard(res) + projectionCard(res) + priceCard(res) + correctCard(res));
@@ -893,6 +893,30 @@ function reliabilityCard(res) {
       (r.labelled ? '<li><b>Reference-label check</b> — ' + esc(r.definitions.reference_agreement) + '. A fast pipeline that answers at random would not be a fair efficiency result; this number guards against that.</li>' : "") +
     '</ul></details></div>';
 }
+// Triage: the analyst queue each model's answers create, and the triage errors that matter in a
+// SOC. The priority comes from the session's policy table, never from the model; context only.
+function triageCard(res) {
+  var t = res.triage;
+  if (!t || !t.per_model || !t.per_model.length) return "";
+  var P = t.priorities, pm = t.per_model;
+  var q = function (m, p) { return fmtNum(m.queue[p]) + ' <span class="muted small">(' + fmtPct(m.queue_share[p]) + ')</span>'; };
+  var frac = function (n, rate) { return n == null ? '<span class="muted">—</span>' : fmtNum(n) + ' <span class="muted small">(' + fmtPct(rate) + ')</span>'; };
+  var head = '<th>Model</th>' + P.map(function (p) { return '<th class="num">' + esc(p) + '</th>'; }).join("") +
+    (t.labelled ? '<th class="num">Missed attacks</th><th class="num">False escalations</th><th class="num">Priority right</th><th class="num">Cost per attack caught</th><th class="num">Energy per attack caught</th>' : "");
+  var rows = pm.map(function (m) {
+    return '<tr><td class="mono">' + esc(short(m.model)) + '</td>' + P.map(function (p) { return '<td class="num">' + q(m, p) + '</td>'; }).join("") +
+      (t.labelled ? '<td class="num">' + frac(m.missed_attacks, m.missed_attack_rate) + '</td><td class="num">' + frac(m.false_escalations, m.false_escalation_rate) +
+        '</td><td class="num">' + fmtPct(m.priority_accuracy) + '</td><td class="num">' + fmtUsd(m.cost_per_attack_caught_usd) + '</td><td class="num">' + fmtWh(m.wh_per_attack_caught) + '</td>' : "") + '</tr>';
+  }).join("");
+  var policy = Object.keys(t.policy).map(function (c) { return '<li>' + esc(c) + ' → <b>' + esc(t.policy[c]) + '</b></li>'; }).join("");
+  return '<div class="card" id="rel-triage"><h2>Triage</h2><p class="muted small" style="margin-top:0">What an analyst would have to do with each model\'s answers: escalate now, investigate, or dismiss. ' +
+      'The priority comes from the policy table below, not from the model. Context for the efficiency results: it does not change the score or the ranking.</p>' +
+    '<div class="table-wrap"><table id="triage-table"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    (t.labelled ? "" : '<p class="small muted">This input has no labels, so only the queue is shown: missed attacks and false escalations need the true class.</p>') +
+    '<details class="info"><summary>Policy and definitions</summary><ul class="small list">' + policy +
+      '<li>Any other class, or an answer that could not be read → <b>' + esc(t.fallback) + '</b></li></ul><ul class="small list">' +
+      '<li>' + esc(t.notes.missed) + '</li><li>' + esc(t.notes.false_escalation) + '</li><li>' + esc(t.notes.cost) + '</li><li>' + esc(t.notes.flows) + '</li></ul></details></div>';
+}
 // Output Reliability: are the answers consistent (format, repeat, MITRE)?
 function consistencyCard(res) {
   var r = res.output_reliability;
@@ -1365,6 +1389,9 @@ function flowList() {
   var d = FLOWS.data, q = FLOWS.q.toLowerCase(), list = d.flows.slice();
   var lat = function (f) { return Math.max.apply(null, d.models.map(function (m) { return ((f.per_model[m] || {}).latency_s) || 0; })); };
   if (FLOWS.filter === "wrong") list = list.filter(function (f) { return d.models.some(function (m) { return f.per_model[m] && f.per_model[m].correct === false; }); });
+  // a true attack that a model's answer would have dismissed (the costliest triage error)
+  if (FLOWS.filter === "missed") list = list.filter(function (f) { return f.truth_priority && f.truth_priority !== "Dismiss" && d.models.some(function (m) { return f.per_model[m] && f.per_model[m].priority === "Dismiss"; }); });
+  if (FLOWS.filter === "escalate") list = list.filter(function (f) { return d.models.some(function (m) { return f.per_model[m] && f.per_model[m].priority === "Escalate"; }); });
   if (FLOWS.filter === "disagree") list = list.filter(function (f) { var a = d.models.map(function (m) { return (f.per_model[m] || {}).predicted; }); return a.some(function (x) { return x !== a[0]; }); });
   if (FLOWS.filter === "slow") list = list.sort(function (a, b) { return lat(b) - lat(a); }).slice(0, 10);
   if (q) list = list.filter(function (f) { return (f.scenario_id + " " + (f.truth || "") + " " + d.models.map(function (m) { return (f.per_model[m] || {}).predicted || ""; }).join(" ")).toLowerCase().indexOf(q) >= 0; });
@@ -1376,9 +1403,12 @@ function drawFlows() {
   var labelled = d.labelled !== false && d.flows.some(function (f) { return f.truth; });
   $("flows-status").innerHTML = esc(d.flows.length + " flows × " + d.models.length + " model" + (d.models.length > 1 ? "s" : "") + ". ") +
     (d.has_text ? "Open a flow to read each agent's answer (up to " + fmtNum(d.text_chars) + " characters each)." : "<b>Agent answers were not recorded for this run</b> — times and tokens only.");
-  var mark = function (pm) { return !pm ? "—" : (pm.correct === true ? '<span class="chip ok">✓ ' : pm.correct === false ? '<span class="chip bad">✗ ' : '<span class="chip">') + esc(pm.predicted || "—") + '</span>'; };
+  var mark = function (pm) { return !pm ? "—" : (pm.correct === true ? '<span class="chip ok">✓ ' : pm.correct === false ? '<span class="chip bad">✗ ' : '<span class="chip">') + esc(pm.predicted || "—") + '</span>' + (pm.priority ? ' <span class="muted small">' + esc(pm.priority) + '</span>' : ""); };
+  var triaged = d.flows.some(function (f) { return d.models.some(function (m) { return f.per_model[m] && f.per_model[m].priority; }); });
   $("flows-body").innerHTML = '<div class="row" style="margin-top:0"><div class="field"><label for="flows-filter">Show</label><select id="flows-filter">' +
-    [["all", "All flows"], ["wrong", "Wrong answer (any model)"], ["disagree", "Models disagree"], ["slow", "10 slowest"]].filter(function (o) { return labelled || o[0] !== "wrong"; })
+    [["all", "All flows"], ["wrong", "Wrong answer (any model)"], ["missed", "Attack dismissed (any model)"], ["escalate", "Escalated (any model)"], ["disagree", "Models disagree"], ["slow", "10 slowest"]]
+      .filter(function (o) { return labelled || (o[0] !== "wrong" && o[0] !== "missed"); })
+      .filter(function (o) { return triaged || (o[0] !== "missed" && o[0] !== "escalate"); })
       .filter(function (o) { return d.models.length > 1 || o[0] !== "disagree"; })
       .map(function (o) { return '<option value="' + o[0] + '"' + (FLOWS.filter === o[0] ? " selected" : "") + '>' + o[1] + '</option>'; }).join("") + '</select></div>' +
     '<div class="field" style="flex:1 1 220px"><label for="flows-q">Find</label><input type="search" id="flows-q" class="wide" placeholder="flow id, class or answer" value="' + esc(FLOWS.q) + '" autocomplete="off"></div></div>' +
@@ -1408,7 +1438,7 @@ function flowDetail() {
     d.models.map(function (m) {
       var pm = f.per_model[m];
       if (!pm) return '<div class="flow-col"><h4>' + esc(short(m)) + '</h4><p class="muted">Not run.</p></div>';
-      return '<div class="flow-col" data-model="' + esc(m) + '"><h4><i class="sw" style="--c:' + modelColor(m) + '"></i>' + esc(short(m)) + '</h4><p class="small">Answer <b>' + esc(pm.predicted || "—") + '</b>' +
+      return '<div class="flow-col" data-model="' + esc(m) + '"><h4><i class="sw" style="--c:' + modelColor(m) + '"></i>' + esc(short(m)) + '</h4><p class="small">Answer <b>' + esc(pm.predicted || "—") + '</b>' + (pm.priority ? ' → <b>' + esc(pm.priority) + '</b>' : "") +
         (pm.correct === true ? ' <span class="chip ok">✓ correct</span>' : pm.correct === false ? ' <span class="chip bad">✗ wrong</span>' : "") + ' · ' + fmtTime(pm.latency_s) + ' end to end</p>' +
         pm.agents.map(function (a) {
           return '<div class="flow-agent"><div class="small"><span class="legend"><span style="--c:' + agColor(a.agent) + '">' + esc(agName(a.agent)) + '</span></span> ' + fmtTime(a.wall_s) +

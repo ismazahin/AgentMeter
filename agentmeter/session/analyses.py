@@ -371,7 +371,8 @@ def drift_test(xs: list[float], skip: int = WARMUP_N) -> dict[str, Any]:
 FLOW_TEXT_CHARS = 1200        # each agent answer kept up to this many characters in flows_<run>.json
 
 
-def flows_file(db: str | Path, run_id: str, label_of: dict[str, str], labelled: bool = True) -> dict[str, Any]:
+def flows_file(db: str | Path, run_id: str, label_of: dict[str, str], labelled: bool = True,
+               triage: Optional[dict[str, str]] = None) -> dict[str, Any]:
     """Every flow of the run, per model: truth, answer, time, and each agent's time, tokens and
     answer text (when it was recorded) — the flow explorer's data. Read-only; written beside the
     results as flows_<run_id>.json, never inside session_results.json."""
@@ -385,6 +386,8 @@ def flows_file(db: str | Path, run_id: str, label_of: dict[str, str], labelled: 
         con.close()
     order = _agents_in_order(am)
     model_of = {dbm: m for m, dbm in label_of.items()}
+    from ..pipeline.triage import DEFAULT_TRIAGE, priority_of
+    table = triage or DEFAULT_TRIAGE
     agents: dict[tuple, list] = {}
     for r in am:
         agents.setdefault((r["model"], r["scenario_id"]), []).append(r)
@@ -394,10 +397,13 @@ def flows_file(db: str | Path, run_id: str, label_of: dict[str, str], labelled: 
             continue
         # unlabelled input (PCAP): its placeholder label is no ground truth — no truth, no right/wrong
         f = flows.setdefault(r["scenario_id"], {"scenario_id": r["scenario_id"],
-                                                "truth": r["held_out_label"] if labelled else None, "per_model": {}})
+                                                "truth": r["held_out_label"] if labelled else None,
+                                                "truth_priority": priority_of(r["held_out_label"], table) if labelled else None,
+                                                "per_model": {}})
         rows = sorted(agents.get((r["model"], r["scenario_id"]), []), key=lambda a: order.index(a["agent_name"]) if a["agent_name"] in order else 99)
         f["per_model"][model_of[r["model"]]] = {
             "predicted": r["predicted_label"],
+            "priority": priority_of(r["predicted_label"], table),
             "correct": bool(r["correct"]) if labelled and r["correct"] is not None else None,
             "latency_s": _f(r["scenario_total_time_s"]),
             "agents": [{"agent": a["agent_name"], "wall_s": _f(a["wall_time_s"]), "input_tokens": a["input_tokens"],
@@ -1174,6 +1180,12 @@ def settings_of(config_data: dict[str, Any]) -> dict[str, Any]:
     custom = (config_data.get("pipeline") or {}).get("custom")
     if custom:        # a user-defined pipeline: its agents are part of what was measured
         out["pipeline.custom"] = custom
+    # recorded since the triage wording: older sessions lack both, so their fingerprint is unchanged
+    pv = (config_data.get("pipeline") or {}).get("prompt_version")
+    if pv:            # the prompts' wording is part of what was measured
+        out["pipeline.prompt_version"] = pv
+    if config_data.get("triage"):     # the policy the triage results were computed under
+        out["triage"] = config_data["triage"]
     engine = (config_data.get("model") or {}).get("engine")
     if engine and engine != "transformers":     # another inference engine measures differently
         out["model.engine"] = engine
@@ -1236,6 +1248,10 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     payload["latency_trend"] = latency_trend_block(sr, label_of)
     payload["effect_sizes"] = effect_block(sr, am, label_of, payload.get("statistics"))
     payload["cost_energy"] = cost_energy_block(payload, sr, label_of, real=real, price=price, energy=energy)
+    from ..pipeline.triage import triage_block, triage_table
+    payload["triage"] = triage_block(sr, label_of, triage_table(config_data),
+                                     labelled=bool((payload.get("session") or {}).get("accuracy_available")),
+                                     cost=payload["cost_energy"])
     payload["gpu_health"] = gpu_health_block(sr, label_of, real=real, energy=energy)
     payload["gpu_timeline"] = gpu_timeline_block(sr, label_of, real=real, energy=energy,
                                                  flow_times=read_extras(db_path, run_id, labels, "flow_times"))

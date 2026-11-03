@@ -14,7 +14,7 @@ import { type Env, corsHeaders, fail, json } from "./util.ts";
 import { getAudit } from "./audit.ts";
 
 // the API version (semantic versioning): the same as agentmeter/server/apiversion.py (tests/test_openapi.py)
-export const API_VERSION = "1.1.0";
+export const API_VERSION = "1.2.0";
 
 type Handler = (req: Request, env: Env, ...params: string[]) => Promise<Response>;
 const ROUTES: [string, RegExp, Handler][] = [

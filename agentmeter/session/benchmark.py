@@ -38,6 +38,8 @@ import yaml
 
 from ..config import PROJECT_ROOT, load_config
 from ..ingest.csv_input import OTHER_ATTACK
+from ..pipeline.agents import PROMPT_VERSION
+from ..pipeline.triage import OTHER_ATTACK_PRIORITY, triage_table
 from ..ingest.unified import load_input_run
 
 MAX_MODELS = 4
@@ -106,7 +108,10 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
         if classes[:-1] != base_classes or classes[-1] != OTHER_ATTACK:
             raise SessionError(f"unexpected 6-class scheme {classes} (base classes {base_classes})")
         data.setdefault("mitre", {})[OTHER_ATTACK] = OTHER_ATTACK_MITRE
+        data["triage"] = {**triage_table(data), OTHER_ATTACK: OTHER_ATTACK_PRIORITY}
     data["classes"] = classes
+    data["triage"] = triage_table(data)            # the policy this session is triaged under
+    data.setdefault("pipeline", {})["prompt_version"] = PROMPT_VERSION
 
     # --- scenarios: hidden id + model-visible features + held-out label ---------------
     feats = list(meta["feature_columns"])
@@ -229,9 +234,11 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
     # the flow explorer's data: every flow, every agent (own file per run, never in the results)
     from .analyses import flows_file
     label_of = {pm["model"]: pm.get("db_label") or pm["model"] for pm in payload.get("per_model") or []}
+    cfg_data = load_config(plan["config_path"]).data
     (Path(plan["run_dir"]) / f"flows_{result.run_id}.json").write_text(
         json.dumps(flows_file(plan["db_path"], result.run_id, label_of,
-                              labelled=bool((payload.get("session") or {}).get("accuracy_available")))), encoding="utf-8")
+                              labelled=bool((payload.get("session") or {}).get("accuracy_available")),
+                              triage=triage_table(cfg_data))), encoding="utf-8")
     return payload
 
 

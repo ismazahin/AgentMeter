@@ -19,29 +19,37 @@ from typing import Callable
 
 from ..config import Config
 from ..providers.base import ModelProvider
+from .triage import priority_of, triage_table
+
+# The wording of the prompts below. Changing any prompt changes what is measured (tokens, time),
+# so a session records this version and sessions with different versions are not compared.
+# "triage-1": the agents are described as a network traffic triage pipeline.
+PROMPT_VERSION = "triage-1"
 
 # System prompts define each agent's role. The mock keys off the role word;
 # the real HF model is steered by them too. "Be concise" bounds the free-text
 # agents so they finish via EOS instead of being truncated at the token cap.
 SYSTEM_PROMPTS = {
     "perceive": (
-        "You are the Perceive agent in a network threat-detection pipeline. "
+        "You are the Perceive agent in a network traffic triage pipeline. "
         "Read the raw flow features and produce a SHORT factual summary of the "
         "flow (at most 3 sentences). Do not classify yet."
     ),
     "reason": (
-        "You are the Reason agent. Given the flow summary, briefly reason (at "
-        "most 4 sentences) about which threat behaviours it is consistent with. "
-        "Do not give a final label yet."
+        "You are the Reason agent in a network traffic triage pipeline. Given "
+        "the flow summary, briefly reason (at most 4 sentences) about which "
+        "threat behaviours it is consistent with. Do not give a final label yet."
     ),
     "decide": (
-        "You are the Decide agent. Choose EXACTLY ONE label from the allowed "
+        "You are the Decide agent in a network traffic triage pipeline. Choose "
+        "EXACTLY ONE label from the allowed "
         "list. Reply with ONLY that label, copied verbatim, and nothing else — "
         "no punctuation, no explanation, no quotes."
     ),
     "act": (
-        "You are the Act agent. Produce the final verdict: the predicted class, "
-        "its MITRE ATT&CK technique, and a one-line justification."
+        "You are the Act agent in a network traffic triage pipeline. Produce the "
+        "final triage verdict: the predicted class, its MITRE ATT&CK technique, "
+        "and a one-line justification."
     ),
 }
 
@@ -158,6 +166,8 @@ def act_agent(state: dict, provider: ModelProvider, config: Config) -> dict:
     verdict = {
         "predicted_class": final_class,
         "mitre_technique": mitre.get(final_class, "N/A"),
+        # the SOC's policy table, not the model, sets the priority (pipeline/triage.py)
+        "priority": priority_of(final_class, triage_table(getattr(config, "data", config))),
         "justification": res.text.strip().splitlines()[-1] if res.text.strip() else "",
         "raw": res.text,
     }
@@ -181,13 +191,13 @@ _FORMAT = {
     "text": "Be concise.",
     "label": "Choose EXACTLY ONE label from the allowed list. Reply with ONLY that label, copied "
              "verbatim, and nothing else — no punctuation, no explanation, no quotes.",
-    "verdict": "Produce the final verdict: the predicted class, its MITRE ATT&CK technique, and a "
+    "verdict": "Produce the final triage verdict: the predicted class, its MITRE ATT&CK technique, and a "
                "one-line justification.",
 }
 
 
 def custom_system_prompt(spec: dict) -> str:
-    return (f"You are the {spec['title']} agent in a network threat-detection pipeline. "
+    return (f"You are the {spec['title']} agent in a network traffic triage pipeline. "
             f"{spec['instructions']} {_FORMAT[spec['kind']]}")
 
 
@@ -235,6 +245,7 @@ def make_verdict(predicted: str, text: str, config: Config) -> dict:
     return {
         "predicted_class": final_class,
         "mitre_technique": mitre.get(final_class, "N/A"),
+        "priority": priority_of(final_class, triage_table(getattr(config, "data", config))),
         "justification": text.strip().splitlines()[-1] if text.strip() else "",
         "raw": text,
     }

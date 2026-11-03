@@ -37,6 +37,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from ..config import Config, load_config
+from ..pipeline.agents import PROMPT_VERSION
 from ..data.dataset import DatasetLoader
 from ..db.storage import Storage
 
@@ -279,6 +280,7 @@ def config_fingerprint(cfg: Config, models: list[str], effective_n: Optional[int
             "drop_labels": cfg.get("dataset.drop_labels"),
         },
         "pipeline": {
+            "prompt_version": PROMPT_VERSION,
             "agents": cfg.get("pipeline.agents"),
             "max_new_tokens": cfg.get("pipeline.max_new_tokens"),
         },

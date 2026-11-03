@@ -155,16 +155,22 @@ def test_a_label_agent_with_an_unusable_reply_is_unparseable():
     assert out["predicted_class"] == "Unparseable" and out["verdict"]["predicted_class"] == "Unparseable"
 
 
-def test_the_default_pipeline_prompts_are_unchanged():
-    """Built-ins keep their own prompts: a default session measures what it always did."""
+def test_the_default_pipeline_prompts_are_pinned():
+    """Built-ins keep their own prompts: a default session measures what it always did. A change
+    to this wording must come with a new PROMPT_VERSION (sessions of two versions are not compared)."""
+    from agentmeter.pipeline.agents import PROMPT_VERSION
+    assert PROMPT_VERSION == "triage-1"
     cfg = load_config(PROJECT_ROOT / "configs" / "run_full_mock.yaml")
     prov = Recorder(cfg)
     out = Pipeline(cfg, prov).run("s1", FLOW)
     assert [c[0].split(".")[0] for c in prov.calls] == [
-        "You are the Perceive agent in a network threat-detection pipeline", "You are the Reason agent",
-        "You are the Decide agent", "You are the Act agent"]
+        "You are the Perceive agent in a network traffic triage pipeline",
+        "You are the Reason agent in a network traffic triage pipeline",
+        "You are the Decide agent in a network traffic triage pipeline",
+        "You are the Act agent in a network traffic triage pipeline"]
     assert out["decide"] == "Classification: Brute Force" and out["act"].startswith("Predicted class:")
     assert out["verdict"]["predicted_class"] == "Brute Force"     # Act keeps the class Decide chose
+    assert out["verdict"]["priority"] == "Escalate"               # from the policy table, not the model
 
 
 # ---------------------------------------------------------------- a real session

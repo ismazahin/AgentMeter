@@ -118,7 +118,7 @@ def recommendation_lines(res: dict[str, Any]) -> dict[str, Any]:
     rl = {m["model"]: m for m in ((res.get("output_reliability") or {}).get("per_model") or [])}
     if rl:
         lines.append("Output validity: " + ", ".join(f"{m} {fmt_pct(r.get('valid_rate'))} usable answers" for m, r in rl.items())
-                     + ". Classifying the flows is the workload the agents perform; this report measures what "
+                     + ". Triaging the flows is the workload the agents perform; this report measures what "
                        "that work costs and does not evaluate threat detection.")
     if not labelled:
         lines.append("No reference labels: the reference-label check is skipped; efficiency and validity are "
@@ -217,7 +217,7 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
     story.append(P("AgentMeter — Benchmark Report", "title"))
     story.append(P(f"Run {run_name}  ·  generated {generated}  ·  session run id {s.get('run_id')}"
                    + (f"  ·  job {job['job_id']}" if job else ""), "sub"))
-    story.append(P("Resource-efficiency benchmark of LLM agents performing a SOC workload (classifying network "
+    story.append(P("Resource-efficiency benchmark of LLM agents performing a SOC workload (triaging network "
                    "flows). The answers are checked for validity, not evaluated as threat detection. NON-VALIDATED user run.",
                    "sub"))
     env = res.get("environment") or {}
@@ -492,12 +492,36 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
         n = len(rows[0]) - 1
         story.append(table(rows, [W - n * 22 * mm] + [22 * mm] * n))
 
+    # --- triage (context: the queue and triage errors under the session's policy table) -------------
+    tri = res.get("triage")
+    if tri and tri.get("per_model"):
+        story.append(P("Triage", "h"))
+        pol = "; ".join(f"{c} -> {p}" for c, p in (tri.get("policy") or {}).items())
+        story.append(P("What an analyst would do with each model's answers. The priority comes from the "
+                       f"session's policy table ({pol}; any other answer -> {tri.get('fallback')}), not "
+                       "from the model. Context for the efficiency results: it does not change the score or "
+                       "the ranking. The input is network flows, not IDS alerts (flow triage).", "small"))
+        pri = list(tri.get("priorities") or [])
+        lab = bool(tri.get("labelled"))
+        rows = [["Model"] + pri + (["Missed attacks", "False escalations", "Cost / attack caught"] if lab else [])]
+        for r in tri["per_model"]:
+            q = r.get("queue") or {}
+            cpa = r.get("cost_per_attack_caught_usd")
+            rows.append([r["model"]] + [fmt_int(q.get(p)) for p in pri]
+                        + ([f"{fmt_int(r.get('missed_attacks'))} ({fmt_pct(r.get('missed_attack_rate'))})",
+                            f"{fmt_int(r.get('false_escalations'))} ({fmt_pct(r.get('false_escalation_rate'))})",
+                            "-" if cpa is None else f"${cpa:.5f}"] if lab else []))
+        n = len(rows[0]) - 1
+        story.append(table(rows, [W - n * 22 * mm] + [22 * mm] * n))
+        if not lab:
+            story.append(P("No labels in this input: missed attacks and false escalations need the true class.", "small"))
+
     # --- caveats ------------------------------------------------------------------------------------
     cav = list((rel or {}).get("caveats") or s.get("caveats") or [])
     story.append(KeepTogether([P("Caveats", "h")] + [P("- " + c, "small") for c in cav] + [
-        P("- Scope: this report measures the resource efficiency of LLM agents performing a SOC workload; "
-          "their answers are only checked for validity. It is not a threat-detection product and not a "
-          "deployment sign-off.", "small")]))
+        P("- Scope: this report measures the resource efficiency of LLM agents performing a SOC triage "
+          "workload; their answers are checked for validity and their triage is shown as context. It is not "
+          "a threat-detection product and not a deployment sign-off.", "small")]))
 
     def footer(canvas, doc):
         canvas.saveState()

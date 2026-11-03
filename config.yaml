@@ -123,6 +123,16 @@ mitre:
   DoS Hulk: "T1499 - Endpoint Denial of Service"
   Benign: "N/A - No adversary technique"
 
+# Triage policy: what an analyst does with each predicted class (Escalate / Investigate /
+# Dismiss). The model never chooses it; it is looked up like the MITRE technique. A class not
+# named here, or an unparseable answer, goes to Investigate.
+triage:
+  Brute Force: Escalate
+  Volumetric DDoS: Escalate
+  DoS Hulk: Escalate
+  Port Scanning: Investigate
+  Benign: Dismiss
+
 scoring:
   # Simple Additive Weighting (SAW). Direct-Rating weights, DECLARED subjective.
   # Used in Phase 8 — kept here from the start so nothing is hard-coded later.

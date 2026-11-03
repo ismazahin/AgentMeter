@@ -153,6 +153,24 @@ def phase7(sr: pd.DataFrame, classes: list[str]) -> dict[str, Any]:
     }
 
 
+def phase7_triage(sr: pd.DataFrame, config_data: dict[str, Any]) -> pd.DataFrame:
+    """Triage context per model (pipeline/triage.py): the analyst queue, attacks dismissed and
+    benign flows escalated, under the config's triage policy. Not part of the SAW score."""
+    from ..pipeline.triage import PRIORITIES, triage_block, triage_table
+    models = sorted(sr["model"].unique())
+    tb = triage_block(sr.to_dict("records"), {m: m for m in models}, triage_table(config_data), labelled=True)
+    rows = []
+    for r in tb["per_model"]:
+        rows.append({"model": r["model"], "n": r["n_flows"],
+                     **{f"queue_{p.lower()}": r["queue"][p] for p in PRIORITIES},
+                     "n_attacks": r.get("n_attacks"), "missed_attacks": r.get("missed_attacks"),
+                     "missed_attack_rate": r.get("missed_attack_rate"),
+                     "false_escalations": r.get("false_escalations"),
+                     "false_escalation_rate": r.get("false_escalation_rate"),
+                     "priority_accuracy": r.get("priority_accuracy")})
+    return pd.DataFrame(rows)
+
+
 # --- Phase 8: SAW Composite Health Score -------------------------------
 
 def _criteria(sr: pd.DataFrame, am: pd.DataFrame, acc_by_model: dict[str, float],
@@ -483,6 +501,8 @@ def run_analysis(
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    triage = phase7_triage(sr, cfg.data)
+    triage.to_csv(out / "phase7_triage.csv", index=False)
     _write_outputs(out, run_ids, sr, p7, raw, p8, sens, diag, stats, model_vram_meta,
                    finding, per_class_section, advanced_section, provenance)
     summary = _format_summary(run_ids, sr, p7, raw, p8, sens, diag, stats, str(out),
@@ -492,7 +512,7 @@ def run_analysis(
     return {"out_dir": str(out), "run_ids": run_ids, "p7": p7, "p8": p8,
             "sensitivity": sens, "diagnostics": diag, "statistics": stats,
             "raw": raw, "model_vram": model_vram_meta, "vram_finding": finding,
-            "per_class": per_class_section, "provenance": provenance}
+            "per_class": per_class_section, "provenance": provenance, "triage": triage}
 
 
 def _vram_finding(raw: pd.DataFrame, targets: dict[str, float], have_total: bool) -> str:

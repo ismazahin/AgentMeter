@@ -79,6 +79,14 @@ def _validate(data: dict[str, Any], cfg_path: Path) -> None:
     if provider not in ("mock", "hf"):
         raise ValueError(f"model.provider must be 'mock' or 'hf', got: {provider!r}")
 
+    # The triage policy, when given, names one allowed priority for every class.
+    if "triage" in data:
+        from .pipeline.triage import validate_triage
+        try:
+            validate_triage(data["triage"], list(data.get("classes") or []))
+        except ValueError as e:
+            raise ValueError(f"config.yaml ({cfg_path}): {e}") from None
+
     # Scoring weights must be present and sum to ~1.0 (SAW requirement).
     weights = data.get("scoring", {}).get("weights", {})
     if not weights:

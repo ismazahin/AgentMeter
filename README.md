@@ -1,7 +1,14 @@
 # AgentMeter
 
 Benchmarking open-source LLM **resource efficiency** in agentic network
-threat-detection pipelines.
+traffic triage pipelines.
+
+The agents triage each network flow: Perceive → Reason → Decide (the class) → Act (the triage
+verdict: class, MITRE ATT&CK technique, justification). The **triage priority** (Escalate /
+Investigate / Dismiss) comes from the policy table in the config (`triage:`), never from the
+model; missed attacks, false escalations and the analyst queue are reported as context for the
+efficiency results (`agentmeter/pipeline/triage.py`). The inputs are network flows, not IDS
+alerts: this is flow triage.
 
 > The agentic pipeline is only the **test subject**. The contribution is the
 > **measurement harness**, the **per-agent instrumentation** (wall time, TTFT,

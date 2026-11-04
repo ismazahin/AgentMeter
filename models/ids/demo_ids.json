@@ -3,7 +3,7 @@
   "version": "demo_ids-2026-11-04",
   "algorithm": "RandomForestClassifier (binary: attack vs benign)",
   "demo": true,
-  "created_at": "2026-11-04T02:43:22Z",
+  "created_at": "2026-11-04T09:45:38Z",
   "sklearn": "1.9.1",
   "params": {
     "n_estimators": 50,
@@ -94,9 +94,10 @@
     "Idle Max",
     "Idle Min"
   ],
-  "threshold": 0.5670058169901574,
-  "threshold_rule": "highest tau with validation recall >= 0.99",
+  "threshold": 0.45757827631053705,
+  "threshold_rule": "lowest tau with validation false-positive rate <= 0.001, never above the tau giving validation recall >= 0.99",
   "target_recall": 0.99,
+  "max_fpr": 0.001,
   "data": {
     "files": [
       {
@@ -179,18 +180,18 @@
       "n": 88,
       "attacks": 70,
       "benign": 18,
-      "tp": 68,
-      "fp": 1,
-      "fn": 2,
-      "tn": 17,
-      "recall": 0.9714285714285714,
-      "precision": 0.9855072463768116,
-      "false_positive_rate": 0.05555555555555555,
-      "flagged_share": 0.7840909090909091,
+      "tp": 70,
+      "fp": 2,
+      "fn": 0,
+      "tn": 16,
+      "recall": 1.0,
+      "precision": 0.9722222222222222,
+      "false_positive_rate": 0.1111111111111111,
+      "flagged_share": 0.8181818181818182,
       "recall_by_class": {
         "Brute Force": {
           "n": 17,
-          "recall": 0.8823529411764706
+          "recall": 1.0
         },
         "DoS Hulk": {
           "n": 17,

@@ -43,8 +43,11 @@ What the script does (all of it is written into `ids_rf.json`, for the methodolo
 duplicate flows are removed and feature vectors seen with both a benign and an attack label are
 dropped; a stratified 70 / 30 split separates training from hold-out; 80% of the training part
 fits the forest (100 trees, depth ≤ 20, balanced class weights) and 20% chooses the threshold τ —
-the highest τ whose recall on validation attacks is ≥ 99% (the IDS is a filter: it must miss very
-few attacks; false alarms are the LLM triage's work). `"... - Attempted"` flows are excluded.
+the **lowest** τ whose false-positive rate on validation benign flows is ≤ 0.1% (`--max-fpr`),
+and never above the τ that keeps validation recall ≥ 99% (`--target-recall`). The IDS is a filter:
+it should miss as few attacks as its false-alarm budget allows; the false alarms it lets through
+are the LLM triage's work. `"... - Attempted"` flows are excluded. The script prints the hold-out
+recall of every attack class (the weakest first).
 
 ## 2. Put it on the GPU server
 

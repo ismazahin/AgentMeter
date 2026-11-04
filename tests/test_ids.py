@@ -175,3 +175,17 @@ def test_the_job_api_refuses_a_bad_option_and_a_missing_model(monkeypatch, tmp_p
     r = c.post("/api/jobs", json={"run": "csv_runs/x", "models": ["mock-a"], "ids": True})
     assert r.status_code == 409 and r.get_json()["code"] == "no_ids_model"
     assert c.get("/health").get_json()["ids"] is None
+
+
+def test_the_false_alarm_budget_lowers_tau_when_it_costs_no_false_alarms():
+    # attacks 0.3 .. 0.95; benign far lower: the recall rule alone would stop at 0.3, but no benign
+    # flow scores above 0.2, so the budget rule may go down to just above it
+    scores = np.array([0.05, 0.1, 0.2, 0.3, 0.5, 0.7, 0.9, 0.95])
+    attack = np.array([False, False, False, True, True, True, True, True])
+    t = T.pick_threshold(scores, attack, 0.99, 0.0)
+    assert 0.2 < t <= 0.3 and (scores[attack] >= t).all() and not (scores[~attack] >= t).any()
+    # benign scoring high: the budget rule would go higher, the recall rule keeps tau down
+    scores2 = np.array([0.9, 0.95, 0.99, 0.3, 0.5, 0.7, 0.8, 0.97])
+    t2 = T.pick_threshold(scores2, attack, 0.99, 0.0)
+    assert t2 == 0.3                                                     # every attack kept
+    assert T.choose_threshold_fpr(scores2, attack, 1 / 3) > 0.95         # 1 of 3 benign allowed

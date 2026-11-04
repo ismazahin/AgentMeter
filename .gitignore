@@ -57,3 +57,7 @@ models/ids/*
 # Full datasets (large): read from here by scripts/train_ids.py and build-dataset, never committed
 data/cicids2017_corrected/
 data/cicids_raw/
+# Full CIC-IDS2017 PCAP / CSV downloads placed directly in data/ (large). The small bundled
+# samples live in data/sample_csv/ and data/sample_pcaps/ and stay tracked.
+/data/*.pcap
+/data/*.pcapng

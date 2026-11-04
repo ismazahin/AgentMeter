@@ -54,6 +54,38 @@ def fmt_pct(v) -> str:
     return "-" if v is None else f"{v * 100:.1f}%"
 
 
+_GATE_NAMES = {"missed_attack_rate": "missed attacks", "false_escalation_rate": "false escalations",
+               "valid_rate": "valid answers"}
+
+
+def gate_text(g: Optional[dict]) -> str:
+    if not g:
+        return "-"
+    if g.get("passed") is True:
+        return "passes"
+    if g.get("passed") is False:
+        return "fails: " + ", ".join(_GATE_NAMES.get(k, k) for k in g.get("failed") or [])
+    return "not checked"
+
+
+def gate_line(res: dict[str, Any]) -> Optional[str]:
+    """One sentence on the triage gate: which models may be recommended for triage at all."""
+    pm = [m for m in ((res.get("triage") or {}).get("per_model") or []) if m.get("gate")]
+    if not pm:
+        return None
+    fail = [m for m in pm if m["gate"]["passed"] is False]
+    ok = [m["model"] for m in pm if m["gate"]["passed"] is True]
+    if not fail and not ok:
+        return "Triage gate not checked: missed attacks and false escalations need labelled input."
+    parts = []
+    if ok:
+        parts.append(f"passes the triage gate: {', '.join(ok)}")
+    if fail:
+        parts.append("not recommended for triage as-is (fails the gate): "
+                     + "; ".join(f"{m['model']} ({gate_text(m['gate'])[7:]})" for m in fail))
+    return "Triage gate - " + "; ".join(parts) + ". The gate does not change the efficiency ranking."
+
+
 def recommendation_lines(res: dict[str, Any]) -> dict[str, Any]:
     """Plain-language recommendation from the session's own verdicts + report.js logic."""
     s, rel, cmp_ = res["session"], res.get("relative_comparison"), res.get("comparison")
@@ -120,6 +152,9 @@ def recommendation_lines(res: dict[str, Any]) -> dict[str, Any]:
         lines.append("Output validity: " + ", ".join(f"{m} {fmt_pct(r.get('valid_rate'))} usable answers" for m, r in rl.items())
                      + ". Triaging the flows is the workload the agents perform; this report measures what "
                        "that work costs and does not evaluate threat detection.")
+    gl = gate_line(res)
+    if gl:
+        lines.append(gl)
     if not labelled:
         lines.append("No reference labels: the reference-label check is skipped; efficiency and validity are "
                      "measured as usual.")
@@ -496,18 +531,20 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
     tri = res.get("triage")
     if tri and tri.get("per_model"):
         story.append(P("Triage", "h"))
-        pol = "; ".join(f"{c} -> {p}" for c, p in (tri.get("policy") or {}).items())
+        sv = tri.get("severity") or {}
+        pol = "; ".join(f"{c} -> {p}" + (f" ({sv[c]['level']})" if sv.get(c) else "")
+                        for c, p in (tri.get("policy") or {}).items())
         story.append(P("What an analyst would do with each model's answers. The priority comes from the "
                        f"session's policy table ({pol}; any other answer -> {tri.get('fallback')}), not "
                        "from the model. Context for the efficiency results: it does not change the score or "
                        "the ranking. The input is network flows, not IDS alerts (flow triage).", "small"))
         pri = list(tri.get("priorities") or [])
         lab = bool(tri.get("labelled"))
-        rows = [["Model"] + pri + (["Missed attacks", "False escalations", "Cost / attack caught"] if lab else [])]
+        rows = [["Model", "Gate"] + pri + (["Missed attacks", "False escalations", "Cost / attack caught"] if lab else [])]
         for r in tri["per_model"]:
             q = r.get("queue") or {}
             cpa = r.get("cost_per_attack_caught_usd")
-            rows.append([r["model"]] + [fmt_int(q.get(p)) for p in pri]
+            rows.append([r["model"], gate_text(r.get("gate"))] + [fmt_int(q.get(p)) for p in pri]
                         + ([f"{fmt_int(r.get('missed_attacks'))} ({fmt_pct(r.get('missed_attack_rate'))})",
                             f"{fmt_int(r.get('false_escalations'))} ({fmt_pct(r.get('false_escalation_rate'))})",
                             "-" if cpa is None else f"${cpa:.5f}"] if lab else []))
@@ -515,6 +552,12 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
         story.append(table(rows, [W - n * 22 * mm] + [22 * mm] * n))
         if not lab:
             story.append(P("No labels in this input: missed attacks and false escalations need the true class.", "small"))
+        g = tri.get("gate")
+        if g:
+            story.append(P(f"Triage gate: recommended only if missed attacks <= {fmt_pct(g['max_missed_attack_rate'])}, "
+                           f"false escalations <= {fmt_pct(g['max_false_escalation_rate'])} and valid answers >= "
+                           f"{fmt_pct(g['min_valid_rate'])}. Basis: {g.get('basis')}. Severity: "
+                           f"{tri.get('severity_source')}.", "small"))
 
     # --- caveats ------------------------------------------------------------------------------------
     cav = list((rel or {}).get("caveats") or s.get("caveats") or [])

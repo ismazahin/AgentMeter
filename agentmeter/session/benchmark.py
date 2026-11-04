@@ -39,7 +39,8 @@ import yaml
 from ..config import PROJECT_ROOT, load_config
 from ..ingest.csv_input import OTHER_ATTACK
 from ..pipeline.agents import PROMPT_VERSION
-from ..pipeline.triage import OTHER_ATTACK_PRIORITY, triage_table
+from ..pipeline.triage import (OTHER_ATTACK_CLASSTYPE, OTHER_ATTACK_PRIORITY, gate_config, severity_table,
+                               triage_table)
 from ..ingest.unified import load_input_run
 
 MAX_MODELS = 4
@@ -109,8 +110,11 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
             raise SessionError(f"unexpected 6-class scheme {classes} (base classes {base_classes})")
         data.setdefault("mitre", {})[OTHER_ATTACK] = OTHER_ATTACK_MITRE
         data["triage"] = {**triage_table(data), OTHER_ATTACK: OTHER_ATTACK_PRIORITY}
+        data["severity"] = {**severity_table(data), OTHER_ATTACK: OTHER_ATTACK_CLASSTYPE}
     data["classes"] = classes
     data["triage"] = triage_table(data)            # the policy this session is triaged under
+    data["severity"] = severity_table(data)
+    data["triage_gate"] = gate_config(data)
     data.setdefault("pipeline", {})["prompt_version"] = PROMPT_VERSION
 
     # --- scenarios: hidden id + model-visible features + held-out label ---------------
@@ -238,7 +242,7 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
     (Path(plan["run_dir"]) / f"flows_{result.run_id}.json").write_text(
         json.dumps(flows_file(plan["db_path"], result.run_id, label_of,
                               labelled=bool((payload.get("session") or {}).get("accuracy_available")),
-                              triage=triage_table(cfg_data))), encoding="utf-8")
+                              triage=triage_table(cfg_data), severity=severity_table(cfg_data))), encoding="utf-8")
     return payload
 
 

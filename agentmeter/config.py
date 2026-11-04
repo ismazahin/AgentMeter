@@ -86,6 +86,15 @@ def _validate(data: dict[str, Any], cfg_path: Path) -> None:
             validate_triage(data["triage"], list(data.get("classes") or []))
         except ValueError as e:
             raise ValueError(f"config.yaml ({cfg_path}): {e}") from None
+    if "severity" in data or "triage_gate" in data:
+        from .pipeline.triage import validate_gate, validate_severity
+        try:
+            if "severity" in data:
+                validate_severity(data["severity"], list(data.get("classes") or []))
+            if "triage_gate" in data:
+                validate_gate(data["triage_gate"])
+        except ValueError as e:
+            raise ValueError(f"config.yaml ({cfg_path}): {e}") from None
 
     # Scoring weights must be present and sum to ~1.0 (SAW requirement).
     weights = data.get("scoring", {}).get("weights", {})

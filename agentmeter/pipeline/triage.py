@@ -27,6 +27,43 @@ OTHER_ATTACK_PRIORITY = INVESTIGATE
 FALLBACK_PRIORITY = INVESTIGATE
 BENIGN = "Benign"
 
+# --- severity -------------------------------------------------------------------------------
+# ATT&CK has no severity and network flows carry no CVE, so severity is taken from a published
+# IDS source: each class is mapped (``severity:`` in the config) to a Snort/Suricata classtype,
+# whose default priority in classification.config (1 = most severe) gives the level.
+SNORT_CLASSTYPE_PRIORITY: dict[str, int] = {
+    "attempted-admin": 1,      # Attempted Administrator Privilege Gain
+    "attempted-user": 1,       # Attempted User Privilege Gain
+    "attempted-dos": 2,        # Attempted Denial of Service
+    "attempted-recon": 2,      # Attempted Information Leak
+    "not-suspicious": 3,       # Not Suspicious Traffic
+    "unknown": 3,              # Unknown Traffic
+}
+SEVERITY_LEVEL = {1: "High", 2: "Medium", 3: "Low"}
+DEFAULT_SEVERITY: dict[str, str] = {
+    "Brute Force": "attempted-user",
+    "Volumetric DDoS": "attempted-dos",
+    "DoS Hulk": "attempted-dos",
+    "Port Scanning": "attempted-recon",
+    "Benign": "not-suspicious",
+}
+OTHER_ATTACK_CLASSTYPE = "unknown"
+SEVERITY_SOURCE = ("Snort/Suricata classification.config default priorities "
+                   "(1 = High, 2 = Medium, 3 = Low) of the classtype mapped to each class")
+
+# --- triage gate ----------------------------------------------------------------------------
+# A model is recommended for triage only when it meets every limit. Defaults: parity with a
+# Tier-2 analyst as reported in research (85-90% of true positives detected, 70-80% of false
+# positives rejected; SIR-Bench, arXiv 2604.12040), taken at the lower end. The valid-answer
+# floor is this study's own choice (no published standard). Declare all three in the thesis.
+DEFAULT_GATE: dict[str, Any] = {
+    "max_missed_attack_rate": 0.15,
+    "max_false_escalation_rate": 0.30,
+    "min_valid_rate": 0.95,
+    "basis": "Tier-2 analyst parity (SIR-Bench, arXiv 2604.12040: 85-90% true positives detected, "
+             "70-80% false positives rejected); valid-answer floor chosen by this study",
+}
+
 
 def triage_table(config_data: dict[str, Any]) -> dict[str, str]:
     """The config's triage table, or the default policy when the config has none."""
@@ -50,8 +87,71 @@ def priority_of(label: Optional[str], table: dict[str, str]) -> str:
     return table.get(label or "", FALLBACK_PRIORITY)
 
 
+def severity_table(config_data: dict[str, Any]) -> dict[str, str]:
+    t = config_data.get("severity")
+    return dict(t) if isinstance(t, dict) and t else dict(DEFAULT_SEVERITY)
+
+
+def validate_severity(table: Any, classes: list[str]) -> None:
+    if not isinstance(table, dict):
+        raise ValueError("severity must map each class to a Snort/Suricata classtype")
+    bad = {c: t for c, t in table.items() if t not in SNORT_CLASSTYPE_PRIORITY}
+    if bad:
+        raise ValueError(f"severity: classtype must be one of {', '.join(SNORT_CLASSTYPE_PRIORITY)}; got {bad}")
+    missing = [c for c in classes if c not in table]
+    if missing:
+        raise ValueError(f"severity: no classtype for class(es) {', '.join(missing)}")
+
+
+def severity_of(label: Optional[str], table: dict[str, str]) -> Optional[dict[str, Any]]:
+    """{classtype, priority, level} for a class; None for an answer that is not a class."""
+    ct = table.get(label or "")
+    if ct is None:
+        return None
+    p = SNORT_CLASSTYPE_PRIORITY[ct]
+    return {"classtype": ct, "priority": p, "level": SEVERITY_LEVEL[p]}
+
+
+def gate_config(config_data: dict[str, Any]) -> dict[str, Any]:
+    g = config_data.get("triage_gate")
+    return {**DEFAULT_GATE, **(g if isinstance(g, dict) else {})}
+
+
+def validate_gate(gate: Any) -> None:
+    if not isinstance(gate, dict):
+        raise ValueError("triage_gate must be a mapping")
+    for k in ("max_missed_attack_rate", "max_false_escalation_rate", "min_valid_rate"):
+        if k in gate and not (isinstance(gate[k], (int, float)) and 0 <= gate[k] <= 1):
+            raise ValueError(f"triage_gate.{k} must be a share between 0 and 1, got {gate[k]!r}")
+
+
+def apply_gate(triage: dict[str, Any], reliability: Optional[dict[str, Any]], gate: dict[str, Any]) -> None:
+    """Add each model's gate result to the triage block (in place). Unlabelled input cannot be
+    checked for missed attacks or false escalations: those checks read "not checked"."""
+    valid = {r["model"]: r.get("valid_rate") for r in ((reliability or {}).get("per_model") or [])}
+    for m in triage.get("per_model") or []:
+        checks = []
+
+        def check(name, value, limit, ok_if_le):
+            if value is None:
+                checks.append({"check": name, "value": None, "limit": limit, "passed": None})
+            else:
+                checks.append({"check": name, "value": value, "limit": limit,
+                               "passed": value <= limit if ok_if_le else value >= limit})
+        check("missed_attack_rate", m.get("missed_attack_rate"), gate["max_missed_attack_rate"], True)
+        check("false_escalation_rate", m.get("false_escalation_rate"), gate["max_false_escalation_rate"], True)
+        check("valid_rate", valid.get(m["model"]), gate["min_valid_rate"], False)
+        failed = [c["check"] for c in checks if c["passed"] is False]
+        unchecked = [c["check"] for c in checks if c["passed"] is None]
+        m["gate"] = {"passed": False if failed else (None if unchecked else True),
+                     "failed": failed, "not_checked": unchecked, "checks": checks}
+    triage["gate"] = {k: gate[k] for k in ("max_missed_attack_rate", "max_false_escalation_rate",
+                                           "min_valid_rate", "basis")}
+
+
 def triage_block(sr: list[dict], label_of: dict[str, str], table: dict[str, str], *,
-                 labelled: bool, cost: Optional[dict] = None) -> dict[str, Any]:
+                 labelled: bool, cost: Optional[dict] = None,
+                 severity: Optional[dict[str, str]] = None) -> dict[str, Any]:
     """Per model: the analyst queue (Escalate / Investigate / Dismiss) and, for labelled input,
     the triage errors that matter in a SOC: attacks dismissed and benign flows escalated.
 
@@ -68,8 +168,11 @@ def triage_block(sr: list[dict], label_of: dict[str, str], table: dict[str, str]
         n = len(rs)
         pred = [priority_of(r.get("predicted_label"), table) for r in rs]
         queue = {p: pred.count(p) for p in PRIORITIES}
+        sev = severity or DEFAULT_SEVERITY
+        levels = [(severity_of(r.get("predicted_label"), sev) or {}).get("level") or "None" for r in rs]
         row: dict[str, Any] = {"model": m, "n_flows": n, "queue": queue,
-                               "queue_share": {p: (queue[p] / n if n else None) for p in PRIORITIES}}
+                               "queue_share": {p: (queue[p] / n if n else None) for p in PRIORITIES},
+                               "severity_queue": {lv: levels.count(lv) for lv in ("High", "Medium", "Low", "None")}}
         if labelled and n:
             truth = [priority_of(r.get("held_out_label"), table) for r in rs]
             attack = [r.get("held_out_label") != BENIGN for r in rs]
@@ -96,6 +199,8 @@ def triage_block(sr: list[dict], label_of: dict[str, str], table: dict[str, str]
     return {
         "labelled": labelled,
         "policy": {c: table[c] for c in table},
+        "severity": {c: severity_of(c, severity or DEFAULT_SEVERITY) for c in (severity or DEFAULT_SEVERITY)},
+        "severity_source": SEVERITY_SOURCE,
         "priorities": list(PRIORITIES),
         "fallback": FALLBACK_PRIORITY,
         "per_model": per,
@@ -112,5 +217,11 @@ def triage_block(sr: list[dict], label_of: dict[str, str], table: dict[str, str]
             "context": "Triage quality is context for the efficiency results. It does not change the efficiency "
                        "score or the ranking.",
             "flows": "The flows are network flows, not IDS alerts: this is flow triage.",
+            "severity": "Severity = the default priority of the Snort/Suricata classtype mapped to the predicted "
+                        "class (MITRE ATT&CK has no severity, and flows carry no CVE). \"None\" = an answer "
+                        "that is not a class.",
+            "gate": "A model is recommended for triage only if it meets every gate limit; a check that needs "
+                    "labels is \"not checked\" on unlabelled input. The gate never changes the efficiency "
+                    "score or the ranking.",
         },
     }

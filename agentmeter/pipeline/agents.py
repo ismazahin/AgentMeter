@@ -19,7 +19,7 @@ from typing import Callable
 
 from ..config import Config
 from ..providers.base import ModelProvider
-from .triage import priority_of, triage_table
+from .triage import priority_of, severity_of, severity_table, triage_table
 
 # The wording of the prompts below. Changing any prompt changes what is measured (tokens, time),
 # so a session records this version and sessions with different versions are not compared.
@@ -168,6 +168,7 @@ def act_agent(state: dict, provider: ModelProvider, config: Config) -> dict:
         "mitre_technique": mitre.get(final_class, "N/A"),
         # the SOC's policy table, not the model, sets the priority (pipeline/triage.py)
         "priority": priority_of(final_class, triage_table(getattr(config, "data", config))),
+        "severity": severity_of(final_class, severity_table(getattr(config, "data", config))),
         "justification": res.text.strip().splitlines()[-1] if res.text.strip() else "",
         "raw": res.text,
     }
@@ -246,6 +247,7 @@ def make_verdict(predicted: str, text: str, config: Config) -> dict:
         "predicted_class": final_class,
         "mitre_technique": mitre.get(final_class, "N/A"),
         "priority": priority_of(final_class, triage_table(getattr(config, "data", config))),
+        "severity": severity_of(final_class, severity_table(getattr(config, "data", config))),
         "justification": text.strip().splitlines()[-1] if text.strip() else "",
         "raw": text,
     }

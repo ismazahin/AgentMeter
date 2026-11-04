@@ -360,6 +360,12 @@ function tiles(res) {
   var low = orl.slice().sort(function (a, b) { return (a.valid_rate || 0) - (b.valid_rate || 0); })[0];
   t.push('<div class="tile" data-metric="valid"><div class="k">Valid answers</div><div class="v">' + (low ? fmtPct(low.valid_rate) : "—") + '</div><div class="w">' +
     esc(!low ? "not recorded" : orl.every(function (m) { return m.valid_rate === 1; }) ? "every model, every flow" : "lowest: " + short(low.model)) + '</div></div>');
+  var tg = ((res.triage || {}).per_model || []).filter(function (m) { return m.gate; });
+  if (tg.length) {
+    var pass = tg.filter(function (m) { return m.gate.passed === true; }), fail = tg.filter(function (m) { return m.gate.passed === false; });
+    t.push('<div class="tile" data-metric="gate"><div class="k">Triage gate</div><div class="v">' + (pass.length + fail.length ? pass.length + " of " + tg.length + " pass" : "not checked") + '</div><div class="w">' +
+      esc(fail.length ? "fails: " + fail.map(function (m) { return short(m.model); }).join(", ") : pass.length ? "every checked model" : "needs labelled input") + '</div></div>');
+  }
   return '<div class="tiles" id="svc-tiles">' + t.join("") + '</div>';
 }
 // the stored caveat sentences, shown as short labels (each opens its full sentence)
@@ -901,21 +907,36 @@ function triageCard(res) {
   var P = t.priorities, pm = t.per_model;
   var q = function (m, p) { return fmtNum(m.queue[p]) + ' <span class="muted small">(' + fmtPct(m.queue_share[p]) + ')</span>'; };
   var frac = function (n, rate) { return n == null ? '<span class="muted">—</span>' : fmtNum(n) + ' <span class="muted small">(' + fmtPct(rate) + ')</span>'; };
-  var head = '<th>Model</th>' + P.map(function (p) { return '<th class="num">' + esc(p) + '</th>'; }).join("") +
+  var G = { missed_attack_rate: "missed attacks", false_escalation_rate: "false escalations", valid_rate: "valid answers" };
+  var gateCell = function (m) {
+    var g = m.gate;
+    if (!g) return '<span class="muted">—</span>';
+    if (g.passed === true) return '<span class="chip ok">✓ passes</span>';
+    if (g.passed === false) return '<span class="chip bad">✗ ' + esc(g.failed.map(function (k) { return G[k] || k; }).join(", ")) + '</span>';
+    return '<span class="chip">not checked</span>';
+  };
+  var head = '<th>Model</th><th>Triage gate</th>' + P.map(function (p) { return '<th class="num">' + esc(p) + '</th>'; }).join("") +
     (t.labelled ? '<th class="num">Missed attacks</th><th class="num">False escalations</th><th class="num">Priority right</th><th class="num">Cost per attack caught</th><th class="num">Energy per attack caught</th>' : "");
   var rows = pm.map(function (m) {
-    return '<tr><td class="mono">' + esc(short(m.model)) + '</td>' + P.map(function (p) { return '<td class="num">' + q(m, p) + '</td>'; }).join("") +
+    return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + gateCell(m) + '</td>' + P.map(function (p) { return '<td class="num">' + q(m, p) + '</td>'; }).join("") +
       (t.labelled ? '<td class="num">' + frac(m.missed_attacks, m.missed_attack_rate) + '</td><td class="num">' + frac(m.false_escalations, m.false_escalation_rate) +
         '</td><td class="num">' + fmtPct(m.priority_accuracy) + '</td><td class="num">' + fmtUsd(m.cost_per_attack_caught_usd) + '</td><td class="num">' + fmtWh(m.wh_per_attack_caught) + '</td>' : "") + '</tr>';
   }).join("");
-  var policy = Object.keys(t.policy).map(function (c) { return '<li>' + esc(c) + ' → <b>' + esc(t.policy[c]) + '</b></li>'; }).join("");
+  var sv = t.severity || {};
+  var policy = Object.keys(t.policy).map(function (c) {
+    var s = sv[c];
+    return '<li>' + esc(c) + ' → <b>' + esc(t.policy[c]) + '</b>' + (s ? ' · severity <b>' + esc(s.level) + '</b> <span class="muted">(' + esc(s.classtype) + ', priority ' + s.priority + ')</span>' : "") + '</li>';
+  }).join("");
+  var gl = t.gate ? '<p class="small">Triage gate — recommended only if missed attacks ≤ ' + fmtPct(t.gate.max_missed_attack_rate) + ', false escalations ≤ ' + fmtPct(t.gate.max_false_escalation_rate) +
+    ' and valid answers ≥ ' + fmtPct(t.gate.min_valid_rate) + '. <span class="muted">Basis: ' + esc(t.gate.basis) + '.</span></p>' : "";
   return '<div class="card" id="rel-triage"><h2>Triage</h2><p class="muted small" style="margin-top:0">What an analyst would have to do with each model\'s answers: escalate now, investigate, or dismiss. ' +
       'The priority comes from the policy table below, not from the model. Context for the efficiency results: it does not change the score or the ranking.</p>' +
-    '<div class="table-wrap"><table id="triage-table"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    '<div class="table-wrap"><table id="triage-table"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>' + gl +
     (t.labelled ? "" : '<p class="small muted">This input has no labels, so only the queue is shown: missed attacks and false escalations need the true class.</p>') +
     '<details class="info"><summary>Policy and definitions</summary><ul class="small list">' + policy +
       '<li>Any other class, or an answer that could not be read → <b>' + esc(t.fallback) + '</b></li></ul><ul class="small list">' +
-      '<li>' + esc(t.notes.missed) + '</li><li>' + esc(t.notes.false_escalation) + '</li><li>' + esc(t.notes.cost) + '</li><li>' + esc(t.notes.flows) + '</li></ul></details></div>';
+      '<li>' + esc(t.notes.missed) + '</li><li>' + esc(t.notes.false_escalation) + '</li><li>' + esc(t.notes.cost) + '</li><li>' + esc(t.notes.flows) + '</li>' +
+      (t.notes.severity ? '<li>' + esc(t.notes.severity) + '</li>' : "") + (t.notes.gate ? '<li>' + esc(t.notes.gate) + '</li>' : "") + '</ul></details></div>';
 }
 // Output Reliability: are the answers consistent (format, repeat, MITRE)?
 function consistencyCard(res) {
@@ -1403,7 +1424,7 @@ function drawFlows() {
   var labelled = d.labelled !== false && d.flows.some(function (f) { return f.truth; });
   $("flows-status").innerHTML = esc(d.flows.length + " flows × " + d.models.length + " model" + (d.models.length > 1 ? "s" : "") + ". ") +
     (d.has_text ? "Open a flow to read each agent's answer (up to " + fmtNum(d.text_chars) + " characters each)." : "<b>Agent answers were not recorded for this run</b> — times and tokens only.");
-  var mark = function (pm) { return !pm ? "—" : (pm.correct === true ? '<span class="chip ok">✓ ' : pm.correct === false ? '<span class="chip bad">✗ ' : '<span class="chip">') + esc(pm.predicted || "—") + '</span>' + (pm.priority ? ' <span class="muted small">' + esc(pm.priority) + '</span>' : ""); };
+  var mark = function (pm) { return !pm ? "—" : (pm.correct === true ? '<span class="chip ok">✓ ' : pm.correct === false ? '<span class="chip bad">✗ ' : '<span class="chip">') + esc(pm.predicted || "—") + '</span>' + (pm.priority ? ' <span class="muted small">' + esc(pm.priority) + (pm.severity ? " · " + esc(pm.severity) : "") + '</span>' : ""); };
   var triaged = d.flows.some(function (f) { return d.models.some(function (m) { return f.per_model[m] && f.per_model[m].priority; }); });
   $("flows-body").innerHTML = '<div class="row" style="margin-top:0"><div class="field"><label for="flows-filter">Show</label><select id="flows-filter">' +
     [["all", "All flows"], ["wrong", "Wrong answer (any model)"], ["missed", "Attack dismissed (any model)"], ["escalate", "Escalated (any model)"], ["disagree", "Models disagree"], ["slow", "10 slowest"]]
@@ -1438,7 +1459,7 @@ function flowDetail() {
     d.models.map(function (m) {
       var pm = f.per_model[m];
       if (!pm) return '<div class="flow-col"><h4>' + esc(short(m)) + '</h4><p class="muted">Not run.</p></div>';
-      return '<div class="flow-col" data-model="' + esc(m) + '"><h4><i class="sw" style="--c:' + modelColor(m) + '"></i>' + esc(short(m)) + '</h4><p class="small">Answer <b>' + esc(pm.predicted || "—") + '</b>' + (pm.priority ? ' → <b>' + esc(pm.priority) + '</b>' : "") +
+      return '<div class="flow-col" data-model="' + esc(m) + '"><h4><i class="sw" style="--c:' + modelColor(m) + '"></i>' + esc(short(m)) + '</h4><p class="small">Answer <b>' + esc(pm.predicted || "—") + '</b>' + (pm.priority ? ' → <b>' + esc(pm.priority) + '</b>' + (pm.severity ? ' (severity ' + esc(pm.severity) + ')' : "") : "") +
         (pm.correct === true ? ' <span class="chip ok">✓ correct</span>' : pm.correct === false ? ' <span class="chip bad">✗ wrong</span>' : "") + ' · ' + fmtTime(pm.latency_s) + ' end to end</p>' +
         pm.agents.map(function (a) {
           return '<div class="flow-agent"><div class="small"><span class="legend"><span style="--c:' + agColor(a.agent) + '">' + esc(agName(a.agent)) + '</span></span> ' + fmtTime(a.wall_s) +

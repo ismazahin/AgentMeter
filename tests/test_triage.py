@@ -130,3 +130,132 @@ def test_a_session_records_its_policy_and_reports_triage(tmp_path):
     f = flows["flows"][0]
     assert f["truth_priority"] in (ESCALATE, INVESTIGATE, DISMISS)
     assert all(pm["priority"] in (ESCALATE, INVESTIGATE, DISMISS) for pm in f["per_model"].values())
+
+
+# ---------------------------------------------------------------- severity and the triage gate
+from agentmeter.pipeline.triage import (DEFAULT_GATE, DEFAULT_SEVERITY, SNORT_CLASSTYPE_PRIORITY,  # noqa: E402
+                                        apply_gate, severity_of, validate_gate, validate_severity)
+
+
+def test_every_config_has_the_same_severity_and_gate():
+    for p in [PROJECT_ROOT / "config.yaml", *sorted((PROJECT_ROOT / "configs").glob("*.yaml"))]:
+        data = yaml.safe_load(p.read_text())
+        if "classes" not in data:
+            continue
+        assert data.get("severity") == DEFAULT_SEVERITY, p.name
+        assert {k: data["triage_gate"][k] for k in data["triage_gate"]} == \
+            {k: v for k, v in DEFAULT_GATE.items() if k != "basis"}, p.name
+        assert data["scoring"]["targets_source"] == "placeholder", p.name
+
+
+def test_severity_comes_from_the_snort_classtype_priority():
+    assert severity_of("Brute Force", DEFAULT_SEVERITY) == {"classtype": "attempted-user", "priority": 1, "level": "High"}
+    assert severity_of("DoS Hulk", DEFAULT_SEVERITY)["level"] == "Medium"
+    assert severity_of("Port Scanning", DEFAULT_SEVERITY)["level"] == "Medium"
+    assert severity_of("Benign", DEFAULT_SEVERITY)["level"] == "Low"
+    assert severity_of("Unparseable", DEFAULT_SEVERITY) is None
+    assert set(DEFAULT_SEVERITY.values()) <= set(SNORT_CLASSTYPE_PRIORITY)
+
+
+def test_a_bad_severity_or_gate_is_refused():
+    with pytest.raises(ValueError, match="classtype must be one of"):
+        validate_severity({**DEFAULT_SEVERITY, "Benign": "harmless"}, CLASSES)
+    with pytest.raises(ValueError, match="no classtype"):
+        validate_severity({"Benign": "not-suspicious"}, CLASSES)
+    with pytest.raises(ValueError, match="between 0 and 1"):
+        validate_gate({"max_missed_attack_rate": 15})
+
+
+def test_the_verdict_carries_severity():
+    cfg = load_config(PROJECT_ROOT / "configs" / "run_full_mock.yaml")
+    assert make_verdict("Brute Force", "", cfg)["severity"]["level"] == "High"
+
+
+def _gated(pairs, valid):
+    t = triage_block(_rows(pairs), {"a": "mock:a"}, DEFAULT_TRIAGE, labelled=True)
+    apply_gate(t, {"per_model": [{"model": "a", "valid_rate": valid}]}, DEFAULT_GATE)
+    return t
+
+
+def test_the_gate_passes_a_model_within_every_limit():
+    pairs = [("Brute Force", "Brute Force")] * 9 + [("Brute Force", "Benign")] + [("Benign", "Benign")] * 10
+    g = _gated(pairs, 1.0)["per_model"][0]["gate"]
+    assert g["passed"] is True and g["failed"] == []         # 10% missed <= 15%, 0 false escalations
+
+
+def test_the_gate_names_every_limit_a_model_fails():
+    pairs = [("Brute Force", "Benign")] * 5 + [("Brute Force", "Brute Force")] * 5 + [("Benign", "DoS Hulk")] * 5
+    g = _gated(pairs, 0.90)["per_model"][0]["gate"]
+    assert g["passed"] is False
+    assert g["failed"] == ["missed_attack_rate", "false_escalation_rate", "valid_rate"]
+
+
+def test_unlabelled_input_is_not_checked_by_the_gate():
+    t = triage_block(_rows([("UNLABELLED", "Benign")]), {"a": "mock:a"}, DEFAULT_TRIAGE, labelled=False)
+    apply_gate(t, {"per_model": [{"model": "a", "valid_rate": 1.0}]}, DEFAULT_GATE)
+    g = t["per_model"][0]["gate"]
+    assert g["passed"] is None and g["not_checked"] == ["missed_attack_rate", "false_escalation_rate"]
+
+
+def test_the_pdf_recommendation_states_the_gate():
+    from agentmeter.session.pdf_report import gate_line
+    pairs = [("Brute Force", "Benign")] * 5 + [("Benign", "Benign")] * 5
+    line = gate_line({"triage": _gated(pairs, 1.0)})
+    assert "not recommended for triage as-is" in line and "missed attacks" in line
+
+
+# ---------------------------------------------------------------- the corrected CIC-IDS2017
+def test_attempted_flows_of_the_corrected_dataset_are_excluded(tmp_path):
+    import pandas as pd
+
+    from agentmeter.ingest.csv_input import is_attempted, load_csv
+    assert is_attempted("DoS Hulk - Attempted") and is_attempted("FTP-Patator - attempted")
+    assert not is_attempted("DoS Hulk") and not is_attempted("BENIGN")
+    src = pd.read_csv(PROJECT_ROOT / "data" / "sample_csv" / "cicids2017_sample.csv")
+    col = next(c for c in src.columns if c.strip() == "Label")
+    src.loc[src.index[:3], col] = "DoS Hulk - Attempted"
+    src.loc[src.index[3:5], col] = "Portscan"                 # the corrected set's spelling
+    p = tmp_path / "corrected.csv"
+    src.to_csv(p, index=False)
+    for other in (False, True):                               # never "Other Attack", even when on
+        r = load_csv(p, other_attack=other)
+        assert r.report["label"]["excluded_attempted"] == 3
+        assert not r.labels["label_raw"].str.contains("Attempted").any()
+        assert (r.labels["label_raw"] == "Portscan").sum() >= 1          # read case-insensitively
+        assert set(r.labels.loc[r.labels["label_raw"] == "Portscan", "label"]) == {"Port Scanning"}
+
+
+# ---------------------------------------------------------------- calibrating the SAW targets
+def test_calibration_proposes_and_writes_targets(tmp_path):
+    import json
+    import sys
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    import calibrate_targets as C
+    res = {"environment": {"provider": "real", "gpu_name": "NVIDIA L4"},
+           "phase8": {"raw_criteria": [
+               {"model": "a", "latency_s": 2.0, "vram_mb": 6000.0, "tokens_total": 900.0},
+               {"model": "b", "latency_s": 4.0, "vram_mb": 9000.0, "tokens_total": 700.0},
+               {"model": "c", "latency_s": 3.0, "vram_mb": float("nan"), "tokens_total": 800.0}]}}
+    f = tmp_path / "session_results.json"
+    f.write_text(json.dumps(res))
+    per, gpus = C.collect([f])
+    assert C.propose(per, "best") == {"latency_s": 2.0, "vram_mb": 6000.0, "tokens_total": 700.0}
+    assert C.propose(per, "median") == {"latency_s": 3.0, "vram_mb": 7500.0, "tokens_total": 800.0}
+    cfg = tmp_path / "config.yaml"
+    cfg.write_text((PROJECT_ROOT / "configs" / "run_full_mock.yaml").read_text())
+    assert C.main([str(f), "--write", str(cfg)]) == 0
+    d = yaml.safe_load(cfg.read_text())
+    assert d["scoring"]["targets"]["latency_s"] == 2.0 and d["scoring"]["targets"]["accuracy_pct"] == 80.0
+    assert d["scoring"]["targets_source"].startswith("calibrated") and "NVIDIA L4" in d["scoring"]["targets_source"]
+    load_config(cfg)                                           # still a valid config
+
+
+def test_calibration_refuses_mock_sessions(tmp_path):
+    import json
+    import sys
+    sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+    import calibrate_targets as C
+    f = tmp_path / "r.json"
+    f.write_text(json.dumps({"environment": {"provider": "mock"}, "phase8": {"raw_criteria": []}}))
+    with pytest.raises(SystemExit, match="not a real GPU session"):
+        C.collect([f])

@@ -297,6 +297,11 @@ def score_session(plan: dict[str, Any], run_id: str) -> dict[str, Any]:
     full_tbl = p8_full["table"].replace({"model": {v: k for k, v in label_of.items()}}) if labelled else None
     comparison = _compare(models, per_model, eff_tbl, full_tbl, labelled)
     caveats = _caveats(meta, plan["provider"], sr, plan["six_class"])
+    src = (cfg.get("scoring", {}) or {}).get("targets_source")
+    if not src or str(src).startswith("placeholder"):
+        caveats.append("SAW targets are placeholders (not yet calibrated from a real GPU run with "
+                       "scripts/calibrate_targets.py): tiers and absolute scores are provisional; the "
+                       "head-to-head comparison is not affected.")
     # Phase 39 — additive head-to-head view over the same metrics (absolute SAW unchanged).
     stats = _statistics(sr)
     p_values = {key: stats[metric]["p_value"] for key, metric in

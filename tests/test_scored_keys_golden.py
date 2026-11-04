@@ -40,7 +40,15 @@ def _rescore(tmp_path: Path) -> dict:
 SENTENCES = {"comparison": "statement", "relative_comparison": "verdict"}
 
 
+# Wording only (November 2026): one caveat sentence is ADDED while the SAW targets are still
+# placeholders (scoring.targets_source). It is removed before the byte comparison; every other
+# caveat must still be identical, and the added one is checked below.
+PLACEHOLDER = "SAW targets are placeholders"
+
+
 def _numbers(key: str, v):
+    if isinstance(v, dict) and isinstance(v.get("caveats"), list):
+        v = {**v, "caveats": [c for c in v["caveats"] if not c.startswith(PLACEHOLDER)]}
     return {k: x for k, x in v.items() if k != SENTENCES[key]} if key in SENTENCES and isinstance(v, dict) else v
 
 
@@ -49,10 +57,11 @@ def test_scored_keys_are_byte_identical_to_the_pre_phase46_output(tmp_path):
     for key in SCORED_KEYS:
         assert key in golden, key
         assert _dump(_numbers(key, now[key])) == _dump(_numbers(key, golden[key])), f"{key} changed"
+    assert any(c.startswith(PLACEHOLDER) for c in now["relative_comparison"]["caveats"])
     assert "more accurate" not in now["comparison"]["statement"] and "validity check" in now["comparison"]["statement"]
     assert "Accuracy:" not in now["relative_comparison"]["verdict"] and "Validity check" in now["relative_comparison"]["verdict"]
     assert now["relative_comparison"]["verdict"].split(". Validity")[0] == golden["relative_comparison"]["verdict"].split(". Accuracy")[0]
-    strip = lambda s: {k: v for k, v in s.items() if k not in PATH_KEYS}   # noqa: E731
+    strip = lambda s: _numbers("session", {k: v for k, v in s.items() if k not in PATH_KEYS})   # noqa: E731
     assert _dump(strip(now["session"])) == _dump(strip(golden["session"]))
 
 

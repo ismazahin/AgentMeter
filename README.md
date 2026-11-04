@@ -10,6 +10,20 @@ model; missed attacks, false escalations and the analyst queue are reported as c
 efficiency results (`agentmeter/pipeline/triage.py`). The inputs are network flows, not IDS
 alerts: this is flow triage.
 
+- **Severity** (`severity:`): each class maps to a Snort/Suricata classtype; its default
+  priority in `classification.config` gives High / Medium / Low (ATT&CK has no severity, and
+  flows carry no CVE).
+- **Triage gate** (`triage_gate:`): a model is recommended for triage only if missed attacks
+  ≤ 15%, false escalations ≤ 30% and valid answers ≥ 95% (Tier-2 analyst parity reported by
+  SIR-Bench, arXiv 2604.12040; the valid-answer floor is this study's choice). The gate never
+  changes the efficiency score or the ranking.
+- **SAW targets** are placeholders (`scoring.targets_source: placeholder`, flagged in every
+  report) until calibrated from the first real GPU run:
+  `python scripts/calibrate_targets.py <session_results.json ...> --write config.yaml`
+  (rule `best` = standard SAW cost normalisation, the best model scores 1.0; or `--rule median`).
+- **Corrected CIC-IDS2017** (Engelen et al., 2021): its `<attack> - Attempted` flows are
+  excluded (an attack in which the attack did not take place is neither the class nor benign).
+
 > The agentic pipeline is only the **test subject**. The contribution is the
 > **measurement harness**, the **per-agent instrumentation** (wall time, TTFT,
 > peak VRAM, tokens), and the **comparison methodology**.

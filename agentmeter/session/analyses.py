@@ -372,7 +372,8 @@ FLOW_TEXT_CHARS = 1200        # each agent answer kept up to this many character
 
 
 def flows_file(db: str | Path, run_id: str, label_of: dict[str, str], labelled: bool = True,
-               triage: Optional[dict[str, str]] = None) -> dict[str, Any]:
+               triage: Optional[dict[str, str]] = None,
+               severity: Optional[dict[str, str]] = None) -> dict[str, Any]:
     """Every flow of the run, per model: truth, answer, time, and each agent's time, tokens and
     answer text (when it was recorded) — the flow explorer's data. Read-only; written beside the
     results as flows_<run_id>.json, never inside session_results.json."""
@@ -386,8 +387,9 @@ def flows_file(db: str | Path, run_id: str, label_of: dict[str, str], labelled: 
         con.close()
     order = _agents_in_order(am)
     model_of = {dbm: m for m, dbm in label_of.items()}
-    from ..pipeline.triage import DEFAULT_TRIAGE, priority_of
+    from ..pipeline.triage import DEFAULT_SEVERITY, DEFAULT_TRIAGE, priority_of, severity_of
     table = triage or DEFAULT_TRIAGE
+    sev = severity or DEFAULT_SEVERITY
     agents: dict[tuple, list] = {}
     for r in am:
         agents.setdefault((r["model"], r["scenario_id"]), []).append(r)
@@ -404,6 +406,7 @@ def flows_file(db: str | Path, run_id: str, label_of: dict[str, str], labelled: 
         f["per_model"][model_of[r["model"]]] = {
             "predicted": r["predicted_label"],
             "priority": priority_of(r["predicted_label"], table),
+            "severity": (severity_of(r["predicted_label"], sev) or {}).get("level"),
             "correct": bool(r["correct"]) if labelled and r["correct"] is not None else None,
             "latency_s": _f(r["scenario_total_time_s"]),
             "agents": [{"agent": a["agent_name"], "wall_s": _f(a["wall_time_s"]), "input_tokens": a["input_tokens"],
@@ -1184,8 +1187,9 @@ def settings_of(config_data: dict[str, Any]) -> dict[str, Any]:
     pv = (config_data.get("pipeline") or {}).get("prompt_version")
     if pv:            # the prompts' wording is part of what was measured
         out["pipeline.prompt_version"] = pv
-    if config_data.get("triage"):     # the policy the triage results were computed under
-        out["triage"] = config_data["triage"]
+    for k in ("triage", "severity", "triage_gate"):     # the policy the triage results were computed under
+        if config_data.get(k):
+            out[k] = config_data[k]
     engine = (config_data.get("model") or {}).get("engine")
     if engine and engine != "transformers":     # another inference engine measures differently
         out["model.engine"] = engine
@@ -1248,10 +1252,11 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     payload["latency_trend"] = latency_trend_block(sr, label_of)
     payload["effect_sizes"] = effect_block(sr, am, label_of, payload.get("statistics"))
     payload["cost_energy"] = cost_energy_block(payload, sr, label_of, real=real, price=price, energy=energy)
-    from ..pipeline.triage import triage_block, triage_table
+    from ..pipeline.triage import apply_gate, gate_config, severity_table, triage_block, triage_table
     payload["triage"] = triage_block(sr, label_of, triage_table(config_data),
                                      labelled=bool((payload.get("session") or {}).get("accuracy_available")),
-                                     cost=payload["cost_energy"])
+                                     cost=payload["cost_energy"], severity=severity_table(config_data))
+    apply_gate(payload["triage"], payload.get("output_reliability"), gate_config(config_data))
     payload["gpu_health"] = gpu_health_block(sr, label_of, real=real, energy=energy)
     payload["gpu_timeline"] = gpu_timeline_block(sr, label_of, real=real, energy=energy,
                                                  flow_times=read_extras(db_path, run_id, labels, "flow_times"))

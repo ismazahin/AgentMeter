@@ -67,6 +67,13 @@ OTHER_ATTACK = "Other Attack"
 _MISSING_LABELS = {"", "nan", "none", "null", "na", "n/a"}
 
 
+def is_attempted(label: str) -> bool:
+    """A flow of the corrected CIC-IDS2017 (Engelen et al., 2021) labelled "<attack> - Attempted":
+    part of an attack's traffic but without the attack actually taking place. It is neither the
+    attack nor ordinary benign traffic, so it is always excluded (never mapped, never Other Attack)."""
+    return label.strip().casefold().endswith("- attempted")
+
+
 class CsvValidationError(ValueError):
     """The file is not a usable CIC-IDS2017-format CSV."""
 
@@ -185,6 +192,8 @@ def _canonical_counts(raw: dict[str, int], by_map: dict, by_class: dict, other_a
     """Raw-label counts (whole file) -> counts per canonical class."""
     out: dict[str, int] = {}
     for v, n in raw.items():
+        if is_attempted(v):
+            continue
         hit = by_map.get(v.casefold()) or by_class.get(v.casefold())
         if hit is None and other_attack and v.casefold() not in _MISSING_LABELS:
             hit = OTHER_ATTACK
@@ -286,6 +295,8 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
         missing_label = raw.str.casefold().isin(_MISSING_LABELS)
 
         def to_class(v: str) -> Optional[str]:
+            if is_attempted(v):
+                return None                    # corrected CIC-IDS2017: an attempt, not the attack
             hit = by_map.get(v.casefold()) or by_class.get(v.casefold())
             if hit is None and other_attack and v.casefold() not in _MISSING_LABELS:
                 return OTHER_ATTACK            # a named label outside the 5 study classes
@@ -366,6 +377,12 @@ def load_csv(path: str | Path, *, rule_fields: Optional[set[str]] = None,
         },
         "class_scheme": class_scheme(labels, classes, other_attack),
     }
+    n_attempted = sum(n for k, n in excluded_labels.items() if is_attempted(k))
+    if n_attempted:
+        report["label"]["excluded_attempted"] = n_attempted
+        report["notes"].append(f"{n_attempted} row(s) labelled \"... - Attempted\" (corrected CIC-IDS2017, "
+                               "Engelen et al. 2021) were excluded: attack traffic in which the attack did "
+                               "not take place is neither the attack class nor ordinary benign traffic")
     if excluded_labels and not other_attack:
         report["notes"].append("rows with attack labels outside the 5 study classes were excluded; "
                                "enable other_attack (--other-attack) to keep them as 'Other Attack'")

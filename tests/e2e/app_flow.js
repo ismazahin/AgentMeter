@@ -168,7 +168,8 @@ async function frameOf(p) {
   log(await p.isVisible('#svc-dl-pdf') && await p.isVisible('#session-compare'), 'Download PDF + Compare buttons');
   await tab(p, 'overview');
   log(/is more efficient than|Mixed result|tied on efficiency/.test(await p.textContent('#svc-headline')), 'Overview: one-line headline: ' + await p.textContent('#svc-headline'));
-  log((await p.$$('#svc-tiles .tile')).length === 4, 'Overview: 4 tiles (latency, VRAM, tokens, accuracy)');
+  log((await p.$$('#svc-tiles .tile')).length === 5, 'Overview: 5 tiles (latency, VRAM, tokens, valid answers, triage gate)');
+  log(/pass|not checked/.test(await p.textContent('#svc-tiles .tile[data-metric="gate"]')), 'Overview: the triage gate tile');
   log(await p.isHidden('#svc-verdict') && !!(await p.textContent('#svc-verdict')), 'Overview: the full verdict sentence is one click away (collapsed)');
   await p.click('#svc-full-verdict summary');
   log(await p.isVisible('#svc-verdict'), 'Overview: "Show full verdict" opens it');

@@ -76,12 +76,34 @@ triage:
   DoS Hulk: Escalate
   Port Scanning: Investigate
   Benign: Dismiss
+
+# Severity: each class -> a Snort/Suricata classtype; its default priority in
+# classification.config gives the level (1 High, 2 Medium, 3 Low). MITRE ATT&CK has no
+# severity and network flows carry no CVE, so a published IDS source is used instead.
+severity:
+  Brute Force: attempted-user
+  Volumetric DDoS: attempted-dos
+  DoS Hulk: attempted-dos
+  Port Scanning: attempted-recon
+  Benign: not-suspicious
+
+# Triage gate: a model is recommended for triage only if it meets every limit. Defaults:
+# Tier-2 analyst parity reported in research (SIR-Bench, arXiv 2604.12040: 85-90% of true
+# positives detected, 70-80% of false positives rejected), lower end; the valid-answer floor
+# is this study's choice. Context only: never part of the efficiency score or the ranking.
+triage_gate:
+  max_missed_attack_rate: 0.15
+  max_false_escalation_rate: 0.30
+  min_valid_rate: 0.95
 scoring:
   weights:
     accuracy: 0.4
     latency: 0.25
     vram: 0.2
     tokens: 0.15
+  # Where the targets below come from. "placeholder" until scripts/calibrate_targets.py
+  # is run on the first real GPU study run (the reports say so while it is a placeholder).
+  targets_source: placeholder
   targets:
     accuracy_pct: 80.0
     latency_s: 5.0

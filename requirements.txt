@@ -8,3 +8,6 @@ langgraph>=0.2
 langchain-core>=0.3
 # Service PDF benchmark report (Phase 42): GET /api/jobs/<id>/report.pdf
 reportlab>=4.0
+# The IDS gate (agentmeter/ids, scripts/train_ids.py). Pinned: a model trained with one
+# scikit-learn version is only loaded by the same version (train on your PC, run on the GPU).
+scikit-learn==1.9.1

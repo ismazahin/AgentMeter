@@ -2,7 +2,7 @@
  "openapi": "3.1.0",
  "info": {
   "title": "AgentMeter API — GPU backend",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Data preparation, benchmarks, live progress and the live GPU, on the rented GPU. With a control plane every call needs a run token; in one-user mode (no control plane) the same routes are open and also serve sessions, Compare and the Leaderboard.",
   "license": {
    "name": "See the repository"
@@ -318,6 +318,10 @@
          },
          "repeat_check": {
           "type": "boolean"
+         },
+         "ids": {
+          "type": "boolean",
+          "description": "boolean | object {threshold: number}"
          }
         }
        }
@@ -1495,7 +1499,7 @@
     "tags": [
      "GPU backend"
     ],
-    "summary": "Is the backend up: provider, GPU, queue, api_version",
+    "summary": "Is the backend up: provider, GPU, queue, api_version, the IDS model it offers",
     "security": [],
     "responses": {
      "200": {

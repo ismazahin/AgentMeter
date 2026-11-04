@@ -124,6 +124,17 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
         repeat_check = body.get("repeat_check", False)    # opt-in: answer the first flows again (run/extras.py)
         if not isinstance(repeat_check, bool):
             return fail(JobError("'repeat_check' must be true or false", "bad_request", 400))
+        ids = body.get("ids")                             # the IDS gate before the LLM triage (agentmeter/ids)
+        try:
+            from ..ids.stage import normalize_ids_option
+            ids = normalize_ids_option(ids)
+        except Exception as e:                            # IdsError: a bad option
+            return fail(JobError(str(e), "bad_request", 400))
+        if ids is not None:
+            from ..ids.model import model_available
+            if not model_available():
+                return fail(JobError("this server has no IDS model: train one with scripts/train_ids.py "
+                                     "(models/ids/ids_rf.*) or set AGENTMETER_IDS_MODEL", "no_ids_model", 409))
         models = body.get("models")
         if not isinstance(models, list):
             return fail(JobError("'models' must be a list of 1 to 4 model ids", "bad_models", 400))
@@ -146,7 +157,7 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
                                  else body.get("base_config"),
                                  environment=environment() if environment else None,
                                  after_prepare=after, meta=runtoken.job_meta(), load_test=load_test,
-                                 pipeline=body.get("pipeline"), repeat_check=repeat_check)
+                                 pipeline=body.get("pipeline"), repeat_check=repeat_check, ids=ids)
         except JobError as e:
             return fail(e)
         return jsonify(with_links(job)), 202

@@ -48,3 +48,8 @@ supabase/functions/**/deno.lock
 
 # npm packages (any folder)
 node_modules/
+
+# IDS models trained on your dataset (scripts/train_ids.py): copy them to the GPU server, do not
+# commit them. The tiny demo model (trained on the bundled 300 flows) is tracked.
+models/ids/*
+!models/ids/demo_ids.*

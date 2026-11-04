@@ -23,6 +23,11 @@ alerts: this is flow triage.
   (rule `best` = standard SAW cost normalisation, the best model scores 1.0; or `--rule median`).
 - **Corrected CIC-IDS2017** (Engelen et al., 2021): its `<attack> - Attempted` flows are
   excluded (an attack in which the attack did not take place is neither the class nor benign).
+- **IDS gate** (`docs/IDS.md`): a Random Forest IDS detects first and only the flows it flags
+  reach the LLM agents, which triage them. Train it with `python scripts/train_ids.py <csv folder>`
+  (writes `models/ids/ids_rf.*` and the hold-out CSV to benchmark with); tick **IDS gate** in a
+  new benchmark. Reports the IDS's detection, the LLM's triage of its alerts and the cost per
+  1,000 incoming flows.
 
 > The agentic pipeline is only the **test subject**. The contribution is the
 > **measurement harness**, the **per-agent instrumentation** (wall time, TTFT,

@@ -86,9 +86,13 @@ def _locked_dbs() -> set[Path]:
 def prepare_session(run_dir: str | Path, models: list[str], *,
                     base_config: Optional[str] = None,
                     provider: Optional[str] = None,
-                    pipeline: Optional[list[dict[str, Any]]] = None) -> dict[str, Any]:
+                    pipeline: Optional[list[dict[str, Any]]] = None,
+                    ids: Any = None) -> dict[str, Any]:
     """Write session_scenarios.csv + session_config.yaml into run_dir and return
-    what the session will do. Raises SessionError / InputContractError."""
+    what the session will do. Raises SessionError / InputContractError.
+
+    ids: None/False = every selected flow goes to the LLM agents; True or {"threshold": t} = the
+    IDS gate scores them first and only the flagged flows are triaged (agentmeter/ids)."""
     run_dir = Path(run_dir).resolve()
     models = validate_models(models)
     run = load_input_run(run_dir)               # contract check (input.json + selected_flows)
@@ -124,7 +128,27 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
         scen["label"] = run.labels["label"].to_numpy()
     else:
         scen["label"] = UNLABELLED
+    # --- the IDS gate: only flows it flags reach the LLM agents -------------------------
+    from ..ids.model import IdsError
+    from ..ids.stage import IDS_JSON, IDS_RESULTS_CSV, apply_ids, normalize_ids_option
+    try:
+        ids_opt = normalize_ids_option(ids)
+        ids_info = None
+        for stale in (IDS_JSON, IDS_RESULTS_CSV):       # a previous session's IDS output in this folder
+            (run_dir / stale).unlink(missing_ok=True)
+        if ids_opt is not None:
+            scen, ids_info = apply_ids(run_dir, scen, feats, ids_opt, labelled=run.labels is not None)
+    except IdsError as e:
+        raise SessionError(str(e)) from e
+    if ids_info is not None and not len(scen):
+        raise SessionError(f"the IDS flagged none of the {ids_info['n_flows_in']} flows at threshold "
+                           f"{ids_info['threshold']:.3f}: there is nothing for the LLM agents to triage "
+                           "(lower the threshold or select more flows)")
     scen.to_csv(run_dir / SCENARIOS_CSV, index=False)
+    if ids_info is not None:                       # the IDS that decided which flows were triaged
+        data["ids"] = {**ids_info["model"], "threshold": ids_info["threshold"]}
+    else:
+        data.pop("ids", None)
 
     data.setdefault("run", {})
     data["run"]["models"] = models
@@ -172,7 +196,7 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
     return {
         "run_dir": str(run_dir), "config_path": str(cfg_path), "db_path": str(db_path),
         "models": [{"model": m, "canonical": m in canon} for m in models],
-        "classes": classes, "six_class": six, "n_flows": int(len(scen)),
+        "classes": classes, "six_class": six, "n_flows": int(len(scen)), "ids": ids_info,
         "provider": data["model"].get("provider"), "metadata": meta,
     }
 
@@ -182,13 +206,18 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
                 environment: Optional[dict[str, Any]] = None, load_test: bool = False,
                 run_id: Optional[str] = None,
                 pipeline: Optional[list[dict[str, Any]]] = None,
-                repeat_check: bool = False) -> dict[str, Any]:
+                repeat_check: bool = False, ids: Any = None) -> dict[str, Any]:
     """Prepare, execute (existing sequential runner), score, and write
     <run_dir>/session_results.json. Returns the results payload."""
     from ..run.runner import run_full
     from .scoring import score_session, write_results
 
-    plan = prepare_session(run_dir, models, base_config=base_config, provider=provider, pipeline=pipeline)
+    plan = prepare_session(run_dir, models, base_config=base_config, provider=provider, pipeline=pipeline, ids=ids)
+    if plan.get("ids"):
+        from .. import telemetry
+        i = plan["ids"]
+        telemetry.emit("ids", f"IDS gate: {i['n_flagged']} of {i['n_flows_in']} flows flagged at threshold "
+                              f"{i['threshold']:.3f}; only those go to the LLM agents.")
     real = plan["provider"] == "hf"
     ops = ops_settings()
     # Phase 46: GPU board power, sampled from THIS (parent) process while the worker
@@ -239,10 +268,14 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
     from .analyses import flows_file
     label_of = {pm["model"]: pm.get("db_label") or pm["model"] for pm in payload.get("per_model") or []}
     cfg_data = load_config(plan["config_path"]).data
+    from ..ids.stage import read_ids
+    _, ids_df = read_ids(Path(plan["run_dir"]))
+    ids_scores = dict(zip(ids_df["flow_id"].astype(str), ids_df["score"].astype(float))) if ids_df is not None else None
     (Path(plan["run_dir"]) / f"flows_{result.run_id}.json").write_text(
         json.dumps(flows_file(plan["db_path"], result.run_id, label_of,
                               labelled=bool((payload.get("session") or {}).get("accuracy_available")),
-                              triage=triage_table(cfg_data), severity=severity_table(cfg_data))), encoding="utf-8")
+                              triage=triage_table(cfg_data), severity=severity_table(cfg_data),
+                              ids_scores=ids_scores)), encoding="utf-8")
     return payload
 
 

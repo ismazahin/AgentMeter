@@ -61,6 +61,7 @@ if [ "$WHAT" = all ] || [ "$WHAT" = e2e ]; then
   flow prep_flow
   flow observability_flow AGENTMETER_TEST_SYNTHETIC_GPU=1 AGENTMETER_IDLE_SAMPLE_S=1 AGENTMETER_MOCK_LATENCY_S=0.02
   flow model_picker_flow AGENTMETER_TEST_MODEL_REPOS=tests/fixtures/model_repos.json AGENTMETER_TEST_DISK_FREE_GB=200
+  flow ids_flow
   stop_backend
 fi
 

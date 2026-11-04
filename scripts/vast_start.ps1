@@ -22,7 +22,9 @@ param(
   [string]$Repo = "https://github.com/ismazahin/AgentMeter.git",
   [string]$Branch = "claude/cool-ride-mitmzl",
   [int]$IdleMin = 10,
-  [switch]$PreloadStudy          # also download all 5 study models before starting (slower start)
+  [switch]$PreloadStudy,         # also download all 5 study models before starting (slower start)
+  # the IDS gate's model (scripts/train_ids.py): copied to the instance when it exists
+  [string]$IdsModel = (Join-Path (Split-Path -Parent $PSScriptRoot) "models\ids\ids_rf.joblib")
 )
 $ErrorActionPreference = "Stop"
 
@@ -65,6 +67,7 @@ $(if ($ControlPlaneUrl) { "export AGENTMETER_CONTROL_PLANE_URL='$ControlPlaneUrl
 export AGENTMETER_ALLOWED_ORIGINS='$AllowedOrigins'
 export IDLE_MIN='$IdleMin'
 export PRELOAD_STUDY='$(if ($PreloadStudy) { "1" } else { "0" })'
+[ -f /root/ids/ids_rf.joblib ] && export AGENTMETER_IDS_MODEL=/root/ids/ids_rf.joblib
 cd /workspace
 if [ -d AgentMeter/.git ]; then
   cd AgentMeter && git fetch -q origin '$Branch' && git checkout -q '$Branch' && git pull -q --ff-only origin '$Branch'
@@ -85,6 +88,20 @@ if ($LASTEXITCODE -ne 0) { Fail "copying .env failed." }
 & scp @opts -P $Port $tmp "root@${HostAddr}:/root/am_start.sh"
 if ($LASTEXITCODE -ne 0) { Fail "copying the start script failed." }
 Remove-Item $tmp -ErrorAction SilentlyContinue
+if (Test-Path $IdsModel) {
+  Write-Host "    copying the IDS model ($([IO.Path]::GetFileNameWithoutExtension($IdsModel)): .joblib, .json, .hashes.npy)..."
+  & ssh @opts -p $Port "root@$HostAddr" "mkdir -p /root/ids"
+  foreach ($ext in @(".joblib", ".json", ".hashes.npy")) {
+    $f = [IO.Path]::ChangeExtension($IdsModel, $ext)
+    if ($ext -eq ".hashes.npy") { $f = $IdsModel -replace '\.joblib$', '.hashes.npy' }
+    if (Test-Path $f) {
+      & scp @opts -P $Port $f "root@${HostAddr}:/root/ids/ids_rf$ext"
+      if ($LASTEXITCODE -ne 0) { Fail "copying $f failed." }
+    }
+  }
+} else {
+  Write-Host "    no IDS model at $IdsModel: the IDS gate offers only the demo model (train one with scripts/train_ids.py)"
+}
 
 Write-Host "2/2 starting the backend in tmux session 'am' (about 5 min; models download on first use, or now if marked "download at start-up")..."
 Write-Host "    Leave this window open. To detach without stopping it: Ctrl+B, then D."

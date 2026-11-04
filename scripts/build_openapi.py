@@ -135,7 +135,7 @@ op(CP, "get", "/api/backend/sessions/{id}/files/{name}", "Backend ↔ control pl
 
 # ------------------------------------------------------------------ GPU backend
 RT = "Authorization: Bearer <run token from POST /api/runs/authorize>. Without a control plane (one-user mode) no token is needed."
-op(BE, "get", "/health", "GPU backend", "Is the backend up: provider, GPU, queue, api_version", NONE)
+op(BE, "get", "/health", "GPU backend", "Is the backend up: provider, GPU, queue, api_version, the IDS model it offers", NONE)
 op(BE, "get", "/api/service/config", "New benchmark", "Models offered, limits, demo mode", NONE)
 op(BE, "post", "/api/prepare", "Data preparation", "Prepare an uploaded file or a link into a set of flows", RUN("prepare"),
    body={"file": "binary (multipart)", "url": "string", "max_flows": "integer", "other_attack": "boolean"}, ok="202", desc=RT)
@@ -147,7 +147,7 @@ op(BE, "get", "/api/prepared/{kind}/{name}/{fname}", "Data sets", "A prepared fi
    [p("kind", "path", "csv_runs | pcap_runs"), p("name", "path", "set name"), p("fname", "path", "features.csv | labels.csv | manifest.json")])
 op(BE, "get", "/api/jobs", "Benchmarks", "Jobs on this server, newest first", RUN("read"), [p("limit", schema={"type": "integer"})])
 op(BE, "post", "/api/jobs", "Benchmarks", "Start a benchmark", RUN("benchmark"),
-   body={"run": "string", "after_prepare": "string", "models": "array (1–4)", "pipeline": "array", "load_test": "boolean", "repeat_check": "boolean"}, ok="202", desc=RT)
+   body={"run": "string", "after_prepare": "string", "models": "array (1–4)", "pipeline": "array", "load_test": "boolean", "repeat_check": "boolean", "ids": "boolean | object {threshold: number}"}, ok="202", desc=RT)
 op(BE, "get", "/api/jobs/{job_id}", "Benchmarks", "A job's status and progress", NONE, [JOB], desc="Open for 128-bit job ids (the id is the secret); older short ids need a read token.")
 op(BE, "get", "/api/jobs/{job_id}/result", "Benchmarks", "A finished job's results", RUN("read"), [JOB], errors=["409 not_ready"])
 op(BE, "get", "/api/jobs/{job_id}/report.pdf", "Benchmarks", "The PDF report", RUN("read"), [JOB])

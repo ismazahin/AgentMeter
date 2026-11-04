@@ -275,7 +275,7 @@ function renderSession(res, job) {
   $("spanel-overview").innerHTML = pane("main", overviewTab(res) + '<div class="card" id="svc-rep-line" hidden></div>' + notesCard(job) + scheduleCard(job));
   $("spanel-ranking").innerHTML = lead("ranking") + pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
       'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", rankStabilityCard(res) + stabilityCard(res)) + pane("tradeoffs", frontierCard(res)) + pane("guide", "");
-  $("spanel-reliability").innerHTML = lead("reliability") + pane("main", reliabilityCard(res) + triageCard(res) + consistencyCard(res) + failureCard(res));
+  $("spanel-reliability").innerHTML = lead("reliability") + pane("main", idsCard(res) + reliabilityCard(res) + triageCard(res) + consistencyCard(res) + failureCard(res));
   $("spanel-performance").innerHTML = lead("performance") + pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("capacity", capacityCard(res) + coldStartCard(res)) + pane("drivers", driversCard(res) + scalingCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
   $("spanel-agents").innerHTML = lead("agents") + pane("main", agentsTab(res));
   $("spanel-cost").innerHTML = lead("cost") + pane("main", costCard(res) + energyEffCard(res) + gpuTimelineCard(res) + idleCard(res) + projectionCard(res) + priceCard(res) + correctCard(res));
@@ -360,6 +360,8 @@ function tiles(res) {
   var low = orl.slice().sort(function (a, b) { return (a.valid_rate || 0) - (b.valid_rate || 0); })[0];
   t.push('<div class="tile" data-metric="valid"><div class="k">Valid answers</div><div class="v">' + (low ? fmtPct(low.valid_rate) : "—") + '</div><div class="w">' +
     esc(!low ? "not recorded" : orl.every(function (m) { return m.valid_rate === 1; }) ? "every model, every flow" : "lowest: " + short(low.model)) + '</div></div>');
+  if (res.ids) t.push('<div class="tile" data-metric="ids"><div class="k">IDS gate</div><div class="v">' + fmtPct(res.ids.llm_calls_saved_share) + ' saved</div><div class="w">' +
+    esc(fmtNum(res.ids.n_alerts) + " of " + fmtNum(res.ids.n_flows_in) + " flows sent to the LLM") + '</div></div>');
   var tg = ((res.triage || {}).per_model || []).filter(function (m) { return m.gate; });
   if (tg.length) {
     var pass = tg.filter(function (m) { return m.gate.passed === true; }), fail = tg.filter(function (m) { return m.gate.passed === false; });
@@ -898,6 +900,39 @@ function reliabilityCard(res) {
       '<li><b>Agreement</b> — ' + esc(r.definitions.verdict_consistency) + '.</li>' +
       (r.labelled ? '<li><b>Reference-label check</b> — ' + esc(r.definitions.reference_agreement) + '. A fast pipeline that answers at random would not be a fair efficiency result; this number guards against that.</li>' : "") +
     '</ul></details></div>';
+}
+// The IDS -> LLM pipeline: the IDS detects, the LLM agents triage only its alerts (agentmeter/ids).
+function idsCard(res) {
+  var d = res.ids;
+  if (!d) return "";
+  var m = d.model || {}, i = d.ids || {}, lab = d.labelled;
+  var frac = function (n, rate) { return n == null ? '<span class="muted">—</span>' : fmtNum(n) + ' <span class="muted small">(' + fmtPct(rate) + ')</span>'; };
+  var per1k = function (p) { return (p.time_s == null ? "—" : fmtTime(p.time_s)) + (p.cost_usd != null ? ' · ' + fmtUsd(p.cost_usd) : "") + (p.energy_wh != null ? ' · ' + fmtWh(p.energy_wh) : ""); };
+  var head = '<p class="muted small" style="margin-top:0">' + esc(d.notes.roles) + '</p>' +
+    '<p class="small">' + (m.demo ? '<span class="chip warn">Demo IDS</span> ' : "") + 'IDS <span class="mono">' + esc(m.version || m.name || "—") + '</span> · threshold <b>' + fmtNum(d.threshold, 3) + '</b> <span class="muted">(' + esc(d.threshold_source || "") + ')</span> · ' +
+      '<b>' + fmtNum(d.n_alerts) + '</b> of ' + fmtNum(d.n_flows_in) + ' flows flagged → <b>' + fmtPct(d.llm_calls_saved_share) + '</b> of LLM calls saved · scoring ' + fmtTime(d.scoring_s_per_flow) + ' per flow</p>' +
+    (d.training_overlap ? '<p class="notice warn small">' + fmtNum(d.training_overlap) + ' selected flow(s) equal flows the IDS was trained on: its detection numbers are optimistic. ' + esc(d.notes.overlap) + '</p>' : "");
+  var det = lab ? '<div class="table-wrap"><table id="ids-detect-table"><thead><tr><th>IDS</th><th class="num">Recall</th><th class="num">Precision</th><th class="num">False-positive rate</th><th class="num">Attacks missed</th><th class="num">False alarms</th></tr></thead><tbody>' +
+      '<tr><td>Detection</td><td class="num">' + fmtPct(i.recall) + '</td><td class="num">' + fmtPct(i.precision) + '</td><td class="num">' + fmtPct(i.false_positive_rate) + '</td><td class="num">' + fmtNum(i.fn) + ' of ' + fmtNum(i.attacks) + '</td><td class="num">' + fmtNum(i.fp) + ' of ' + fmtNum(i.benign) + '</td></tr></tbody></table></div>' +
+      '<p class="small muted">Recall by attack class: ' + Object.keys(i.recall_by_class || {}).map(function (c) { return esc(c) + ' ' + fmtPct(i.recall_by_class[c].recall); }).join(" · ") + '</p>'
+    : '<p class="small muted">No labels: the IDS\'s recall and false alarms cannot be measured; only how many flows it flagged.</p>';
+  var rows = d.per_model.map(function (r) {
+    return '<tr><td class="mono">' + esc(short(r.model)) + '</td><td class="num">' + fmtNum(r.alerts) + '</td>' +
+      (lab ? '<td class="num">' + frac(r.false_alarms_dismissed, r.false_alarms_dismissed_rate) + ' <span class="muted small">of ' + fmtNum(r.false_alarms) + '</span></td><td class="num">' + frac(r.attacks_dismissed_by_llm, r.attacks_dismissed_by_llm_rate) +
+        '</td><td class="num">' + fmtNum(r.missed_total) + ' <span class="muted small">(' + fmtPct(r.missed_total_rate) + ')</span></td><td class="num">' + fmtNum(r.analyst_queue) + '</td>' : "") +
+      '<td class="num">' + per1k(r.per_1k_incoming) + '</td></tr>';
+  }).join("");
+  var tab = '<div class="table-wrap"><table id="ids-models-table"><thead><tr><th>Model</th><th class="num">Alerts triaged</th>' +
+    (lab ? '<th class="num">False alarms dismissed</th><th class="num">Attacks it dismissed</th><th class="num">Missed end to end</th><th class="num">Analyst queue</th>' : "") +
+    '<th class="num">Per 1,000 incoming flows</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  var curve = d.ids_curve.length > 1 ? '<details class="info"><summary>Higher thresholds (τ curve)</summary><div class="table-wrap"><table id="ids-curve-table"><thead><tr><th class="num">Threshold</th>' +
+      (lab ? '<th class="num">IDS recall</th>' : "") + '<th class="num">Flagged</th>' + d.per_model.map(function (r) { return '<th class="num">' + esc(short(r.model)) + (lab ? ': missed · ' : ": ") + 'time / 1,000</th>'; }).join("") + '</tr></thead><tbody>' +
+      d.ids_curve.map(function (c, k) {
+        return '<tr><td class="num">' + fmtNum(c.threshold, 2) + '</td>' + (lab ? '<td class="num">' + fmtPct(c.recall) + '</td>' : "") + '<td class="num">' + fmtPct(c.flagged_share) + '</td>' +
+          d.per_model.map(function (r) { var t = r.tau_curve[k] || {}; return '<td class="num">' + (lab ? fmtPct(t.missed_total_rate) + ' · ' : "") + (t.per_1k_incoming && t.per_1k_incoming.time_s != null ? fmtTime(t.per_1k_incoming.time_s) : "—") + '</td>'; }).join("") + '</tr>';
+      }).join("") + '</tbody></table></div><p class="small muted">' + esc(d.notes.tau_curve) + '</p></details>' : "";
+  return '<div class="card" id="rel-ids"><h2>IDS → LLM triage</h2>' + head + det + tab + curve +
+    '<details class="info"><summary>Definitions</summary><ul class="small list"><li>' + esc(d.notes.per_1k) + '</li><li>' + esc(d.notes.missed) + '</li><li>' + esc(d.notes.false_alarms) + '</li></ul></details></div>';
 }
 // Triage: the analyst queue each model's answers create, and the triage errors that matter in a
 // SOC. The priority comes from the session's policy table, never from the model; context only.
@@ -1455,7 +1490,8 @@ function drawFlows() {
 function flowDetail() {
   var d = FLOWS.data, f = FLOWS.open && d.flows.filter(function (x) { return x.scenario_id === FLOWS.open; })[0];
   if (!f) return "";
-  return '<div class="flow-detail"><h3>Flow ' + esc(f.scenario_id) + (f.truth ? ' <span class="muted small">true class: ' + esc(f.truth) + '</span>' : "") + '</h3><div class="flow-cols">' +
+  return '<div class="flow-detail"><h3>Flow ' + esc(f.scenario_id) + (f.truth ? ' <span class="muted small">true class: ' + esc(f.truth) + '</span>' : "") +
+    (f.ids_score != null ? ' <span class="muted small">IDS score ' + fmtNum(f.ids_score, 3) + '</span>' : "") + '</h3><div class="flow-cols">' +
     d.models.map(function (m) {
       var pm = f.per_model[m];
       if (!pm) return '<div class="flow-col"><h4>' + esc(short(m)) + '</h4><p class="muted">Not run.</p></div>';

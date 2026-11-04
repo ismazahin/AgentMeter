@@ -1,0 +1,211 @@
+{
+  "name": "demo_ids",
+  "version": "demo_ids-2026-11-04",
+  "algorithm": "RandomForestClassifier (binary: attack vs benign)",
+  "demo": true,
+  "created_at": "2026-11-04T02:43:22Z",
+  "sklearn": "1.9.1",
+  "params": {
+    "n_estimators": 50,
+    "max_depth": 20,
+    "min_samples_leaf": 2,
+    "class_weight": "balanced_subsample",
+    "n_jobs": -1,
+    "random_state": 42
+  },
+  "seed": 42,
+  "features": [
+    "Destination Port",
+    "Flow Duration",
+    "Total Fwd Packets",
+    "Total Backward Packets",
+    "Total Length of Fwd Packets",
+    "Total Length of Bwd Packets",
+    "Fwd Packet Length Max",
+    "Fwd Packet Length Min",
+    "Fwd Packet Length Mean",
+    "Fwd Packet Length Std",
+    "Bwd Packet Length Max",
+    "Bwd Packet Length Min",
+    "Bwd Packet Length Mean",
+    "Bwd Packet Length Std",
+    "Flow Bytes/s",
+    "Flow Packets/s",
+    "Flow IAT Mean",
+    "Flow IAT Std",
+    "Flow IAT Max",
+    "Flow IAT Min",
+    "Fwd IAT Total",
+    "Fwd IAT Mean",
+    "Fwd IAT Std",
+    "Fwd IAT Max",
+    "Fwd IAT Min",
+    "Bwd IAT Total",
+    "Bwd IAT Mean",
+    "Bwd IAT Std",
+    "Bwd IAT Max",
+    "Bwd IAT Min",
+    "Fwd PSH Flags",
+    "Bwd PSH Flags",
+    "Fwd URG Flags",
+    "Bwd URG Flags",
+    "Fwd Header Length",
+    "Bwd Header Length",
+    "Fwd Packets/s",
+    "Bwd Packets/s",
+    "Min Packet Length",
+    "Max Packet Length",
+    "Packet Length Mean",
+    "Packet Length Std",
+    "Packet Length Variance",
+    "FIN Flag Count",
+    "SYN Flag Count",
+    "RST Flag Count",
+    "PSH Flag Count",
+    "ACK Flag Count",
+    "URG Flag Count",
+    "CWE Flag Count",
+    "ECE Flag Count",
+    "Down/Up Ratio",
+    "Average Packet Size",
+    "Avg Fwd Segment Size",
+    "Avg Bwd Segment Size",
+    "Fwd Header Length.1",
+    "Fwd Avg Bytes/Bulk",
+    "Fwd Avg Packets/Bulk",
+    "Fwd Avg Bulk Rate",
+    "Bwd Avg Bytes/Bulk",
+    "Bwd Avg Packets/Bulk",
+    "Bwd Avg Bulk Rate",
+    "Subflow Fwd Packets",
+    "Subflow Fwd Bytes",
+    "Subflow Bwd Packets",
+    "Subflow Bwd Bytes",
+    "Init_Win_bytes_forward",
+    "Init_Win_bytes_backward",
+    "act_data_pkt_fwd",
+    "min_seg_size_forward",
+    "Active Mean",
+    "Active Std",
+    "Active Max",
+    "Active Min",
+    "Idle Mean",
+    "Idle Std",
+    "Idle Max",
+    "Idle Min"
+  ],
+  "threshold": 0.5670058169901574,
+  "threshold_rule": "highest tau with validation recall >= 0.99",
+  "target_recall": 0.99,
+  "data": {
+    "files": [
+      {
+        "file": "cicids_full_300.csv",
+        "rows_used": 300,
+        "rows_in_file": 300,
+        "excluded_attempted": 0
+      }
+    ],
+    "dedupe": {
+      "rows": 300,
+      "ambiguous_dropped": 0,
+      "duplicates_dropped": 9,
+      "rows_after": 291
+    },
+    "holdout_share": 0.3,
+    "classes": {
+      "Benign": {
+        "fit": 34,
+        "validation": 8,
+        "holdout": 18
+      },
+      "Brute Force": {
+        "fit": 30,
+        "validation": 7,
+        "holdout": 17
+      },
+      "DoS Hulk": {
+        "fit": 32,
+        "validation": 8,
+        "holdout": 17
+      },
+      "Port Scanning": {
+        "fit": 33,
+        "validation": 9,
+        "holdout": 18
+      },
+      "Volumetric DDoS": {
+        "fit": 33,
+        "validation": 9,
+        "holdout": 18
+      }
+    },
+    "holdout_csv": null,
+    "holdout_csv_sha256": null
+  },
+  "metrics": {
+    "validation": {
+      "n": 41,
+      "attacks": 33,
+      "benign": 8,
+      "tp": 33,
+      "fp": 0,
+      "fn": 0,
+      "tn": 8,
+      "recall": 1.0,
+      "precision": 1.0,
+      "false_positive_rate": 0.0,
+      "flagged_share": 0.8048780487804879,
+      "recall_by_class": {
+        "Brute Force": {
+          "n": 7,
+          "recall": 1.0
+        },
+        "DoS Hulk": {
+          "n": 8,
+          "recall": 1.0
+        },
+        "Port Scanning": {
+          "n": 9,
+          "recall": 1.0
+        },
+        "Volumetric DDoS": {
+          "n": 9,
+          "recall": 1.0
+        }
+      }
+    },
+    "holdout": {
+      "n": 88,
+      "attacks": 70,
+      "benign": 18,
+      "tp": 68,
+      "fp": 1,
+      "fn": 2,
+      "tn": 17,
+      "recall": 0.9714285714285714,
+      "precision": 0.9855072463768116,
+      "false_positive_rate": 0.05555555555555555,
+      "flagged_share": 0.7840909090909091,
+      "recall_by_class": {
+        "Brute Force": {
+          "n": 17,
+          "recall": 0.8823529411764706
+        },
+        "DoS Hulk": {
+          "n": 17,
+          "recall": 1.0
+        },
+        "Port Scanning": {
+          "n": 18,
+          "recall": 1.0
+        },
+        "Volumetric DDoS": {
+          "n": 18,
+          "recall": 1.0
+        }
+      }
+    }
+  },
+  "sha256": "c1dc59f340a0bf182c7c21ecc3a08d8ce5918dc2e13f00227cf12a98393a0558"
+}

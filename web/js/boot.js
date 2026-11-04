@@ -20,6 +20,7 @@ function runModeLine() {
   $("svc-run-mode").innerHTML = h.provider === "real"
     ? '<span class="chip ok">Real GPU: ' + esc((h.gpu || {}).name || "unknown") + '</span> Runs the selected models in 4-bit NF4 on this GPU, one at a time.'
     : '<span class="chip warn">DEMO (mock)</span> No GPU: the run uses a deterministic heuristic, not a language model. Numbers are not model measurements.';
+  if (typeof idsOptionSync === "function") idsOptionSync();
 }
 function health(timeoutMs) {
   var ctl = window.AbortController ? new AbortController() : null;

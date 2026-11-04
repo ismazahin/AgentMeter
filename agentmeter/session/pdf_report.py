@@ -152,6 +152,12 @@ def recommendation_lines(res: dict[str, Any]) -> dict[str, Any]:
         lines.append("Output validity: " + ", ".join(f"{m} {fmt_pct(r.get('valid_rate'))} usable answers" for m, r in rl.items())
                      + ". Triaging the flows is the workload the agents perform; this report measures what "
                        "that work costs and does not evaluate threat detection.")
+    ids = res.get("ids")
+    if ids:
+        lines.append(f"IDS gate: {ids['n_alerts']} of {ids['n_flows_in']} flows flagged and triaged by the LLM "
+                     f"({fmt_pct(ids.get('llm_calls_saved_share'))} of LLM calls saved)"
+                     + (f"; IDS recall {fmt_pct((ids.get('ids') or {}).get('recall'))}" if ids.get("labelled") else "")
+                     + ". The efficiency results above are per alert triaged.")
     gl = gate_line(res)
     if gl:
         lines.append(gl)
@@ -526,6 +532,33 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
                         + ([fmt_pct((r.get("reference_agreement") or {}).get("rate"))] if orl.get("labelled") else []))
         n = len(rows[0]) - 1
         story.append(table(rows, [W - n * 22 * mm] + [22 * mm] * n))
+
+    # --- the IDS -> LLM pipeline (agentmeter/ids) ---------------------------------------------------
+    ids = res.get("ids")
+    if ids:
+        m, i, lab = ids.get("model") or {}, ids.get("ids") or {}, bool(ids.get("labelled"))
+        story.append(P("IDS -> LLM triage", "h"))
+        story.append(P(f"{'DEMO IDS (300 bundled flows). ' if m.get('demo') else ''}The IDS ({m.get('version') or m.get('name')}, "
+                       f"Random Forest) scored every flow; {ids['n_alerts']} of {ids['n_flows_in']} were flagged at threshold "
+                       f"{ids['threshold']:.3f} and triaged by the LLM agents, so {fmt_pct(ids.get('llm_calls_saved_share'))} "
+                       f"of LLM calls were saved. Scoring took {fmt_time(ids.get('scoring_s_per_flow'))} per flow."
+                       + (f" IDS detection: recall {fmt_pct(i.get('recall'))}, precision {fmt_pct(i.get('precision'))}, "
+                          f"false-positive rate {fmt_pct(i.get('false_positive_rate'))} ({i.get('fn')} of {i.get('attacks')} "
+                          f"attacks missed, {i.get('fp')} false alarms)." if lab else " No labels: detection quality not measured.")
+                       + (f" WARNING: {ids['training_overlap']} flow(s) were in the IDS's training data."
+                          if ids.get("training_overlap") else ""), "small"))
+        rows = [["Model", "Alerts"] + (["False alarms dismissed", "Attacks it dismissed", "Missed end to end"] if lab else [])
+                + ["Time / 1,000 incoming", "Cost / 1,000 incoming"]]
+        for r in ids["per_model"]:
+            p1 = r.get("per_1k_incoming") or {}
+            rows.append([r["model"], fmt_int(r.get("alerts"))]
+                        + ([f"{fmt_int(r.get('false_alarms_dismissed'))} of {fmt_int(r.get('false_alarms'))}",
+                            f"{fmt_int(r.get('attacks_dismissed_by_llm'))} ({fmt_pct(r.get('attacks_dismissed_by_llm_rate'))})",
+                            f"{fmt_int(r.get('missed_total'))} ({fmt_pct(r.get('missed_total_rate'))})"] if lab else [])
+                        + [fmt_time(p1.get("time_s")), "-" if p1.get("cost_usd") is None else f"${p1['cost_usd']:.4f}"])
+        n = len(rows[0]) - 1
+        story.append(table(rows, [W - n * 24 * mm] + [24 * mm] * n))
+        story.append(P(ids["notes"]["per_1k"] + " " + ids["notes"]["missed"], "small"))
 
     # --- triage (context: the queue and triage errors under the session's policy table) -------------
     tri = res.get("triage")

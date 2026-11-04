@@ -502,6 +502,7 @@ $("wiz-preset").addEventListener("change", function () {
   modelInputs().forEach(function (inp) { if (!inp.dataset.locked) inp.checked = p.models.indexOf(inp.value) >= 0; });
   WIZ.want = p.models.slice(); tickWanted();
   $("svc-load-test").checked = !!p.load_test; $("svc-repeat-check").checked = !!p.repeat_check;
+  if (!$("svc-ids").disabled) { $("svc-ids").checked = !!p.ids; $("svc-ids-box").hidden = !p.ids; $("svc-ids-tau").value = p.ids && p.ids.threshold ? p.ids.threshold : ""; }
   if (p.pipeline && Array.isArray(p.pipeline.agents)) { PL = JSON.parse(JSON.stringify(p.pipeline)); plRender(); }
   syncRun();
 });
@@ -511,7 +512,7 @@ $("wiz-preset-save").addEventListener("click", function () {
   var name = (prompt("Name this preset (models, options and pipeline):", models.map(short).join(" + ")) || "").trim().slice(0, 60);
   if (!name) return;
   var list = runPresets().filter(function (p) { return p.name !== name; });
-  list.unshift({ name: name, models: models, load_test: $("svc-load-test").checked, repeat_check: $("svc-repeat-check").checked, pipeline: PL });
+  list.unshift({ name: name, models: models, load_test: $("svc-load-test").checked, repeat_check: $("svc-repeat-check").checked, ids: idsBody(), pipeline: PL });
   if (!saveRunPresets(list.slice(0, 20))) { alert("This browser does not allow saving presets."); return; }
   fillPresets(name);
 });
@@ -533,6 +534,7 @@ function applyAgain(id) {
     var j = r.ok ? r.data : null, note = $("wiz-again");
     if (j) {
       $("svc-load-test").checked = !!j.load_test; $("svc-repeat-check").checked = !!j.repeat_check;
+      if (!$("svc-ids").disabled) { $("svc-ids").checked = !!j.ids; $("svc-ids-box").hidden = !j.ids; $("svc-ids-tau").value = j.ids && j.ids.threshold ? j.ids.threshold : ""; }
       if (Array.isArray(j.pipeline) && j.pipeline.length) PL = { custom: true, agents: plFromJob(j.pipeline) };
       else PL = { custom: false, agents: PL_DEFAULT.map(function (n) { return { builtin: n }; }) };
       plRender();
@@ -853,6 +855,25 @@ $("pl-list").addEventListener("change", function (e) {
 });
 plRender();
 
+// The IDS gate option: offered when the GPU server has an IDS model (GET /health "ids").
+function idsOptionSync() {
+  var ids = (HEALTH || {}).ids, cb = $("svc-ids"), box = $("svc-ids-box");
+  if (!cb) return;
+  cb.disabled = !ids;
+  if (!ids) { cb.checked = false; box.hidden = true; cb.parentNode.title = "This GPU server has no IDS model (scripts/train_ids.py)."; return; }
+  cb.parentNode.title = "";
+  var h = ids.holdout || {};
+  $("svc-ids-note").innerHTML = (ids.demo ? '<span class="chip warn">Demo IDS</span> trained on the 300 bundled flows — for trying the flow only. ' : "") +
+    'IDS <span class="mono">' + esc(ids.version || ids.name) + '</span>, threshold ' + fmtNum(ids.threshold, 3) +
+    ' (' + esc(ids.threshold_rule || "") + '). On its hold-out flows: recall ' + fmtPct(h.recall) + ', false-positive rate ' + fmtPct(h.false_positive_rate) + '.';
+  box.hidden = !cb.checked;
+}
+$("svc-ids").addEventListener("change", function () { $("svc-ids-box").hidden = !this.checked; });
+function idsBody() {
+  if (!$("svc-ids").checked) return null;
+  var t = parseFloat($("svc-ids-tau").value);
+  return isFinite(t) && t > 0 && t <= 1 ? { threshold: t } : true;
+}
 $("svc-run").addEventListener("click", function () {
   var err = $("svc-run-error"), body = { models: picked(), provider: CONFIG.provider, base_config: CONFIG.base_config };
   err.hidden = true;
@@ -861,6 +882,7 @@ $("svc-run").addEventListener("click", function () {
   if (WIZ.prep) body.after_prepare = WIZ.prep; else body.run = WIZ.set;
   if ($("svc-load-test").checked) body.load_test = true;
   if ($("svc-repeat-check").checked) body.repeat_check = true;
+  var ids = idsBody(); if (ids) body.ids = ids;
   var spec = plSpec(); if (spec) body.pipeline = spec;
   $("svc-run").disabled = true;
   api("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {

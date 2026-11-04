@@ -373,7 +373,8 @@ FLOW_TEXT_CHARS = 1200        # each agent answer kept up to this many character
 
 def flows_file(db: str | Path, run_id: str, label_of: dict[str, str], labelled: bool = True,
                triage: Optional[dict[str, str]] = None,
-               severity: Optional[dict[str, str]] = None) -> dict[str, Any]:
+               severity: Optional[dict[str, str]] = None,
+               ids_scores: Optional[dict[str, float]] = None) -> dict[str, Any]:
     """Every flow of the run, per model: truth, answer, time, and each agent's time, tokens and
     answer text (when it was recorded) — the flow explorer's data. Read-only; written beside the
     results as flows_<run_id>.json, never inside session_results.json."""
@@ -401,6 +402,7 @@ def flows_file(db: str | Path, run_id: str, label_of: dict[str, str], labelled: 
         f = flows.setdefault(r["scenario_id"], {"scenario_id": r["scenario_id"],
                                                 "truth": r["held_out_label"] if labelled else None,
                                                 "truth_priority": priority_of(r["held_out_label"], table) if labelled else None,
+                                                "ids_score": (ids_scores or {}).get(str(r["scenario_id"])),
                                                 "per_model": {}})
         rows = sorted(agents.get((r["model"], r["scenario_id"]), []), key=lambda a: order.index(a["agent_name"]) if a["agent_name"] in order else 99)
         f["per_model"][model_of[r["model"]]] = {
@@ -1187,7 +1189,7 @@ def settings_of(config_data: dict[str, Any]) -> dict[str, Any]:
     pv = (config_data.get("pipeline") or {}).get("prompt_version")
     if pv:            # the prompts' wording is part of what was measured
         out["pipeline.prompt_version"] = pv
-    for k in ("triage", "severity", "triage_gate"):     # the policy the triage results were computed under
+    for k in ("triage", "severity", "triage_gate", "ids"):     # the policy the triage results were computed under
         if config_data.get(k):
             out[k] = config_data[k]
     engine = (config_data.get("model") or {}).get("engine")
@@ -1257,6 +1259,22 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
                                      labelled=bool((payload.get("session") or {}).get("accuracy_available")),
                                      cost=payload["cost_energy"], severity=severity_table(config_data))
     apply_gate(payload["triage"], payload.get("output_reliability"), gate_config(config_data))
+    # the IDS gate (agentmeter/ids): detection before the LLM triage, end to end per model
+    from ..ids.analysis import ids_block
+    from ..ids.stage import read_ids
+    ids_info, ids_df = read_ids(Path(run_dir))
+    if ids_info is not None:
+        payload["ids"] = ids_block(ids_info, ids_df, sr, label_of, triage_table(config_data),
+                                   cost=payload["cost_energy"])
+        cav = (payload.get("session") or {}).get("caveats")
+        if isinstance(cav, list):
+            if (ids_info.get("model") or {}).get("demo"):
+                cav.append("Demo IDS: trained on the 300 bundled flows (scripts/train_ids.py --demo) — shows the "
+                           "IDS -> LLM flow only; train the study IDS on the full dataset.")
+            if ids_info.get("training_overlap"):
+                cav.append(f"IDS training overlap: {ids_info['training_overlap']} selected flow(s) equal flows the IDS "
+                           "was trained on, so its detection numbers are optimistic — use the hold-out CSV from "
+                           "scripts/train_ids.py.")
     payload["gpu_health"] = gpu_health_block(sr, label_of, real=real, energy=energy)
     payload["gpu_timeline"] = gpu_timeline_block(sr, label_of, real=real, energy=energy,
                                                  flow_times=read_extras(db_path, run_id, labels, "flow_times"))

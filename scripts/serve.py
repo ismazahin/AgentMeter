@@ -283,6 +283,22 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
         return jsonify({"new": results_watcher.poll_once()})
 
     # --- health -------------------------------------------------------------------
+    def _ids_status():
+        """The IDS gate this server can run (agentmeter/ids): its identity and threshold, or None."""
+        from agentmeter.ids.model import default_model_path, model_available
+        p = default_model_path()
+        if not model_available(p):
+            return None
+        try:
+            import json as _json
+            m = _json.loads(p.with_suffix(".json").read_text(encoding="utf-8"))
+            return {"name": m.get("name"), "version": m.get("version"), "demo": bool(m.get("demo")),
+                    "threshold": m.get("threshold"), "threshold_rule": m.get("threshold_rule"),
+                    "holdout": {k: (m.get("metrics") or {}).get("holdout", {}).get(k)
+                                for k in ("recall", "precision", "false_positive_rate")}}
+        except Exception:  # noqa: BLE001
+            return None
+
     @app.route("/health", methods=["GET"])
     def health():
         """Open, cheap: what the front-end shows before anyone clicks Run."""
@@ -304,6 +320,7 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
             "auth_required": bool(acc.get("auth_required")),
             "api_version": API_VERSION,
             "control_plane": bool(acc.get("control_plane")),
+            "ids": _ids_status(),
         })
 
     if start_watcher:

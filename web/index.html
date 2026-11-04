@@ -1477,6 +1477,18 @@
       <div id="adm-models-error" class="notice error" role="alert" hidden></div>
       <p class="small muted" id="adm-models-status" role="status"></p>
     </div>
+    <div class="card" id="adm-ids">
+      <h2>IDS model</h2>
+      <p class="muted small">The IDS gate's Random Forest (<span class="mono">scripts/train_ids.py</span>). Stored here, every newly rented GPU downloads it at start-up — nothing to copy by hand. Upload the three files of one training run from <span class="mono">models\ids\</span>: <span class="mono">ids_rf.joblib</span>, <span class="mono">ids_rf.json</span>, <span class="mono">ids_rf.hashes.npy</span> (each up to 50 MB). The upload is checked: the .joblib must match the sha256 in its .json.</p>
+      <dl class="kv small" id="adm-ids-now"><dt>Stored</dt><dd>Loading…</dd></dl>
+      <form class="row" id="adm-ids-form" novalidate>
+        <div class="field"><label for="adm-ids-files">Model files</label><input type="file" id="adm-ids-files" multiple accept=".joblib,.json,.npy"></div>
+        <button type="submit" class="btn primary" id="adm-ids-go" style="align-self:flex-end">Upload and use</button>
+        <button type="button" class="btn" id="adm-ids-del" style="align-self:flex-end" hidden>Remove</button>
+      </form>
+      <div id="adm-ids-error" class="notice error" role="alert" hidden></div>
+      <p class="small muted" id="adm-ids-status" role="status"></p>
+    </div>
     <form class="card" id="adm-limits" novalidate>
       <h2>System limits</h2>
       <div class="row" style="margin-top:8px">

@@ -2,7 +2,7 @@
  "openapi": "3.1.0",
  "info": {
   "title": "AgentMeter API — cloud preparation",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Prepares an uploaded file or a link into a set of flows while the GPU is busy, with the same code as the GPU backend (identical flows and hash).",
   "license": {
    "name": "See the repository"

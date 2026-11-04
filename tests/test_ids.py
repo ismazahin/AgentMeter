@@ -189,3 +189,67 @@ def test_the_false_alarm_budget_lowers_tau_when_it_costs_no_false_alarms():
     t2 = T.pick_threshold(scores2, attack, 0.99, 0.0)
     assert t2 == 0.3                                                     # every attack kept
     assert T.choose_threshold_fpr(scores2, attack, 1 / 3) > 0.95         # 1 of 3 benign allowed
+
+
+# ---------------------------------------------------------------- vast_ids.py: fetch at GPU start-up
+def _serve(files: dict[str, bytes]):
+    import http.server
+    import threading
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):                                  # noqa: N802
+            body = files.get(self.path.lstrip("/"))
+            self.send_response(200 if body is not None else 404)
+            self.end_headers()
+            self.wfile.write(body or b"")
+
+        def log_message(self, *a):
+            pass
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+
+def _fake_cp(monkeypatch, files, meta):
+    import vast_ids as V
+    srv = _serve(files)
+    base = f"http://127.0.0.1:{srv.server_address[1]}"
+    monkeypatch.setattr(V.Client, "request", lambda self, m, p, *a, **k: json.dumps(
+        {"meta": meta, "files": {n: f"{base}/{n}" for n in files}}).encode())
+    monkeypatch.setenv("AGENTMETER_CONTROL_PLANE_URL", "https://cp.test")
+    monkeypatch.setenv("AGENTMETER_BACKEND_SECRET", "s")
+    return V, srv
+
+
+def test_vast_ids_downloads_and_verifies_the_stored_model(monkeypatch, tmp_path, capsys):
+    files = {n: (DEMO.parent / n.replace("ids_rf", "demo_ids")).read_bytes() for n in ("ids_rf.joblib", "ids_rf.json", "ids_rf.hashes.npy")}
+    V, srv = _fake_cp(monkeypatch, files, json.loads(files["ids_rf.json"]))
+    try:
+        assert V.main(["--out", str(tmp_path / "ids")]) == 0
+    finally:
+        srv.shutdown()
+    out = capsys.readouterr().out.strip().splitlines()
+    assert out[-1].endswith("ids_rf.joblib") and "ready" in out[-2]
+    assert load_model(tmp_path / "ids" / "ids_rf.joblib").meta["demo"] is True
+
+
+def test_vast_ids_removes_a_model_that_does_not_verify(monkeypatch, tmp_path):
+    files = {"ids_rf.joblib": b"not a model", "ids_rf.json": (DEMO.with_suffix(".json")).read_bytes()}
+    V, srv = _fake_cp(monkeypatch, files, {})
+    try:
+        assert V.main(["--out", str(tmp_path / "ids")]) == 1
+    finally:
+        srv.shutdown()
+    assert not (tmp_path / "ids" / "ids_rf.joblib").exists()
+
+
+def test_vast_ids_reports_no_stored_model(monkeypatch, tmp_path):
+    import vast_ids as V
+    from agentmeter.server.control_plane import ControlPlaneError
+
+    def boom(self, *a, **k):
+        raise ControlPlaneError("GET /api/backend/ids-model: HTTP 404", 404, "no_ids_model")
+    monkeypatch.setattr(V.Client, "request", boom)
+    monkeypatch.setenv("AGENTMETER_CONTROL_PLANE_URL", "https://cp.test")
+    monkeypatch.setenv("AGENTMETER_BACKEND_SECRET", "s")
+    assert V.main(["--out", str(tmp_path)]) == 3

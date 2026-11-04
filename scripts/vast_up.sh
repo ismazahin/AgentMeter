@@ -19,6 +19,8 @@
 #                             default: only the models marked "download at start-up" in Admin)
 #            VERIFY=<model id>|all  (load it in 4-bit as a smoke test; default: none)
 #            PORT=8000   SKIP_INSTALL=1
+#            AGENTMETER_IDS_MODEL=/path/ids_rf.joblib  (else the IDS model stored in Admin › IDS model
+#                             is downloaded by scripts/vast_ids.py; with neither, the demo IDS only)
 #
 # Steps: check env -> install deps -> check CUDA/GPU -> download the models marked "download at
 # start-up" (the rest download on first use) -> start ONE server process in REAL mode (it refuses
@@ -89,6 +91,16 @@ PRE=(); [ "${PRELOAD_STUDY:-0}" = "1" ] && PRE=(--all-study)
 python3 scripts/vast_models.py --verify "${VERIFY:-none}" ${PRE[@]+"${PRE[@]}"} \
   || die "models are not ready (see the message above) — the server will not start in real mode."
 export HF_HUB_OFFLINE=1        # from here on nothing is fetched: a missing model fails loudly
+
+# --- the IDS gate's model: copied by vast_start.ps1, else fetched from the control plane ------
+if [ -n "${AGENTMETER_IDS_MODEL:-}" ] && [ -f "$AGENTMETER_IDS_MODEL" ]; then
+  echo "IDS model: $AGENTMETER_IDS_MODEL (copied to this instance)"
+elif ids_out="$(python3 scripts/vast_ids.py --out "$DATA/ids")"; then
+  printf '%s\n' "$ids_out" | sed '$d'
+  export AGENTMETER_IDS_MODEL="$(printf '%s\n' "$ids_out" | tail -n 1)"
+else
+  echo "IDS model: none fetched — the IDS gate offers the bundled demo model only (Admin › IDS model)"
+fi
 
 # --- 5. server (ONE process, REAL provider, loopback only — the tunnel is the way in) ---
 say "5/6 starting the AgentMeter backend (provider REAL) on 127.0.0.1:$PORT"

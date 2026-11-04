@@ -148,8 +148,20 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.click('button[data-remove="ibm-granite/granite-3.3-8b-instruct"]');
     await p.waitForFunction(() => !document.querySelector('tr[data-model="ibm-granite/granite-3.3-8b-instruct"]'), null, { timeout: 15000 });
     log(true, 'admin removes an added model');
+    // Admin › IDS model: upload the three files (the demo model, under the trained model's names)
+    await p.waitForFunction(() => /none|Stored/.test(document.getElementById('adm-ids-now').textContent), null, { timeout: 15000 });
+    const idsDir = require('path').resolve(__dirname, '..', '..', 'models', 'ids');
+    await p.setInputFiles('#adm-ids-files', ['.joblib', '.json', '.hashes.npy'].map(ext => ({
+      name: 'ids_rf' + ext, mimeType: 'application/octet-stream', buffer: require('fs').readFileSync(require('path').join(idsDir, 'demo_ids' + ext)) })));
+    await p.click('#adm-ids-go');
+    await p.waitForFunction(() => /Stored\. A GPU rented/.test(document.getElementById('adm-ids-status').textContent) || !document.getElementById('adm-ids-error').hidden, null, { timeout: 20000 });
+    await p.waitForFunction(() => /demo_ids-/.test(document.getElementById('adm-ids-now').textContent), null, { timeout: 15000 }).catch(() => {});
+    const idsNow = await p.textContent('#adm-ids-now');
+    log(/demo_ids-/.test(idsNow) && /Threshold/.test(idsNow) && await p.isHidden('#adm-ids-error'), 'Admin › IDS model: the three files upload, are checked and listed');
     await p.screenshot({ path: path.join(OUT, '02b-admin-models.png'), fullPage: true });
     await p.goto(APP + '/#/'); await p.goto(APP + '/#/admin'); await p.waitForSelector('#adm-audit-table');
+    // the table from the first visit is still in the page until the new one arrives: wait for it
+    await p.waitForFunction(() => /changed the model catalog/.test((document.getElementById('adm-audit-table') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => {});
     const audit = await p.textContent('#adm-audit-table');
     log(/changed the model catalog/.test(audit) && /granite-3\.3-8b-instruct/.test(audit) && /admin/.test(audit), 'Admin › Audit log: the model catalog changes, by whom');
     await p.waitForFunction(() => { const h = document.querySelector('#adm-health'); return h && !/Loading/.test(h.textContent); }, null, { timeout: 20000 });

@@ -237,7 +237,8 @@ function loadAdminHealth() {
   });
 }
 var AUDIT_LABEL = { "user.create": "created user", "user.update": "changed user", "user.delete": "deleted user", "session.delete": "deleted session",
-                   "limits.update": "changed system limits", "models.update": "changed the model catalog", "password.change": "changed their password" };
+                   "limits.update": "changed system limits", "models.update": "changed the model catalog", "password.change": "changed their password",
+                   "ids_model.commit": "stored the IDS model", "ids_model.delete": "removed the IDS model" };
 function auditDetail(e) {
   var d = e.detail || {};
   if (e.action === "user.update") return [d.role ? "role → " + d.role : null, d.disabled === true ? "disabled" : d.disabled === false ? "enabled" : null, d.password_reset ? "password reset" : null].filter(Boolean).join(", ");
@@ -271,6 +272,7 @@ function loadAudit(before) {
 function loadAdmin() {
   loadAdminHealth(); loadAudit();
   loadAdminModels();
+  loadAdminIds();
   $("adm-error").hidden = true; $("lim-error").hidden = true; $("lim-saved").textContent = "";
   api("/api/admin/users").then(function (r) {
     if (!r.ok) { showError($("adm-error"), r.data); return; }
@@ -305,6 +307,58 @@ function loadAdmin() {
     $("lim-idle").value = L.idle_minutes; $("lim-sess-idle").value = L.session_idle_minutes; $("lim-ident").checked = !!L.keep_identification_columns_in_r2;
   });
 }
+// ---------- IDS MODEL (Admin) ----------
+var IDS_NAMES = ["ids_rf.joblib", "ids_rf.json", "ids_rf.hashes.npy"];
+function loadAdminIds() {
+  api("/api/admin/ids-model").then(function (r) {
+    if (!r.ok) { $("adm-ids-now").innerHTML = '<dt>Stored</dt><dd class="muted">' + esc((r.data || {}).error || "unavailable") + '</dd>'; return; }
+    var m = r.data.model;
+    $("adm-ids-del").hidden = !m;
+    if (!m) { $("adm-ids-now").innerHTML = '<dt>Stored</dt><dd><span class="chip warn">none</span> <span class="muted">new GPUs offer the bundled demo IDS only</span></dd>'; return; }
+    var h = m.holdout || {};
+    $("adm-ids-now").innerHTML = '<dt>Stored</dt><dd><span class="chip ok">' + esc(m.version || m.name) + '</span>' + (m.demo ? ' <span class="chip warn">demo</span>' : "") + '</dd>' +
+      '<dt>Threshold</dt><dd>' + fmtNum(m.threshold, 4) + ' <span class="muted">(' + esc(m.threshold_rule || "") + ')</span></dd>' +
+      '<dt>Hold-out</dt><dd>recall ' + fmtPct(h.recall) + ' · precision ' + fmtPct(h.precision) + ' · false-positive rate ' + fmtPct(h.false_positive_rate) + ' <span class="muted">(' + fmtNum(h.n) + ' flows)</span></dd>' +
+      '<dt>scikit-learn</dt><dd class="mono">' + esc(m.sklearn || "—") + '</dd>' +
+      '<dt>Uploaded</dt><dd>' + esc(m.committed_at || "—") + ' by ' + esc(m.committed_by || "—") + '</dd>';
+  });
+}
+$("adm-ids-form").addEventListener("submit", function (ev) {
+  ev.preventDefault();
+  var err = $("adm-ids-error"), st = $("adm-ids-status"), files = Array.prototype.slice.call($("adm-ids-files").files || []);
+  err.hidden = true;
+  var byName = {};
+  files.forEach(function (f) { byName[f.name] = f; });
+  var bad = files.filter(function (f) { return IDS_NAMES.indexOf(f.name) < 0; });
+  if (bad.length || !byName["ids_rf.joblib"] || !byName["ids_rf.json"]) {
+    showError(err, { error: "Choose ids_rf.joblib and ids_rf.json (and ids_rf.hashes.npy) from models\\ids\\" + (bad.length ? " — not expected: " + bad.map(function (f) { return f.name; }).join(", ") : "") });
+    return;
+  }
+  $("adm-ids-go").disabled = true;
+  var names = IDS_NAMES.filter(function (n) { return byName[n]; });
+  var step = function (i) {
+    if (i >= names.length) return api("/api/admin/ids-model/commit", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    var f = byName[names[i]];
+    st.textContent = "Uploading " + f.name + " (" + fmtNum(f.size / 1048576, 1) + " MB)…";
+    return api("/api/admin/ids-model/upload-url", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: f.name, bytes: f.size }) }).then(function (r) {
+      if (!r.ok) return r;
+      return fetch(r.data.url, { method: "PUT", body: f, headers: { "content-type": r.data.content_type } }).then(function (u) {
+        if (!u.ok) return { ok: false, data: { error: "Storage refused " + f.name + " (HTTP " + u.status + ")" } };
+        return step(i + 1);
+      });
+    });
+  };
+  step(0).then(function (r) {
+    $("adm-ids-go").disabled = false;
+    if (!r || !r.ok) { st.textContent = ""; showError(err, (r || {}).data || { error: "Upload failed." }); return; }
+    st.textContent = "Stored. A GPU rented from now on downloads it at start-up; a GPU that is already running keeps the model it started with.";
+    $("adm-ids-files").value = ""; loadAdminIds();
+  }).catch(function (e) { $("adm-ids-go").disabled = false; showError(err, { error: "Upload failed: " + e.message }); });
+});
+$("adm-ids-del").addEventListener("click", function () {
+  if (!confirm("Remove the stored IDS model? GPUs rented afterwards offer the demo IDS only.")) return;
+  api("/api/admin/ids-model", { method: "DELETE" }).then(function (r) { if (!r.ok) showError($("adm-ids-error"), r.data); else { $("adm-ids-status").textContent = "Removed."; loadAdminIds(); } });
+});
 function adminAct(b) {
   var id = b.getAttribute("data-id"), act = b.getAttribute("data-act"), req;
   if (act === "toggle") req = api("/api/admin/users/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ disabled: b.getAttribute("data-on") === "1" }) });

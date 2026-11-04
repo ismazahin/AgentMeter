@@ -84,6 +84,12 @@ op(CP, "put", "/api/admin/limits", "Admin", "Change system limits", ADMIN, body=
 op(CP, "get", "/api/admin/models", "Admin", "The model catalogue state (enabled, added)", ADMIN)
 op(CP, "put", "/api/admin/models", "Admin", "Enable, disable, add or remove models", ADMIN, body={"set": "object", "add": "array", "remove": "array"},
    desc="Added models start disabled; pre-quantised repositories are refused. Audit: models.update.")
+op(CP, "get", "/api/admin/ids-model", "Admin", "The stored IDS model (version, threshold, hold-out metrics, file sizes)", ADMIN)
+op(CP, "post", "/api/admin/ids-model/upload-url", "Admin", "A single-use URL to upload one IDS model file to Storage", ADMIN,
+   body={"name": "ids_rf.joblib | ids_rf.json | ids_rf.hashes.npy", "bytes": "integer (≤ 50 MB)"})
+op(CP, "post", "/api/admin/ids-model/commit", "Admin", "Check the uploaded IDS model and make it the one new GPUs download", ADMIN,
+   errors=["409 not_uploaded", "409 sha_mismatch", "400 bad_model"], desc="The .joblib must match the sha256 in its .json. Audit: ids_model.commit.")
+op(CP, "delete", "/api/admin/ids-model", "Admin", "Remove the stored IDS model (new GPUs offer the demo IDS only)", ADMIN, desc="Audit: ids_model.delete.")
 # ------------------------------------------------------------------ control plane: runs, backend status
 op(CP, "get", "/api/backend", "GPU backend", "Where the GPU backend is and whether it is online", USER)
 op(CP, "post", "/api/runs/authorize", "GPU backend", "Get a run token for the GPU backend", USER,
@@ -118,6 +124,7 @@ op(CP, "get", "/api/leaderboard", "Compare", "Rank models per setup, or count wi
 # ------------------------------------------------------------------ control plane: called by the GPU backend (signed)
 for m, path, s, b in [("post", "/api/backend/register", "Register the GPU backend (URL, GPU, version)", {"url": "string", "mode": "string", "gpu": "object", "version": "string"}),
                       ("get", "/api/backend/model-state", "Read the model catalogue state", None),
+                      ("get", "/api/backend/ids-model", "The stored IDS model's metadata and short-lived download URLs (404 no_ids_model)", None),
                       ("post", "/api/backend/models/verified", "Report a model's 4-bit verification", {"model": "string", "result": "object"}),
                       ("post", "/api/backend/heartbeat", "Heartbeat: still online; job states; credentials set", {"url": "string", "jobs": "array", "creds": "object"}),
                       ("post", "/api/backend/jobs", "A job was created on the backend", {"job_id": "string", "kind": "string", "status": "string", "jti": "string"})]:

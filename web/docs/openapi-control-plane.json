@@ -2,7 +2,7 @@
  "openapi": "3.1.0",
  "info": {
   "title": "AgentMeter API — control plane",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Accounts, stored sessions, Compare and the Leaderboard; it hands out run tokens for the GPU backend and receives the backend's signed calls. Runs as a Supabase Edge Function.",
   "license": {
    "name": "See the repository"
@@ -141,6 +141,210 @@
        "application/json": {
         "schema": {
          "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/admin/ids-model": {
+   "get": {
+    "operationId": "get__api_admin_ids_model",
+    "tags": [
+     "Admin"
+    ],
+    "summary": "The stored IDS model (version, threshold, hold-out metrics, file sizes)",
+    "security": [
+     {
+      "userToken": [
+       "admin"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Not an admin",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "operationId": "delete__api_admin_ids_model",
+    "tags": [
+     "Admin"
+    ],
+    "summary": "Remove the stored IDS model (new GPUs offer the demo IDS only)",
+    "security": [
+     {
+      "userToken": [
+       "admin"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Not an admin",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "Audit: ids_model.delete."
+   }
+  },
+  "/api/admin/ids-model/commit": {
+   "post": {
+    "operationId": "post__api_admin_ids_model_commit",
+    "tags": [
+     "Admin"
+    ],
+    "summary": "Check the uploaded IDS model and make it the one new GPUs download",
+    "security": [
+     {
+      "userToken": [
+       "admin"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Not an admin",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "not_uploaded · sha_mismatch",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "400": {
+      "description": "bad_model",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "The .joblib must match the sha256 in its .json. Audit: ids_model.commit."
+   }
+  },
+  "/api/admin/ids-model/upload-url": {
+   "post": {
+    "operationId": "post__api_admin_ids_model_upload_url",
+    "tags": [
+     "Admin"
+    ],
+    "summary": "A single-use URL to upload one IDS model file to Storage",
+    "security": [
+     {
+      "userToken": [
+       "admin"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "Not an admin",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "name": {
+          "type": "string",
+          "description": "ids_rf.joblib | ids_rf.json | ids_rf.hashes.npy"
+         },
+         "bytes": {
+          "type": "integer",
+          "description": "integer (≤ 50 MB)"
+         }
         }
        }
       }
@@ -802,6 +1006,35 @@
          "creds": {
           "type": "object"
          }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/backend/ids-model": {
+   "get": {
+    "operationId": "get__api_backend_ids_model",
+    "tags": [
+     "Backend ↔ control plane"
+    ],
+    "summary": "The stored IDS model's metadata and short-lived download URLs (404 no_ids_model)",
+    "security": [
+     {
+      "backendSignature": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
         }
        }
       }

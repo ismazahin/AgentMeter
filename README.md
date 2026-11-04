@@ -28,6 +28,9 @@ alerts: this is flow triage.
   (writes `models/ids/ids_rf.*` and the hold-out CSV to benchmark with); tick **IDS gate** in a
   new benchmark. Reports the IDS's detection, the LLM's triage of its alerts and the cost per
   1,000 incoming flows.
+- **A GPU that sets itself up** (`docs/VAST_TEMPLATE.md`): store the settings in Vast's
+  environment variables and use the "AgentMeter" template; a rented instance installs, downloads
+  the IDS model stored in Admin › IDS model and starts by itself (`scripts/vast_onstart.sh`).
 
 > The agentic pipeline is only the **test subject**. The contribution is the
 > **measurement harness**, the **per-agent instrumentation** (wall time, TTFT,

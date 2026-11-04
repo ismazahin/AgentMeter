@@ -238,6 +238,12 @@ def main(argv: list[str] | None = None) -> int:
     }
     out.with_suffix(".json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     print(f"wrote {jl} (+ .json, .hashes.npy)")
+    for f in (jl, out.with_suffix(".hashes.npy")):
+        mb = f.stat().st_size / 1024 ** 2
+        if mb > 50:
+            print(f"   WARNING: {f.name} is {mb:.0f} MB, over the 50 MB per-file limit of Admin › IDS model "
+                  f"(Supabase Storage): retrain with fewer/shallower trees (--trees 50 or --max-depth 16) "
+                  f"or copy it with scripts/vast_start.ps1 instead")
     return 0
 
 

@@ -51,8 +51,11 @@ recall of every attack class (the weakest first).
 
 ## 2. Put it on the GPU server
 
-`scripts\vast_start.ps1` copies `models\ids\ids_rf.*` to the instance and sets
-`AGENTMETER_IDS_MODEL` when the files exist — nothing else to do. Elsewhere: copy the three files
+**Once, on the site:** Admin → **IDS model** → upload `ids_rf.joblib`, `ids_rf.json`,
+`ids_rf.hashes.npy` → **Upload and use**. Every GPU rented afterwards downloads it at start-up
+(`scripts/vast_ids.py`), including GPUs that set themselves up from the Vast template
+(`docs/VAST_TEMPLATE.md`). `scripts\vast_start.ps1` still copies `models\ids\ids_rf.*` directly
+when the files are on your computer — that copy wins over the stored one. Elsewhere: copy the three files
 into `models/ids/` on the server, or set `AGENTMETER_IDS_MODEL=/path/ids_rf.joblib`. Without a
 model, the server offers the bundled **demo IDS** (trained on 300 flows; every report says so).
 

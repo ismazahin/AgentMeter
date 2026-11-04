@@ -12,9 +12,10 @@ import { getLimits, getSettings, putLimits, putSettings } from "./settings.ts";
 import { backendModelState, backendModelVerified, getAdminModels, putAdminModels } from "./models.ts";
 import { type Env, corsHeaders, fail, json } from "./util.ts";
 import { getAudit } from "./audit.ts";
+import { backendIdsModel, getIdsModel, idsCommit, idsDelete, idsUploadUrl } from "./ids.ts";
 
 // the API version (semantic versioning): the same as agentmeter/server/apiversion.py (tests/test_openapi.py)
-export const API_VERSION = "1.4.0";
+export const API_VERSION = "1.5.0";
 
 type Handler = (req: Request, env: Env, ...params: string[]) => Promise<Response>;
 const ROUTES: [string, RegExp, Handler][] = [
@@ -41,6 +42,10 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/api\/admin\/models$/, getAdminModels],
   ["PUT", /^\/api\/admin\/models$/, putAdminModels],
   ["PUT", /^\/api\/admin\/limits$/, putLimits],
+  ["GET", /^\/api\/admin\/ids-model$/, getIdsModel],
+  ["DELETE", /^\/api\/admin\/ids-model$/, idsDelete],
+  ["POST", /^\/api\/admin\/ids-model\/upload-url$/, idsUploadUrl],
+  ["POST", /^\/api\/admin\/ids-model\/commit$/, idsCommit],
   // backend state + runs
   ["GET", /^\/api\/backend$/, getBackend],
   ["POST", /^\/api\/runs\/authorize$/, authorize],
@@ -66,6 +71,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   // GPU backend (HMAC-signed with BACKEND_SECRET; user tokens are not accepted here)
   ["POST", /^\/api\/backend\/register$/, register],
   ["GET", /^\/api\/backend\/model-state$/, backendModelState],
+  ["GET", /^\/api\/backend\/ids-model$/, backendIdsModel],
   ["POST", /^\/api\/backend\/models\/verified$/, backendModelVerified],
   ["POST", /^\/api\/backend\/heartbeat$/, heartbeat],
   ["POST", /^\/api\/backend\/jobs$/, jobCreated],

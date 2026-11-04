@@ -145,7 +145,13 @@ def test_every_config_has_the_same_severity_and_gate():
         assert data.get("severity") == DEFAULT_SEVERITY, p.name
         assert {k: data["triage_gate"][k] for k in data["triage_gate"]} == \
             {k: v for k, v in DEFAULT_GATE.items() if k != "basis"}, p.name
-        assert data["scoring"]["targets_source"] == "placeholder", p.name
+        src = data["scoring"]["targets_source"]
+        # the GPU study config carries the targets calibrated from the real study run; the rest
+        # (mock / demo / pilots) keep the placeholders and say so in their reports
+        if p.name == "run_full_l4.yaml":
+            assert src.startswith("calibrated") and "RTX 3090" in src, src
+        else:
+            assert src == "placeholder", p.name
 
 
 def test_severity_comes_from_the_snort_classtype_priority():

@@ -121,12 +121,12 @@ scoring:
     tokens: 0.15
   # Where the targets below come from. "placeholder" until scripts/calibrate_targets.py
   # is run on the first real GPU study run (the reports say so while it is a placeholder).
-  targets_source: placeholder
+  targets_source: "calibrated 2026-11-04, rule=best, 5 models on NVIDIA GeForce RTX 3090, from 2 session(s)"
   targets:
     accuracy_pct: 80.0
-    latency_s: 5.0
-    vram_mb: 16000.0
-    tokens_total: 1200.0
+    latency_s: 7.9031
+    vram_mb: 325.0
+    tokens_total: 3360.8
   tiers:
     healthy_min: 80.0
     degraded_min: 60.0

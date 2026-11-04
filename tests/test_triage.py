@@ -259,3 +259,22 @@ def test_calibration_refuses_mock_sessions(tmp_path):
     f.write_text(json.dumps({"environment": {"provider": "mock"}, "phase8": {"raw_criteria": []}}))
     with pytest.raises(SystemExit, match="not a real GPU session"):
         C.collect([f])
+
+
+def test_a_check_with_nothing_to_judge_does_not_hold_the_gate_back():
+    # the IDS let no benign flow through: false escalations cannot happen, so they are n/a
+    pairs = [("Brute Force", "Brute Force")] * 9 + [("Brute Force", "Benign")]
+    t = triage_block(_rows(pairs), {"a": "mock:a"}, DEFAULT_TRIAGE, labelled=True)
+    apply_gate(t, {"per_model": [{"model": "a", "valid_rate": 1.0}]}, DEFAULT_GATE)
+    g = t["per_model"][0]["gate"]
+    assert g["passed"] is True and g["not_applicable"] == ["false_escalation_rate"] and g["not_checked"] == []
+
+
+def test_effective_gate_reads_sessions_stored_before_not_applicable():
+    from agentmeter.pipeline.triage import effective_gate
+    old = {"n_attacks": 80, "n_benign": 0, "gate": {"passed": None, "failed": [], "not_checked": ["false_escalation_rate"]}}
+    assert effective_gate(old)["passed"] is True
+    failing = {"n_attacks": 80, "n_benign": 0, "gate": {"passed": False, "failed": ["missed_attack_rate"], "not_checked": ["false_escalation_rate"]}}
+    assert effective_gate(failing)["passed"] is False
+    unlabelled = {"gate": {"passed": None, "failed": [], "not_checked": ["missed_attack_rate", "false_escalation_rate"]}}
+    assert effective_gate(unlabelled)["passed"] is None

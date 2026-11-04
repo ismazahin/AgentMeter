@@ -364,7 +364,7 @@ function tiles(res) {
     esc(fmtNum(res.ids.n_alerts) + " of " + fmtNum(res.ids.n_flows_in) + " flows sent to the LLM") + '</div></div>');
   var tg = ((res.triage || {}).per_model || []).filter(function (m) { return m.gate; });
   if (tg.length) {
-    var pass = tg.filter(function (m) { return m.gate.passed === true; }), fail = tg.filter(function (m) { return m.gate.passed === false; });
+    var pass = tg.filter(function (m) { return effGate(m).passed === true; }), fail = tg.filter(function (m) { return effGate(m).passed === false; });
     t.push('<div class="tile" data-metric="gate"><div class="k">Triage gate</div><div class="v">' + (pass.length + fail.length ? pass.length + " of " + tg.length + " pass" : "not checked") + '</div><div class="w">' +
       esc(fail.length ? "fails: " + fail.map(function (m) { return short(m.model); }).join(", ") : pass.length ? "every checked model" : "needs labelled input") + '</div></div>');
   }
@@ -934,6 +934,17 @@ function idsCard(res) {
   return '<div class="card" id="rel-ids"><h2>IDS → LLM triage</h2>' + head + det + tab + curve +
     '<details class="info"><summary>Definitions</summary><ul class="small list"><li>' + esc(d.notes.per_1k) + '</li><li>' + esc(d.notes.missed) + '</li><li>' + esc(d.notes.false_alarms) + '</li></ul></details></div>';
 }
+// The gate result, also for sessions stored before "not applicable" existed: a check with nothing
+// to judge (no benign flow reached the model, e.g. the IDS let no false alarm through) does not
+// hold the gate back (agentmeter/pipeline/triage.py effective_gate).
+function effGate(m) {
+  var g = m.gate;
+  if (!g || g.passed !== null || (g.failed || []).length) return g;
+  var na = g.not_applicable || [];
+  if (!g.not_applicable) { if (m.n_attacks === 0) na.push("missed_attack_rate"); if (m.n_benign === 0) na.push("false_escalation_rate"); }
+  var left = (g.not_checked || []).filter(function (c) { return na.indexOf(c) < 0; });
+  return { passed: left.length ? null : true, failed: [], not_checked: left, not_applicable: na, checks: g.checks };
+}
 // Triage: the analyst queue each model's answers create, and the triage errors that matter in a
 // SOC. The priority comes from the session's policy table, never from the model; context only.
 function triageCard(res) {
@@ -944,9 +955,9 @@ function triageCard(res) {
   var frac = function (n, rate) { return n == null ? '<span class="muted">—</span>' : fmtNum(n) + ' <span class="muted small">(' + fmtPct(rate) + ')</span>'; };
   var G = { missed_attack_rate: "missed attacks", false_escalation_rate: "false escalations", valid_rate: "valid answers" };
   var gateCell = function (m) {
-    var g = m.gate;
+    var g = effGate(m);
     if (!g) return '<span class="muted">—</span>';
-    if (g.passed === true) return '<span class="chip ok">✓ passes</span>';
+    if (g.passed === true) return '<span class="chip ok">✓ passes</span>' + ((g.not_applicable || []).length ? ' <span class="muted small" title="no such flow reached the model">(' + esc(g.not_applicable.map(function (k) { return G[k] || k; }).join(", ")) + ': n/a)</span>' : "");
     if (g.passed === false) return '<span class="chip bad">✗ ' + esc(g.failed.map(function (k) { return G[k] || k; }).join(", ")) + '</span>';
     return '<span class="chip">not checked</span>';
   };

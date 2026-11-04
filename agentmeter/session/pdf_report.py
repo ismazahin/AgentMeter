@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from . import brief
+from ..pipeline.triage import effective_gate
 
 # Characters outside the PDF base fonts' WinAnsi set -> safe equivalents.
 _SAFE = {"→": "->", "←": "<-", "≥": ">=", "≤": "<=", "≠": "!=", "×": "x", "�": "?",
@@ -59,10 +60,12 @@ _GATE_NAMES = {"missed_attack_rate": "missed attacks", "false_escalation_rate": 
 
 
 def gate_text(g: Optional[dict]) -> str:
+    na = " (" + ", ".join(_GATE_NAMES.get(k, k) for k in g.get("not_applicable") or []) + ": no such flow reached the model)" \
+        if g and g.get("passed") is True and g.get("not_applicable") else ""
     if not g:
         return "-"
     if g.get("passed") is True:
-        return "passes"
+        return "passes" + na
     if g.get("passed") is False:
         return "fails: " + ", ".join(_GATE_NAMES.get(k, k) for k in g.get("failed") or [])
     return "not checked"
@@ -70,7 +73,8 @@ def gate_text(g: Optional[dict]) -> str:
 
 def gate_line(res: dict[str, Any]) -> Optional[str]:
     """One sentence on the triage gate: which models may be recommended for triage at all."""
-    pm = [m for m in ((res.get("triage") or {}).get("per_model") or []) if m.get("gate")]
+
+    pm = [{**m, "gate": effective_gate(m)} for m in ((res.get("triage") or {}).get("per_model") or []) if m.get("gate")]
     if not pm:
         return None
     fail = [m for m in pm if m["gate"]["passed"] is False]
@@ -577,7 +581,7 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
         for r in tri["per_model"]:
             q = r.get("queue") or {}
             cpa = r.get("cost_per_attack_caught_usd")
-            rows.append([r["model"], gate_text(r.get("gate"))] + [fmt_int(q.get(p)) for p in pri]
+            rows.append([r["model"], gate_text(effective_gate(r))] + [fmt_int(q.get(p)) for p in pri]
                         + ([f"{fmt_int(r.get('missed_attacks'))} ({fmt_pct(r.get('missed_attack_rate'))})",
                             f"{fmt_int(r.get('false_escalations'))} ({fmt_pct(r.get('false_escalation_rate'))})",
                             "-" if cpa is None else f"${cpa:.5f}"] if lab else []))

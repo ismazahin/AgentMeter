@@ -125,9 +125,33 @@ def validate_gate(gate: Any) -> None:
             raise ValueError(f"triage_gate.{k} must be a share between 0 and 1, got {gate[k]!r}")
 
 
+def _not_applicable(m: dict[str, Any]) -> list[str]:
+    """Checks with nothing to judge on labelled input: no attack reached the model (missed attacks),
+    or no benign flow did (false escalations; e.g. the IDS let no false alarm through)."""
+    out = []
+    if m.get("n_attacks") == 0:
+        out.append("missed_attack_rate")
+    if m.get("n_benign") == 0:
+        out.append("false_escalation_rate")
+    return out
+
+
+def effective_gate(m: dict[str, Any]) -> Optional[dict[str, Any]]:
+    """The gate result of a triage row, also for sessions stored before not-applicable checks
+    existed (they read "not checked" when no benign flow reached the model)."""
+    g = m.get("gate")
+    if not g or g.get("passed") is not None or g.get("failed"):
+        return g
+    na = set(g.get("not_applicable") or _not_applicable(m))
+    left = [c for c in g.get("not_checked") or [] if c not in na]
+    return {**g, "passed": None if left else True, "not_checked": left, "not_applicable": sorted(na)}
+
+
 def apply_gate(triage: dict[str, Any], reliability: Optional[dict[str, Any]], gate: dict[str, Any]) -> None:
     """Add each model's gate result to the triage block (in place). Unlabelled input cannot be
-    checked for missed attacks or false escalations: those checks read "not checked"."""
+    checked for missed attacks or false escalations: those checks read "not checked". On labelled
+    input, a check with nothing to judge (no benign flow reached the model, e.g. the IDS let no
+    false alarm through) is "not applicable" and does not hold the gate back."""
     valid = {r["model"]: r.get("valid_rate") for r in ((reliability or {}).get("per_model") or [])}
     for m in triage.get("per_model") or []:
         checks = []
@@ -141,10 +165,14 @@ def apply_gate(triage: dict[str, Any], reliability: Optional[dict[str, Any]], ga
         check("missed_attack_rate", m.get("missed_attack_rate"), gate["max_missed_attack_rate"], True)
         check("false_escalation_rate", m.get("false_escalation_rate"), gate["max_false_escalation_rate"], True)
         check("valid_rate", valid.get(m["model"]), gate["min_valid_rate"], False)
+        na = _not_applicable(m)
+        for c in checks:
+            if c["check"] in na:
+                c["not_applicable"] = True
         failed = [c["check"] for c in checks if c["passed"] is False]
-        unchecked = [c["check"] for c in checks if c["passed"] is None]
+        unchecked = [c["check"] for c in checks if c["passed"] is None and c["check"] not in na]
         m["gate"] = {"passed": False if failed else (None if unchecked else True),
-                     "failed": failed, "not_checked": unchecked, "checks": checks}
+                     "failed": failed, "not_checked": unchecked, "not_applicable": na, "checks": checks}
     triage["gate"] = {k: gate[k] for k in ("max_missed_attack_rate", "max_false_escalation_rate",
                                            "min_valid_rate", "basis")}
 

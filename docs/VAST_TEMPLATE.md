@@ -40,13 +40,18 @@ them; they are the same secrets `vast_start.ps1` copies to every instance today.
 
 Vast.ai → **Templates** → **New template** (or edit a copy of the PyTorch template you use now):
 
-- **Image:** the same PyTorch + CUDA ≥ 12.1 image you rent today (e.g. Vast's PyTorch image).
+- **Image:** the same PyTorch + CUDA ≥ 12.1 image you rent today (e.g. `vastai/pytorch`).
 - **Launch mode:** SSH (keep SSH, so you can still log in and watch).
 - **Disk:** at least 100 GB (models, ~16 GB each).
-- **On-start script:** paste this one line:
+- **On-start script:** leave the image's default, `entrypoint.sh`, alone.
+- **Environment variable** (template or account): add
   ```
-  cd /workspace && (git -C AgentMeter pull -q --ff-only || git clone -q -b claude/cool-ride-mitmzl https://github.com/ismazahin/AgentMeter.git AgentMeter); bash AgentMeter/scripts/vast_onstart.sh
+  PROVISIONING_SCRIPT = https://raw.githubusercontent.com/ismazahin/AgentMeter/claude/cool-ride-mitmzl/scripts/vast_onstart.sh
   ```
+  Vast's `vastai/pytorch` images run the script named here **after** they have created
+  `/workspace` and loaded the environment variables. Do not put AgentMeter in the On-start script
+  field: on these images it runs *before* `/workspace` exists, and fails with
+  `cd: /workspace: No such file or directory` (seen in the instance log).
 - **Visibility:** private. Save it as **AgentMeter**.
 
 ## Every rental
@@ -58,7 +63,14 @@ Vast.ai → **Templates** → **New template** (or edit a copy of the PyTorch te
    kept in Supabase), then destroy the instance — or let `IDLE_MIN` do it.
 
 To watch the start-up: Vast's **Connect** → SSH, then `tmux attach -t am` (detach: Ctrl+B, D),
-or read `/workspace/agentmeter-onstart.log`.
+or read `/workspace/agentmeter-onstart.log`. Vast's own provisioning log is
+`/var/log/portal/provisioning.log`.
+
+**If AgentMeter did not start** (no `/workspace/agentmeter-onstart.log`), start it by hand once,
+over SSH:
+```
+cd /workspace && (git -C AgentMeter pull -q --ff-only || git clone -q -b claude/cool-ride-mitmzl https://github.com/ismazahin/AgentMeter.git AgentMeter); bash AgentMeter/scripts/vast_onstart.sh
+```
 
 ## What the on-start script does (`scripts/vast_onstart.sh`)
 

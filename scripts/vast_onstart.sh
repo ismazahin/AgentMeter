@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
-# The on-start script of the Vast.ai template "AgentMeter" (docs/VAST_TEMPLATE.md): a freshly
-# rented GPU sets itself up with nothing copied by hand. The template's on-start field runs:
+# The start-up script of the Vast.ai template "AgentMeter" (docs/VAST_TEMPLATE.md): a freshly
+# rented GPU sets itself up with nothing copied by hand. On Vast's vastai/pytorch images it is
+# named by the environment variable
 #
-#   cd /workspace && (git -C AgentMeter pull -q --ff-only || git clone -q -b claude/cool-ride-mitmzl https://github.com/ismazahin/AgentMeter.git AgentMeter); bash AgentMeter/scripts/vast_onstart.sh
+#   PROVISIONING_SCRIPT=https://raw.githubusercontent.com/ismazahin/AgentMeter/claude/cool-ride-mitmzl/scripts/vast_onstart.sh
+#
+# (run after /workspace and the environment variables are ready; the template's On-start field
+# runs too early on those images). It is self-contained: it clones the code itself. By hand:
+#   bash AgentMeter/scripts/vast_onstart.sh   (from /workspace)
 #
 # Settings come from the template's / account's environment variables (never from this repo):
 #   required  HF_TOKEN  AGENTMETER_CONTROL_PLANE_URL  AGENTMETER_RUN_TOKEN_SECRET  AGENTMETER_BACKEND_SECRET

@@ -53,3 +53,7 @@ node_modules/
 # commit them. The tiny demo model (trained on the bundled 300 flows) is tracked.
 models/ids/*
 !models/ids/demo_ids.*
+
+# Full datasets (large): read from here by scripts/train_ids.py and build-dataset, never committed
+data/cicids2017_corrected/
+data/cicids_raw/

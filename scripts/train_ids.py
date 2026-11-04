@@ -15,7 +15,7 @@ Steps (each one is written into the model's metadata, for the thesis):
 
 Usage (on the computer that has the dataset):
   python scripts/train_ids.py data/cicids2017_corrected/*.csv
-  python scripts/train_ids.py data/cicids2017_corrected --out models/ids/ids_rf
+  python scripts/train_ids.py data/cicids2017_corrected --out models/ids/ids_rf    (CSV files in subfolders are read too)
   python scripts/train_ids.py --demo          # a tiny demo model from the bundled 300 flows
 
 Then copy models/ids/ids_rf.{joblib,json,hashes.npy} to the GPU server (same folder), or set
@@ -46,7 +46,7 @@ DEMO_CSV = ROOT / "data" / "cicids_full_300.csv"
 def read_inputs(paths: list[Path], max_rows: int | None) -> tuple[pd.DataFrame, list[dict]]:
     files: list[Path] = []
     for p in paths:
-        files += sorted(p.glob("*.csv")) if p.is_dir() else [p]
+        files += sorted(p.rglob("*.csv")) if p.is_dir() else [p]      # subfolders too (unzipped archives)
     if not files:
         raise SystemExit("no CSV files given")
     parts, info = [], []

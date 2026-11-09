@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#F4F2EC">
+<title>AgentMeter</title>
+<meta name="description" content="AgentMeter measures how efficiently open-source LLMs run a four-agent workflow: latency, GPU memory, tokens, cost and energy, compared head to head.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect x=%270%27 y=%2712%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%274%27 y=%278%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%278%27 y=%274%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%2712%27 y=%270%27 width=%274%27 height=%274%27 fill=%27%23C65C34%27/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
+<!--
+  AgentMeter landing page. Static, no JavaScript (the site's CSP needs no new hash).
+  Same tokens as index.html. Every number below is from the real RTX 3090 session in
+  docs/design/DESIGN_BRIEF.md §6 (Qwen2.5-3B-Instruct vs Llama-3.2-3B-Instruct, 20 flows).
+-->
+<style>
+  :root {
+    --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --serif: Georgia, "Times New Roman", serif;
+    --bg: #F4F2EC; --surface: #FBFAF7; --surface-2: #ECEBE4; --border: #D8D7CF; --rule: #17232C;
+    --text: #17232C; --muted: #647078; --muted-2: #3E4A53;
+    --accent: #2455D6; --accent-ink: #FFFFFF; --accent-hover: #183FAE; --accent-text: #2455D6; --accent-soft: #E7ECFA;
+    --warn: #C65C34; --warn-text: #9E482D;
+    --series-1: #2455D6; --series-2: #C65C34;
+    --ag-perceive: #2a78d6; --ag-reason: #6250d6; --ag-decide: #eda100; --ag-act: #1baf7a;
+    --radius: 3px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --bg: #101418; --surface: #161B20; --surface-2: #1D2329; --border: #2A3138; --rule: #E9E7E1;
+    --text: #E9E7E1; --muted: #98A1A8; --muted-2: #C3C8CC;
+    --accent: #7D9CF5; --accent-ink: #0D1420; --accent-hover: #9DB4F8; --accent-text: #9DB4F8; --accent-soft: #1C2540;
+    --warn: #E58A62; --warn-text: #F0A986;
+    --series-1: #5b8ae8; --series-2: #d9714a;
+    --ag-perceive: #3987e5; --ag-reason: #9085e9; --ag-decide: #c98500; --ag-act: #199e70;
+    color-scheme: dark;
+  } }
+
+  * { box-sizing: border-box; }
+  html { scroll-padding-top: 24px; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 400 1rem/1.6 var(--font); -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent-text); text-underline-offset: 3px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+  .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+  .skip { position: absolute; left: 16px; top: -60px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); z-index: 10; }
+  .skip:focus { top: 12px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* header */
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 76px; }
+  .logo { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.15rem; letter-spacing: -.03em; color: var(--accent-text); text-decoration: none; min-height: 44px; }
+  .logo svg { width: 20px; height: 20px; color: var(--accent-text); }
+  .logo .mark-a { fill: var(--warn); }
+  .top nav { display: flex; align-items: center; gap: 4px 20px; flex-wrap: wrap; }
+  .top nav a:not(.btn) { color: var(--muted-2); text-decoration: none; font-weight: 600; font-size: .9rem; min-height: 44px; display: inline-flex; align-items: center; }
+  @media (hover: hover) { .top nav a:not(.btn):hover { color: var(--text); } }
+  @media (max-width: 640px) { .top nav a:not(.btn) { display: none; } }
+
+  /* buttons */
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 20px; border-radius: var(--radius);
+    border: 1px solid var(--border); color: var(--text); background: transparent; font: 650 .9rem var(--font); text-decoration: none; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.big { min-height: 52px; padding: 0 26px; font-size: 1rem; }
+  @media (hover: hover) { .btn:hover { background: var(--surface-2); } .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); } }
+
+  /* hero */
+  .hero { padding: 56px 0 72px; border-bottom: 1px solid var(--rule); }
+  .hero h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(2.3rem, 5.4vw, 4.1rem); line-height: 1.04; letter-spacing: -.035em; margin: 0; max-width: 15ch; text-wrap: balance; }
+  .lede { font-size: 1.15rem; line-height: 1.55; color: var(--muted-2); max-width: 58ch; margin: 22px 0 30px; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .cta-row .note { color: var(--muted); font-size: .9rem; }
+
+  /* the pipeline trace: one measured flow, drawn to scale */
+  .trace { margin: 64px 0 0; }
+  .trace figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 24px; font-size: .9rem; color: var(--muted); margin-bottom: 16px; }
+  .trace figcaption strong { color: var(--text); font-weight: 650; }
+  .lanes { display: grid; gap: 10px; }
+  .lane { display: grid; grid-template-columns: 9.5rem 1fr; gap: 16px; align-items: center; }
+  .lane-name { font-weight: 650; font-size: .95rem; }
+  .lane-name small { display: block; font-weight: 400; font-size: .8rem; color: var(--muted); }
+  .track { position: relative; height: 40px; background: var(--surface-2); }
+  .seg { position: absolute; top: 0; bottom: 0; left: var(--x); width: var(--w); background: var(--c); }
+  .seg-val { position: absolute; top: 50%; transform: translateY(-50%); left: calc(var(--x) + var(--w) + 10px); font-size: .85rem; font-weight: 650; white-space: nowrap; }
+  .seg-val.in { left: calc(var(--x) + 10px); color: #0D1420; }
+  .axis { display: grid; grid-template-columns: 9.5rem 1fr; gap: 16px; margin-top: 8px; }
+  .axis div { display: flex; justify-content: space-between; font-size: .8rem; color: var(--muted); }
+  .handoff { margin: 18px 0 0 calc(9.5rem + 16px); font-size: .9rem; color: var(--muted-2); max-width: 62ch; }
+  @media (prefers-reduced-motion: no-preference) {
+    .seg { transform-origin: left center; animation: grow .7s cubic-bezier(0.2, 0, 0, 1) both; animation-delay: calc(var(--i) * 140ms + 200ms); }
+    .seg-val { animation: fade .3s ease-out both; animation-delay: calc(var(--i) * 140ms + 700ms); }
+    @keyframes grow { from { transform: scaleX(0); } }
+    @keyframes fade { from { opacity: 0; } }
+  }
+  .readouts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 36px 0 0; border-top: 1px solid var(--border); }
+  .readouts div { padding: 16px 16px 0 0; }
+  .readouts dt { font-size: .85rem; color: var(--muted); }
+  .readouts dd { margin: 4px 0 0; font-family: var(--serif); font-size: 1.75rem; line-height: 1.15; letter-spacing: -.02em; }
+  .readouts dd small { font-family: var(--font); font-size: .85rem; color: var(--muted); letter-spacing: 0; }
+  @media (max-width: 600px) {
+    .lane, .axis { grid-template-columns: 1fr; gap: 6px; }
+    .axis > span { display: none; }
+    .handoff { margin-left: 0; }
+  }
+
+  /* sections */
+  section.block { padding: 72px 0; border-bottom: 1px solid var(--border); }
+  .block-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 24px 64px; }
+  @media (max-width: 860px) { .block-grid { grid-template-columns: 1fr; } }
+  h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(1.7rem, 3vw, 2.2rem); line-height: 1.15; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+  .intro { color: var(--muted-2); margin: 12px 0 0; max-width: 40ch; }
+  h3 { font-size: 1.05rem; font-weight: 650; margin: 0 0 4px; }
+  p { margin: 0; }
+
+  .metrics { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 28px 40px; }
+  .metrics dt { font-weight: 650; font-size: 1.05rem; }
+  .metrics dd { margin: 4px 0 0; color: var(--muted-2); max-width: 46ch; }
+
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 28px; counter-reset: step; }
+  .steps li { display: grid; grid-template-columns: 2.75rem 1fr; gap: 16px; counter-increment: step; }
+  .steps li::before { content: counter(step); font-family: var(--serif); font-size: 1.9rem; line-height: 1; color: var(--accent-text); }
+  .steps p { color: var(--muted-2); max-width: 60ch; }
+
+  .verdict { font-family: var(--serif); font-size: clamp(1.35rem, 2.4vw, 1.75rem); line-height: 1.35; margin: 0 0 28px; max-width: 34ch; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 520px; font-size: .95rem; }
+  th, td { padding: 12px 14px 12px 0; text-align: left; border-bottom: 1px solid var(--border); }
+  thead th { font-size: .85rem; font-weight: 650; color: var(--muted); border-bottom: 1px solid var(--rule); }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  tbody th { font-weight: 650; }
+  .sw { display: inline-block; width: 10px; height: 10px; margin-right: 8px; background: var(--c); vertical-align: 0; }
+  td.win { font-weight: 700; }
+  .fine { font-size: .85rem; color: var(--muted); margin-top: 14px; max-width: 70ch; }
+
+  .fair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 28px 40px; margin: 0; padding: 0; list-style: none; }
+  .fair p { color: var(--muted-2); max-width: 46ch; }
+
+  .closing { padding: 88px 0; }
+  .closing h2 { font-size: clamp(2rem, 4vw, 3rem); max-width: 18ch; }
+  .closing p { color: var(--muted-2); margin: 16px 0 28px; max-width: 52ch; }
+
+  footer { border-top: 1px solid var(--border); padding: 24px 0 40px; color: var(--muted); font-size: .85rem; }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="wrap top">
+  <a class="logo" href="landing.html" aria-label="AgentMeter">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="0" y="12" width="4" height="4" fill="currentColor" opacity=".55"/><rect x="4" y="8" width="4" height="4" fill="currentColor" opacity=".55"/><rect x="8" y="4" width="4" height="4" fill="currentColor" opacity=".55"/><rect class="mark-a" x="12" y="0" width="4" height="4"/></svg>
+    AgentMeter
+  </a>
+  <nav aria-label="Page">
+    <a href="#measures">What it measures</a>
+    <a href="#how">How it works</a>
+    <a href="#result">A real result</a>
+    <a class="btn primary" href="./#/login">Log in</a>
+  </nav>
+</header>
+
+<main id="main">
+  <div class="hero">
+    <div class="wrap">
+      <h1>See what an AI agent pipeline really costs to run.</h1>
+      <p class="lede">AgentMeter runs your network traffic through a four-agent LLM pipeline on a real GPU, measures every step, and tells you which open-source model does the job with less time, memory and energy.</p>
+      <div class="cta-row">
+        <a class="btn primary big" href="./#/login">Log in to AgentMeter</a>
+        <a class="btn big" href="#how">How it works</a>
+      </div>
+
+      <figure class="trace" aria-labelledby="trace-cap">
+        <figcaption id="trace-cap">
+          <span><strong>One flow, four agents, measured.</strong> Mean time per agent for Qwen2.5-3B-Instruct.</span>
+          <span>Measured on an NVIDIA RTX 3090, 4-bit NF4, 20 flows</span>
+        </figcaption>
+        <div class="lanes">
+          <div class="lane">
+            <span class="lane-name">Perceive <small>reads the flow</small></span>
+            <div class="track"><span class="seg" style="--x:0%;--w:30.2%;--c:var(--ag-perceive);--i:0"></span><span class="seg-val num" style="--x:0%;--w:30.2%;--i:0">3.26 s</span></div>
+          </div>
+          <div class="lane">
+            <span class="lane-name">Reason <small>weighs the evidence</small></span>
+            <div class="track"><span class="seg" style="--x:30.2%;--w:37.6%;--c:var(--ag-reason);--i:1"></span><span class="seg-val num" style="--x:30.2%;--w:37.6%;--i:1">4.06 s</span></div>
+          </div>
+          <div class="lane">
+            <span class="lane-name">Decide <small>picks a label</small></span>
+            <div class="track"><span class="seg" style="--x:67.8%;--w:2.5%;--c:var(--ag-decide);--i:2"></span><span class="seg-val num" style="--x:67.8%;--w:2.5%;--i:2">0.27 s</span></div>
+          </div>
+          <div class="lane">
+            <span class="lane-name">Act <small>writes the response</small></span>
+            <div class="track"><span class="seg" style="--x:70.3%;--w:29.7%;--c:var(--ag-act);--i:3"></span><span class="seg-val in num" style="--x:70.3%;--w:29.7%;--i:3">3.20 s</span></div>
+          </div>
+        </div>
+        <div class="axis" aria-hidden="true"><span></span><div><span>0 s</span><span>2.7 s</span><span>5.4 s</span><span>8.1 s</span><span>10.8 s</span></div></div>
+        <p class="handoff">Handing context from agent to agent costs 303 tokens per flow: 8.9% of everything the model reads and writes.</p>
+        <dl class="readouts">
+          <div><dt>Time per flow</dt><dd class="num">10.80 <small>s</small></dd></div>
+          <div><dt>Peak GPU memory</dt><dd class="num">3,128 <small>MB</small></dd></div>
+          <div><dt>Tokens per flow</dt><dd class="num">3,401</dd></div>
+          <div><dt>Energy per flow</dt><dd class="num">0.51 <small>Wh</small></dd></div>
+          <div><dt>Cost per 1,000 flows</dt><dd class="num">$0.77</dd></div>
+        </dl>
+      </figure>
+    </div>
+  </div>
+
+  <section class="block" id="measures" aria-labelledby="h-measures">
+    <div class="wrap block-grid">
+      <div>
+        <h2 id="h-measures">What it measures</h2>
+        <p class="intro">Five numbers for every agent and every flow, so you can pick a model that fits your GPU and your budget.</p>
+      </div>
+      <dl class="metrics">
+        <div><dt>Latency</dt><dd>Seconds per flow and per agent, with the slow tail (p95, p99) and warm-up kept apart.</dd></div>
+        <div><dt>GPU memory</dt><dd>Peak VRAM, split into model weights and the working memory each run adds on top.</dd></div>
+        <div><dt>Tokens</dt><dd>What each agent reads and writes, including the context re-sent at every hand-off.</dd></div>
+        <div><dt>Cost</dt><dd>Dollars per 1,000 flows at the GPU's hourly price, projected to your volume.</dd></div>
+        <div><dt>Energy</dt><dd>Watt-hours per flow, read from the GPU while the pipeline runs.</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section class="block" id="how" aria-labelledby="h-how">
+    <div class="wrap block-grid">
+      <div>
+        <h2 id="h-how">How a benchmark runs</h2>
+        <p class="intro">Three steps from a traffic file to a verdict you can defend.</p>
+      </div>
+      <ol class="steps">
+        <li><div><h3>Bring your traffic</h3><p>Upload a CSV or PCAP, import one from a link, or reuse a prepared set. AgentMeter picks a balanced sample of flows for you.</p></div></li>
+        <li><div><h3>Pick one or two models</h3><p>Start from the five study models, or try any of 16 more from Hugging Face. Each card shows its size and how much GPU memory it needs at 4-bit.</p></div></li>
+        <li><div><h3>Read the verdict</h3><p>Watch the run live, then get a session with the head-to-head verdict, a weighted ranking, per-agent detail and a PDF report.</p></div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="block" id="result" aria-labelledby="h-result">
+    <div class="wrap">
+      <h2 id="h-result" style="margin-bottom:24px">A real result</h2>
+      <p class="verdict">Qwen2.5-3B-Instruct is more resource-efficient than Llama-3.2-3B-Instruct: 35.5% less working VRAM, and a tie on latency and tokens.</p>
+      <div class="table-wrap" tabindex="0" role="region" aria-labelledby="h-result">
+        <table>
+          <caption class="sr-only">Qwen2.5-3B-Instruct compared with Llama-3.2-3B-Instruct on an RTX 3090</caption>
+          <thead><tr><th scope="col">Model</th><th scope="col" class="n">Time per flow</th><th scope="col" class="n">Working VRAM</th><th scope="col" class="n">Tokens per flow</th><th scope="col" class="n">Energy per flow</th><th scope="col" class="n">Cost per 1,000 flows</th></tr></thead>
+          <tbody>
+            <tr><th scope="row"><i class="sw" style="--c:var(--series-1)" aria-hidden="true"></i>Qwen2.5-3B-Instruct</th><td class="n">10.80 s</td><td class="n win">157 MB</td><td class="n">3,401</td><td class="n">0.51 Wh</td><td class="n">$0.77</td></tr>
+            <tr><th scope="row"><i class="sw" style="--c:var(--series-2)" aria-hidden="true"></i>Llama-3.2-3B-Instruct</th><td class="n">9.89 s</td><td class="n">243 MB</td><td class="n">3,359</td><td class="n">0.50 Wh</td><td class="n">$0.70</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="fine">20 flows on an NVIDIA RTX 3090, both models at 4-bit NF4. The latency gap is not significant (Kruskal–Wallis p = 0.168), so AgentMeter calls it a tie. An exploratory run: a small sample, shown with its caveats.</p>
+    </div>
+  </section>
+
+  <section class="block" aria-labelledby="h-fair">
+    <div class="wrap block-grid">
+      <div>
+        <h2 id="h-fair">Built to be fair</h2>
+        <p class="intro">A comparison is only useful if both models had the same chance.</p>
+      </div>
+      <ul class="fair">
+        <li><h3>Same quantization</h3><p>Every model loads at the same 4-bit NF4, verified on the GPU before it can be picked.</p></li>
+        <li><h3>Ties are called ties</h3><p>A difference only wins when the statistics support it; otherwise the verdict says the models are tied.</p></li>
+        <li><h3>One transparent score</h3><p>Models are ranked with Simple Additive Weighting. You can change the weights and see how the order moves.</p></li>
+        <li><h3>Demo results are labelled</h3><p>Without a GPU, AgentMeter runs a simulation and marks every number as not a real measurement.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="closing" aria-labelledby="h-start">
+    <div class="wrap">
+      <h2 id="h-start">Ready to measure your models?</h2>
+      <p>Accounts are invite-only. Log in with the details your administrator sent you, then start a new benchmark from Home.</p>
+      <a class="btn primary big" href="./#/login">Log in to AgentMeter</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>AgentMeter measures how efficiently LLMs run: speed, memory, tokens, cost, energy. The flows are its workload; it isn't a threat detector.</span>
+    <a href="./#/login">Log in</a>
+  </div>
+</footer>
+</body>
+</html>

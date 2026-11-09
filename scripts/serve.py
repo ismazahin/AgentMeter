@@ -242,6 +242,10 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
             return jsonify({"error": "not found"}), 404
         return send_from_directory(WEB_DIR / "docs", asset)
 
+    @app.route("/landing.html", methods=["GET"])
+    def landing():                                                 # the static landing page (links to the app's login)
+        return send_from_directory(WEB_DIR, "landing.html")
+
     @app.route("/<path:asset>", methods=["GET"])
     def dashboard_asset(asset):
         if asset not in _ALLOWED_ASSETS:

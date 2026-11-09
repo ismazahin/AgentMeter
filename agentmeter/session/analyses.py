@@ -675,11 +675,17 @@ def reliability_block(sr: list[dict], am: list[dict], label_of: dict[str, str], 
         valid = [f for f in flows if f["scenario_id"] not in unparseable and f["scenario_id"] not in empty]
         cons = None
         if verdict_agent:
-            pairs = [(f["predicted_label"], texts.get((dbm, f["scenario_id"], verdict_agent))) for f in valid]
-            pairs = [(p, t) for p, t in pairs if t]
+            pairs = [(f["scenario_id"], f["predicted_label"], texts.get((dbm, f["scenario_id"], verdict_agent))) for f in valid]
+            pairs = [(sid, p, t) for sid, p, t in pairs if t]
             if pairs:
-                agree = sum(1 for p, t in pairs if normalize_class(t, classes) == p)
-                cons = {"checked": len(pairs), "agree": agree, "rate": agree / len(pairs)}
+                said = [(sid, p, t, normalize_class(t, classes)) for sid, p, t in pairs]
+                agree = sum(1 for _, p, _, v in said if v == p)
+                # a few flows where the verdict names another class than the label agent chose (the evidence)
+                examples = [{"scenario_id": sid, "label": p, "verdict_class": v,
+                             "verdict_text": t if len(t) <= 280 else t[:280] + " …"}
+                            for sid, p, t, v in said if v != p][:5]
+                cons = {"checked": len(pairs), "agree": agree, "rate": agree / len(pairs),
+                        "disagree": len(pairs) - agree, "examples": examples}
         ref = None
         if labelled and n:
             ok = sum(1 for f in flows if f["correct"])
@@ -746,6 +752,85 @@ def reliability_block(sr: list[dict], am: list[dict], label_of: dict[str, str], 
                                     if labelled else "the flows have no reference labels"),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# accuracy statistics: is a model's accuracy, and the difference between two, more than noise?
+# ---------------------------------------------------------------------------
+def wilson_interval(k: int, n: int, z: float = 1.959964) -> tuple[Optional[float], Optional[float]]:
+    """95% Wilson score interval for k successes in n (better than k/n ± z·se for small n or p near 0/1)."""
+    if not n:
+        return None, None
+    p = k / n
+    den = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / den
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
+    return max(0.0, centre - half), min(1.0, centre + half)
+
+
+def mcnemar_exact(b: int, c: int) -> float:
+    """Two-sided exact McNemar p: the discordant pairs (b = only A right, c = only B right) against
+    Binomial(b + c, 1/2). Equal answers on a flow carry no information about the difference."""
+    n = b + c
+    if n == 0:
+        return 1.0
+    k = min(b, c)
+    tail = sum(math.comb(n, i) for i in range(k + 1)) / 2 ** n
+    return min(1.0, 2 * tail)
+
+
+def holm(pvals: list[float]) -> list[float]:
+    """Holm-Bonferroni adjusted p-values, in the input order."""
+    m = len(pvals)
+    order = sorted(range(m), key=lambda i: pvals[i])
+    adj = [0.0] * m
+    running = 0.0
+    for rank, i in enumerate(order):
+        running = max(running, min(1.0, (m - rank) * pvals[i]))
+        adj[i] = running
+    return adj
+
+
+ACC_ALPHA = 0.05
+
+
+def accuracy_stats_block(sr: list[dict], label_of: dict[str, str], labelled: bool) -> dict[str, Any]:
+    """Per model: accuracy with a 95% Wilson interval. Per model pair: an exact McNemar test on the
+    flows both answered (paired: the same flows), Holm-corrected across pairs. An unreadable answer
+    counts as wrong. Context: it never changes a score, rank or verdict."""
+    if not labelled:
+        return {"labelled": False, "note": "The flows have no reference labels, so accuracy is not measured."}
+    right: dict[str, dict[str, bool]] = {}
+    for m, dbm in label_of.items():
+        right[m] = {str(r["scenario_id"]): bool(r["correct"]) for r in sr if r["model"] == dbm and r["correct"] is not None}
+    per = []
+    for m in label_of:
+        v = list(right[m].values())
+        k, n = sum(v), len(v)
+        lo, hi = wilson_interval(k, n)
+        per.append({"model": m, "n": n, "correct": k, "accuracy": (k / n) if n else None, "ci95": [lo, hi]})
+    pairs = []
+    for a, b in itertools.combinations(list(label_of), 2):
+        common = sorted(set(right[a]) & set(right[b]))
+        only_a = sum(1 for s in common if right[a][s] and not right[b][s])
+        only_b = sum(1 for s in common if right[b][s] and not right[a][s])
+        n = len(common)
+        diff = ((sum(right[a][s] for s in common) - sum(right[b][s] for s in common)) / n) if n else None
+        pairs.append({"a": a, "b": b, "n_paired": n, "only_a_right": only_a, "only_b_right": only_b,
+                      "difference": diff, "p_value": mcnemar_exact(only_a, only_b)})
+    for p, adj in zip(pairs, holm([p["p_value"] for p in pairs])):
+        p["p_holm"] = adj
+        p["differ"] = adj < ACC_ALPHA
+        better = p["a"] if (p["difference"] or 0) > 0 else p["b"]
+        p["verdict"] = (f"{better.split('/')[-1]} is more accurate beyond chance" if p["differ"] else
+                        "no evidence of a real difference (could be chance on these flows)")
+    small = min((x["n"] for x in per), default=0) < MIN_STABLE_N
+    return {"labelled": True, "alpha": ACC_ALPHA, "per_model": per, "pairs": pairs,
+            "method": ("95% Wilson score interval per model; exact McNemar test per pair on the flows both "
+                       "models answered (only the flows where exactly one was right count), Holm-corrected "
+                       "across pairs. An unreadable answer counts as wrong."),
+            "small_sample": small,
+            "note": SMALL_NOTE.format(n=min((x["n"] for x in per), default=0)) if small else None}
 
 
 def latency_trend_block(sr: list[dict], label_of: dict[str, str]) -> dict[str, Any]:
@@ -1255,6 +1340,7 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     payload["effect_sizes"] = effect_block(sr, am, label_of, payload.get("statistics"))
     payload["cost_energy"] = cost_energy_block(payload, sr, label_of, real=real, price=price, energy=energy)
     from ..pipeline.triage import apply_gate, gate_config, severity_table, triage_block, triage_table
+    payload["accuracy_stats"] = accuracy_stats_block(sr, label_of, bool((payload.get("session") or {}).get("accuracy_available")))
     payload["triage"] = triage_block(sr, label_of, triage_table(config_data),
                                      labelled=bool((payload.get("session") or {}).get("accuracy_available")),
                                      cost=payload["cost_energy"], severity=severity_table(config_data))

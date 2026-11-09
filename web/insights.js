@@ -1139,7 +1139,29 @@
     });
   }
 
-  var api = { CRIT: CRIT, trafficAnalysis: trafficAnalysis, measuredModels: measuredModels, projectCost: projectCost, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
+  // ---- Realistic SOC projection: the test set is balanced, a SOC's traffic is mostly benign ----
+  // From one model's measured triage (rates per true attack / true benign flow, read off the stored
+  // priority confusion: truth Escalate + Investigate = attacks, truth Dismiss = benign), the analyst
+  // queue for n flows at a chosen benign share. A projection: the same per-class behaviour, another mix.
+  function socProjection(row, benignShare, n) {
+    var c = (row || {}).confusion, na = num((row || {}).n_attacks), nb = num((row || {}).n_benign);
+    if (!c || !na || !nb) return null;
+    var g = function (t, p) { return num(((c[t] || {})[p])) || 0; };
+    var atk = function (p) { return (g("Escalate", p) + g("Investigate", p)) / na; };
+    var ben = function (p) { return g("Dismiss", p) / nb; };
+    var b = Math.min(1, Math.max(0, num(benignShare) == null ? 0.99 : num(benignShare))), N = num(n) || 10000;
+    var A = N * (1 - b), B = N * b;
+    var escA = A * atk("Escalate"), escB = B * ben("Escalate");
+    var invA = A * atk("Investigate"), invB = B * ben("Investigate");
+    var esc = escA + escB, inv = invA + invB;
+    return { model: row.model, flows: N, benign_share: b, attacks: A, benign: B,
+             escalations: esc, escalate_attacks: escA, escalate_benign: escB,
+             investigations: inv, investigate_benign: invB, missed_attacks: A * atk("Dismiss"),
+             analyst_queue: esc + inv, escalation_precision: esc ? escA / esc : null,
+             measured_on: { attacks: na, benign: nb } };
+  }
+
+  var api = { CRIT: CRIT, socProjection: socProjection, trafficAnalysis: trafficAnalysis, measuredModels: measuredModels, projectCost: projectCost, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
               workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, energyEfficiency: energyEfficiency, priceCompare: priceCompare, idleCost: idleCost, recommend: recommend, removeAgent: removeAgent, budgetTuning: budgetTuning, pipelineCompare: pipelineCompare, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,

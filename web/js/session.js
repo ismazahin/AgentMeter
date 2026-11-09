@@ -293,7 +293,8 @@ function renderSession(res, job) {
   $("spanel-overview").innerHTML = pane("main", overviewTab(res) + '<div class="card" id="svc-rep-line" hidden></div>' + notesCard(job) + scheduleCard(job));
   $("spanel-ranking").innerHTML = lead("ranking") + pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
       'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", rankStabilityCard(res) + stabilityCard(res)) + pane("tradeoffs", frontierCard(res)) + pane("guide", "");
-  $("spanel-reliability").innerHTML = lead("reliability") + pane("main", idsCard(res) + reliabilityCard(res) + triageCard(res) + consistencyCard(res) + failureCard(res));
+  $("spanel-reliability").innerHTML = lead("reliability") + pane("main", idsCard(res) + reliabilityCard(res) + accuracyStatsCard(res) + confusionCard(res) +
+    triageCard(res) + socCard(res) + consistencyCard(res) + agreementCard(res) + failureCard(res));
   $("spanel-performance").innerHTML = lead("performance") + pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("capacity", capacityCard(res) + coldStartCard(res)) + pane("drivers", driversCard(res) + scalingCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
   $("spanel-agents").innerHTML = lead("agents") + pane("main", agentsTab(res));
   $("spanel-cost").innerHTML = lead("cost") + pane("main", costCard(res) + energyEffCard(res) + gpuTimelineCard(res) + idleCard(res) + projectionCard(res) + priceCard(res) + correctCard(res));
@@ -1001,6 +1002,103 @@ function triageCard(res) {
       '<li>Any other class, or an answer that could not be read → <b>' + esc(t.fallback) + '</b></li></ul><ul class="small list">' +
       '<li>' + esc(t.notes.missed) + '</li><li>' + esc(t.notes.false_escalation) + '</li><li>' + esc(t.notes.cost) + '</li><li>' + esc(t.notes.flows) + '</li>' +
       (t.notes.severity ? '<li>' + esc(t.notes.severity) + '</li>' : "") + (t.notes.gate ? '<li>' + esc(t.notes.gate) + '</li>' : "") + '</ul></details></div>';
+}
+// Output Reliability: is each model's accuracy, and the gap between two, more than chance?
+function accuracyStatsCard(res) {
+  var st = res.accuracy_stats;
+  if (!st || !st.labelled || !(st.per_model || []).length) return "";
+  var max = 1, bar = function (m) {
+    var lo = m.ci95[0], hi = m.ci95[1], a = m.accuracy;
+    if (lo == null) return "";
+    return '<span class="ci-track" aria-hidden="true"><span class="ci-range" style="left:' + (100 * lo / max).toFixed(1) + '%;width:' + (100 * (hi - lo) / max).toFixed(1) +
+      '%"></span><span class="ci-dot" style="left:' + (100 * a / max).toFixed(1) + '%"></span></span>';
+  };
+  var pairs = (st.pairs || []).map(function (p) {
+    return '<tr><td class="mono">' + esc(short(p.a)) + ' vs ' + esc(short(p.b)) + '</td><td class="num">' + (p.difference == null ? "—" : (p.difference > 0 ? "+" : "") + fmtNum(100 * p.difference, 1) + " pts") +
+      '</td><td class="num">' + fmtNum(p.only_a_right) + ' / ' + fmtNum(p.only_b_right) + '</td><td class="num">' + fmtNum(p.p_holm, 3) + '</td><td>' +
+      (p.differ ? '<span class="chip ok">' + esc(p.verdict) + '</span>' : '<span class="chip">' + esc(p.verdict) + '</span>') + '</td></tr>';
+  }).join("");
+  return '<div class="card" id="rel-accuracy-stats"><h2>Are the accuracy differences real?</h2><p class="muted small" style="margin-top:0">Accuracy on these flows with its 95% range: ' +
+      'with more flows the range narrows. Two models only differ beyond chance when the test says so. Context only: it does not change the score or the ranking.</p>' +
+    '<div class="table-wrap"><table id="acc-ci-table"><thead><tr><th>Model</th><th class="num">Accuracy</th><th class="num">95% range</th><th style="min-width:180px">0% ─────── 100%</th></tr></thead><tbody>' +
+    st.per_model.map(function (m) {
+      return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtPct(m.accuracy) + ' <span class="muted small">(' + m.correct + '/' + m.n + ')</span></td><td class="num">' +
+        fmtPct(m.ci95[0]) + ' – ' + fmtPct(m.ci95[1]) + '</td><td>' + bar(m) + '</td></tr>';
+    }).join("") + '</tbody></table></div>' +
+    (pairs ? '<h3>Model against model</h3><div class="table-wrap"><table id="acc-pairs-table"><thead><tr><th>Pair</th><th class="num">Difference</th><th class="num">Only A right / only B right</th><th class="num">p (Holm)</th><th>Verdict</th></tr></thead><tbody>' + pairs + '</tbody></table></div>' : "") +
+    (st.note ? '<p class="notice small">' + esc(st.note) + '</p>' : "") +
+    '<details class="info"><summary>How this is tested</summary><p class="small">' + esc(st.method) + ' Significance level ' + st.alpha + '.</p></details></div>';
+}
+// Output Reliability: which classes each model mixes up (the stored confusion matrix)
+function confusionCard(res) {
+  var pms = (res.per_model || []).filter(function (pm) { return pm.accuracy && pm.accuracy.confusion; });
+  if (!pms.length) return "";
+  var grid = function (pm) {
+    var cm = pm.accuracy.confusion, truths = Object.keys(cm), preds = [];
+    truths.forEach(function (t) { Object.keys(cm[t]).forEach(function (p) { if (preds.indexOf(p) < 0) preds.push(p); }); });
+    preds.sort(function (a, b) { return (truths.indexOf(a) < 0) - (truths.indexOf(b) < 0) || truths.indexOf(a) - truths.indexOf(b); });
+    var worst = [];
+    truths.forEach(function (t) { preds.forEach(function (p) { var v = cm[t][p] || 0; if (p !== t && v) worst.push([v, t, p]); }); });
+    worst.sort(function (a, b) { return b[0] - a[0]; });
+    var html = '<div class="table-wrap"><table class="cm-table"><thead><tr><th class="small">True ↓ / answered →</th>' + preds.map(function (p) { return '<th class="num small">' + esc(p) + '</th>'; }).join("") + '</tr></thead><tbody>' +
+      truths.map(function (t) {
+        var tot = preds.reduce(function (a, p) { return a + (cm[t][p] || 0); }, 0) || 1;
+        return '<tr><th class="small">' + esc(t) + '</th>' + preds.map(function (p) {
+          var v = cm[t][p] || 0, share = v / tot;
+          return '<td class="num cm-cell' + (p === t ? " cm-diag" : v ? " cm-off" : "") + '" style="--share:' + (60 * share).toFixed(0) + '%" title="' + esc(t) + ' answered as ' + esc(p) + ': ' + v + ' (' + fmtPct(share) + ' of ' + esc(t) + ')">' + (v || '<span class="muted">·</span>') + '</td>';
+        }).join("") + '</tr>';
+      }).join("") + '</tbody></table></div>';
+    return '<div class="cm-model"><h3 class="mono">' + esc(short(pm.model)) + '</h3>' + html +
+      (worst.length ? '<p class="small muted">Most often confused: ' + worst.slice(0, 3).map(function (w) { return '<b>' + esc(w[1]) + '</b> answered as <b>' + esc(w[2]) + '</b> (' + w[0] + ')'; }).join("; ") + '.</p>'
+                    : '<p class="small muted">No confusions on these flows.</p>') + '</div>';
+  };
+  return '<div class="card" id="rel-confusion"><h2>Which classes each model mixes up</h2><p class="muted small" style="margin-top:0">Rows are the true class, columns the answer. ' +
+    'The diagonal is right; every other filled cell is a mistake, darker when it happens more often.</p><div class="cm-grid">' + pms.map(grid).join("") + '</div></div>';
+}
+// Output Reliability: the triage results re-projected to a realistic SOC traffic mix
+var SOC = { share: 0.99 };
+function socCard(res) {
+  var t = res.triage;
+  if (!t || !t.labelled || !(t.per_model || []).some(function (m) { return m.confusion && m.n_attacks && m.n_benign; })) return "";
+  SOC.res = res;
+  return '<div class="card" id="rel-soc"><h2>What this would look like in a real SOC</h2><p class="muted small" style="margin-top:0">These flows are a test mix. ' +
+      'Real traffic is mostly benign, so a small false-escalation rate becomes most of an analyst\'s queue. The same per-class behaviour, re-projected to the mix you choose (per 10,000 flows).</p>' +
+    '<div class="row" style="margin-top:0;gap:14px;align-items:center;flex-wrap:wrap"><label for="soc-share"><b>Benign share of traffic</b></label>' +
+      '<input type="range" id="soc-share" min="0.5" max="0.999" step="0.001" value="' + SOC.share + '" style="flex:1 1 220px"><b id="soc-share-v" class="num">' + fmtPct(SOC.share) + '</b></div>' +
+    '<div id="soc-body">' + socTable(res) + '</div>' +
+    '<p class="small muted">Measured on this session: ' + esc(t.per_model.map(function (m) { return short(m.model) + " " + m.n_attacks + " attacks / " + m.n_benign + " benign"; }).join(", ")) +
+    '. A projection: it assumes each model treats attacks and benign flows the same way in the new mix.</p></div>';
+}
+function socTable(res) {
+  var rows = (res.triage.per_model || []).map(function (m) { return INSIGHTS.socProjection(m, SOC.share, 10000); }).filter(Boolean);
+  return '<div class="table-wrap"><table id="soc-table"><thead><tr><th>Model</th><th class="num">Escalated</th><th class="num">… of which real attacks</th><th class="num">To investigate</th>' +
+    '<th class="num">Analyst queue</th><th class="num">Missed attacks</th></tr></thead><tbody>' + rows.map(function (p) {
+      return '<tr><td class="mono">' + esc(short(p.model)) + '</td><td class="num">' + fmtNum(p.escalations) + '</td><td class="num">' + fmtPct(p.escalation_precision) +
+        '</td><td class="num">' + fmtNum(p.investigations) + '</td><td class="num"><b>' + fmtNum(p.analyst_queue) + '</b></td><td class="num">' + fmtNum(p.missed_attacks, 1) + ' <span class="muted small">of ' + fmtNum(p.attacks) + '</span></td></tr>';
+    }).join("") + '</tbody></table></div>';
+}
+document.addEventListener("input", function (ev) {
+  if (!ev.target || ev.target.id !== "soc-share" || !SOC.res) return;
+  SOC.share = +ev.target.value; $("soc-share-v").textContent = fmtPct(SOC.share); $("soc-body").innerHTML = socTable(SOC.res);
+});
+// Output Reliability: does the verdict agent's explanation name the class the label agent chose?
+function agreementCard(res) {
+  var r = res.output_reliability;
+  if (!r || !r.verdict_agent || !r.per_model.some(function (m) { return m.verdict_consistency; })) return "";
+  var ex = [];
+  r.per_model.forEach(function (m) { ((m.verdict_consistency || {}).examples || []).forEach(function (e) { ex.push([m.model, e]); }); });
+  return '<div class="card" id="rel-agreement"><h2>Do the explanations match the verdict?</h2><p class="muted small" style="margin-top:0">The ' + esc(r.verdict_agent) +
+      ' agent explains the answer the ' + esc(r.label_agent) + ' agent chose. When it names another class, the explanation contradicts the answer an analyst would act on.</p>' +
+    '<div class="hbars" id="agree-bars">' + r.per_model.map(function (m) {
+      var c = m.verdict_consistency;
+      return '<div class="hbar"><span class="hb-l mono">' + esc(short(m.model)) + '</span><span class="hb-t"><span class="hb-f" style="width:' + (c ? (100 * c.rate).toFixed(1) : 0) + '%"></span></span>' +
+        '<span class="hb-v num">' + (c ? fmtPct(c.rate) + ' <span class="muted small">(' + c.agree + '/' + c.checked + ')</span>' : "—") + '</span></div>';
+    }).join("") + '</div>' +
+    (ex.length ? '<details class="info"><summary>Where they disagree (' + ex.length + ' example' + (ex.length === 1 ? "" : "s") + ')</summary><div class="table-wrap"><table id="agree-examples"><thead><tr><th>Model</th><th>Flow</th><th>Answer</th><th>Explanation says</th><th>Explanation</th></tr></thead><tbody>' +
+      ex.map(function (x) {
+        var e = x[1];
+        return '<tr><td class="mono small">' + esc(short(x[0])) + '</td><td class="mono small">' + esc(e.scenario_id) + '</td><td>' + esc(e.label) + '</td><td><b>' + esc(e.verdict_class) + '</b></td><td class="small">' + esc(e.verdict_text) + '</td></tr>';
+      }).join("") + '</tbody></table></div></details>' : '<p class="small muted">Every checked explanation names the chosen class.</p>') + '</div>';
 }
 // Output Reliability: are the answers consistent (format, repeat, MITRE)?
 function consistencyCard(res) {

@@ -63,6 +63,19 @@ async function embedded(p, job, labelled, nModels, tag) {
   p.on('console', m => { if (m.type() === 'error' && !/fonts|ERR_|Failed to load resource/.test(m.text())) errs.push(m.text()); });
 
   const csvJob = await session(p, REPO + '/data/sample_csv/cicids2017_sample.csv', 10, [0, 3]);
+  // Output Reliability: accuracy ranges + model-vs-model test, confusion matrices, the realistic SOC
+  // projection (its slider recomputes in the browser) and verdict agreement (2026-11-10)
+  await p.goto(ORIGIN + '/app.html#/session/' + csvJob + '/reliability'); await p.waitForSelector('#spanel-reliability:not([hidden]) #rel-accuracy-stats', { timeout: 20000 });
+  log((await p.$$('#acc-ci-table tbody tr')).length === 2 && (await p.$$('#acc-pairs-table tbody tr')).length === 1 && !!(await p.$('#acc-ci-table .ci-dot')),
+      'reliability: accuracy with a 95% range per model, and one model-vs-model test');
+  log((await p.$$('#rel-confusion .cm-model')).length === 2 && (await p.$$('#rel-confusion .cm-diag')).length > 0, 'reliability: a confusion matrix per model');
+  const q99 = await p.textContent('#soc-table tbody tr td:nth-child(6)');           // missed attacks: the mock answers Benign
+  await p.$eval('#soc-share', e => { e.value = '0.5'; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  const q50 = await p.textContent('#soc-table tbody tr td:nth-child(6)');
+  log(/50\.0%/.test(await p.textContent('#soc-share-v')) && q50 !== q99, 'reliability: the SOC projection recomputes for another benign share (' + q99 + ' -> ' + q50 + ')');
+  log(!!(await p.$('#rel-agreement #agree-bars .hbar')), 'reliability: verdict agreement per model');
+  await p.screenshot({ path: S + '/reliability.png', fullPage: true });
+  await p.goto(ORIGIN + '/app.html#/session/' + csvJob); await p.waitForSelector('#session-body:not([hidden])');
   await p.click('#stab-recommendations'); await p.click('#ssub-context'); await p.waitForSelector('#svc-stage3');
   log(await p.isVisible('#svc-stage3') && /Measured verdict/.test(await p.textContent('#svc-stage3')), 'Recommendations › Model context: stage 3, measured verdict first');
   const [pdf] = await Promise.all([p.waitForEvent('download'), p.click('#svc-dl-pdf')]);

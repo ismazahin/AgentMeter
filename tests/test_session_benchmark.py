@@ -400,7 +400,9 @@ def test_output_reliability_without_labels_and_with_failures(tmp_path):
     m = rl["per_model"][0]
     assert (m["valid"], m["unparseable"], m["empty"], m["truncated"]) == (2, 1, 1, 1)
     assert m["valid_rate"] == 0.5 and m["reference_agreement"] is None
-    assert m["verdict_consistency"] == {"checked": 2, "agree": 1, "rate": 0.5}
+    vc = m["verdict_consistency"]
+    assert {k: vc[k] for k in ("checked", "agree", "rate", "disagree")} == {"checked": 2, "agree": 1, "rate": 0.5, "disagree": 1}
+    assert [e["scenario_id"] for e in vc["examples"]] == ["s3"]           # the flow where the verdict disagreed
     none = reliability_block(sr, am, {"m": "m"}, {}, "decide", None, ["Benign"], {}, False)["per_model"][0]
     assert none["verdict_consistency"] is None and none["truncated"] == 0
 

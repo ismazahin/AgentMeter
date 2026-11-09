@@ -31,7 +31,7 @@ async function session(p, file, flows, idx) {
 }
 async function embedded(p, job, labelled, nModels, tag) {
   await p.goto(ORIGIN + '/?session=' + job);                        // an old "View full analysis" link
-  await p.waitForFunction(j => location.pathname === '/' && location.hash === '#/session/' + j + '/detailed', job, { timeout: 15000 });
+  await p.waitForFunction(j => location.pathname === '/app.html' && location.hash === '#/session/' + j + '/detailed', job, { timeout: 15000 });
   log(true, tag + ': old /?session= link redirects to the app\'s Detailed-analysis tab');
   await p.waitForSelector('#analysis-frame');
   const fr = await (await p.$('#analysis-frame')).contentFrame();

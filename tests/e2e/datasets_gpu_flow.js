@@ -106,7 +106,7 @@ async function waitDone(id) {
     await p.goto(BASE + '/app.html#/datasets'); await p.waitForSelector('#ds-table');
     await p.screenshot({ path: S + '/datasets.png', fullPage: true });
     const nav = await p.$$eval('.mainnav [data-nav]', a => a.map(x => x.getAttribute('data-nav')));
-    log(nav.includes('datasets') && nav.includes('gpu'), 'the sidebar has Data sets and GPU & Queue');
+    log(!nav.includes('datasets') && !nav.includes('gpu') && (await p.getAttribute('#svc-backend-badge', 'href')) === '#/gpu', 'Data sets live under New Benchmark; the GPU chip opens GPU & Queue');
     log(!errs.length, 'no JS errors ' + errs.join(' | '));
   } catch (e) {
     out.push('CRASH ' + e.message);

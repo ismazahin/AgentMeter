@@ -2,24 +2,24 @@
 // GPU time, cost and energy per day, from its latest real benchmark on a GPU (INSIGHTS.projectCost).
 // Reads the stored sessions only: no GPU needed. One of the app's scripts (web/app.html).
 "use strict";
-var PL = { sessions: null };
+var PLAN = { sessions: null };
 function loadPlanner(q) {
   if (q && q.flows) $("pl-flows").value = q.flows;
   $("pl-body").innerHTML = skel(4);
   allSessions().then(function (r) {
     if (!r.ok) { $("pl-body").innerHTML = '<div class="notice error">' + esc((r.data || {}).error || "Could not load the sessions.") + '</div>'; return; }
-    PL.sessions = r.data.sessions || [];
+    PLAN.sessions = r.data.sessions || [];
     var gpus = {}, sel = $("pl-gpu"), cur = sel.value;
-    INSIGHTS.measuredModels(PL.sessions).forEach(function (m) { gpus[m.gpu] = true; });
+    INSIGHTS.measuredModels(PLAN.sessions).forEach(function (m) { gpus[m.gpu] = true; });
     sel.innerHTML = '<option value="">Every GPU measured</option>' + Object.keys(gpus).sort().map(function (g) { return '<option>' + esc(g) + '</option>'; }).join("");
     if (cur && gpus[cur]) sel.value = cur;
     renderPlanner();
   });
 }
 function renderPlanner() {
-  if (!PL.sessions) return;
+  if (!PLAN.sessions) return;
   var n = Math.max(0, parseInt($("pl-flows").value || "0", 10) || 0);
-  var rows = INSIGHTS.projectCost(PL.sessions, { flows: n, gpu: $("pl-gpu").value || null });
+  var rows = INSIGHTS.projectCost(PLAN.sessions, { flows: n, gpu: $("pl-gpu").value || null });
   if (!rows.length) {
     $("pl-body").innerHTML = '<p class="muted" id="pl-none">No model has been benchmarked on a GPU yet, so there is nothing to project from. ' +
       'Run a benchmark (it needs the GPU server); its measured time per flow then shows up here.</p>';

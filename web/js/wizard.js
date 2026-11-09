@@ -13,8 +13,11 @@ function viaService() {
 function wizStep(step) {
   var panel = step === "review" ? "prep" : step;            // steps 2 and 3 share one panel (analyse.js)
   ["data", "prep", "models", "run"].forEach(function (s) { $("wiz-step-" + s).hidden = s !== panel; });
-  var order = ["data", "prep", "review", "models", "run"], idx = order.indexOf(step);
+  var order = ["data", "prep", "review", "models", "run"], idx = order.indexOf(step), n = 0;
   document.querySelectorAll("#wiz-steps li").forEach(function (li, i) {
+    // steps 2-3 (the preparation service) exist with a control plane only; the others are renumbered
+    li.hidden = !CP && (li.getAttribute("data-step") === "prep" || li.getAttribute("data-step") === "review");
+    if (!li.hidden) li.querySelector("b").textContent = String(++n);
     li.classList.toggle("done", i < idx);
     if (i === idx) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
   });

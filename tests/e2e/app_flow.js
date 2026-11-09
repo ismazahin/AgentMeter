@@ -73,7 +73,7 @@ async function frameOf(p) {
   await p.waitForSelector('#home-empty:not([hidden])', { timeout: 15000 });
   log(true, 'Home empty state shown on first launch');
   const nav = await p.$$eval('.mainnav a:not([hidden])', as => as.map(a => a.textContent.trim()));
-  log(nav.join('|') === 'Home|New benchmark|Sessions|Data sets|Leaderboard|Repeatability|GPU & Queue', 'header nav: ' + nav.join(', '));
+  log(nav.join('|') === 'Home|New Benchmark|Sessions|Leaderboard|Cost planner', 'header nav: ' + nav.join(', '));
   log(await p.getAttribute('.top-right a.iconbtn', 'aria-label') === 'Settings', 'Settings icon button has an aria-label');
   log(/Demo mode \(no GPU\)/.test(await p.textContent('#svc-backend-badge')), 'GPU chip: ' + await p.textContent('#svc-backend-badge'));
   const body0 = await p.textContent('body');
@@ -83,8 +83,8 @@ async function frameOf(p) {
 
   // 2. wizard: upload a labelled CSV, pick models while the data prepares, run
   await p.goto(BASE + '/app.html#/new'); await p.waitForSelector('#wiz-step-data:not([hidden])');
-  const steps = await p.$$eval('#wiz-steps li', ls => ls.map(l => l.textContent.trim()));
-  log(steps.join('|') === '1Data|2Models and settings|3Run', 'wizard has 3 steps: ' + steps.join(', '));
+  const steps = await p.$$eval('#wiz-steps li:not([hidden])', ls => ls.map(l => l.textContent.trim()));
+  log(steps.join('|') === '1Upload|2Models and settings|3Run', 'wizard has 3 steps without a control plane: ' + steps.join(', '));
   const tabs = await p.$$eval('#wiz-step-data [role=tab]', ts => ts.map(t => t.textContent.trim()));
   log(tabs.join('|') === 'Upload a file|Import from a link|Reuse a prepared set', 'data tabs: ' + tabs.join(', '));
   log(await p.isVisible('#svc-other-attack'), 'Other Attack opt-in on the data step');
@@ -356,8 +356,8 @@ async function frameOf(p) {
   log(/Like-for-like/.test(await p.textContent('#cmp-validity')), '"Compare these models" opens that setup in Compare models');
 
   // Repeatability (#/trends): the same model on one setup over time; demo sessions only when asked
-  await p.click('.mainnav a[data-nav="trends"]'); await p.waitForSelector('#view-trends:not([hidden])');
-  log(/Repeatability/.test(await p.textContent('.mainnav a[data-nav="trends"]')) && /Repeatability/.test(await p.textContent('#h-trends')), 'Trends is now called Repeatability');
+  await p.click('.mainnav a[data-nav="leaderboard"]'); await p.click('#lbtab-repeat'); await p.waitForSelector('#view-trends:not([hidden])');
+  log(/Repeatability/.test(await p.textContent('#lbtab-repeat')) && /Repeatability/.test(await p.textContent('#h-trends')), 'Trends is now called Repeatability');
   log(/same model on the same setup more than once/.test(await p.textContent('#tr-purpose')) && /different models, same setup, one moment/.test(await p.textContent('#tr-distinct')),
       'Repeatability: says what it is for, and how it differs from Compare');
   await p.waitForSelector('#tr-empty');
@@ -389,7 +389,7 @@ async function frameOf(p) {
   await p.fill('#sch-runs', '5'); await p.selectOption('#sch-every', '12'); await p.click('#sch-save');
   await p.waitForSelector('#sch-list [data-sch]');
   log(/every 12 hours, 0 of 5 runs done/.test(await p.textContent('#sch-list')), 'Schedule: started from the session, shown with its next run');
-  await p.click('.mainnav a[data-nav="trends"]'); await p.waitForSelector('#tr-sched-table');
+  await p.click('.mainnav a[data-nav="leaderboard"]'); await p.click('#lbtab-repeat'); await p.waitForSelector('#tr-sched-table');
   log(/every 12 hours/.test(await p.textContent('#tr-sched-table')) && /0 \/ 5/.test(await p.textContent('#tr-sched-table')), 'Trends: the schedule is listed');
   await p.click('#tr-sched-table [data-sch-cancel]'); await p.click('#confirm-ok'); await p.waitForFunction(() => /cancelled/.test(document.querySelector('#tr-sched-table').textContent));
   log(true, 'Trends: a schedule can be cancelled (runs already made are kept)');
@@ -413,7 +413,8 @@ async function frameOf(p) {
   const bgLight = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
   await p.check('#set-theme-dark');
   const bgDark = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  log(bgLight === 'rgb(244, 242, 236)' && bgDark === 'rgb(16, 20, 24)', 'Settings: tokens switch (' + bgLight + ' -> ' + bgDark + ')');
+  log(bgLight === 'rgb(244, 246, 251)' && bgDark === 'rgb(11, 18, 34)',   // the blue palette (landing page)
+      'Settings: tokens switch (' + bgLight + ' -> ' + bgDark + ')');
   await p.check('#set-theme-system');
   log(await p.evaluate(() => !document.documentElement.hasAttribute('data-theme')), 'Settings: System follows the OS');
 

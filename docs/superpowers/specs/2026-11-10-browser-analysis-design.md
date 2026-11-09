@@ -1,6 +1,6 @@
 # Analyse traffic in the uploader's browser — design
 
-Date: 2026-11-10 · Status: for approval · Replaces the "self-starting preparation service" half of
+Date: 2026-11-10 · Status: not pursued now (owner runs on one PC: see 2026-11-10-start-button-design.md) · Replaces the "self-starting preparation service" half of
 `2026-11-10-one-data-step-and-autostart-design.md` (its "one data step" half still stands).
 
 ## Intent and why

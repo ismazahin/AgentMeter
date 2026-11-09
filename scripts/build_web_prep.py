@@ -25,6 +25,7 @@ OUT = REPO / "web" / "prep" / "agentmeter-prep.zip"
 FILES = (["agentmeter/config.py", "agentmeter/server/__init__.py", "agentmeter/server/prepare.py",
           "agentmeter/session/__init__.py", "agentmeter/session/prepared_hash.py",
           "agentmeter/data/__init__.py", "agentmeter/data/dataprep.py",
+          "agentmeter/pipeline/triage.py",
           "config.yaml", "pyproject.toml", "configs/flow_rules.yaml", "configs/input_formats.yaml"]
          + sorted(str(p.relative_to(REPO)) for p in (REPO / "agentmeter" / "ingest").glob("*.py")))
 STUB_INIT = '"""AgentMeter (browser data-preparation bundle: scripts/build_web_prep.py)."""\n'
@@ -33,7 +34,9 @@ STUB_INIT = '"""AgentMeter (browser data-preparation bundle: scripts/build_web_p
 def build() -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        entries = {"agentmeter/__init__.py": STUB_INIT.encode()}
+        # config.py validates the triage tables (agentmeter/pipeline/triage.py, stdlib only); the
+        # real pipeline/__init__.py imports LangGraph, so the bundle gets a stub there too
+        entries = {"agentmeter/__init__.py": STUB_INIT.encode(), "agentmeter/pipeline/__init__.py": STUB_INIT.encode()}
         for f in FILES:
             entries[f] = (REPO / f).read_bytes()
         for name in sorted(entries):
@@ -51,7 +54,7 @@ def main() -> int:
         print(f"{OUT.relative_to(REPO)} is up to date")
         return 0
     OUT.write_bytes(data)
-    print(f"wrote {OUT.relative_to(REPO)} ({len(data):,} bytes, {len(FILES) + 1} files)")
+    print(f"wrote {OUT.relative_to(REPO)} ({len(data):,} bytes, {len(FILES) + 2} files)")
     return 0
 
 

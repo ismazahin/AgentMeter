@@ -592,7 +592,7 @@ def test_app_routes(app):
     c = app["c"]
     assert c.get("/app.html").status_code == 200 and b"New benchmark" in c.get("/app.html").data
     r = c.get(f"/?session={app['j1']}")
-    assert r.status_code == 302 and r.headers["Location"].endswith(f"/#/session/{app['j1']}/detailed")
+    assert r.status_code == 302 and r.headers["Location"].endswith(f"/app.html#/session/{app['j1']}/detailed")
     assert c.get("/?session=../../etc").status_code == 200                # not a job id: just the app
     for path in ("/baseline", "/analysis"):
         page = c.get(path).get_data(as_text=True)

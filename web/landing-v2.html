@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#17493C">
+<meta name="theme-color" content="#102A5C">
 <title>AgentMeter</title>
 <meta name="description" content="AgentMeter benchmarks how efficiently open-source LLMs run a four-agent network triage pipeline: latency, GPU memory, tokens, cost and energy, per agent and per flow.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect x=%270%27 y=%2712%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%274%27 y=%278%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%278%27 y=%274%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%2712%27 y=%270%27 width=%274%27 height=%274%27 fill=%27%23C65C34%27/%3E%3C/svg%3E">
@@ -22,54 +22,54 @@
   /* tastemaker · macrostructure: Long-Scroll Narrative · mood: technical (locked to the app's "research paper" tokens) · page: landing
    * arc: hook(H-split, real gantt) -> problem(stat statement) -> solution(pipeline) -> how(3-step ledger) -> proof(real head-to-head) -> method(ledger) -> close(C-statement)
    * nav: N1 quiet bar + primary Log in · hero: H2 split/left-bias/real-artifact · footer: Ft2 framing line + links
-   * palette: complementary pine #17493C + clay #D9653B, odd-one-out butter CTA #FFD24A · contrast: pass (matrix, both themes)
+   * palette: complementary royal blue #1E4BB8 + orange #E8742A, odd-one-out lime CTA #C8F25A · contrast: pass (matrix, both themes)
    * critique: ShowTell 4 · Phil 4 · Hier 4 · Spec 5 · Restr 4 · Var 4 · ColorHarm 4 · MoodTone 4 · Type 4 · Spatial 4 · Pref 4 */
   :root {
     --font: "Inter", "Aptos", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --serif: Georgia, "Times New Roman", serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-    --bg: #F6F3EC; --surface: #FFFFFF; --surface-2: #EFEADF; --tint: #EDE7DA; --border: #DDD5C6; --border-2: #C7BCA8; --rule: #14241F;
-    --text: #14241F; --muted: #5E6A64; --muted-2: #36443F;
-    /* complementary pair: pine green + terracotta clay */
-    --accent: #17493C; --accent-text: #17493C; --accent-soft: #DCE9E2;
-    --clay: #D9653B; --clay-text: #B4492A; --clay-soft: #FBE3D6;
-    /* the odd one out, kept for actions: butter yellow */
-    --cta: #FFD24A; --cta-hover: #FFC21A; --cta-ink: #14241F;
-    --warn: #D9653B; --warn-soft: #FBE3D6; --warn-text: #9A3F22;
-    --success: #17493C;
-    --band: #17493C; --on-band: #F6F3EC; --on-band-muted: #BFD3C9; --band-hi: #F4A27E; --band-line: rgba(246, 243, 236, .22);
-    --series-1: #17493C; --series-2: #D9653B;
-    --ag-1: #17493C; --ag-2: #2F7A63; --ag-3: #8C4A2F; --ag-4: #D9653B;
-    --shadow: 0 1px 2px rgba(20, 36, 31, .06), 0 12px 32px -18px rgba(20, 36, 31, .22);
+    --bg: #F4F6FB; --surface: #FFFFFF; --surface-2: #E9EDF6; --tint: #E8EDF7; --border: #D6DDEB; --border-2: #B7C2D8; --rule: #0F1B33;
+    --text: #0F1B33; --muted: #5A657A; --muted-2: #333F55;
+    /* complementary pair: royal blue + orange */
+    --accent: #1E4BB8; --accent-text: #1E4BB8; --accent-soft: #DFE7FA;
+    --comp: #E8742A; --comp-text: #A2470D; --comp-soft: #FDE8D7;
+    /* the odd one out, kept for actions: lime */
+    --cta: #C8F25A; --cta-hover: #B8E83E; --cta-ink: #0F1B33;
+    --warn: #E8742A; --warn-soft: #FDE8D7; --warn-text: #A2470D;
+    --success: #1E4BB8;
+    --band: #102A5C; --on-band: #F4F6FB; --on-band-muted: #BFCBE6; --band-hi: #FFA65C; --band-line: rgba(244, 246, 251, .2);
+    --series-1: #1E4BB8; --series-2: #E8742A;
+    --ag-1: #1E4BB8; --ag-2: #4F7FE0; --ag-3: #A2470D; --ag-4: #E8742A;
+    --shadow: 0 1px 2px rgba(15, 27, 51, .06), 0 12px 32px -18px rgba(15, 27, 51, .25);
     --radius: 8px; --radius-lg: 14px;
     --ease: cubic-bezier(.2, .7, .2, 1);
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-    --bg: #0F1A17; --surface: #15241F; --surface-2: #1B2E28; --tint: #12201C; --border: #26392F; --border-2: #375046; --rule: #ECE8DE;
-    --text: #ECE8DE; --muted: #9FADA6; --muted-2: #C9D1CB;
-    --accent: #5FBF9C; --accent-text: #5FBF9C; --accent-soft: #183A30;
-    --clay: #F08A5D; --clay-text: #F4A27E; --clay-soft: #33201A;
-    --cta: #FFD24A; --cta-hover: #FFDD70; --cta-ink: #14241F;
-    --warn: #F08A5D; --warn-soft: #33201A; --warn-text: #F4A27E;
-    --success: #5FBF9C;
-    --band: #123D32; --on-band: #ECE8DE; --on-band-muted: #B4CFC3; --band-hi: #F4A27E; --band-line: rgba(236, 232, 222, .18);
-    --series-1: #5FBF9C; --series-2: #F08A5D;
-    --ag-1: #5FBF9C; --ag-2: #3E9C7E; --ag-3: #C46A44; --ag-4: #F08A5D;
+    --bg: #0B1222; --surface: #111B31; --surface-2: #17233D; --tint: #0E172B; --border: #22304D; --border-2: #33456A; --rule: #E8ECF5;
+    --text: #E8ECF5; --muted: #9AA6BE; --muted-2: #C7CFDF;
+    --accent: #7FA3F5; --accent-text: #7FA3F5; --accent-soft: #1A2950;
+    --comp: #F59A5A; --comp-text: #FFB27A; --comp-soft: #33210F;
+    --cta: #C8F25A; --cta-hover: #D6F77E; --cta-ink: #0F1B33;
+    --warn: #F59A5A; --warn-soft: #33210F; --warn-text: #FFB27A;
+    --success: #7FA3F5;
+    --band: #12275A; --on-band: #E8ECF5; --on-band-muted: #B3C1E3; --band-hi: #FFB27A; --band-line: rgba(232, 236, 245, .18);
+    --series-1: #7FA3F5; --series-2: #F59A5A;
+    --ag-1: #7FA3F5; --ag-2: #5B86E5; --ag-3: #D9783A; --ag-4: #F59A5A;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 32px -18px rgba(0, 0, 0, .6);
     color-scheme: dark;
   } }
   :root[data-theme="dark"] {
-    --bg: #0F1A17; --surface: #15241F; --surface-2: #1B2E28; --tint: #12201C; --border: #26392F; --border-2: #375046; --rule: #ECE8DE;
-    --text: #ECE8DE; --muted: #9FADA6; --muted-2: #C9D1CB;
-    --accent: #5FBF9C; --accent-text: #5FBF9C; --accent-soft: #183A30;
-    --clay: #F08A5D; --clay-text: #F4A27E; --clay-soft: #33201A;
-    --cta: #FFD24A; --cta-hover: #FFDD70; --cta-ink: #14241F;
-    --warn: #F08A5D; --warn-soft: #33201A; --warn-text: #F4A27E;
-    --success: #5FBF9C;
-    --band: #123D32; --on-band: #ECE8DE; --on-band-muted: #B4CFC3; --band-hi: #F4A27E; --band-line: rgba(236, 232, 222, .18);
-    --series-1: #5FBF9C; --series-2: #F08A5D;
-    --ag-1: #5FBF9C; --ag-2: #3E9C7E; --ag-3: #C46A44; --ag-4: #F08A5D;
+    --bg: #0B1222; --surface: #111B31; --surface-2: #17233D; --tint: #0E172B; --border: #22304D; --border-2: #33456A; --rule: #E8ECF5;
+    --text: #E8ECF5; --muted: #9AA6BE; --muted-2: #C7CFDF;
+    --accent: #7FA3F5; --accent-text: #7FA3F5; --accent-soft: #1A2950;
+    --comp: #F59A5A; --comp-text: #FFB27A; --comp-soft: #33210F;
+    --cta: #C8F25A; --cta-hover: #D6F77E; --cta-ink: #0F1B33;
+    --warn: #F59A5A; --warn-soft: #33210F; --warn-text: #FFB27A;
+    --success: #7FA3F5;
+    --band: #12275A; --on-band: #E8ECF5; --on-band-muted: #B3C1E3; --band-hi: #FFB27A; --band-line: rgba(232, 236, 245, .18);
+    --series-1: #7FA3F5; --series-2: #F59A5A;
+    --ag-1: #7FA3F5; --ag-2: #5B86E5; --ag-3: #D9783A; --ag-4: #F59A5A;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 32px -18px rgba(0, 0, 0, .6);
     color-scheme: dark;
   }
@@ -189,14 +189,14 @@
   /* problem: one statement + one number */
   .problem { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 56px; align-items: center; }
   .problem h2 { max-width: 20ch; }
-  .tokens { background: var(--clay-soft); border-radius: var(--radius-lg); padding: 32px; }
-  .tokens .big { color: var(--clay-text); font-size: clamp(60px, 7vw, 96px); font-weight: 650; letter-spacing: -.05em; line-height: .95; font-variant-numeric: tabular-nums; }
+  .tokens { background: var(--comp-soft); border-radius: var(--radius-lg); padding: 32px; }
+  .tokens .big { color: var(--comp-text); font-size: clamp(60px, 7vw, 96px); font-weight: 650; letter-spacing: -.05em; line-height: .95; font-variant-numeric: tabular-nums; }
   .tokens .big small { font-size: .32em; letter-spacing: -.01em; font-weight: 600; color: var(--muted-2); margin-left: 6px; }
   .tokens p { margin-top: 16px; color: var(--muted-2); max-width: 36ch; }
   .tokbar { display: flex; height: 14px; margin-top: 20px; border-radius: 999px; overflow: hidden; background: var(--surface); }
   .tokbar i { display: block; height: 100%; }
   .tokbar .work { background: var(--accent); width: 91.1%; }
-  .tokbar .hand { background: var(--clay); width: 8.9%; transform-origin: right center; }
+  .tokbar .hand { background: var(--comp); width: 8.9%; transform-origin: right center; }
   .tokleg { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 13px; color: var(--muted); }
   .tokleg b { color: var(--warn-text); font-weight: 600; }
 
@@ -240,7 +240,7 @@
 
   /* proof: real head-to-head */
   .verdict { font-family: var(--serif); font-size: clamp(22px, 2.4vw, 30px); line-height: 1.25; letter-spacing: -.015em; max-width: 40ch; margin-bottom: 20px; }
-  .verdict .b2 { color: var(--clay-text); }
+  .verdict .b2 { color: var(--comp-text); }
   .panel { background: var(--surface); border-radius: var(--radius-lg); padding: 8px 28px 24px; box-shadow: var(--shadow); }
   .verdict em { font-style: normal; color: var(--accent-text); }
   .legend { display: flex; flex-wrap: wrap; gap: 24px; margin: 16px 0 4px; font-size: 13px; }
@@ -265,7 +265,7 @@
   /* method ledger */
   .ledger { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
   .ledger > div { padding: 28px; background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow); }
-  .ledger > div:nth-child(2) .k { color: var(--clay-text); }
+  .ledger > div:nth-child(2) .k { color: var(--comp-text); }
   .ledger .k { color: var(--accent-text); font-size: clamp(36px, 4vw, 48px); font-weight: 650; letter-spacing: -.04em; line-height: 1; }
   .ledger h3 { margin-top: 16px; }
   .ledger p { margin-top: 8px; color: var(--muted-2); font-size: 15px; }

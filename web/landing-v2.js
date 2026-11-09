@@ -32,7 +32,7 @@
     function sync() {
       var dark = isDark();
       if (btn) btn.setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
-      if (meta) meta.setAttribute("content", dark ? "#123D32" : "#17493C");
+      if (meta) meta.setAttribute("content", dark ? "#12275A" : "#102A5C");
     }
     sync();
     if (btn) btn.addEventListener("click", function () {

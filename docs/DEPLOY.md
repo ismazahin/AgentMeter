@@ -227,7 +227,7 @@ domain for the control plane or a named tunnel? Run
 script — a test fails while it is stale). Open the site, log in as the admin, and create the
 other users under **Admin** (each must choose a new password at first login).
 
-### A7. Cloud data preparation (optional; free on Hugging Face, or Google Cloud Run)
+### A7. Cloud data preparation (optional; on your own computer for free, or Google Cloud Run)
 While the GPU benchmarks, a new dataset is prepared by a small CPU service instead of waiting in
 the GPU queue: `cloudprep/app.py`, packaged with the same preparation code as the server and the
 browser (`web/prep/agentmeter-prep.zip`). Users never see it: the web app asks the control plane,
@@ -236,7 +236,22 @@ Storage URLs (the upload, and one per prepared file); the service reports each s
 with the same secret, and the web app then imports the prepared files into the GPU server
 (hash-checked). Without A7 the browser takes over, as before.
 
-**Free, no card: a Hugging Face Space** (Docker, CPU Basic: 2 vCPU, 16 GB). With a Hugging Face
+**Free, no card: on your own computer** (recommended for a thesis setup). The same service runs on
+your PC and is reached through a Cloudflare tunnel, like the GPU server; it works while your PC and
+the command below are running, and the web app prepares in the browser otherwise. Once: install
+cloudflared (Windows: `winget install --id Cloudflare.cloudflared`), and link the Supabase CLI in
+the repo folder (`npx supabase login`, `npx supabase link`). Then, each time:
+```bash
+python scripts/prep_local.py               # starts the service, opens a tunnel, runs supabase secrets set
+```
+A quick tunnel gets a new `*.trycloudflare.com` address each run; the script sets `CLOUD_PREP_URL`
+again every time. For a fixed address, use a named tunnel: `--tunnel-token <token> --hostname
+prep.example.org`. The signing secret is created once in `.cloudprep_secret` (git-ignored). PCAP
+uploads need `requirements-pcap.txt` and cicflowmeter installed on the PC (see Setup).
+
+**A Hugging Face Space: no longer free.** As of November 2026 Hugging Face requires a PRO
+subscription to host Docker Spaces, even on CPU Basic (`402 Payment Required` from
+`scripts/deploy_cloudprep_hf.py` without it). With PRO (Docker, CPU Basic: 2 vCPU, 16 GB): With a Hugging Face
 **write** token (huggingface.co → Settings → Access Tokens), from the repo folder (PowerShell too):
 ```bash
 pip install huggingface_hub
@@ -282,7 +297,7 @@ model by its sha256 and uploads `ids_scores.csv`, `ids_pool.json` and `ids_flows
 service installs `scikit-learn==1.9.1`, the version the IDS model is trained with, so its first
 build after this change takes a little longer. After pulling this change:
 ```bash
-python scripts/deploy_cloudprep_hf.py      # or scripts/deploy_cloudprep.sh for Cloud Run
+python scripts/prep_local.py               # your computer; or deploy_cloudprep.sh (Cloud Run) / _hf.py (PRO)
 npx supabase db push                       # prep_jobs: prepared_sha256 + ids_json (20261110000000)
 npx supabase functions deploy agentmeter --no-verify-jwt --use-api
 ```

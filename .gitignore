@@ -61,3 +61,6 @@ data/cicids_raw/
 # samples live in data/sample_csv/ and data/sample_pcaps/ and stay tracked.
 /data/*.pcap
 /data/*.pcapng
+
+# the local preparation service's signing secret (scripts/prep_local.py)
+.cloudprep_secret

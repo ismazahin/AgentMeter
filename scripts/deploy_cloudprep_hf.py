@@ -1,4 +1,5 @@
-"""Deploy the cloud data-preparation service to a free Hugging Face Space (Docker; no card).
+"""Deploy the cloud data-preparation service to a Hugging Face Space (Docker; needs Hugging Face PRO since
+November 2026 — the free option is now scripts/prep_local.py, on your own computer).
 
 The same service as Google Cloud Run (cloudprep/app.py with the browser's preparation bundle,
 so prepared flows and their hash are identical), on Hugging Face's free CPU Space (2 vCPU,

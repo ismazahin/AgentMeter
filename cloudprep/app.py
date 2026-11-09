@@ -47,8 +47,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from agentmeter.server import prepare as P
-from agentmeter.server import urlfetch
+# Run from a checkout (scripts/prep_local.py: the service on your own computer) the package is one
+# folder up; in the Docker image it sits next to this file.
+_REPO = Path(__file__).resolve().parents[1]
+if (_REPO / "agentmeter").is_dir() and str(_REPO) not in sys.path:
+    sys.path.insert(0, str(_REPO))
+
+from agentmeter.server import prepare as P  # noqa: E402
+from agentmeter.server import urlfetch  # noqa: E402
 
 log = logging.getLogger("cloudprep")
 MAX_SKEW_S = 120
@@ -60,7 +66,8 @@ IDS_MODEL_FILES = ("ids_rf.joblib", "ids_rf.json", "ids_rf.hashes.npy")
 IDS_MODEL_MAX = 60 * 2 ** 20            # per model file (the control plane stores up to 50 MB)
 _ids_lock = threading.Lock()
 REPORT_EVERY_S = 1.0
-ENVIRONMENT = {"provider": "cloud", "prepared_on": "the AgentMeter cloud preparation service (Google Cloud Run)",
+ENVIRONMENT = {"provider": "cloud",
+               "prepared_on": os.environ.get("CLOUD_PREP_WHERE") or "the AgentMeter cloud preparation service",
                "runtime": f"Python {platform.python_version()}"}
 
 

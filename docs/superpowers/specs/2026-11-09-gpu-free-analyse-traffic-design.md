@@ -78,7 +78,9 @@ measure). The sidebar is reorganised so that no main page needs a GPU.
 3. **IDS in the Supabase function.** Cannot load a scikit-learn model; CPU-time limits too tight
    for 100k flows. Rejected.
 
-Hosting: free HF Space (chosen) over Cloud Run (needs a billing card).
+Hosting: free HF Space was chosen over Cloud Run (needs a billing card), but at deploy Hugging Face
+answered 402: Docker Spaces now need PRO. Decided instead (2026-11-10): the owner's own computer,
+reached through a Cloudflare tunnel (`scripts/prep_local.py`); analyses work while it runs.
 
 ## The design (decided parts)
 
@@ -159,7 +161,7 @@ Hosting: free HF Space (chosen) over Cloud Run (needs a billing card).
 | Question | Decision |
 |---|---|
 | Approach | IDS in the data-preparation step on the cloud service |
-| Hosting | Free Hugging Face Space (CPU Basic) |
+| Hosting | ~~Free Hugging Face Space~~ (Docker Spaces now need PRO, found at deploy) → the owner's own computer through a Cloudflare tunnel (`scripts/prep_local.py`), decided 2026-11-10 |
 | Analysis ↔ session | One flow (A): analysis first, "Benchmark LLMs on these alerts" next |
 | Class without a GPU | Binary IDS only; priority/severity appear after an LLM benchmark |
 | Benchmark sample | Today's semantics: flagged ∩ ≤ 500 rule-selected flows |

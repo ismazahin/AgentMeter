@@ -797,6 +797,81 @@
     :root.side-collapsed .profile-btn { width: auto; padding: 4px; }
   }
   @media (prefers-reduced-motion: reduce) { body, .top, .side-collapse svg { transition: none !important; } }
+
+  /* =====================================================================================
+     Login: a split screen like the landing page (index.html). Navy brand band with the same
+     headline and flow chart on the left, the form on the right. While the login view is open the
+     sidebar/header is hidden (CSS :has, so no script changes); every id and behaviour is unchanged.
+     ===================================================================================== */
+  body:has(#view-login:not([hidden])) .top { display: none; }
+  body:has(#view-login:not([hidden])) { padding-left: 0; }
+  body:has(#view-login:not([hidden])) main.wrap { max-width: none; padding: 0; }
+  body:has(#view-login:not([hidden])) main { padding-top: 0; }
+  body:has(#view-login:not([hidden])) footer { margin-top: 0; }
+  .login-split:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); min-height: calc(100vh - 58px); }
+  .login-brand { --lf-1: var(--series-1); --lf-2: #4F7FE0; --lf-3: #A2470D; --lf-4: var(--series-2);
+    background: var(--band); color: #EEF2FA; padding: 36px clamp(24px, 4.5vw, 64px); display: flex; flex-direction: column; gap: 40px; }
+  .login-brand :focus-visible { outline-color: var(--cta); }
+  .login-logo { display: inline-flex; align-items: center; gap: 10px; align-self: flex-start; min-height: 44px; color: #EEF2FA; text-decoration: none; font-weight: 700; font-size: 19px; letter-spacing: -.04em; }
+  .login-logo svg { width: 20px; height: 20px; }
+  .login-logo .mark-a { fill: var(--cta); }
+  .login-pitch { margin: auto 0; max-width: 540px; }
+  .login-eyebrow { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: #FFA65C; }
+  .login-claim { margin: 14px 0 0; font-weight: 650; font-size: clamp(32px, 3.4vw, 46px); line-height: 1.05; letter-spacing: -.045em; color: #EEF2FA; max-width: 13ch; }
+  .login-claim em { font-style: normal; color: #FFA65C; }
+  .login-flow { margin: 32px 0 0; background: var(--surface); color: var(--text); border-radius: 14px; padding: 20px 22px 18px; box-shadow: 0 30px 60px -30px rgba(0, 0, 0, .55); }
+  .lf-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .lf-head b { font-family: var(--mono); font-weight: 500; font-size: 12.5px; }
+  .lf-head span, .lf-foot { font-size: 12px; color: var(--muted); }
+  .lf-rows { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+  .lf-rows li { display: grid; grid-template-columns: 66px minmax(0, 1fr) 48px; align-items: center; gap: 10px; font-size: 12.5px; font-weight: 600; }
+  .lf-track { position: relative; height: 20px; }
+  .lf-track i { position: absolute; top: 0; bottom: 0; left: var(--x); width: var(--w); min-width: 3px; border-radius: 3px; background: var(--c);
+    animation: lf-draw .7s cubic-bezier(.2, .7, .2, 1) var(--d) both; }
+  :root[data-theme="dark"] .login-brand { --lf-3: #D9783A; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .login-brand { --lf-3: #D9783A; } }
+  @keyframes lf-draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+  .lf-t { font-family: var(--mono); font-weight: 400; font-size: 11.5px; color: var(--muted-2); text-align: right; }
+  .lf-foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .lf-foot strong { color: var(--text); font-size: 15px; margin-left: 4px; }
+  .lf-tag { padding: 3px 10px; border-radius: 999px; font-weight: 600; background: var(--warn-soft); color: var(--warn-text); }
+  .login-back { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 44px; color: #BFCBE6; font-size: 14px; font-weight: 600; text-decoration: none; transition: color .16s ease; }
+  .login-back svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s cubic-bezier(.2, .7, .2, 1); }
+  @media (hover: hover) and (pointer: fine) { .login-back:hover { color: #EEF2FA; } .login-back:hover svg { transform: translateX(-3px); } }
+
+  .login-main { display: flex; align-items: center; justify-content: center; padding: 48px clamp(16px, 4vw, 56px); }
+  .login-box { width: 100%; max-width: 420px; }
+  .login-box .page-head { margin: 0; padding: 0 0 24px; border-bottom: 0; }
+  .login-box h1 { font-size: clamp(30px, 3vw, 38px); }
+  .login-box .page-head p { margin-top: 8px; }
+  .login-box .card, .login-box .card.narrow { border-top: 0; padding: 0; max-width: none; }
+  .login-box .field label { font-weight: 600; }
+  .login-box input[type="text"], .login-box input[type="password"] { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 8px; font-size: 15px; }
+  .login-box .actions { margin-top: 20px; }
+  .login-box .btn.primary { position: relative; isolation: isolate; overflow: hidden; width: 100%; min-height: 52px; border-radius: 999px; font-size: 15px; justify-content: center;
+    transition: transform .2s cubic-bezier(.2, .7, .2, 1), color .16s ease; }
+  .login-box .btn.primary::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--cta-hover); transform: scaleX(0); transform-origin: right center; transition: transform .28s cubic-bezier(.2, .7, .2, 1); }
+  .login-box .btn.primary::after { content: "\2192"; margin-left: 10px; transition: transform .2s cubic-bezier(.2, .7, .2, 1); }
+  @media (hover: hover) and (pointer: fine) {
+    .login-box .btn.primary:hover { background: var(--cta); }
+    .login-box .btn.primary:hover::before { transform: scaleX(1); transform-origin: left center; }
+    .login-box .btn.primary:hover::after { transform: translateX(4px); }
+  }
+  .login-box .btn.primary:active { transform: scale(.98); }
+  .login-box .muted.small { margin-top: 16px; text-align: center; }
+  .login-box #pwchange-form h2 { margin-bottom: 6px; }
+
+  @media (max-width: 900px) {
+    .login-split:not([hidden]) { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+    .login-brand { padding: 20px 16px 28px; gap: 16px; }
+    .login-claim { font-size: 28px; }
+    .login-flow, .login-back { display: none; }
+    .login-main { padding: 32px 16px 48px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .lf-track i { animation: none; }
+    .login-box .btn.primary, .login-box .btn.primary::before, .login-box .btn.primary::after, .login-back, .login-back svg { transition: none; }
+  }
 </style>
 </head>
 <body>
@@ -870,7 +945,31 @@
     <button type="button" class="btn small-btn" id="svc-gpu-retry" style="margin-left:6px">Check now</button></div>
 
   <!-- LOGIN (control plane): accounts are created by the admin; no public sign-up -->
-  <section id="view-login" class="view" hidden aria-labelledby="h-login">
+  <section id="view-login" class="view login-split" hidden aria-labelledby="h-login">
+    <!-- the same navy band, headline and flow chart as the landing page (index.html) -->
+    <aside class="login-brand">
+      <a class="login-logo" href="./" aria-label="AgentMeter overview">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="0" y="12" width="4" height="4" fill="currentColor" opacity=".55"/><rect x="4" y="8" width="4" height="4" fill="currentColor" opacity=".55"/><rect x="8" y="4" width="4" height="4" fill="currentColor" opacity=".55"/><rect class="mark-a" x="12" y="0" width="4" height="4"/></svg>
+        AgentMeter
+      </a>
+      <div class="login-pitch">
+        <p class="login-eyebrow">LLM efficiency benchmark</p>
+        <p class="login-claim">See what each agent <em>costs to run</em>, flow by flow.</p>
+        <figure class="login-flow" aria-label="Mean time per agent for one flow, Qwen2.5-3B-Instruct: Perceive 3.26 s, Reason 4.06 s, Decide 0.27 s, Act 3.20 s">
+          <div class="lf-head"><b>Qwen/Qwen2.5-3B-Instruct</b><span>Mean time per agent, one flow</span></div>
+          <ol class="lf-rows" aria-hidden="true">
+            <li><span>Perceive</span><span class="lf-track"><i style="--x:0%;--w:30.2%;--c:var(--lf-1);--d:.15s"></i></span><span class="lf-t">3.26 s</span></li>
+            <li><span>Reason</span><span class="lf-track"><i style="--x:30.2%;--w:37.6%;--c:var(--lf-2);--d:.45s"></i></span><span class="lf-t">4.06 s</span></li>
+            <li><span>Decide</span><span class="lf-track"><i style="--x:67.8%;--w:2.5%;--c:var(--lf-3);--d:.75s"></i></span><span class="lf-t">0.27 s</span></li>
+            <li><span>Act</span><span class="lf-track"><i style="--x:70.3%;--w:29.7%;--c:var(--lf-4);--d:.85s"></i></span><span class="lf-t">3.20 s</span></li>
+          </ol>
+          <figcaption class="lf-foot"><span>Mean latency per flow <strong>10.80 s</strong></span><span class="lf-tag">RTX 3090 · 20 flows · exploratory</span></figcaption>
+        </figure>
+      </div>
+      <a class="login-back" href="./"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Back to the overview</a>
+    </aside>
+    <div class="login-main">
+    <div class="login-box">
     <div class="page-head"><div>
       <h1 id="h-login">Log in to AgentMeter</h1>
       <p>Measure how efficiently open-source LLMs run a 4-agent task.</p>
@@ -894,6 +993,8 @@
       <div id="pwchange-error" class="notice error" role="alert" hidden></div>
       <div class="actions"><button type="submit" class="btn primary" id="pwc-go">Save and continue</button></div>
     </form>
+    </div>
+    </div>
   </section>
 
   <!-- OFFLINE: the GPU backend cannot be reached -->

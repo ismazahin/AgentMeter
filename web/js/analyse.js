@@ -242,7 +242,8 @@ function anProjection() {
       return '<tr><td>' + esc(short(x.model)) + '</td><td class="small">' + esc(x.gpu) + '</td><td class="num">' + anHours(x.gpu_hours) + '</td><td class="num">' +
         (x.cost_usd == null ? "—" : "$" + fmtNum(x.cost_usd, 2)) + '</td><td class="num">' + (x.energy_wh == null ? "—" : fmtNum(x.energy_wh / 1000, 2) + " kWh") +
         '</td><td class="small"><a class="mono" href="#/session/' + enc(x.source_session) + '">' + esc(shortId(x.source_session)) + '</a></td></tr>';
-    }).join("") + '</tbody></table></div>';
+    }).join("") + '</tbody></table></div>' +
+    '<p class="small"><a href="#/planner?flows=' + enc(String(alerts)) + '">Plan for a daily volume of alerts like this →</a></p>';
 }
 function anHours(h) { return h == null ? "—" : h < 1 ? fmtNum(h * 60, 1) + " min" : fmtNum(h, 1) + " h"; }
 // the prepared set (with its scores, never the addresses) goes to the GPU server; then model choice

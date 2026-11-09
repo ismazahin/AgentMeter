@@ -1505,6 +1505,19 @@
   </section>
 
   <!-- DATA SETS -->
+  <!-- COST PLANNER (route #/planner): measured cost per flow -> a daily volume, no GPU -->
+  <section id="view-planner" class="view" hidden aria-labelledby="h-planner">
+    <div class="page-head"><div><h1 id="h-planner">Cost planner</h1>
+      <p>What would it take to triage your traffic with each model? Enter a daily volume: the time, cost and energy
+        come from each model's latest benchmark on that GPU, as measured there. No GPU needed.</p></div></div>
+    <form class="card" id="pl-form" novalidate><div class="row" style="margin-top:0;gap:16px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="margin:0"><label for="pl-flows">Alerts to triage per day</label>
+        <input type="number" id="pl-flows" min="1" step="1" value="10000" style="max-width:160px"></div>
+      <div class="field" style="margin:0"><label for="pl-gpu">GPU</label><select id="pl-gpu"><option value="">Every GPU measured</option></select></div>
+    </div><p class="hint" style="margin-bottom:0">With an IDS in front, only its alerts reach the LLM: use the alert count from Analyse traffic.</p></form>
+    <div class="card"><div id="pl-body"></div></div>
+  </section>
+
   <!-- ANALYSE TRAFFIC (route #/analyse, #/analyse/<job id>): the IDS over a whole upload, no GPU -->
   <section id="view-analyse" class="view" hidden aria-labelledby="h-analyse">
     <div class="page-head"><div><h1 id="h-analyse">Analyse traffic</h1>
@@ -1754,6 +1767,7 @@
 <script src="js/session.js"></script>
 <script src="js/analysis.js"></script>
 <script src="js/analyse.js"></script>
+<script src="js/planner.js"></script>
 <script src="js/compare.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/boot.js"></script>

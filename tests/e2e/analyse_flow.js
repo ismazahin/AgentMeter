@@ -125,6 +125,22 @@ const txt = (p, sel) => p.$eval(sel, e => e.textContent).catch(() => '');
     const used = await waitFor(() => fs.existsSync(idsJson) && /prepared set/.test(fs.readFileSync(idsJson, 'utf8')), 60000);
     log(used, 'the benchmark triaged the alerts with the STORED scores (no second scoring)');
     await p.screenshot({ path: path.join(OUT, 'analyse-benchmark.png'), fullPage: true });
+
+    // 5. the Cost planner (GPU-free): mock benchmarks are demo runs, so there is nothing real to project from
+    await p.goto(APP + '/app.html#/planner?flows=1234'); await p.waitForSelector('#view-planner:not([hidden]) #pl-body p');
+    log((await p.$eval('#pl-flows', e => e.value)) === '1234' && !!(await p.$('#pl-none')), 'the Cost planner opens with the volume and says when nothing real was measured');
+    await p.evaluate(() => {            // two measured real sessions (synthetic numbers) -> the table
+      const s = (id, at, gpu, m) => ({ session_id: id, status: 'Done', demo: false, gpu, pipeline: null, finished_at: at, metrics: m });
+      PL.sessions = [s('job_20261105_100000_' + 'a'.repeat(32), '20261105_100000', 'NVIDIA L4',
+                       { 'Qwen/Qwen2.5-7B-Instruct': { mean_latency_s: 6.2, cost_per_1k_flows_usd: 1.38, wh_per_flow: 0.12, n_flows: 80 },
+                         'microsoft/Phi-3-mini-4k-instruct': { mean_latency_s: 3.1, cost_per_1k_flows_usd: 0.69, wh_per_flow: 0.06, n_flows: 80 } }),
+                     s('job_20261106_100000_' + 'b'.repeat(32), '20261106_100000', 'NVIDIA GeForce RTX 3090',
+                       { 'Qwen/Qwen2.5-7B-Instruct': { mean_latency_s: 7.9, cost_per_1k_flows_usd: 0.48, wh_per_flow: 0.5, n_flows: 100 } })];
+      document.getElementById('pl-flows').value = '20000'; renderPlanner();
+    });
+    const plRows = await p.$$eval('#pl-table tbody tr', l => l.map(r => r.textContent));
+    log(plRows.length === 3 && /needs \d+ GPUs/.test(plRows.join('')), 'the planner projects each model per GPU and says when one GPU is not enough');
+    await p.screenshot({ path: path.join(OUT, 'planner.png'), fullPage: true });
   } catch (e) {
     log(false, 'walk-through crashed: ' + e.message.split('\n')[0]);
   }

@@ -353,7 +353,7 @@ document.addEventListener("focusin", function (ev) {
 function hoverTip(el) { openTip(el, el.getAttribute("data-hover")); if (TIP) { TIP._for = el; TIP._hover = true; } }
 
 // ---------- routing ----------
-var VIEWS = ["home", "analyse", "new", "sessions", "session", "datasets", "gpu", "leaderboard", "trends", "settings", "profile", "admin", "help", "login"];
+var VIEWS = ["home", "analyse", "planner", "new", "sessions", "session", "datasets", "gpu", "leaderboard", "trends", "settings", "profile", "admin", "help", "login"];
 function parseHash() {
   var h = location.hash.replace(/^#\/?/, ""), q = {}, qi = h.indexOf("?");
   if (qi >= 0) { new URLSearchParams(h.slice(qi + 1)).forEach(function (v, k) { q[k] = v; }); h = h.slice(0, qi); }
@@ -412,6 +412,7 @@ function route() {
   show(v);
   if (v === "home") loadHome();
   else if (v === "analyse") loadAnalyse(p, r.q);
+  else if (v === "planner") loadPlanner(r.q);
   else if (v === "new") routeWizard(p, r.q);
   else if (v === "sessions") loadSessions();
   else if (v === "session" && p[1]) loadSession(p[1], p[2] ? p[2] + (p[3] ? "/" + p[3] : "") : rememberedTab());

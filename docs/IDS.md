@@ -59,6 +59,16 @@ when the files are on your computer — that copy wins over the stored one. Else
 into `models/ids/` on the server, or set `AGENTMETER_IDS_MODEL=/path/ids_rf.joblib`. Without a
 model, the server offers the bundled **demo IDS** (trained on 300 flows; every report says so).
 
+## 2b. Without a GPU: the traffic analysis
+
+The same stored model also runs **at data preparation**, on the cloud preparation service (free
+Hugging Face Space; `docs/DEPLOY.md` A7): it scores **every flow of the candidate pool**, not only
+the ≤ 500 flows a benchmark uses, and writes `ids_scores.csv` (flow_id, score, label, selected),
+`ids_pool.json` (the model, its threshold, counts, timing) and `ids_flows_identity.csv`
+(addresses, the uploader's only). These files sit beside the prepared set, outside its hash.
+When the set is benchmarked, the GPU server receives the scores with it (never the addresses).
+Code: `agentmeter/ids/stage.py: score_pool`, `agentmeter/server/prepare.py: write_ids_analysis`.
+
 ## 3. Use it
 
 New benchmark → Settings → tick **IDS gate** (the IDS's version, threshold and hold-out metrics

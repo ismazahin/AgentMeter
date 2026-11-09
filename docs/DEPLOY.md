@@ -274,6 +274,23 @@ downloaded by the service up to 2 GB (`CLOUD_PREP_MAX_URL_MB`; Cloud Run keeps f
 `gcloud billing budgets create` with a small amount to be emailed before anything is charged.
 Local rehearsal, no accounts: `bash tests/e2e/cloudprep_stack.sh`.
 
+**The traffic analysis (no GPU).** When an IDS model is stored (Admin › IDS model), every cloud
+preparation also scores the whole candidate pool with it: the control plane hands the service
+single-use download URLs for the model (the service still holds no key), the service caches the
+model by its sha256 and uploads `ids_scores.csv`, `ids_pool.json` and `ids_flows_identity.csv`
+(source/destination addresses: readable by the uploader only, deleted with the data set). The
+service installs `scikit-learn==1.9.1`, the version the IDS model is trained with, so its first
+build after this change takes a little longer. After pulling this change:
+```bash
+python scripts/deploy_cloudprep_hf.py      # or scripts/deploy_cloudprep.sh for Cloud Run
+npx supabase db push                       # prep_jobs: prepared_sha256 + ids_json (20261110000000)
+npx supabase functions deploy agentmeter --no-verify-jwt --use-api
+```
+Measured on a laptop CPU with the demo IDS: a 100,000-flow CSV is prepared and scored in about 4 s
+(peak memory about 630 MB); `ids_scores.csv` is about 4 MB per 100,000 flows (about 20 MB at the
+500,000-row cap), well under the 50 MB per Storage file. A trained 100-tree forest scores more
+slowly than the demo model: measure it on the Space once deployed.
+
 ### A5. The GPU backend's settings
 In `%USERPROFILE%\.agentmeter\backend.env` (what `scripts\vast_start.ps1` copies to the box):
 ```

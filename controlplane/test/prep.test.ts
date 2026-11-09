@@ -157,4 +157,42 @@ describe("cloud data preparation", () => {
     await E.DB.prepare("UPDATE prep_jobs SET updated_at='2020-01-01T00:00:00Z' WHERE id=?").bind(a).run();
     expect((await api(`/api/prep/jobs/${a}`, { token: u.token })).data).toMatchObject({ status: "failed", code: "cloud_prep_stalled" });
   });
+
+  it("hands a stored IDS model to the job, stores the analysis, and shows addresses to the owner only", async () => {
+    const enc = new TextEncoder(), joblib = enc.encode("pretend-joblib");
+    const admin = await user("admin");
+    const put = async (name: string, bytes: Uint8Array) => {
+      const r = await api("/api/admin/ids-model/upload-url", { token: admin.token, body: { name, bytes: bytes.length } });
+      expect(await store().acceptUpload(r.data.url.split("/upload/")[1], bytes, r.data.content_type)).toBe(true);
+    };
+    await put("ids_rf.joblib", joblib);
+    await put("ids_rf.json", enc.encode(JSON.stringify({ name: "ids_rf", version: "v1", sklearn: "1.9.1", threshold: 0.07,
+      features: ["Flow Duration"], sha256: await sha256Hex(joblib) })));
+    expect((await api("/api/admin/ids-model/commit", { token: admin.token, body: {} })).status).toBe(200);
+    try {
+      const calls = spyCloud();
+      const u = await user();
+      const id = await uploaded(u);
+      expect((await api(`/api/prep/jobs/${id}/start`, { method: "POST", token: u.token })).status).toBe(200);
+      const c = calls[0];
+      expect(c.body.ids.sha256).toBe(await sha256Hex(joblib));
+      expect(Object.keys(c.body.ids.files).sort()).toEqual(["ids_rf.joblib", "ids_rf.json"]);
+      expect(c.body.ids.files["ids_rf.joblib"]).toMatch(/\/download\//);                       // single-use, no key
+      expect(Object.keys(c.body.outputs).sort()).toEqual(["features.csv", "ids_flows_identity.csv", "ids_pool.json",
+                                                         "ids_scores.csv", "labels.csv", "manifest.json"]);
+      const files = ["manifest.json", "features.csv", "labels.csv", "ids_scores.csv", "ids_pool.json", "ids_flows_identity.csv"];
+      for (const n of files)
+        expect(await store().acceptUpload(c.body.outputs[n].split("/upload/")[1], enc.encode(`${n} bytes`), "text/plain")).toBe(true);
+      expect((await report(id, { done: { set_name: "csv_runs/flows_x", files: [...files, "evil.sh"] } })).status).toBe(400);
+      expect((await report(id, { done: { set_name: "csv_runs/flows_x", files } })).status).toBe(200);
+      expect((await api(`/api/prep/jobs/${id}/files/ids_scores.csv`, { token: u.token })).text).toBe("ids_scores.csv bytes");
+      expect((await api(`/api/prep/jobs/${id}/files/ids_scores.csv`, { token: admin.token })).status).toBe(200);
+      expect((await api(`/api/prep/jobs/${id}/files/ids_flows_identity.csv`, { token: u.token })).status).toBe(200);
+      const a = await api(`/api/prep/jobs/${id}/files/ids_flows_identity.csv`, { token: admin.token });
+      expect(a.status).toBe(403);                                                                // not even an admin
+      expect(a.data.code).toBe("owner_only");
+    } finally {
+      await api("/api/admin/ids-model", { method: "DELETE", token: admin.token });
+    }
+  });
 });

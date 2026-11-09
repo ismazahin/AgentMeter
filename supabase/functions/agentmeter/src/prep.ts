@@ -9,16 +9,26 @@
 //   POST /api/prep/jobs/:id/start     the upload is in Storage -> the cloud service starts
 //   GET  /api/prep/jobs/:id           status, phase, progress log; set_name + files when done
 //   GET  /api/prep/jobs/:id/files/:n  manifest.json | features.csv | labels.csv (the web app
-//                                     then imports them into the GPU server, hash-checked)
+//                                     then imports them into the GPU server, hash-checked), and the
+//                                     traffic analysis: ids_scores.csv | ids_pool.json |
+//                                     ids_flows_identity.csv (addresses: the job's owner only)
+//
+// The traffic analysis (no GPU): when an IDS model is stored (Admin › IDS model), every job also
+// gets single-use download URLs for it, and the service scores the whole candidate pool.
 //   POST /api/prep/jobs/:id/events    the cloud service's signed reports ({event}|{done}|{failed})
 import { requireUser } from "./auth.ts";
 import { verifySigned } from "./backend.ts";
 import { hmacHex, randomHex, sha256Hex } from "./crypto.ts";
 import { type Env, cloudPrepConfigured, fail, intVar, json, nowIso, nowS, readJson } from "./util.ts";
 import { loadLimits } from "./settings.ts";
+import { idsModelForJob } from "./ids.ts";
 
 export const PREP_FILES = ["manifest.json", "features.csv", "labels.csv"] as const;
-const CONTENT_TYPE: Record<string, string> = { "manifest.json": "application/json", "features.csv": "text/csv", "labels.csv": "text/csv" };
+export const PREP_IDS_FILES = ["ids_scores.csv", "ids_pool.json", "ids_flows_identity.csv"] as const;
+const OWNER_ONLY = "ids_flows_identity.csv";      // source/destination addresses: never another user, not admins
+const ALL_FILES: readonly string[] = [...PREP_FILES, ...PREP_IDS_FILES];
+const CONTENT_TYPE: Record<string, string> = { "manifest.json": "application/json", "features.csv": "text/csv", "labels.csv": "text/csv",
+  "ids_scores.csv": "text/csv", "ids_pool.json": "application/json", "ids_flows_identity.csv": "text/csv" };
 const LOG_MAX = 200;
 const STALE_S = 15 * 60;              // a running job with no news for this long has died
 const MAX_ACTIVE = 2;                 // unfinished cloud jobs per user
@@ -106,8 +116,9 @@ function publicBase(env: Env): string {
 /** Hand the job to the cloud service: signed, with single-use URLs for its input and outputs. */
 async function dispatch(env: Env, r: Row): Promise<void> {
   const opts = JSON.parse(r.options_json);
+  const ids = await idsModelForJob(env);
   const outputs: Record<string, string> = {};
-  for (const n of PREP_FILES) {
+  for (const n of ids ? ALL_FILES : PREP_FILES) {
     const u = await env.STORE.signedUploadUrl(outKey(r.id, n));
     if (!u) fail(409, "cloud_prep_unavailable", "this storage cannot hand out upload URLs");
     outputs[n] = u!;
@@ -122,6 +133,7 @@ async function dispatch(env: Env, r: Row): Promise<void> {
   const body = new TextEncoder().encode(JSON.stringify({
     job_id: r.id, filename: r.filename, source, max_flows: opts.max_flows, other_attack: opts.other_attack,
     limits: opts.limits, max_bytes: opts.max_bytes, outputs, report_url: publicBase(env) + reportPath, report_path: reportPath,
+    ...(ids ? { ids } : {}),
   }));
   const ts = String(nowS());
   const sig = await hmacHex(env.CLOUD_PREP_SECRET!, `POST\n/prepare\n${ts}\n${await sha256Hex(body)}`);
@@ -224,6 +236,8 @@ export async function getPrepJob(req: Request, env: Env, id: string): Promise<Re
 /** GET /api/prep/jobs/:id/files/:name — one prepared file (for the import into the GPU server). */
 export async function getPrepFile(req: Request, env: Env, id: string, name: string): Promise<Response> {
   const r = await mine(req, env, id);
+  if (name === OWNER_ONLY && r.owner_id !== (await requireUser(req, env)).user.id)
+    fail(403, "owner_only", "the flows' addresses are shown to the person who uploaded them only");
   if (r.status !== "done" || !(JSON.parse(r.files_json || "[]") as string[]).includes(name)) fail(404, "not_found", `${name} is not ready`);
   const o = await env.STORE.get(outKey(id, name));
   if (!o) fail(404, "not_found", `${name} is not stored`);
@@ -252,7 +266,7 @@ export async function prepEvents(req: Request, env: Env, id: string): Promise<Re
     const files = Array.isArray(b.done.files) ? (b.done.files as unknown[]).map(String) : [];
     const setName = String(b.done.set_name || "");
     if (!/^(csv_runs|pcap_runs)\/[A-Za-z0-9_.-]{1,120}$/.test(setName) || !files.includes("manifest.json") || !files.includes("features.csv")
-        || files.some((f) => !(PREP_FILES as readonly string[]).includes(f))) fail(400, "bad_request", "done: set_name and files");
+        || files.some((f) => !ALL_FILES.includes(f))) fail(400, "bad_request", "done: set_name and files");
     for (const f of files) if ((await env.STORE.size(outKey(id, f))) === null) fail(409, "not_uploaded", `${f} is not in storage`);
     await env.DB.prepare("UPDATE prep_jobs SET status='done', phase='done', message=?, set_name=?, files_json=?, updated_at=?, finished_at=? WHERE id=? AND status='running'")
       .bind(`prepared ${setName.split("/").pop()}`, setName, JSON.stringify(files), t, t, id).run();

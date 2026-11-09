@@ -55,7 +55,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["POST", /^\/api\/prep\/wake$/, wakePrep],
   ["GET", /^\/api\/prep\/jobs\/([0-9a-f]{32})$/, getPrepJob],
   ["POST", /^\/api\/prep\/jobs\/([0-9a-f]{32})\/start$/, startPrepJob],
-  ["GET", /^\/api\/prep\/jobs\/([0-9a-f]{32})\/files\/(manifest\.json|features\.csv|labels\.csv)$/, getPrepFile],
+  ["GET", /^\/api\/prep\/jobs\/([0-9a-f]{32})\/files\/(manifest\.json|features\.csv|labels\.csv|ids_scores\.csv|ids_pool\.json|ids_flows_identity\.csv)$/, getPrepFile],
   ["POST", /^\/api\/prep\/jobs\/([0-9a-f]{32})\/events$/, prepEvents],
   // sessions (read: any user; delete: owner or admin)
   ["GET", /^\/api\/sessions$/, listSessions],

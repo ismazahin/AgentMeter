@@ -98,6 +98,23 @@ export async function idsDelete(req: Request, env: Env): Promise<Response> {
   return json({ ok: true });
 }
 
+/** The stored IDS model for a cloud preparation job (the traffic analysis): its sha256 and
+ *  short-lived download URLs, or null when none is committed or Storage cannot sign URLs. The
+ *  cloud service gets these URLs only; it never holds a key. */
+export async function idsModelForJob(env: Env): Promise<{ sha256: string; files: Record<string, string> } | null> {
+  const m = await storedMeta(env);
+  if (!m || !m.committed_at || typeof m.sha256 !== "string") return null;
+  const files: Record<string, string> = {};
+  for (const f of IDS_FILES) {
+    if (await env.STORE.size(key(f)) === null) continue;
+    const u = await env.STORE.signedDownloadUrl(key(f), DOWNLOAD_S);
+    if (!u) return null;
+    files[f] = u;
+  }
+  if (!files["ids_rf.joblib"] || !files["ids_rf.json"]) return null;
+  return { sha256: m.sha256, files };
+}
+
 /** GET /api/backend/ids-model (signed) — the stored model's metadata and short-lived download URLs. */
 export async function backendIdsModel(req: Request, env: Env): Promise<Response> {
   await verifyBackend(req, env, 0);

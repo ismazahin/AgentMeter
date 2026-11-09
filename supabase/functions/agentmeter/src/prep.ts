@@ -34,6 +34,10 @@ const STALE_S = 15 * 60;              // a running job with no news for this lon
 const MAX_ACTIVE = 2;                 // unfinished cloud jobs per user
 const URL_GET_S = 3600;               // the input's download URL lives an hour
 const WAKE_TRIES = 4;                 // attempts while a sleeping service wakes up
+/** config.yaml service: max_csv_rows, max_pcap_packets, max_pcap_flows, pcap_windows, url_timeout_s. */
+export const DEFAULT_PREP_LIMITS: Record<string, number> = {
+  max_csv_rows: 500_000, max_pcap_packets: 100_000, max_pcap_flows: 20_000, pcap_windows: 10, url_timeout_s: 3600,
+};
 const LIMIT_KEYS: Record<string, [number, number]> = {
   max_csv_rows: [1, 50_000_000], max_pcap_packets: [1, 100_000_000], max_pcap_flows: [1, 10_000_000],
   pcap_windows: [1, 1000], max_url_download_bytes: [1, 50 * 2 ** 30], url_timeout_s: [1, 3600],
@@ -72,8 +76,9 @@ function cleanLimits(v: unknown): Record<string, number> {
     const n = Number(src[k]);
     if (Number.isFinite(n) && n >= lo) out[k] = Math.min(Math.floor(n), hi);
   }
-  for (const k of ["max_csv_rows", "max_pcap_packets", "max_pcap_flows"])
-    if (!(k in out)) fail(400, "bad_request", `limits.${k} is required`);
+  // A limit the web app did not send (the GPU server, which hands it the limits, is off: the traffic
+  // analysis needs no GPU) takes the default of config.yaml's service section.
+  for (const [k, v] of Object.entries(DEFAULT_PREP_LIMITS)) if (!(k in out)) out[k] = v;
   return out;
 }
 

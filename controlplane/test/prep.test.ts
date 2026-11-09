@@ -58,10 +58,18 @@ describe("cloud data preparation", () => {
     const bad = async (body: any) => (await api("/api/prep/jobs", { token: u.token, body })).status;
     expect(await bad({ filename: "a.docx", size: 10, max_flows: 5, limits: LIMITS })).toBe(400);
     expect(await bad({ filename: "a.csv", size: 10, max_flows: 0, limits: LIMITS })).toBe(400);
-    expect(await bad({ filename: "a.csv", size: 10, max_flows: 5, limits: {} })).toBe(400);
+    expect(await bad({ filename: "a.csv", size: 10, max_flows: 5, limits: { max_csv_rows: "x" } })).toBe(201);   // ignored: default
     expect(await bad({ url: "http://example.org/a.csv", max_flows: 5, limits: LIMITS })).toBe(400);
     E.CLOUD_PREP_MAX_MB = "1";
     expect(await bad({ filename: "a.csv", size: 2 * 1024 * 1024, max_flows: 5, limits: LIMITS })).toBe(413);
+  });
+
+  it("a job without limits (the GPU server that hands them out is off) gets config.yaml's defaults", async () => {
+    const calls = spyCloud();
+    const u = await user();
+    const r = await api("/api/prep/jobs", { token: u.token, body: { url: "https://example.org/flows.csv", max_flows: 20 } });
+    expect(r.status, JSON.stringify(r.data)).toBe(201);
+    expect(calls[0].body.limits).toMatchObject({ max_csv_rows: 500000, max_pcap_packets: 100000, max_pcap_flows: 20000, pcap_windows: 10 });
   });
 
   it("runs a file job: signed dispatch with single-use URLs, signed reports, files back to the owner", async () => {

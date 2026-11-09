@@ -17,7 +17,7 @@
 // gets single-use download URLs for it, and the service scores the whole candidate pool.
 //   POST /api/prep/jobs/:id/events    the cloud service's signed reports ({event}|{done}|{failed})
 import { requireUser } from "./auth.ts";
-import { verifySigned } from "./backend.ts";
+import { checkUrl, parseBody, verifySigned } from "./backend.ts";
 import { hmacHex, randomHex, sha256Hex } from "./crypto.ts";
 import { type Env, cloudPrepConfigured, fail, intVar, json, nowIso, nowS, readJson } from "./util.ts";
 import { loadLimits } from "./settings.ts";
@@ -59,8 +59,52 @@ async function maxUploadBytes(env: Env): Promise<number> {
   return Math.min(lim.max_upload_mb, intVar(env.CLOUD_PREP_MAX_MB, 50)) * 1024 * 1024;
 }
 
-function requireCloud(env: Env) {
-  if (!cloudPrepConfigured(env)) fail(409, "cloud_prep_unavailable", "cloud preparation is not set up on this control plane");
+// ---------- where the preparation service is ----------
+// It registers itself (scripts/prep_local.py: the service on the owner's PC, started by the Start
+// button), signed with CLOUD_PREP_SECRET, and sends a heartbeat every minute; it is online while its
+// last heartbeat is younger than PREP_ONLINE_S. Otherwise the fixed CLOUD_PREP_URL (Cloud Run), if set.
+export const PREP_HEARTBEAT_S = 60;
+const PREP_ONLINE_S = 180;
+const secretOk = (env: Env) => (env.CLOUD_PREP_SECRET || "").length >= 16;
+
+export async function registeredPrep(env: Env): Promise<{ url: string; online: boolean; last_heartbeat_at: string | null } | null> {
+  const r = await env.DB.prepare("SELECT url, last_heartbeat_at FROM backends WHERE id='prep'").first<{ url: string | null; last_heartbeat_at: string | null }>();
+  if (!r || !r.url) return null;
+  const age = r.last_heartbeat_at ? (Date.now() - Date.parse(r.last_heartbeat_at)) / 1000 : Infinity;
+  return { url: r.url, online: age <= PREP_ONLINE_S, last_heartbeat_at: r.last_heartbeat_at };
+}
+
+/** The address to send preparation jobs to, or null when no service is available. */
+export async function cloudPrepUrl(env: Env): Promise<string | null> {
+  if (!secretOk(env)) return null;
+  const reg = await registeredPrep(env);
+  if (reg && reg.online) return reg.url;
+  return cloudPrepConfigured(env) ? env.CLOUD_PREP_URL!.replace(/\/+$/, "") : null;
+}
+
+async function requireCloud(env: Env): Promise<string> {
+  const url = await cloudPrepUrl(env);
+  if (!url) fail(409, "cloud_prep_unavailable", "the preparation service is not running (Analyse traffic: Start the preparation service)");
+  return url!;
+}
+
+/** POST /api/prep/register and /api/prep/heartbeat (signed by the service): {url, version} — or
+ *  {stopping: true} when it stops, so the site shows it as not running at once. */
+export async function prepRegister(req: Request, env: Env): Promise<Response> {
+  if (!secretOk(env)) fail(409, "cloud_prep_unavailable", "set CLOUD_PREP_SECRET on the control plane first");
+  const b = parseBody(await verifySigned(req, env.CLOUD_PREP_SECRET!, 16 * 1024, "preparation service"));
+  const t = nowIso();
+  if (b.stopping === true) {
+    await env.DB.prepare("UPDATE backends SET last_heartbeat_at=NULL WHERE id='prep'").run();
+    return json({ ok: true, stopped: true });
+  }
+  const url = checkUrl(env, b.url);
+  await env.DB.prepare(
+    `INSERT INTO backends (id,url,mode,gpu_json,creds_json,version,registered_at,last_heartbeat_at) VALUES ('prep',?,'prep',NULL,'{}',?,?,?)
+     ON CONFLICT(id) DO UPDATE SET registered_at=CASE WHEN backends.url=excluded.url THEN backends.registered_at ELSE excluded.registered_at END,
+       url=excluded.url, version=excluded.version, last_heartbeat_at=excluded.last_heartbeat_at`,
+  ).bind(url, String(b.version || "").slice(0, 64), t, t).run();
+  return json({ ok: true, url, heartbeat_s: PREP_HEARTBEAT_S, online_for_s: PREP_ONLINE_S });
 }
 
 function safeName(name: unknown): string {
@@ -121,6 +165,7 @@ function publicBase(env: Env): string {
 /** Hand the job to the cloud service: signed, with single-use URLs for its input and outputs. */
 async function dispatch(env: Env, r: Row): Promise<void> {
   const opts = JSON.parse(r.options_json);
+  const base = await requireCloud(env);
   const ids = await idsModelForJob(env);
   const outputs: Record<string, string> = {};
   for (const n of ids ? ALL_FILES : PREP_FILES) {
@@ -147,7 +192,7 @@ async function dispatch(env: Env, r: Row): Promise<void> {
   for (let i = 0; i < WAKE_TRIES; i++) {
     if (i) await new Promise((ok) => setTimeout(ok, intVar(env.CLOUD_PREP_RETRY_MS, 5000)));
     try {
-      res = await fetch(env.CLOUD_PREP_URL!.replace(/\/+$/, "") + "/prepare", {
+      res = await fetch(base + "/prepare", {
         method: "POST", headers: { "content-type": "application/json", "X-AM-Timestamp": ts, "X-AM-Signature": sig }, body,
       });
       if (![502, 503, 504].includes(res.status)) break;
@@ -173,7 +218,7 @@ async function dispatch(env: Env, r: Row): Promise<void> {
 /** POST /api/prep/jobs — a new cloud preparation for the signed-in user. */
 export async function createPrepJob(req: Request, env: Env): Promise<Response> {
   const a = await requireUser(req, env);
-  requireCloud(env);
+  await requireCloud(env);
   publicBase(env);                                    // the service needs somewhere to report to
   const b = await readJson<Record<string, any>>(req);
   const maxFlows = Number(b.max_flows);
@@ -219,7 +264,7 @@ export async function createPrepJob(req: Request, env: Env): Promise<Response> {
 /** POST /api/prep/jobs/:id/start — the file is in Storage: start the cloud job. */
 export async function startPrepJob(req: Request, env: Env, id: string): Promise<Response> {
   const r = await mine(req, env, id);
-  requireCloud(env);
+  await requireCloud(env);
   if (r.status !== "uploading") fail(409, "not_uploading", `this preparation is ${r.status}`);
   const size = await env.STORE.size(inputKey(r));
   if (size === null) fail(409, "not_uploaded", "the file is not uploaded yet");
@@ -251,7 +296,7 @@ export async function getPrepFile(req: Request, env: Env, id: string, name: stri
 
 /** POST /api/prep/jobs/:id/events — the cloud service's progress and result (signed). */
 export async function prepEvents(req: Request, env: Env, id: string): Promise<Response> {
-  requireCloud(env);
+  if (!secretOk(env)) fail(409, "cloud_prep_unavailable", "cloud preparation is not set up on this control plane");
   const raw = await verifySigned(req, env.CLOUD_PREP_SECRET!, 64 * 1024, "cloud preparation");
   let b: Record<string, any>;
   try { b = JSON.parse(new TextDecoder().decode(raw)); } catch { return fail(400, "bad_request", "body must be JSON"); }
@@ -348,10 +393,11 @@ export async function prepOwner(env: Env, key: string): Promise<string | null> {
  *  Space) awake before a dataset is uploaded. Best effort, answers at once. */
 export async function wakePrep(req: Request, env: Env): Promise<Response> {
   await requireUser(req, env);
-  if (!cloudPrepConfigured(env)) return json({ ok: false, configured: false });
+  const base = await cloudPrepUrl(env);
+  if (!base) return json({ ok: false, configured: false });
   let up = false;
   try {
-    const r = await fetch(env.CLOUD_PREP_URL!.replace(/\/+$/, "") + "/health", { signal: AbortSignal.timeout(4000) });
+    const r = await fetch(base + "/health", { signal: AbortSignal.timeout(4000) });
     up = r.ok;
     await r.body?.cancel();
   } catch { /* still waking: the request itself wakes it */ }

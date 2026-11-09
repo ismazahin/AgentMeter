@@ -1,6 +1,6 @@
 # A "Start" button for the preparation service — design
 
-Date: 2026-11-10 · Status: for approval · Replaces the autostart half of
+Date: 2026-11-10 · Status: approved 2026-11-10 · Replaces the autostart half of
 `2026-11-10-one-data-step-and-autostart-design.md`; `2026-11-10-browser-analysis-design.md` is not
 pursued now (kept for later). The "one data step" sidebar still stands.
 

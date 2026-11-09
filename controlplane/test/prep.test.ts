@@ -203,4 +203,49 @@ describe("cloud data preparation", () => {
       await api("/api/admin/ids-model", { method: "DELETE", token: admin.token });
     }
   });
+
+  it("the service on the owner's PC registers itself: jobs go to it while it checks in", async () => {
+    delete E.CLOUD_PREP_URL;                                           // no fixed address: only the registered one
+    const u = await user();
+    expect((await api("/api/backend", { token: u.token })).data.cloud_prep).toBe(false);
+    const reg = (body: unknown, secret = SECRET) => backendCall("POST", "/api/prep/register", body, { secret });
+    expect((await reg({ url: "https://pc.trycloudflare.com" }, "wrong-secret-0123456789")).status).toBe(401);
+    expect((await reg({ url: "http://pc.example.org" })).status).toBe(400);            // https only
+    const ok = await reg({ url: "https://pc.trycloudflare.com/", version: "1" });
+    expect(ok.status, JSON.stringify(ok.data)).toBe(200);
+    expect(ok.data.heartbeat_s).toBe(60);
+    let b = (await api("/api/backend", { token: u.token })).data;
+    expect(b.cloud_prep).toBe(true);
+    expect(b.prep_service.online).toBe(true);
+    const calls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: any) => {
+      calls.push(typeof input === "string" ? input : input.url);
+      return new Response('{"accepted":true}', { status: 202 });
+    });
+    const r = await api("/api/prep/jobs", { token: u.token, body: { url: "https://example.org/f.csv", max_flows: 10 } });
+    expect(r.status, JSON.stringify(r.data)).toBe(201);
+    expect(calls).toContain("https://pc.trycloudflare.com/prepare");             // the registered address
+    vi.restoreAllMocks();
+    // a heartbeat keeps it online; silence for 3 minutes takes it offline
+    expect((await backendCall("POST", "/api/prep/heartbeat", { url: "https://pc.trycloudflare.com" }, { secret: SECRET })).status).toBe(200);
+    await E.DB.prepare("UPDATE backends SET last_heartbeat_at='2020-01-01T00:00:00Z' WHERE id='prep'").run();
+    b = (await api("/api/backend", { token: u.token })).data;
+    expect(b.cloud_prep).toBe(false);
+    expect(b.prep_service.online).toBe(false);
+    expect((await api("/api/prep/jobs", { token: u.token, body: { url: "https://example.org/f.csv", max_flows: 10 } })).data.code).toBe("cloud_prep_unavailable");
+    // back, then Stop: offline at once
+    await reg({ url: "https://pc2.trycloudflare.com" });
+    expect((await api("/api/backend", { token: u.token })).data.cloud_prep).toBe(true);
+    expect((await reg({ stopping: true })).data.stopped).toBe(true);
+    expect((await api("/api/backend", { token: u.token })).data.cloud_prep).toBe(false);
+  });
+
+  it("a fixed CLOUD_PREP_URL is the fallback when no registered service is online", async () => {
+    const calls = spyCloud();
+    const u = await user();
+    await E.DB.prepare("DELETE FROM backends WHERE id='prep'").run();
+    const r = await api("/api/prep/jobs", { token: u.token, body: { url: "https://example.org/f.csv", max_flows: 10 } });
+    expect(r.status).toBe(201);
+    expect(calls[0].url).toBe(`${CLOUD}/prepare`);
+  });
 });

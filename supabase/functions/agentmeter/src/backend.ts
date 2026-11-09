@@ -4,7 +4,8 @@ import { requireUser } from "./auth.ts";
 import { hmacHex, sha256Hex, timingSafeEqual } from "./crypto.ts";
 import { loadLimits } from "./settings.ts";
 import { loadModelState } from "./models.ts";
-import { type Env, cloudPrepConfigured, fail, intVar, json, nowIso, nowS } from "./util.ts";
+import { type Env, fail, intVar, json, nowIso, nowS } from "./util.ts";
+import { cloudPrepUrl, registeredPrep } from "./prep.ts";
 
 export const HEARTBEAT_S = 60;
 export const MAX_SKEW_S = 120;
@@ -39,7 +40,7 @@ export const parseBody = (b: Uint8Array): Record<string, any> => {
   return fail(400, "bad_request", "body must be a JSON object");
 };
 
-function checkUrl(env: Env, url: unknown): string {
+export function checkUrl(env: Env, url: unknown): string {
   if (typeof url !== "string" || url.length > 300) fail(400, "bad_url", "url missing");
   let u: URL;
   try {
@@ -98,12 +99,15 @@ export async function backendState(env: Env) {
   const after = intVar(env.BACKEND_OFFLINE_AFTER_S, 3 * HEARTBEAT_S);
   const age = r?.last_heartbeat_at ? (Date.now() - Date.parse(r.last_heartbeat_at)) / 1000 : Infinity;
   const online = !!r && age <= after;
+  const prepUrl = await cloudPrepUrl(env), reg = await registeredPrep(env);
   return {
     online, url: online ? r!.url : null, mode: r?.mode || null, gpu: r?.gpu_json ? JSON.parse(r.gpu_json) : null,
     version: r?.version || null, last_heartbeat_at: r?.last_heartbeat_at || null, registered_at: r?.registered_at || null,
     offline_after_s: after,
-    cloud_prep: cloudPrepConfigured(env),
-    cloud_prep_max_mb: cloudPrepConfigured(env) ? intVar(env.CLOUD_PREP_MAX_MB, 50) : null,
+    cloud_prep: !!prepUrl,
+    cloud_prep_max_mb: prepUrl ? intVar(env.CLOUD_PREP_MAX_MB, 50) : null,
+    // the service on the owner's PC (Start button): whether it registered and is checking in
+    prep_service: reg ? { online: reg.online, last_heartbeat_at: reg.last_heartbeat_at } : null,
   };
 }
 

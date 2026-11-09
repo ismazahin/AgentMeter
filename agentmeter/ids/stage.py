@@ -17,6 +17,11 @@ from .model import IdsError, load_model
 
 IDS_RESULTS_CSV = "ids_results.csv"
 IDS_JSON = "ids.json"
+# The traffic analysis (data preparation, no GPU): every candidate-pool flow scored.
+IDS_SCORES_CSV = "ids_scores.csv"            # flow_id, score, label, selected
+IDS_POOL_JSON = "ids_pool.json"              # the model, its threshold, counts, timing
+IDS_IDENTITY_CSV = "ids_flows_identity.csv"  # flow_id + addresses: the analysis owner's only
+IDS_ANALYSIS_FILES = (IDS_SCORES_CSV, IDS_POOL_JSON, IDS_IDENTITY_CSV)
 
 
 def normalize_ids_option(opt: Any) -> Optional[dict[str, Any]]:
@@ -60,6 +65,43 @@ def apply_ids(run_dir: Path, scen: pd.DataFrame, features: list[str], opt: dict[
     }
     (run_dir / IDS_JSON).write_text(json.dumps(info, indent=2), encoding="utf-8")
     return scen[flagged].reset_index(drop=True), info
+
+
+def score_pool(pool: pd.DataFrame, selected_ids: Any, labelled: bool,
+               model_path: Optional[Path] = None) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Score EVERY flow of a candidate pool (the traffic analysis, before any LLM).
+
+    `pool` holds flow_id + the feature columns (+ `label` when labelled). Returns
+    (flow_id, score, label, selected) for every pool flow, and the summary written to
+    ids_pool.json: the same fields as a session's ids.json (at the model's own threshold),
+    plus `scope: "pool"`. The scores are the same numbers apply_ids gives the same flows.
+    """
+    model = load_model(model_path)
+    tau = model.threshold
+    missing = [f for f in model.features if f not in pool.columns]
+    scores, dt = model.score(pool)
+    flagged = scores >= tau
+    sel = set(str(x) for x in selected_ids)
+    fid = pool["flow_id"].astype(str).to_numpy()
+    out = pd.DataFrame({"flow_id": fid, "score": scores,
+                        "label": pool["label"].to_numpy() if labelled else None,
+                        "selected": [f in sel for f in fid]})
+    n = int(len(pool))
+    info = {
+        "scope": "pool",
+        "model": model.identity,
+        "model_metrics_holdout": (model.meta.get("metrics") or {}).get("holdout"),
+        "threshold": tau,
+        "threshold_source": "model (" + str(model.meta.get("threshold_rule")) + ")",
+        "n_flows_in": n, "n_flagged": int(flagged.sum()), "n_cleared": int(n - flagged.sum()),
+        "flagged_share": float(flagged.mean()) if n else None,
+        "n_selected": int(out["selected"].sum()),
+        "scoring_s_total": dt, "scoring_s_per_flow": dt / n if n else None,
+        "training_overlap": model.overlap(pool),
+        "features_missing": missing,
+        "labelled": labelled,
+    }
+    return out, info
 
 
 def read_ids(run_dir: Path) -> tuple[Optional[dict[str, Any]], Optional[pd.DataFrame]]:

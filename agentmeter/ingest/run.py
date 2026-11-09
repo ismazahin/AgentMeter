@@ -281,7 +281,10 @@ def process_csv(csv_path: str | Path, *, name: Optional[str] = None,
         _dump(out_dir / "selection_audit.json", audit)
         _dump(out_dir / "manifest.json", manifest)
         (out_dir / "schema_report.md").write_text(schema_markdown(rep, metadata), encoding="utf-8")
-    return {"manifest": manifest, "selection": sel, "audit": audit, "input": run, "report": rep}
+    # the candidate pool (flow_id + identification + features) and its labels: the traffic
+    # analysis scores every pool flow with the IDS (agentmeter/ids/stage.py: score_pool)
+    return {"manifest": manifest, "selection": sel, "audit": audit, "input": run, "report": rep,
+            "flows": data.features, "pool_labels": data.labels if data.labelled else None}
 
 
 def _csv_feature_match(rep: dict[str, Any], n_present: int) -> dict[str, Any]:

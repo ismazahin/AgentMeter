@@ -43,7 +43,7 @@ from typing import Any, Callable
 
 from . import runtoken
 from .jobs import RUN_ROOTS, JobError, JobManager
-from .prepare import (MAX_IMPORT_BYTES, PrepareError, prepared_file,
+from .prepare import (MAX_IMPORT_BYTES, MAX_IMPORT_IDS_BYTES, PrepareError, prepared_file,
                       summarize, unique_name)
 
 DEFAULT_SERVICE_MAX_FLOWS = 50
@@ -373,16 +373,17 @@ def register_service(app, get_manager: Callable[[], JobManager]) -> None:
     @app.route("/api/prepared/import", methods=["POST"])
     def svc_prepared_import():
         mgr = get_manager()
-        if request.content_length and request.content_length > MAX_IMPORT_BYTES + _MULTIPART_SLACK:
+        if request.content_length and request.content_length > MAX_IMPORT_BYTES + MAX_IMPORT_IDS_BYTES + _MULTIPART_SLACK:
             return fail(PrepareError("a prepared set is small (<= 500 flows): these files are too "
                                      "large — prepare the raw file on the Prepare page instead",
                                      "too_large", 413))
         files = {}
         for field, fname in (("manifest", "manifest.json"), ("features", "features.csv"),
-                             ("labels", "labels.csv")):
+                             ("labels", "labels.csv"), ("ids_scores", "ids_scores.csv"),
+                             ("ids_pool", "ids_pool.json")):
             f = request.files.get(field)
             if f is not None and f.filename:
-                files[fname] = f.read(MAX_IMPORT_BYTES + 1)
+                files[fname] = f.read((MAX_IMPORT_IDS_BYTES if fname.startswith("ids_") else MAX_IMPORT_BYTES) + 1)
         try:
             from .prepare import import_prepared
             prepared = import_prepared(files, mgr.results_root)

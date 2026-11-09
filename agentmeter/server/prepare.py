@@ -41,6 +41,10 @@ MANIFEST = "manifest.json"
 DOWNLOADABLE = (FEATURES_CSV, LABELS_CSV, MANIFEST)
 MAX_IMPORT_BYTES = 20 * 1024 ** 2        # a prepared set is <= 500 flows: a few MB at most
 MAX_SELECTED = 500
+# The traffic analysis's IDS files that travel with a re-uploaded set (scores of the whole
+# candidate pool: up to 500,000 rows). The identity file (addresses) never travels.
+IDS_IMPORT_FILES = ("ids_scores.csv", "ids_pool.json")
+MAX_IMPORT_IDS_BYTES = 60 * 1024 ** 2
 # Identification columns: kept in the backend's run folder, never shown to a model, stripped from
 # the copy stored with a session in the control plane (Phase 47). flow_id stays: it joins labels.
 IDENTIFICATION_COLUMNS = ("src_ip", "src_port", "dst_ip", "protocol", "protocol_name", "timestamp")
@@ -114,9 +118,14 @@ def _dump(path: Path, obj: Any) -> None:
 # ---------------------------------------------------------------------------
 def prepare_file(src: Path, *, source: dict[str, Any], results_root: Path, name: str,
                  max_flows: int, other_attack: bool, limits: dict[str, int],
-                 progress: Optional[Progress] = None, environment: Optional[dict] = None) -> str:
+                 progress: Optional[Progress] = None, environment: Optional[dict] = None,
+                 ids: Any = None) -> str:
     """Run the existing ingestion on `src` and finish the prepared set. Returns
-    its id ("csv_runs/<name>" or "pcap_runs/<name>"). Raises PrepareError."""
+    its id ("csv_runs/<name>" or "pcap_runs/<name>"). Raises PrepareError.
+
+    ids: None = no traffic analysis; True = score the candidate pool with the default IDS model;
+    a path = with that model (.joblib). The analysis files (ids_scores.csv, ids_pool.json,
+    ids_flows_identity.csv) sit beside the prepared set, outside its hash and its downloads."""
     from ..ingest import run as ingest_run
     from ..ingest.csv_input import CsvValidationError
     from ..ingest.pcap import PcapValidationError
@@ -133,12 +142,12 @@ def prepare_file(src: Path, *, source: dict[str, Any], results_root: Path, name:
     report(phase="validating", message=f"validating {label} ({kind.upper()})")
     try:
         if kind == "pcap":
-            ingest_run.process_pcap(src, name=name, out_root=out_root, max_flows=max_flows,
+            res = ingest_run.process_pcap(src, name=name, out_root=out_root, max_flows=max_flows,
                                     max_packets=limits["max_pcap_packets"],
                                     max_pool_flows=limits["max_pcap_flows"],
                                     windows=limits.get("pcap_windows"), progress=report)
         else:
-            ingest_run.process_csv(src, name=name, out_root=out_root, max_flows=max_flows,
+            res = ingest_run.process_csv(src, name=name, out_root=out_root, max_flows=max_flows,
                                    other_attack=other_attack, max_rows=limits["max_csv_rows"],
                                    progress=report, max_bytes=src.stat().st_size)
     except (CsvValidationError, PcapValidationError) as e:
@@ -152,7 +161,55 @@ def prepare_file(src: Path, *, source: dict[str, Any], results_root: Path, name:
     run_dir = out_root / name
     report(phase="writing", message="writing the prepared set")
     finish_prepared_set(run_dir, source=source, limits=limits, started_at=started, environment=environment)
+    if ids not in (None, False):
+        write_ids_analysis(run_dir, res.get("flows"), res.get("pool_labels"),
+                           None if ids is True else Path(ids), report)
     return f"{out_root.name}/{name}"
+
+
+def write_ids_analysis(run_dir: Path, pool, pool_labels, model_path: Optional[Path] = None,
+                       progress: Optional[Progress] = None) -> dict[str, Any]:
+    """Score every candidate-pool flow with the IDS (the traffic analysis, no GPU) and write
+    ids_scores.csv, ids_pool.json and ids_flows_identity.csv into the run dir. The manifest's
+    prepared_set block records the outcome under `ids_analysis`. No IDS model is not an error:
+    the set is prepared without an analysis and the manifest says why."""
+    import pandas as pd
+
+    from ..ids.model import IdsError
+    from ..ids.stage import IDS_IDENTITY_CSV, IDS_POOL_JSON, IDS_SCORES_CSV, score_pool
+
+    run_dir = Path(run_dir)
+    report = progress or (lambda **kw: None)
+    man = _read(run_dir / MANIFEST)
+    block: dict[str, Any]
+    if pool is None or not len(pool):
+        block = {"available": False, "reason": "no candidate pool to score"}
+    else:
+        pool = pool.copy()
+        pool["flow_id"] = pool["flow_id"].astype(str)
+        labelled = pool_labels is not None
+        if labelled:
+            lab = pool_labels.assign(flow_id=pool_labels["flow_id"].astype(str)).set_index("flow_id")["label"]
+            pool["label"] = pool["flow_id"].map(lab).to_numpy()
+        selected = pd.read_csv(run_dir / "selected_flows.csv", dtype={"flow_id": str}, usecols=["flow_id"])
+        report(phase="ids", message=f"scoring {len(pool):,} flows with the IDS")
+        try:
+            scores, info = score_pool(pool, selected["flow_id"], labelled, model_path)
+        except IdsError as e:
+            block = {"available": False, "reason": str(e)}
+        else:
+            scores.to_csv(run_dir / IDS_SCORES_CSV, index=False)
+            _dump(run_dir / IDS_POOL_JSON, info)
+            ident = [c for c in IDENTIFICATION_COLUMNS if c in pool.columns]
+            pool[["flow_id"] + ident].to_csv(run_dir / IDS_IDENTITY_CSV, index=False)
+            block = {"available": True, "model": info["model"], "threshold": info["threshold"],
+                     "n_flows_in": info["n_flows_in"], "n_flagged": info["n_flagged"],
+                     "files": [IDS_SCORES_CSV, IDS_POOL_JSON, IDS_IDENTITY_CSV],
+                     # checked when the set is re-uploaded with its scores (import_prepared)
+                     "sha256": {f: sha256_file(run_dir / f) for f in (IDS_SCORES_CSV, IDS_POOL_JSON)}}
+    man.setdefault("prepared_set", {})["ids_analysis"] = block
+    _dump(run_dir / MANIFEST, man)
+    return block
 
 
 def _class_counts(meta: dict, man: dict) -> dict[str, Any]:
@@ -272,6 +329,11 @@ def import_prepared(files: dict[str, bytes], results_root: Path) -> str:
 
     from ..ingest.unified import (SELECTED_COLUMNS, InputContractError, load_input_run)
 
+    files = {k: v for k, v in files.items() if k != "ids_flows_identity.csv"}   # addresses never travel
+    ids_files = {k: files.pop(k) for k in IDS_IMPORT_FILES if files.get(k)}
+    if sum(len(b) for b in ids_files.values()) > MAX_IMPORT_IDS_BYTES:
+        raise PrepareError(f"the IDS scores are larger than {MAX_IMPORT_IDS_BYTES // 1024 ** 2} MB",
+                           "too_large", 413)
     total = sum(len(b) for b in files.values())
     if total > MAX_IMPORT_BYTES:
         raise PrepareError(f"a prepared set is small (<= {MAX_SELECTED} flows); these files are "
@@ -343,6 +405,7 @@ def import_prepared(files: dict[str, bytes], results_root: Path) -> str:
         raise PrepareError("features.csv does not have the prepared-set columns (identification "
                            "columns + 78 CIC-IDS2017 features + selection columns)",
                            "invalid_prepared_set", 400)
+    ids_scores = _check_ids_import(ids_files, ps) if ids_files else None
     kind = {"csv": "csv_runs", "pcap": "pcap_runs"}.get(meta.get("source_type"))
     if kind is None:
         raise PrepareError("manifest input_metadata.source_type must be csv or pcap",
@@ -367,6 +430,12 @@ def import_prepared(files: dict[str, bytes], results_root: Path) -> str:
                                      f"says {meta.get('rows_selected')} (max {MAX_SELECTED})")
         if run.selected["flow_id"].duplicated().any():
             raise InputContractError("features.csv has duplicate flow_id values")
+        if ids_scores is not None:
+            marked = set(ids_scores.loc[ids_scores["selected"], "flow_id"])
+            if marked != set(run.selected["flow_id"].astype(str)):
+                raise InputContractError("ids_scores.csv marks other flows as selected than features.csv holds")
+            for f, b in ids_files.items():
+                (out / f).write_bytes(b)
         man.setdefault("imported", {})
         man["imported"] = {"at": _now(), "from_prepared_set": ps.get("id"),
                            "identification_columns": "removed (restored as empty)" if stripped else "kept"}
@@ -382,6 +451,31 @@ def import_prepared(files: dict[str, bytes], results_root: Path) -> str:
         shutil.rmtree(out, ignore_errors=True)
         raise PrepareError(f"not a usable prepared set: {e}", "invalid_prepared_set", 400) from e
     return f"{kind}/{name}"
+
+
+def _check_ids_import(ids_files: dict[str, bytes], ps: dict[str, Any]):
+    """The two IDS files of a re-uploaded set: both or neither, unedited (manifest sha256), readable."""
+    import io
+
+    import pandas as pd
+
+    if set(ids_files) != set(IDS_IMPORT_FILES):
+        raise PrepareError("upload both ids_scores.csv and ids_pool.json (or neither)", "invalid_prepared_set", 400)
+    want = ((ps.get("ids_analysis") or {}).get("sha256") or {})
+    for f, b in ids_files.items():
+        if not want.get(f) or hashlib.sha256(b).hexdigest() != want[f]:
+            raise PrepareError(f"{f} does not match the manifest's IDS analysis (sha256): the files were edited "
+                               "or come from a different analysis", "invalid_prepared_set", 400)
+    try:
+        info = json.loads(ids_files["ids_pool.json"].decode("utf-8"))
+        scores = pd.read_csv(io.BytesIO(ids_files["ids_scores.csv"]), dtype={"flow_id": str})
+    except (UnicodeDecodeError, ValueError) as e:
+        raise PrepareError(f"the IDS files are not readable ({e})", "invalid_prepared_set", 400) from e
+    if not {"flow_id", "score", "selected"} <= set(scores.columns) or not (info.get("model") or {}).get("sha256"):
+        raise PrepareError("ids_scores.csv / ids_pool.json do not have the IDS analysis fields",
+                           "invalid_prepared_set", 400)
+    scores["selected"] = scores["selected"].astype(str).str.lower().eq("true")
+    return scores
 
 
 # ---------------------------------------------------------------------------

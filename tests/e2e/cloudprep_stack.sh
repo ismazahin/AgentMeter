@@ -16,12 +16,13 @@ done
 export DEV_RUN_SECRET="dev-run-secret-$(openssl rand -hex 12)" DEV_BACKEND_SECRET="dev-backend-secret-$(openssl rand -hex 12)"
 PREP_SECRET="dev-cloud-prep-$(openssl rand -hex 12)"
 CP_URL="http://127.0.0.1:$WP/functions/v1/agentmeter"
+FIXED_PREP_URL="http://127.0.0.1:$CPP"; [ -n "${PREP_REGISTERED:-}" ] && FIXED_PREP_URL=""
 CLOUD_PREP_SECRET="$PREP_SECRET" PORT="$CPP" PYTHONPATH="$REPO" setsid python "$REPO/cloudprep/app.py" > "$OUT/cloudprep.log" 2>&1 &
 CPID=$!
 cd "$REPO/controlplane"
 ACCESS_TOKEN_SECRET="dev-access-$(openssl rand -hex 16)" RUN_TOKEN_SECRET="$DEV_RUN_SECRET" BACKEND_SECRET="$DEV_BACKEND_SECRET" \
 PASSWORD_PEPPER="dev-pepper-$(openssl rand -hex 12)" ALLOW_HTTP_BACKEND=1 ALLOWED_ORIGINS="http://127.0.0.1:$PP" BACKEND_OFFLINE_AFTER_S=12 \
-CLOUD_PREP_URL="http://127.0.0.1:$CPP" CLOUD_PREP_SECRET="$PREP_SECRET" \
+CLOUD_PREP_URL="$FIXED_PREP_URL" CLOUD_PREP_SECRET="$PREP_SECRET" \
 AGENTMETER_ADMIN_USER=admin AGENTMETER_ADMIN_PASSWORD="admin-password-123" DATA_DIR="$STATE" PORT="$WP" \
   setsid node --experimental-transform-types --no-warnings dev-server.ts > "$OUT/controlplane.log" 2>&1 &
 WPID=$!
@@ -34,7 +35,8 @@ cleanup() {
 }
 trap cleanup EXIT
 for _ in $(seq 1 60); do curl -fsS "$CP_URL/api/health" >/dev/null 2>&1 && curl -fsS "http://127.0.0.1:$CPP/health" >/dev/null 2>&1 && break; sleep 1; done
-export CP_URL
+export CP_URL PREP_SECRET CPP
 cd "$REPO"
-# CLOUDPREP_FLOWS picks the walk-throughs (default: both); each gets its own folder
+# CLOUDPREP_FLOWS picks the walk-throughs (default: both); each gets its own folder.
+# PREP_REGISTERED=1: no fixed CLOUD_PREP_URL, the service must register itself (prep_button_flow).
 for f in ${CLOUDPREP_FLOWS:-cloudprep_flow analyse_flow}; do node "tests/e2e/$f.js" "$OUT/$f"; done

@@ -72,6 +72,11 @@ if [ "$WHAT" = all ] || [ "$WHAT" = stacks ]; then
     if [ "$code" -ne 0 ]; then FAILED=1; note "✗ $stack: exit $code — $(tail -1 "$OUT/$stack.out")"
     else note "✓ $stack: $(tail -1 "$OUT/$stack.out")"; fi
   done
+  # the Start button: no fixed service address, the service registers itself
+  PREP_REGISTERED=1 CLOUDPREP_FLOWS=prep_button_flow timeout 600 bash tests/e2e/cloudprep_stack.sh "$OUT/prep_button" > "$OUT/prep_button.out" 2>&1
+  code=$?
+  if [ "$code" -ne 0 ]; then FAILED=1; note "✗ prep_button: exit $code — $(tail -1 "$OUT/prep_button.out")"
+  else note "✓ prep_button: $(tail -1 "$OUT/prep_button.out")"; fi
 fi
 
 if [ "$WHAT" = all ] || [ "$WHAT" = unit ]; then

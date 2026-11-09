@@ -16,12 +16,7 @@ function loadAnalyse(p, q) {
   var id = p[1];
   $("an-start").hidden = !!id; $("an-detail").hidden = !id;
   if (id) { anDetail(id); return; }
-  var un = $("an-unavailable");
-  un.hidden = anCloud();
-  un.innerHTML = !CP ? "Analyse traffic needs the control plane (the hosted site); on a single GPU server, use New benchmark."
-    : "<b>The preparation service is not running.</b> Analyses run on it (no GPU). On the computer that hosts it, run " +
-      "<code>python scripts/prep_local.py</code> and keep the window open, then reload this page.";
-  $("an-go").disabled = !anCloud();
+  anServiceNotice();
   if (BACKEND && BACKEND.cloud_prep_max_mb) $("an-limit").textContent = "Maximum upload: " + BACKEND.cloud_prep_max_mb + " MB — use Import from a link for larger files";
   if (anCloud()) cpFetch("/api/prep/wake", { method: "POST" }).then(function () { /* best effort: wakes a sleeping service */ });
   anList();
@@ -31,6 +26,55 @@ tablist(document.querySelector("#an-start .tabs"), function (t) {
   AN.src = t.id === "tab-an-url" ? "url" : "file";
   selectTab(anTabs, t);
   $("an-src-file").hidden = AN.src !== "file"; $("an-src-url").hidden = AN.src !== "url";
+});
+
+// ---------- the preparation service: Start / Stop (scripts/prep_local.py on the owner's PC) ----------
+// The buttons open agentmeter-prep://start|stop, which `python scripts/prep_local.py install` registered
+// on that PC; the browser asks once ("Open AgentMeter prep?"). The page then watches /api/backend
+// until the service has registered (or gone), and enables the upload.
+var AN_SVC = { waiting: null, until: 0 };
+function anServiceNotice() {
+  var un = $("an-unavailable"), svc = BACKEND && BACKEND.prep_service, w = AN_SVC.waiting;
+  $("an-go").disabled = !anCloud();
+  if (!CP) { un.hidden = false; un.className = "notice warn"; un.innerHTML = "Analyse traffic needs the control plane (the hosted site); on a single GPU server, use New benchmark."; return; }
+  if (anCloud()) {
+    un.hidden = !(svc && svc.online);
+    un.className = "notice small";
+    un.innerHTML = 'Preparation service running on your computer. <a href="agentmeter-prep://stop" id="an-svc-stop">Stop it</a>' +
+      (w === "stop" ? ' <span class="muted" id="an-svc-wait">Stopping…</span>' : "");
+    return;
+  }
+  un.hidden = false; un.className = "notice warn";
+  un.innerHTML = '<b>The preparation service is not running.</b> Analyses run on your computer (no GPU needed).' +
+    '<div class="actions" style="margin-top:8px"><a class="btn primary" href="agentmeter-prep://start" id="an-svc-start">Start the preparation service</a>' +
+    (w === "start" ? '<span class="small" id="an-svc-wait" role="status">Starting… your browser may ask to open AgentMeter prep (tick <i>Always allow</i>).</span>' : "") + '</div>' +
+    (w === "late" ? '<p class="small" id="an-svc-late" role="alert">It did not start. Check <code>results/prep_local.log</code>, or run <code>python scripts/prep_local.py</code> in a terminal to see why.</p>' : "") +
+    '<p class="small muted" style="margin-bottom:0">First time on this PC? Run <code>python scripts/prep_local.py install</code> once in the AgentMeter folder; the button works from then on.</p>';
+}
+function anWatchService(what) {
+  AN_SVC.waiting = what; AN_SVC.until = Date.now() + 120000;
+  anServiceNotice();
+  var token = pollToken;
+  (function tick() {
+    if (token !== pollToken) return;
+    cpFetch("/api/backend").then(function (r) {
+      if (token !== pollToken) return;
+      if (r.ok) BACKEND = r.data;
+      var up = anCloud();
+      if ((what === "start" && up) || (what === "stop" && !up)) {
+        AN_SVC.waiting = null; anServiceNotice();
+        if (up) cpFetch("/api/prep/wake", { method: "POST" }).then(function () { /* best effort */ });
+        return;
+      }
+      if (Date.now() > AN_SVC.until) { AN_SVC.waiting = what === "start" ? "late" : null; anServiceNotice(); return; }
+      setTimeout(tick, 3000);
+    });
+  })();
+}
+document.addEventListener("click", function (ev) {
+  var a = ev.target.closest && ev.target.closest("#an-svc-start, #an-svc-stop");
+  if (!a) return;
+  anWatchService(a.id === "an-svc-start" ? "start" : "stop");     // the link itself opens (the browser asks)
 });
 
 // ---------- the list of analyses ----------

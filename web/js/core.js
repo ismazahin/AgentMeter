@@ -268,7 +268,7 @@ function syncThemeToggle() {
   if (!b) return;
   b.setAttribute("aria-label", "Switch to " + next + " theme"); b.title = "Switch to " + next + " theme";
   var meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", next === "light" ? "#101418" : "#F4F2EC");
+  if (meta) meta.setAttribute("content", "#102A5C");            // the navy header band, in both themes
 }
 $("theme-toggle").addEventListener("click", function () {
   var t = resolvedTheme() === "dark" ? "light" : "dark";

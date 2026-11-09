@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#F4F2EC">
+<meta name="theme-color" content="#102A5C">
 <title>AgentMeter</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect x=%270%27 y=%2712%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%274%27 y=%278%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%278%27 y=%274%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%2712%27 y=%270%27 width=%274%27 height=%274%27 fill=%27%23C65C34%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,16 +39,18 @@
     --font: "Inter", "Aptos", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --serif: Georgia, "Times New Roman", serif;
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-    /* light variant (paper) */
-    --bg: #F4F2EC; --surface: #FBFAF7; --surface-2: #ECEBE4; --border: #D8D7CF; --border-2: #C4C2B8; --rule: #17232C;
-    --text: #17232C; --muted: #647078; --muted-2: #3E4A53;
-    --accent: #2455D6; --accent-ink: #FFFFFF; --accent-hover: #183FAE; --accent-text: #2455D6;
-    --accent-soft: #E7ECFA;
-    --warn: #C65C34; --warn-soft: #F8E9E2; --warn-text: #9E482D;
+    /* light variant. Palette (shared with landing-v2.html): complementary royal blue + orange,
+       and one colour that matches neither, lime, kept for primary buttons. */
+    --bg: #F4F6FB; --surface: #FFFFFF; --surface-2: #E9EDF6; --border: #D6DDEB; --border-2: #B7C2D8; --rule: #0F1B33;
+    --text: #0F1B33; --muted: #5A657A; --muted-2: #333F55;
+    --accent: #1E4BB8; --accent-ink: #FFFFFF; --accent-hover: #163A91; --accent-text: #1E4BB8;
+    --accent-soft: #DFE7FA;
+    --warn: #E8742A; --warn-soft: #FDE8D7; --warn-text: #A2470D;
+    --cta: #C8F25A; --cta-hover: #B8E83E; --cta-ink: #0F1B33; --band: #102A5C;
     --success: #2D6D56; --success-soft: #DFECE5;
     --danger: #B42323; --danger-soft: #F7E3E0;
-    --info-soft: #E7ECFA;
-    --series-1: #2455D6; --series-2: #C65C34;
+    --info-soft: #DFE7FA;
+    --series-1: #1E4BB8; --series-2: #E8742A;
     --mseries-1: #2a78d6; --mseries-2: #eda100; --mseries-3: #e87ba4; --mseries-4: #008300;
     --part-1: #3b4651; --part-2: #6f7a85; --part-3: #a3acb5; --part-4: #d2d7dc;
     --ag-1: #2a78d6; --ag-2: #eb6834; --ag-3: #1baf7a; --ag-4: #eda100; --ag-5: #e87ba4; --ag-6: #008300; --ag-7: #6250d6; --ag-8: #e34948;
@@ -56,30 +58,32 @@
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-    --bg: #101418; --surface: #161B20; --surface-2: #1D2329; --border: #2A3138; --border-2: #3A434C; --rule: #E9E7E1;
-    --text: #E9E7E1; --muted: #98A1A8; --muted-2: #C3C8CC;
-    --accent: #7D9CF5; --accent-ink: #0D1420; --accent-hover: #9DB4F8; --accent-text: #9DB4F8;
-    --accent-soft: #1C2540;
-    --warn: #E58A62; --warn-soft: #33211A; --warn-text: #F0A986;
+    --bg: #0B1222; --surface: #111B31; --surface-2: #17233D; --border: #22304D; --border-2: #33456A; --rule: #E8ECF5;
+    --text: #E8ECF5; --muted: #9AA6BE; --muted-2: #C7CFDF;
+    --accent: #7FA3F5; --accent-ink: #0B1222; --accent-hover: #9DB8F8; --accent-text: #9DB8F8;
+    --accent-soft: #1A2950;
+    --warn: #F59A5A; --warn-soft: #33210F; --warn-text: #FFB27A;
+    --cta-hover: #D6F77E;
     --success: #6CC3A0; --success-soft: #14291F;
     --danger: #FF8A8A; --danger-soft: #3A1717;
-    --info-soft: #1C2540;
-    --series-1: #5b8ae8; --series-2: #d9714a;
+    --info-soft: #1A2950;
+    --series-1: #7FA3F5; --series-2: #F59A5A;
     --mseries-1: #3987e5; --mseries-2: #c98500; --mseries-3: #d55181; --mseries-4: #008300;
     --part-1: #e3e7eb; --part-2: #aab3bc; --part-3: #707b86; --part-4: #434c55;
     --ag-1: #3987e5; --ag-2: #d95926; --ag-3: #199e70; --ag-4: #c98500; --ag-5: #d55181; --ag-6: #008300; --ag-7: #9085e9; --ag-8: #e66767;
     color-scheme: dark;
   } }
   :root[data-theme="dark"] {
-    --bg: #101418; --surface: #161B20; --surface-2: #1D2329; --border: #2A3138; --border-2: #3A434C; --rule: #E9E7E1;
-    --text: #E9E7E1; --muted: #98A1A8; --muted-2: #C3C8CC;
-    --accent: #7D9CF5; --accent-ink: #0D1420; --accent-hover: #9DB4F8; --accent-text: #9DB4F8;
-    --accent-soft: #1C2540;
-    --warn: #E58A62; --warn-soft: #33211A; --warn-text: #F0A986;
+    --bg: #0B1222; --surface: #111B31; --surface-2: #17233D; --border: #22304D; --border-2: #33456A; --rule: #E8ECF5;
+    --text: #E8ECF5; --muted: #9AA6BE; --muted-2: #C7CFDF;
+    --accent: #7FA3F5; --accent-ink: #0B1222; --accent-hover: #9DB8F8; --accent-text: #9DB8F8;
+    --accent-soft: #1A2950;
+    --warn: #F59A5A; --warn-soft: #33210F; --warn-text: #FFB27A;
+    --cta-hover: #D6F77E;
     --success: #6CC3A0; --success-soft: #14291F;
     --danger: #FF8A8A; --danger-soft: #3A1717;
-    --info-soft: #1C2540;
-    --series-1: #5b8ae8; --series-2: #d9714a;
+    --info-soft: #1A2950;
+    --series-1: #7FA3F5; --series-2: #F59A5A;
     --mseries-1: #3987e5; --mseries-2: #c98500; --mseries-3: #d55181; --mseries-4: #008300;
     --part-1: #e3e7eb; --part-2: #aab3bc; --part-3: #707b86; --part-4: #434c55;
     --ag-1: #3987e5; --ag-2: #d95926; --ag-3: #199e70; --ag-4: #c98500; --ag-5: #d55181; --ag-6: #008300; --ag-7: #9085e9; --ag-8: #e66767;
@@ -155,8 +159,8 @@
   /* ---------------- controls ---------------- */
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: var(--radius); border: 1px solid var(--border-2); background: var(--surface); color: var(--text); font: 600 14.5px var(--font); text-decoration: none; cursor: pointer; }
   @media (hover: hover) { .btn:hover { background: var(--surface-2); } }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  @media (hover: hover) { .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); } }
+  .btn.primary { background: var(--cta); border-color: var(--cta); color: var(--cta-ink); }
+  @media (hover: hover) { .btn.primary:hover { background: var(--cta-hover); border-color: var(--cta-hover); color: var(--cta-ink); } }
   .btn.danger { border-color: var(--danger); color: var(--danger); }
   @media (hover: hover) { .btn.danger:hover { background: var(--danger-soft); } }
   .btn.big { min-height: 52px; padding: 0 24px; font-size: 16px; }
@@ -601,8 +605,20 @@
      on wide screens. Only presentation — every id, route and behaviour is unchanged.
      ===================================================================================== */
   body { font-size: 15px; line-height: 1.55; }
-  .logo { color: var(--accent); letter-spacing: -.04em; }
-  .logo .mark-a { fill: var(--warn); }
+  .logo { color: var(--text); letter-spacing: -.04em; }
+  .logo .mark-a { fill: var(--cta); }
+
+  /* header (phones) and sidebar (wide screens) sit on the navy band in both themes: the colour
+     tokens are re-scoped here, so every control inside (nav, GPU badge, profile menu) follows. */
+  .top {
+    --bg: var(--band); --surface: #18346E; --surface-2: #1F3D7C; --border: rgba(238, 242, 250, .16); --border-2: rgba(238, 242, 250, .28);
+    --text: #EEF2FA; --muted: #A9B6D6; --muted-2: #CBD5EC;
+    --accent: #C8F25A; --accent-text: #C8F25A; --accent-soft: rgba(200, 242, 90, .16); --accent-ink: #0F1B33;
+    --success: #6FE3A5; --success-soft: rgba(111, 227, 165, .14);
+    --danger: #FF9A9A; --danger-soft: rgba(255, 154, 154, .14);
+    --warn: #FFB27A; --warn-soft: rgba(255, 178, 122, .14); --warn-text: #FFB27A;
+    color: var(--text); color-scheme: dark;
+  }
   h1 { font-weight: 650; font-size: clamp(30px, 3.8vw, 46px); line-height: 1.05; letter-spacing: -.045em; }
   h2 { font-family: var(--serif); font-weight: 400; font-size: 23px; line-height: 1.2; letter-spacing: -.02em; }
   h3 { font-weight: 650; }
@@ -644,8 +660,8 @@
   /* controls: square, quiet */
   .btn { border-radius: var(--radius); font-size: 13.5px; font-weight: 650; background: transparent; }
   @media (hover: hover) { .btn:hover { background: var(--surface-2); } }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-  @media (hover: hover) { .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); } }
+  .btn.primary { background: var(--cta); border-color: var(--cta); color: var(--cta-ink); }
+  @media (hover: hover) { .btn.primary:hover { background: var(--cta-hover); border-color: var(--cta-hover); color: var(--cta-ink); } }
   input[type="text"], input[type="url"], input[type="number"], input[type="password"], input[type="search"], textarea, select { background: var(--surface); border-radius: var(--radius); }
   .drop { border-radius: var(--radius-lg); background: var(--surface); }
   .model { border-radius: var(--radius); background: var(--surface); }

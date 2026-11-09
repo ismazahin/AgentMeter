@@ -56,21 +56,22 @@
     --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
     /* surfaces */
-    --page: #ffffff; --band: #eff1f4; --panel: #ffffff; --panel-2: #fafafa;
-    --chip: #f4f4f5; --chip-2: #e5e5e7;
+    --page: #F4F6FB; --band: #E9EDF6; --panel: #ffffff; --panel-2: #F8FAFD;
+    --chip: #EEF1F8; --chip-2: #DFE5F1;
     /* text + rules */
-    --ink: #0a0a0a; --ink-2: #3f3f46; --muted: #71717a;
-    --line: #e7e7ea; --line-strong: #d4d4d8;
+    --ink: #0F1B33; --ink-2: #333F55; --muted: #5A657A;
+    --line: #DEE4EF; --line-strong: #C9D2E3;
     /* inverse (black pills / primary buttons) */
-    --inv: #0a0a0a; --inv-ink: #ffffff; --inv-hover: #3f3f46;
-    /* confined brand accent */
-    --brand: #7f4bf3; --brand-hover: #6a35e0; --plum: #3f1238;
+    --inv: #0F1B33; --inv-ink: #ffffff; --inv-hover: #333F55;
+    /* confined brand accent (royal blue; lime is kept for call-to-action buttons) */
+    --brand: #1E4BB8; --brand-hover: #163A91; --plum: #102A5C;
+    --cta-bg: #C8F25A; --cta-hover: #B8E83E; --cta-ink: #0F1B33;
     /* chart vocabulary */
     --good-zone: rgba(144, 238, 144, .25); --good-zone-line: rgba(110, 200, 110, .55);
-    --weak-zone: #f7f7f8; --frontline: #0a0a0a;
+    --weak-zone: #F1F4FA; --frontline: #0F1B33;
     --hi-1: var(--brand); --hi-2: #f2c200; --hi-3: #f06a2a;    /* highlight-card squares */
-    --bar-strong: #18181b; --bar-soft: #a1a1aa;                 /* single-series bars */
-    --series-a: #2563eb; --series-b: #f59e0b;                   /* two-series bars */
+    --bar-strong: #0F1B33; --bar-soft: #9AA6BE;                 /* single-series bars */
+    --series-a: #1E4BB8; --series-b: #E8742A;                   /* two-series bars */
     /* vendor identity (data colour) */
     /* Validated with the dataviz palette checker (--pairs all, 5 slots): normal-vision
        ΔE ≥ 15.6; CVD ΔE 6.9 is in the floor band, legal because every bar and dot
@@ -89,17 +90,18 @@
     --nav-h: 40px;
   }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-    --page: #0c0c0e; --band: #161619; --panel: #121215; --panel-2: #17171a;
-    --chip: #1f1f23; --chip-2: #2b2b30;
-    --ink: #f2f2f3; --ink-2: #c6c6cc; --muted: #8f8f98;
-    --line: #26262b; --line-strong: #35353b;
-    --inv: #f2f2f3; --inv-ink: #0c0c0e; --inv-hover: #c6c6cc;
-    --brand: #a98bff; --brand-hover: #bda6ff; --plum: #e9d4ff;
+    --page: #0B1222; --band: #0E172B; --panel: #111B31; --panel-2: #17233D;
+    --chip: #1B2844; --chip-2: #26365A;
+    --ink: #E8ECF5; --ink-2: #C7CFDF; --muted: #9AA6BE;
+    --line: #22304D; --line-strong: #33456A;
+    --inv: #E8ECF5; --inv-ink: #0B1222; --inv-hover: #C7CFDF;
+    --brand: #7FA3F5; --brand-hover: #9DB8F8; --plum: #C9D6F7;
+    --cta-hover: #D6F77E;
     --v-meta: #3987e5; --v-mistral: #cf8c00;
     --good-zone: rgba(110, 220, 130, .13); --good-zone-line: rgba(110, 220, 130, .35);
-    --weak-zone: #18181b; --frontline: #f2f2f3;
-    --bar-strong: #e4e4e7; --bar-soft: #5b5b63;
-    --series-a: #4d8bff; --series-b: #f5a524;
+    --weak-zone: #0F1A30; --frontline: #E8ECF5;
+    --bar-strong: #DCE3F2; --bar-soft: #4A5A7E;
+    --series-a: #7FA3F5; --series-b: #F59A5A;
     --healthy: #5ad48a; --healthy-bg: #10301d;
     --degraded: #f0b657; --degraded-bg: #382810;
     --critical: #ff8a8a; --critical-bg: #3a1717;
@@ -108,17 +110,18 @@
     --warn: #f0c088; --warn-bg: #352514; --warn-line: #a4652a;
   } }
   :root[data-theme="dark"] {
-    --page: #0c0c0e; --band: #161619; --panel: #121215; --panel-2: #17171a;
-    --chip: #1f1f23; --chip-2: #2b2b30;
-    --ink: #f2f2f3; --ink-2: #c6c6cc; --muted: #8f8f98;
-    --line: #26262b; --line-strong: #35353b;
-    --inv: #f2f2f3; --inv-ink: #0c0c0e; --inv-hover: #c6c6cc;
-    --brand: #a98bff; --brand-hover: #bda6ff; --plum: #e9d4ff;
+    --page: #0B1222; --band: #0E172B; --panel: #111B31; --panel-2: #17233D;
+    --chip: #1B2844; --chip-2: #26365A;
+    --ink: #E8ECF5; --ink-2: #C7CFDF; --muted: #9AA6BE;
+    --line: #22304D; --line-strong: #33456A;
+    --inv: #E8ECF5; --inv-ink: #0B1222; --inv-hover: #C7CFDF;
+    --brand: #7FA3F5; --brand-hover: #9DB8F8; --plum: #C9D6F7;
+    --cta-hover: #D6F77E;
     --v-meta: #3987e5; --v-mistral: #cf8c00;
     --good-zone: rgba(110, 220, 130, .13); --good-zone-line: rgba(110, 220, 130, .35);
-    --weak-zone: #18181b; --frontline: #f2f2f3;
-    --bar-strong: #e4e4e7; --bar-soft: #5b5b63;
-    --series-a: #4d8bff; --series-b: #f5a524;
+    --weak-zone: #0F1A30; --frontline: #E8ECF5;
+    --bar-strong: #DCE3F2; --bar-soft: #4A5A7E;
+    --series-a: #7FA3F5; --series-b: #F59A5A;
     --healthy: #5ad48a; --healthy-bg: #10301d;
     --degraded: #f0b657; --degraded-bg: #382810;
     --critical: #ff8a8a; --critical-bg: #3a1717;
@@ -216,12 +219,10 @@
   .view-hero .note { max-width: 72ch; color: var(--ink-2); }
   .cta {
     display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px;
-    font: 500 13px/1 var(--sans); color: #fff; background: var(--brand); border: 0; border-radius: var(--radius-lg);
+    font: 600 13px/1 var(--sans); color: var(--cta-ink); background: var(--cta-bg); border: 0; border-radius: var(--radius-lg);
     cursor: pointer; white-space: nowrap; transition: background-color .15s ease;
   }
-  .cta:hover { background: var(--brand-hover); }
-  :root[data-theme="dark"] .cta { color: #140a2a; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cta { color: #140a2a; } }
+  .cta:hover { background: var(--cta-hover); }
   .cta svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .index-card { grid-column: span 12; margin-top: 8px; background: var(--panel); border-radius: var(--radius-lg); padding: 18px 20px; font-size: 12.5px; }
   @media (min-width: 1024px) { .index-card { grid-column: span 9; margin-right: 96px; } }

@@ -42,6 +42,9 @@
    "name": "Data sets"
   },
   {
+   "name": "Analyse traffic"
+  },
+  {
    "name": "Compare"
   },
   {
@@ -807,6 +810,36 @@
       }
      }
     ]
+   }
+  },
+  "/api/analyses": {
+   "get": {
+    "operationId": "get__api_analyses",
+    "tags": [
+     "Analyse traffic"
+    ],
+    "summary": "Your traffic analyses (an admin: everyone's)",
+    "security": [
+     {
+      "userToken": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "Finished cloud preparations whose service scored the whole candidate pool with the IDS (no GPU): {analyses: [{job_id, owner, mine, filename, url, set, key, ids: {threshold, n_flows_in, n_flagged, n_selected, labelled, model}, files, finished_at}]}. key: the data set's fingerprint (or name:<kind>/<name>)."
    }
   },
   "/api/auth/login": {
@@ -1817,7 +1850,7 @@
       }
      }
     },
-    "description": "Sessions that ran on it keep their results. The web app first deletes the set's files on the GPU server (POST /api/prepared/{kind}/{name}/delete). Audit: dataset.delete.",
+    "description": "Sessions that ran on it keep their results. The web app first deletes the set's files on the GPU server (POST /api/prepared/{kind}/{name}/delete). A traffic analysis's stored files (the owner-only address file included) are removed too. Audit: dataset.delete.",
     "requestBody": {
      "required": true,
      "content": {
@@ -2319,8 +2352,19 @@
         }
        }
       }
+     },
+     "403": {
+      "description": "owner_only",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
      }
     },
+    "description": "manifest.json, features.csv, labels.csv; a traffic analysis adds ids_scores.csv, ids_pool.json and ids_flows_identity.csv (source/destination addresses: the job's owner only, not admins).",
     "parameters": [
      {
       "name": "id",

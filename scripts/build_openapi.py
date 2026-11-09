@@ -102,7 +102,8 @@ op(CP, "post", "/api/prep/jobs", "Data preparation", "Start a cloud preparation 
 op(CP, "post", "/api/prep/wake", "Data preparation", "Wake the cloud preparation service (cold start)", USER)
 op(CP, "get", "/api/prep/jobs/{id}", "Data preparation", "A cloud preparation's state and progress", USER, [PREP_ID])
 op(CP, "post", "/api/prep/jobs/{id}/start", "Data preparation", "Start preparing (after the upload)", USER, [PREP_ID])
-op(CP, "get", "/api/prep/jobs/{id}/files/{name}", "Data preparation", "A prepared file", USER, [PREP_ID, FILE])
+op(CP, "get", "/api/prep/jobs/{id}/files/{name}", "Data preparation", "A prepared file", USER, [PREP_ID, FILE], errors=["403 owner_only"],
+   desc="manifest.json, features.csv, labels.csv; a traffic analysis adds ids_scores.csv, ids_pool.json and ids_flows_identity.csv (source/destination addresses: the job's owner only, not admins).")
 op(CP, "post", "/api/prep/jobs/{id}/events", "Data preparation", "Progress, done or failed (from the preparation service)", PREP_SIGNED, [PREP_ID],
    body={"event": "object", "done": "object", "failed": "object"})
 # ------------------------------------------------------------------ control plane: sessions and analysis
@@ -117,7 +118,9 @@ op(CP, "get", "/api/datasets", "Data sets", "Names and deletions of data sets", 
 op(CP, "post", "/api/datasets/rename", "Data sets", "Rename a data set (owner or admin)", USER, body={"key": "string", "set": "string", "label": "string"},
    errors=["403 forbidden"], desc="key: the set's fingerprint (sha256) or name:<kind>/<name>. Owner: whoever ran the first session on it. Audit: dataset.rename.")
 op(CP, "post", "/api/datasets/delete", "Data sets", "Remove a data set from Data sets (owner or admin)", USER, body={"key": "string", "set": "string"},
-   errors=["403 forbidden"], desc="Sessions that ran on it keep their results. The web app first deletes the set's files on the GPU server (POST /api/prepared/{kind}/{name}/delete). Audit: dataset.delete.")
+   errors=["403 forbidden"], desc="Sessions that ran on it keep their results. The web app first deletes the set's files on the GPU server (POST /api/prepared/{kind}/{name}/delete). A traffic analysis's stored files (the owner-only address file included) are removed too. Audit: dataset.delete.")
+op(CP, "get", "/api/analyses", "Analyse traffic", "Your traffic analyses (an admin: everyone's)", USER,
+   desc="Finished cloud preparations whose service scored the whole candidate pool with the IDS (no GPU): {analyses: [{job_id, owner, mine, filename, url, set, key, ids: {threshold, n_flows_in, n_flagged, n_selected, labelled, model}, files, finished_at}]}. key: the data set's fingerprint (or name:<kind>/<name>).")
 op(CP, "delete", "/api/sessions/{id}", "Sessions", "Delete a session (owner or admin)", USER, [ID], errors=["403 forbidden"], desc="Results and stored files are removed for everyone. Audit: session.delete.")
 op(CP, "get", "/api/sessions/{id}/results", "Sessions", "The full stored results (session_results.json)", USER, [ID])
 op(CP, "get", "/api/sessions/{id}/constraints", "Sessions", "Fit check of the results against limits (query: the limits)", USER, [ID])

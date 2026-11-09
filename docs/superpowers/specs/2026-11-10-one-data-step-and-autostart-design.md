@@ -1,6 +1,6 @@
 # One data step for everything, and a preparation service that starts by itself — design
 
-Date: 2026-11-10 · Status: for approval · Builds on `2026-11-09-gpu-free-analyse-traffic-design.md`
+Date: 2026-11-10 · Status: approved 2026-11-10 · Builds on `2026-11-09-gpu-free-analyse-traffic-design.md`
 
 ## Intent and why
 

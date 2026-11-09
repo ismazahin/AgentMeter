@@ -47,3 +47,16 @@ def test_the_service_runs_straight_from_a_checkout(tmp_path):
     finally:
         p.terminate()
         p.wait(10)
+
+
+def test_cloudflared_is_found_in_the_repo_folder_without_path(tmp_path, monkeypatch):
+    monkeypatch.setattr(L.shutil, "which", lambda name: None)
+    monkeypatch.delenv("CLOUDFLARED", raising=False)
+    monkeypatch.setattr(L, "REPO", tmp_path)
+    assert L.find_cloudflared() is None
+    (tmp_path / "cloudflared.exe").write_bytes(b"MZ")
+    assert L.find_cloudflared() == str(tmp_path / "cloudflared.exe")
+    other = tmp_path / "bin" / "cf.exe"
+    other.parent.mkdir()
+    other.write_bytes(b"MZ")
+    assert L.find_cloudflared(str(other)) == str(other)

@@ -64,3 +64,5 @@ data/cicids_raw/
 
 # the local preparation service's signing secret (scripts/prep_local.py)
 .cloudprep_secret
+cloudflared.exe
+/cloudflared

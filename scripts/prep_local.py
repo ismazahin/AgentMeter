@@ -9,7 +9,7 @@ preparation work; when you stop it (Ctrl+C), the web app prepares in the browser
     python scripts/prep_local.py --tunnel-token <t> --hostname prep.example.org   # a named tunnel (fixed address)
 
 Needs: Python with requirements.txt (+ requirements-pcap.txt and cicflowmeter for PCAPs), cloudflared
-(Windows: winget install --id Cloudflare.cloudflared), and the Supabase CLI linked to your project
+(on PATH, or cloudflared.exe downloaded into the repo folder), and the Supabase CLI linked to your project
 (npx supabase login; npx supabase link). The service's secret is created once and kept in
 .cloudprep_secret (git-ignored); the control plane gets it with `supabase secrets set`.
 """
@@ -58,6 +58,20 @@ def supabase_cmd(url: str, secret: str) -> list[str]:
     return [npx, "supabase", "secrets", "set", f"CLOUD_PREP_URL={url}", f"CLOUD_PREP_SECRET={secret}"]
 
 
+def find_cloudflared(given: Optional[str] = None) -> Optional[str]:
+    """--cloudflared / CLOUDFLARED, else on PATH, else cloudflared(.exe) in the repo folder."""
+    for c in (given, os.environ.get("CLOUDFLARED")):
+        if c and Path(c).is_file():
+            return str(Path(c))
+    on_path = shutil.which("cloudflared")
+    if on_path:
+        return on_path
+    for name in ("cloudflared.exe", "cloudflared"):
+        if (REPO / name).is_file():
+            return str(REPO / name)
+    return None
+
+
 def wait_health(url: str, timeout_s: float) -> bool:
     end = time.monotonic() + timeout_s
     while time.monotonic() < end:
@@ -78,15 +92,18 @@ def main(argv: Optional[list[str]] = None) -> int:
                     help="a named Cloudflare tunnel's token (with --hostname: a fixed address)")
     ap.add_argument("--hostname", default=os.environ.get("CLOUD_PREP_HOSTNAME"),
                     help="the named tunnel's public hostname, e.g. prep.example.org")
+    ap.add_argument("--cloudflared", help="path to the cloudflared program (default: on PATH, or in the repo folder)")
     ap.add_argument("--no-supabase", action="store_true", help="do not run `supabase secrets set` (print it instead)")
     a = ap.parse_args(argv)
     if a.tunnel_token and not a.hostname:
         ap.error("--tunnel-token needs --hostname (the address the tunnel serves)")
 
-    cloudflared = shutil.which("cloudflared")
+    cloudflared = find_cloudflared(a.cloudflared)
     if not cloudflared:
-        print("cloudflared is not installed. Windows: winget install --id Cloudflare.cloudflared "
-              "(then open a new terminal); macOS: brew install cloudflared; Linux: see "
+        print("cloudflared was not found. Windows (in this folder, PowerShell):\n"
+              "  Invoke-WebRequest -Uri https://github.com/cloudflare/cloudflared/releases/latest/download/"
+              "cloudflared-windows-amd64.exe -OutFile cloudflared.exe\n"
+              "or: winget install --id Cloudflare.cloudflared; macOS: brew install cloudflared; Linux: "
               "https://github.com/cloudflare/cloudflared/releases", file=sys.stderr)
         return 2
     secret = load_or_create_secret()

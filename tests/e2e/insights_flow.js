@@ -264,7 +264,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
 
     // Sessions list: a short note from the row; no Delete without a control plane (nothing to delete it with)
     await p.goto(ORIGIN + '/app.html#/sessions'); await p.waitForSelector('#sessions-table');
-    await p.click(`tr:has(a[data-open="${pcap}"]) [data-note]`); await p.waitForSelector('.note-row textarea');
+    await p.click(`tr:has(a[data-open="${pcap}"]) .rmenu-btn`); await p.click(`tr:has(a[data-open="${pcap}"]) [data-note]`); await p.waitForSelector('.note-row textarea');
     await p.fill('.note-row textarea', 'pcap smoke test'); await p.click('.note-row button[type="submit"]');
     const snip = await p.waitForSelector(`#sessions-table tr:has(a[data-open="${pcap}"]) .note-snip`, { timeout: 15000 }).then(e => e.textContent()).catch(() => '');
     log(snip === 'pcap smoke test' && !(await p.$('#sessions-table [data-del]')), 'sessions: "Note" from the list saves; no Delete button without a control plane (' + JSON.stringify(snip) + ')');

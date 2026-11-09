@@ -9,13 +9,14 @@
 import { requireUser } from "./auth.ts";
 import { backendState } from "./backend.ts";
 import { randomHex, signToken } from "./crypto.ts";
+import { datasetOwner } from "./datasets.ts";
 import { loadLimits } from "./settings.ts";
 import { type Env, fail, json, nowIso, nowS, readJson } from "./util.ts";
 
 export const RUN_TTL_S = 300;
 export const RUN_KINDS = ["prepare", "import", "benchmark", "resume"];
 export const READ_KINDS = ["read", "files"];
-export const CONTROL_KINDS = ["stop", "verify", "schedule"];   // never counted against the hourly limit
+export const CONTROL_KINDS = ["stop", "verify", "schedule", "delete_set"];   // never counted against the hourly limit
 const JOB_ID = /^job_\d{8}_\d{6}_([0-9a-f]{6}|[0-9a-f]{32})$/;
 const SET_ID = /^(csv_runs|pcap_runs)\/[A-Za-z0-9_.-]{1,80}$/;
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]{1,96}$/;
@@ -50,6 +51,17 @@ export async function authorize(req: Request, env: Env): Promise<Response> {
     // owner (token sub) unless the token says admin, and caps active schedules per user
     if (!JOB_ID.test(String(b.job_id || ""))) fail(400, "bad_request", "job_id: the session to repeat");
     return json({ token: await signToken(env.RUN_TOKEN_SECRET, { ...base, job_id: b.job_id, admin: a.user.role === "admin" }),
+                  expires_in: RUN_TTL_S, backend: be.url });
+  }
+  if (kind === "delete_set") {
+    // delete a prepared set's files (Data sets › Delete). The control plane decides who owns a data
+    // set (datasets.ts: whoever ran its first finished session), so a non-owner gets no token, and
+    // owner: true tells the backend the check was made here. A set nobody has benchmarked has no owner
+    // here: the backend checks who prepared it (token sub). It refuses while a benchmark uses the set.
+    if (!SET_ID.test(String(b.set || ""))) fail(400, "bad_request", "set: csv_runs/<name> or pcap_runs/<name>");
+    const admin = a.user.role === "admin", owner = await datasetOwner(env, "name:" + b.set);
+    if (!admin && owner && owner !== a.user.id) fail(403, "forbidden", "only the person who first benchmarked this data set (or an admin) can delete it");
+    return json({ token: await signToken(env.RUN_TOKEN_SECRET, { ...base, set: b.set, admin, owner: !!owner && owner === a.user.id }),
                   expires_in: RUN_TTL_S, backend: be.url });
   }
   if (kind === "stop") {

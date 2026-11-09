@@ -257,8 +257,9 @@ function loadRecentSets() {
     $("svc-recent-sets").textContent = "GPU offline: sets prepared on the GPU server are listed here while it runs. Saved sets above stay available.";
     return;
   }
-  api("/api/jobs?limit=50").then(function (r) {
-    var sets = ((r.ok && r.data.jobs) || []).filter(function (j) { return j.kind === "prepare" && j.status === "done" && j.prepared; });
+  Promise.all([api("/api/jobs?limit=50"), datasetMeta()]).then(function (rs) {
+    var r = rs[0], gone = function (j) { return dsGone(rs[1], "name:" + j.prepared, [j.prepared], j.finished_at); };   // Data sets › Delete
+    var sets = ((r.ok && r.data.jobs) || []).filter(function (j) { return j.kind === "prepare" && j.status === "done" && j.prepared && !gone(j); });
     $("svc-recent-sets").innerHTML = !r.ok ? esc(r.data.error) : !sets.length ? "Nothing prepared on this server yet." :
       '<div class="table-wrap"><table id="svc-sets-table"><thead><tr><th>Prepared set</th><th>From</th><th>Prepared</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
       sets.slice(0, 10).map(function (j) {
@@ -272,9 +273,12 @@ function loadStoredSets() {
   $("svc-stored-card").hidden = !CP;
   if (!CP) return;
   $("svc-stored-error").hidden = true;
-  allSessions().then(function (r) {
+  Promise.all([allSessions(), datasetMeta()]).then(function (rs) {
+    var r = rs[0], gone = function (s) {                                 // Data sets › Delete
+      return dsGone(rs[1], s.prepared_set_sha256 || "name:" + s.run_name, s.run_name ? [s.run_name] : [], s.finished_at || s.created_at);
+    };
     var seen = {}, sets = ((r.ok && r.data.sessions) || []).filter(function (s) {
-      var ok = (s.status === "Done" || s.status === "Demo") && (s.files || []).indexOf("manifest.json") >= 0 && (s.files || []).indexOf("features.csv") >= 0;
+      var ok = (s.status === "Done" || s.status === "Demo") && (s.files || []).indexOf("manifest.json") >= 0 && (s.files || []).indexOf("features.csv") >= 0 && !gone(s);
       var key = s.prepared_set_sha256 || s.session_id;
       if (!ok || seen[key]) return false;
       seen[key] = 1; return true;

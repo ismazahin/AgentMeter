@@ -146,6 +146,7 @@ def session_summary(job: dict[str, Any], res: Optional[dict[str, Any]] = None,
         "gpu": ("Demo (no GPU)" if demo else (env.get("gpu_name") or "GPU")),
         "message": job.get("message"), "error": job.get("error"),
         "waiting_for_prepare": job.get("after_prepare") if not job.get("run_dir") else None,
+        "title": job.get("title") or "",                 # a name the owner gave the session ("" = none)
         "notes": job.get("notes") or "", "tags": list(job.get("tags") or []),
         # the agents this session ran (a custom pipeline lists its own; None = the default four)
         "schedule_id": job.get("schedule_id"),          # queued by a scheduled re-run (server/schedules.py)
@@ -180,14 +181,22 @@ def health_brief(res: dict[str, Any]) -> Optional[dict[str, Any]]:
     return {"status": h.get("status"), "reasons": reasons[:6], "synthetic": bool(h.get("synthetic"))}
 
 
-NOTES_MAX, TAGS_MAX = 2000, 10
+NOTES_MAX, TAGS_MAX, TITLE_MAX = 2000, 10, 80
 _TAG = re.compile(r"^[^\W_][\w .\-]{0,29}$")
 
 
 def clean_annotations(body: dict[str, Any]) -> dict[str, Any]:
-    """Notes and tags of a session, checked the same way as the Worker (worker/src/sessions.ts)."""
+    """Title, notes and tags of a session, checked the same way as the control plane
+    (supabase/functions/agentmeter/src/sessions.ts cleanAnnotations)."""
     from .jobs import JobError
     out: dict[str, Any] = {}
+    if "title" in body:
+        if not isinstance(body["title"], str):
+            raise JobError("the name must be text", "bad_request", 400)
+        t = " ".join(body["title"].split())             # one line: no tabs, newlines or runs of spaces
+        if len(t) > TITLE_MAX:
+            raise JobError(f"a session name is limited to {TITLE_MAX} characters", "bad_request", 400)
+        out["title"] = t
     if "notes" in body:
         if not isinstance(body["notes"], str):
             raise JobError("notes must be text", "bad_request", 400)
@@ -215,11 +224,11 @@ def clean_annotations(body: dict[str, Any]) -> dict[str, Any]:
 
 
 def matches(row: dict[str, Any], q: str, tag: str) -> bool:
-    """Search (every word, any case, in models / prepared set / notes / tags / owner / id) and an
+    """Search (every word, any case, in name / models / prepared set / notes / tags / owner / id) and an
     exact tag — the Worker's list filters, on a session_summary row."""
     if tag and tag.lower() not in [t.lower() for t in row.get("tags") or []]:
         return False
-    hay = " ".join([*(row.get("models") or []), row.get("run_name") or "", row.get("notes") or "",
+    hay = " ".join([row.get("title") or "", *(row.get("models") or []), row.get("run_name") or "", row.get("notes") or "",
                     *(row.get("tags") or []), row.get("owner_username") or "", row.get("session_id") or ""]).lower()
     return all(w in hay for w in q.lower().split()[:8])
 
@@ -576,7 +585,7 @@ def register_sessions(app, get_manager) -> None:
 
     @app.route("/api/sessions/<job_id>", methods=["PATCH"])
     def session_annotate(job_id):
-        """Notes and tags (no control plane; with one, the Worker serves this and the backend
+        """Name, notes and tags (no control plane; with one, the control plane serves this and the backend
         refuses writes it does not know — access.required)."""
         mgr = get_manager()
         try:

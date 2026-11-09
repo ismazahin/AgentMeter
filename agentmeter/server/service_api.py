@@ -10,6 +10,13 @@ Prepare (data preparation for benchmarking, not analysis):
   GET  /api/prepared/<kind>/<name>/<file>   features.csv | labels.csv | manifest.json
   POST /api/prepared/import     multipart manifest, features[, labels] -> 201 {summary}
                                 (re-upload of a prepared set downloaded earlier)
+  POST /api/prepared/<kind>/<name>/delete   delete the set's files from this server -> 200
+                                (control plane: a delete_set token; the set's owner or an admin;
+                                refused while a queued or running benchmark uses it)
+Data sets page (no control plane; with one, the control plane serves these):
+  GET  /api/datasets            {datasets: [{key, set, label, deleted_at}]}  names and deletions
+  POST /api/datasets/rename     {key, set, label}   ("" label = back to the file name)
+  POST /api/datasets/delete     {key, set}          hide the set from Data sets
 Benchmark:
   POST /api/jobs                (jobs_api.py) {run: <prepared-set id>, models[<=4]}
 Other:
@@ -26,8 +33,11 @@ Nothing here computes a benchmark: ingestion is ingest/run.py; jobs are jobs.py.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
+import shutil
+import threading
 from pathlib import Path
 from typing import Any, Callable
 
@@ -49,6 +59,9 @@ _MULTIPART_SLACK = 1024 ** 2   # form fields + boundaries around the file part
 _CHUNK = 1024 ** 2
 ALLOWED_EXT = {".csv", ".pcap", ".pcapng"}
 _NAME = re.compile(r"^[A-Za-z0-9_.-]{1,80}$")
+_SET_ID = re.compile(r"^(csv_runs|pcap_runs)/[A-Za-z0-9_.-]{1,80}$")
+_DS_KEY = re.compile(r"^([0-9a-f]{64}|name:(csv_runs|pcap_runs)/[A-Za-z0-9_.-]{1,80})$")   # a set's fingerprint, or its name before one exists
+DS_LABEL_MAX = 80
 
 
 class ServiceError(ValueError):
@@ -271,6 +284,91 @@ def register_service(app, get_manager: Callable[[], JobManager]) -> None:
             return fail(e)
         mime = "application/json" if fname.endswith(".json") else "text/csv"
         return send_file(p, mimetype=mime, as_attachment=True, download_name=f"{name}_{fname}")
+
+    @app.route("/api/prepared/<kind>/<name>/delete", methods=["POST"])
+    def svc_prepared_delete(kind, name):
+        """Delete a prepared set's files from this server (the Data sets page's Delete). Sessions
+        that ran on it keep their results; it can no longer be benchmarked from this server."""
+        mgr, tok = get_manager(), runtoken.current()
+        try:
+            d = run_dir(kind, name)
+            set_id = f"{kind}/{name}"
+            if not d.is_dir():                           # first: a set from another rental is simply not here
+                raise ServiceError("this data set's files are not on this server", "not_found", 404)
+            # control-plane mode: an admin, the data set's owner as the control plane decided it (owner:
+            # true — whoever ran its first finished session), or, for a set nobody has benchmarked yet,
+            # whoever prepared it on this server
+            if tok is not None and not (tok.get("admin") or tok.get("owner")):
+                preparer = ((mgr.set_grant(set_id) or {}).get("user") or {}).get("sub")
+                if not preparer or preparer != tok.get("sub"):
+                    raise ServiceError("only the owner of this data set (or an admin) can delete it", "forbidden", 403)
+            busy = [j["job_id"] for j in mgr._all() if j.get("status") in ("queued", "running")
+                    and (j.get("run_name") == set_id or (j.get("run_dir") and Path(j["run_dir"]) == d))]
+            if busy:
+                raise ServiceError(f"a benchmark that uses this data set is queued or running ({busy[0]}): "
+                                   "wait for it to finish, then delete the set", "set_in_use", 409)
+            shutil.rmtree(d)
+            g = mgr.jobs_dir / "set_grants" / (set_id.replace("/", "__") + ".json")
+            g.unlink(missing_ok=True)
+        except (ServiceError, PrepareError, JobError) as e:
+            return fail(e)
+        return jsonify({"deleted": set_id})
+
+    # --- Data sets page: names and deletions (standalone mode; the control plane serves its own) ---
+    meta_lock = threading.Lock()
+
+    def meta_path() -> Path:
+        return get_manager().results_root / "datasets_meta.json"
+
+    def meta_load() -> dict[str, dict[str, Any]]:
+        try:
+            m = json.loads(meta_path().read_text(encoding="utf-8"))
+            return m if isinstance(m, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def meta_body() -> tuple[str, str]:
+        b = request.get_json(silent=True) or {}
+        key, set_id = str(b.get("key") or ""), str(b.get("set") or "")
+        if not _DS_KEY.match(key) or (set_id and not _SET_ID.match(set_id)):
+            raise ServiceError("key: the data set's fingerprint or name:<kind>/<name>; set: <kind>/<name>",
+                               "bad_request", 400)
+        return key, set_id
+
+    def meta_save(key: str, **fields: Any) -> dict[str, Any]:
+        with meta_lock:
+            m = meta_load()
+            row = {**m.get(key, {}), **{k: v for k, v in fields.items() if v is not None}}
+            m[key] = row
+            meta_path().parent.mkdir(parents=True, exist_ok=True)
+            tmp = meta_path().with_suffix(".tmp")
+            tmp.write_text(json.dumps(m, indent=1), encoding="utf-8")
+            tmp.replace(meta_path())
+        return {"key": key, **row}
+
+    @app.route("/api/datasets", methods=["GET"])
+    def datasets_meta():
+        return jsonify({"datasets": [{"key": k, **v} for k, v in meta_load().items()]})
+
+    @app.route("/api/datasets/rename", methods=["POST"])
+    def datasets_rename():
+        try:
+            key, set_id = meta_body()
+            label = " ".join(str((request.get_json(silent=True) or {}).get("label") or "").split())
+            if len(label) > DS_LABEL_MAX:
+                raise ServiceError(f"a data set name is limited to {DS_LABEL_MAX} characters", "bad_request", 400)
+        except ServiceError as e:
+            return fail(e)
+        return jsonify(meta_save(key, set=set_id or None, label=label))
+
+    @app.route("/api/datasets/delete", methods=["POST"])
+    def datasets_delete():
+        try:
+            key, set_id = meta_body()
+        except ServiceError as e:
+            return fail(e)
+        from datetime import datetime, timezone
+        return jsonify(meta_save(key, set=set_id or None, deleted_at=datetime.now(timezone.utc).isoformat()))
 
     @app.route("/api/prepared/import", methods=["POST"])
     def svc_prepared_import():

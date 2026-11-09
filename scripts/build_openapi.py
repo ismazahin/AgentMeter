@@ -110,7 +110,14 @@ op(CP, "get", "/api/sessions", "Sessions", "List sessions, newest first (paged)"
    [p("limit", desc="1–200 (50)", schema={"type": "integer"}), p("offset", desc="skip this many (paging; next_offset says where the next page starts, null at the end)", schema={"type": "integer"}),
     p("status", desc="Done | Demo | Running | Failed | Interrupted | Stopped"), p("input", desc="CSV | PCAP"), p("q", desc="every word in models, set, notes, tags, owner or id"), p("tag", desc="exact tag")])
 op(CP, "get", "/api/sessions/{id}", "Sessions", "One session's summary", USER, [ID])
-op(CP, "patch", "/api/sessions/{id}", "Sessions", "Notes and tags (owner or admin)", USER, [ID], body={"notes": "string", "tags": "array"}, errors=["403 forbidden"])
+op(CP, "patch", "/api/sessions/{id}", "Sessions", "Name, notes and tags (owner or admin)", USER, [ID], body={"title": "string", "notes": "string", "tags": "array"}, errors=["403 forbidden"],
+   desc="title: up to 80 characters on one line; \"\" removes the name.")
+op(CP, "get", "/api/datasets", "Data sets", "Names and deletions of data sets", USER,
+   desc="Data sets are built from the sessions and the GPU server's prepared sets; this lists only what users changed: {datasets: [{key, set, label, deleted_at}]}.")
+op(CP, "post", "/api/datasets/rename", "Data sets", "Rename a data set (owner or admin)", USER, body={"key": "string", "set": "string", "label": "string"},
+   errors=["403 forbidden"], desc="key: the set's fingerprint (sha256) or name:<kind>/<name>. Owner: whoever ran the first session on it. Audit: dataset.rename.")
+op(CP, "post", "/api/datasets/delete", "Data sets", "Remove a data set from Data sets (owner or admin)", USER, body={"key": "string", "set": "string"},
+   errors=["403 forbidden"], desc="Sessions that ran on it keep their results. The web app first deletes the set's files on the GPU server (POST /api/prepared/{kind}/{name}/delete). Audit: dataset.delete.")
 op(CP, "delete", "/api/sessions/{id}", "Sessions", "Delete a session (owner or admin)", USER, [ID], errors=["403 forbidden"], desc="Results and stored files are removed for everyone. Audit: session.delete.")
 op(CP, "get", "/api/sessions/{id}/results", "Sessions", "The full stored results (session_results.json)", USER, [ID])
 op(CP, "get", "/api/sessions/{id}/constraints", "Sessions", "Fit check of the results against limits (query: the limits)", USER, [ID])
@@ -152,6 +159,9 @@ op(BE, "get", "/api/prepared/{kind}/{name}", "Data sets", "A prepared set's summ
    [p("kind", "path", "csv_runs | pcap_runs"), p("name", "path", "set name")])
 op(BE, "get", "/api/prepared/{kind}/{name}/{fname}", "Data sets", "A prepared file", RUN("files"),
    [p("kind", "path", "csv_runs | pcap_runs"), p("name", "path", "set name"), p("fname", "path", "features.csv | labels.csv | manifest.json")])
+op(BE, "post", "/api/prepared/{kind}/{name}/delete", "Data sets", "Delete a prepared set's files from this server (owner or admin)", RUN("delete_set"),
+   [p("kind", "path", "csv_runs | pcap_runs"), p("name", "path", "set name")], errors=["403 forbidden", "404 not_found", "409 set_in_use"],
+   desc="Refused while a queued or running benchmark uses the set. Sessions that ran on it keep their results. " + RT)
 op(BE, "get", "/api/jobs", "Benchmarks", "Jobs on this server, newest first", RUN("read"), [p("limit", schema={"type": "integer"})])
 op(BE, "post", "/api/jobs", "Benchmarks", "Start a benchmark", RUN("benchmark"),
    body={"run": "string", "after_prepare": "string", "models": "array (1–4)", "pipeline": "array", "load_test": "boolean", "repeat_check": "boolean", "ids": "boolean | object {threshold: number}"}, ok="202", desc=RT)
@@ -169,7 +179,10 @@ op(BE, "get", "/api/logs/recent", "GPU & Queue", "Warnings, errors and failed ru
    errors=["403 forbidden"], desc="Kept in the server's memory since it started. With a control plane, admins only.")
 op(BE, "get", "/api/sessions", "Sessions", "Sessions on this server (one-user mode), paged", RUN("read"), [p("limit", schema={"type": "integer"}), p("offset", schema={"type": "integer"}), p("status"), p("input"), p("q"), p("tag")])
 op(BE, "get", "/api/sessions/{job_id}", "Sessions", "One session (one-user mode)", RUN("read"), [JOB])
-op(BE, "patch", "/api/sessions/{job_id}", "Sessions", "Notes and tags (one-user mode)", NONE, [JOB], body={"notes": "string", "tags": "array"})
+op(BE, "patch", "/api/sessions/{job_id}", "Sessions", "Name, notes and tags (one-user mode)", NONE, [JOB], body={"title": "string", "notes": "string", "tags": "array"})
+op(BE, "get", "/api/datasets", "Data sets", "Names and deletions of data sets (one-user mode)", NONE)
+op(BE, "post", "/api/datasets/rename", "Data sets", "Rename a data set (one-user mode)", NONE, body={"key": "string", "set": "string", "label": "string"})
+op(BE, "post", "/api/datasets/delete", "Data sets", "Remove a data set from Data sets (one-user mode)", NONE, body={"key": "string", "set": "string"})
 op(BE, "get", "/api/compare", "Compare", "Two sessions side by side (one-user mode)", RUN("read"), [p("a", required=True), p("b", required=True)])
 op(BE, "get", "/api/compare/candidates", "Compare", "Sessions on the same setup (one-user mode)", RUN("read"), [p("session", required=True)])
 op(BE, "get", "/api/compare/merged", "Compare", "Every model of 2–20 sessions on one setup (one-user mode)", RUN("read"), [p("sessions", required=True)])

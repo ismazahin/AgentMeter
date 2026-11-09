@@ -21,6 +21,8 @@ every request that starts work or lists/reads stored work needs a run token the 
   GET  /api/jobs, /api/sessions, /api/sessions/<id>, /api/compare, /api/leaderboard, /api/models/catalog, /api/gpu,
        /api/jobs/<id>/result|report.pdf|constraints, /api/prepared/<kind>/<name>     kind read
   GET  /api/prepared/<kind>/<name>/<file> kind files       (set = <kind>/<name>)
+  POST /api/prepared/<kind>/<name>/delete kind delete_set  (set = <kind>/<name>; the handler checks the
+                                          set's owner unless the token says admin)
   GET  /api/jobs/<id>                     open for 128-bit job ids (status/progress only);
                                           a pre-Phase-47 id (24 random bits) needs a read token
   any other POST/PUT/PATCH/DELETE         refused (notifications are sent by the control plane)
@@ -75,6 +77,9 @@ def required(method: str, path: str) -> tuple[Optional[str], dict]:
         m = _JOB_SUB.match(path)
         if m and m.group(2) in ("resume", "stop"):
             return m.group(2), {"job_id": m.group(1)}
+        m = _PREPARED.match(path)
+        if m and method == "POST" and m.group(3) == "delete" and m.group(1) != "import":
+            return "delete_set", {"set": f"{m.group(1)}/{m.group(2)}"}
         return "deny", {}
     if method != "GET":
         return None, {}
@@ -211,7 +216,7 @@ def install(app, *, mode: str, queue_depth: Callable[[], int]) -> dict:
             return deny("run_token_mismatch", "the token was issued for another job", 403)
         if kind == "verify" and not p.get("admin"):
             return deny("forbidden", "only an admin can verify models", 403)
-        if kind == "files" and p.get("set") != need["set"]:
+        if kind in ("files", "delete_set") and p.get("set") != need["set"]:
             return deny("run_token_mismatch", "the token was issued for another prepared set", 403)
         if kind in runtoken.SINGLE_USE:
             if not jtis.use(p["jti"], p["exp"]):

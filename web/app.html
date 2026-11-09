@@ -439,6 +439,37 @@
   .row-acts { white-space: nowrap; }
   .row-acts > * { margin-left: 6px; vertical-align: middle; }
   .row-acts > a { margin-left: 0; }
+
+  /* Row actions (Sessions, Data sets): one visible action per row, the rest in a "More actions" menu.
+     The list is position: fixed (core.js places it under its button), so a table's scroll box
+     never clips it. Keyboard: Enter/Space/ArrowDown opens, arrows move, Escape closes. */
+  .row-acts > a[data-open] { display: inline-flex; align-items: center; min-height: 36px; padding: 0 14px; border: 1px solid var(--border-2); border-radius: var(--radius);
+    color: var(--text); font-size: 13px; font-weight: 650; text-decoration: none; }
+  @media (hover: hover) { .row-acts > a[data-open]:hover { background: var(--surface-2); } }
+  .rmenu { display: inline-block; position: relative; vertical-align: middle; }
+  .rmenu-btn { width: 36px; min-width: 36px; padding: 0; display: inline-grid; place-items: center; }
+  .rmenu-btn svg { width: 18px; height: 18px; fill: currentColor; }
+  .rmenu-btn[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .rmenu-list { position: fixed; z-index: 60; min-width: 196px; padding: 6px; margin: 0; background: var(--surface); color: var(--text);
+    border: 1px solid var(--border-2); border-radius: 10px; box-shadow: 0 16px 36px -12px rgba(15, 27, 51, .35); text-align: left; white-space: nowrap;
+    transform-origin: top right; animation: rmenu-in .14s cubic-bezier(.2, .7, .2, 1); }
+  @keyframes rmenu-in { from { opacity: 0; transform: translateY(-4px) scale(.97); } }
+  .rmenu-list [role="menuitem"] { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 40px; padding: 0 12px; border: 0; border-radius: 6px;
+    background: transparent; color: var(--text); font: 600 13.5px/1 var(--font); text-decoration: none; cursor: pointer; }
+  .rmenu-list [role="menuitem"] svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; color: var(--muted-2); }
+  .rmenu-list [role="menuitem"]:hover, .rmenu-list [role="menuitem"]:focus-visible { background: var(--surface-2); outline: none; }
+  .rmenu-list [role="menuitem"].danger { color: var(--danger); }
+  .rmenu-list [role="menuitem"].danger svg { color: var(--danger); }
+  .rmenu-list .rmenu-sep { height: 1px; margin: 6px 4px; background: var(--border); }
+  @media (prefers-reduced-motion: reduce) { .rmenu-list { animation: none; } }
+
+  /* a named session or data set: the name first, the technical id / file name under it */
+  .row-name { font-weight: 650; font-size: 14.5px; }
+  .row-sub { display: block; margin-top: 2px; }
+
+  /* Rename dialog (sessions and data sets) */
+  dialog.name-dlg input { width: 100%; min-height: 44px; margin-top: 6px; }
+  dialog.name-dlg .hint { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
   .danger-lite { color: var(--danger); }
   .note-row td { background: var(--surface-2); }
   .note-form { display: grid; gap: 6px; max-width: 640px; }
@@ -1660,6 +1691,16 @@
     <h2 id="confirm-title"></h2>
     <p id="confirm-body"></p>
     <div class="actions"><button type="submit" class="btn" value="cancel" id="confirm-cancel">Cancel</button><button type="submit" class="btn primary" value="ok" id="confirm-ok"></button></div>
+  </form>
+</dialog>
+<dialog id="name-dlg" class="confirm name-dlg" aria-labelledby="name-dlg-title">
+  <form method="dialog" id="name-dlg-form">
+    <h2 id="name-dlg-title"></h2>
+    <label for="name-dlg-input" id="name-dlg-label">Name</label>
+    <input type="text" id="name-dlg-input" maxlength="80" autocomplete="off" spellcheck="false">
+    <p class="hint" id="name-dlg-hint"></p>
+    <div id="name-dlg-error" class="notice error" role="alert" hidden></div>
+    <div class="actions"><button type="button" class="btn" id="name-dlg-cancel">Cancel</button><button type="submit" class="btn primary" value="ok" id="name-dlg-ok">Save name</button></div>
   </form>
 </dialog>
 <footer><div class="wrap">AgentMeter measures how efficiently LLMs run: speed, memory, tokens, cost, energy. The flows are its workload; it isn't a threat detector.</div></footer>

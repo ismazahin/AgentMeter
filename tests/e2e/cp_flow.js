@@ -364,12 +364,17 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(JSON.stringify(lbAfter.groups) === JSON.stringify(lbBefore.groups), 'the Leaderboard is unchanged by a stopped run');
     await p.goto(APP + '/app.html#/sessions'); await p.waitForSelector('#sessions-table');
     log(/Stopped/.test(await p.textContent(`tr:has(a[data-open="${jobS}"])`)), 'Sessions lists it as Stopped');
-    // row actions on the list: a short note, then delete (owner or admin; confirmed)
-    await p.click(`tr:has(a[data-open="${jobS}"]) [data-note]`); await p.waitForSelector('.note-row textarea');
+    // row actions on the list ("More actions" menu): rename, a short note, then delete (owner or admin; confirmed)
+    const rowS = `tr:has(a[data-open="${jobS}"])`;
+    await p.click(rowS + ' .rmenu-btn'); await p.click(rowS + ' [data-rename]');
+    await p.fill('#name-dlg-input', 'Stop test run'); await p.click('#name-dlg-ok');
+    await p.waitForFunction(r => /Stop test run/.test((document.querySelector(r + ' .row-name') || {}).textContent || ''), rowS, { timeout: 15000 });
+    log(true, 'Sessions: "Rename" names the session; the name shows in place of its id');
+    await p.click(rowS + ' .rmenu-btn'); await p.click(rowS + ' [data-note]'); await p.waitForSelector('.note-row textarea');
     await p.fill('.note-row textarea', 'stopped on purpose (stop test)'); await p.click('.note-row button[type="submit"]');
     await p.waitForFunction(j => /stopped on purpose/.test((document.querySelector(`tr:has(a[data-open="${j}"])`) || {}).textContent || ''), jobS, { timeout: 15000 });
     log(true, 'Sessions: "Note" adds a short note from the list; it shows under the session');
-    await p.click(`tr:has(a[data-open="${jobS}"]) [data-del]`); await p.click('#confirm-ok');
+    await p.click(rowS + ' .rmenu-btn'); await p.click(rowS + ' [data-del]'); await p.click('#confirm-ok');
     await p.waitForFunction(j => !document.querySelector(`a[data-open="${j}"]`), jobS, { timeout: 15000 });
     const goneS = await fetch(WORKER + '/api/sessions/' + jobS, { headers: { Authorization: 'Bearer ' + (await loginApi('admin', 'admin-password-123')).access_token } });
     log(goneS.status === 404, 'Sessions: "Delete" (confirmed) removes the session for everyone');

@@ -26,15 +26,27 @@ function loadSessions() {
   });
 }
 ["flt-status", "flt-input"].forEach(function (id) { $(id).addEventListener("change", loadSessions); });
-// row actions: a short note (inline editor under the row) and delete (owner or admin)
+// row actions (the "More actions" menu): rename (a dialog), a short note (inline editor under the row)
+// and delete; the owner or an admin
 function wireRowActions(box, rows) {
   var byId = {}; rows.forEach(function (s) { byId[s.session_id] = s; });
+  var menuBtn = function (el) { var m = el.closest(".rmenu"); return (m && m.querySelector(".rmenu-btn")) || el; };
+  box.querySelectorAll("[data-rename]").forEach(function (b) { b.addEventListener("click", function () {
+    var id = b.getAttribute("data-rename"), s = byId[id];
+    askName({ title: "Rename session", label: "Session name", value: s.title || "", placeholder: (s.models || []).map(short).join(" vs ") || shortId(id),
+              hint: "Up to 80 characters, shown instead of the session id. Leave it empty to remove the name.",
+              save: function (name) { return api("/api/sessions/" + enc(id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: name }) }); }
+    }).then(function (r) {
+      if (!r) return;
+      ALL.p = null;                                  // the Data sets / Home lists read fresh
+      if (SESSION.id === id) SESSION = { id: null, res: null, job: null };
+      loadSessions();
+    });
+  }); });
   box.querySelectorAll("[data-note]").forEach(function (b) { b.addEventListener("click", function () {
     var id = b.getAttribute("data-note"), tr = b.closest("tr"), open = tr.nextElementSibling && tr.nextElementSibling.classList.contains("note-row");
     box.querySelectorAll(".note-row").forEach(function (r) { r.remove(); });
-    box.querySelectorAll("[data-note]").forEach(function (x) { x.setAttribute("aria-expanded", "false"); });
     if (open) return;
-    b.setAttribute("aria-expanded", "true");
     var row = document.createElement("tr"); row.className = "note-row";
     row.innerHTML = '<td colspan="' + tr.cells.length + '"><form class="note-form" novalidate><label for="row-note-text">Note for ' + esc(shortId(id)) + '</label>' +
       '<textarea id="row-note-text" rows="2" maxlength="2000" placeholder="e.g. rerun after the tokenizer fix">' + esc(byId[id].notes || "") + '</textarea>' +
@@ -43,7 +55,7 @@ function wireRowActions(box, rows) {
     tr.after(row);
     var f = row.querySelector("form"), ta = row.querySelector("textarea");
     ta.focus();
-    row.querySelector("[data-note-cancel]").addEventListener("click", function () { row.remove(); b.setAttribute("aria-expanded", "false"); b.focus(); });
+    row.querySelector("[data-note-cancel]").addEventListener("click", function () { row.remove(); menuBtn(b).focus(); });
     f.addEventListener("submit", function (ev) {
       ev.preventDefault();
       api("/api/sessions/" + enc(id), { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes: ta.value }) }).then(function (r) {
@@ -54,12 +66,12 @@ function wireRowActions(box, rows) {
   }); });
   box.querySelectorAll("[data-del]").forEach(function (b) { b.addEventListener("click", function () {
     var id = b.getAttribute("data-del"), s = byId[id];
-    confirmAction({ title: "Delete session " + (s.models || []).map(short).join(" vs ") + "?", danger: true, ok: "Delete session",
+    confirmAction({ title: "Delete session " + (s.title ? "\u201C" + s.title + "\u201D" : (s.models || []).map(short).join(" vs ")) + "?", danger: true, ok: "Delete session",
       body: "Session " + id + " is deleted for everyone: its results, PDF and stored prepared-set copy. This cannot be undone." }).then(function (yes) {
     if (!yes) return;
-    b.disabled = true;
+    var mb = menuBtn(b); mb.disabled = true;
     api("/api/sessions/" + enc(id), { method: "DELETE" }).then(function (r) {
-      if (!r.ok) { b.disabled = false; alert((r.data || {}).error || "Could not delete the session."); return; }
+      if (!r.ok) { mb.disabled = false; alert((r.data || {}).error || "Could not delete the session."); return; }
       if (SESSION.id === id) SESSION = { id: null, res: null, job: null };
       loadSessions();
     });
@@ -173,7 +185,7 @@ function loadSessionCP(id, tab) {
           if (!rr.ok) { w.hidden = false; w.innerHTML = '<div class="notice error">' + esc(rr.data.error) + '</div>'; return; }
           w.hidden = true; w.innerHTML = "";
           var st = SESSION.stored, job = { job_id: id, run_name: st.run_name, models: st.models, created_at: st.created_at,
-                                          notes: st.notes || "", tags: st.tags || [], can_edit: !!st.can_delete,
+                                          title: st.title || "", notes: st.notes || "", tags: st.tags || [], can_edit: !!st.can_delete,
                                           owner: st.owner, files: st.files || [], can_delete: st.can_delete, stored: true };
           SESSION.res = rr.data; SESSION.job = job;
           renderSession(rr.data, job);
@@ -254,11 +266,13 @@ function showSessionTab(tab) {
 function pane(name, html) { return '<div data-pane="' + name + '"' + (name === "main" ? "" : " hidden") + '>' + html + '</div>'; }
 function renderSession(res, job) {
   var s = res.session, env = res.environment || {}, real = env.provider === "real";
-  $("h-session").textContent = (res.per_model || []).map(function (m) { return short(m.model); }).join(" vs ") || job.job_id;
+  var vs = (res.per_model || []).map(function (m) { return short(m.model); }).join(" vs ");
+  $("h-session").textContent = job.title || vs || job.job_id;      // a session the owner named shows its name
   document.title = $("h-session").textContent + " · AgentMeter";
   $("session-chips").innerHTML = '<span class="chip ' + (real ? "ok" : "warn") + '">' + (real ? "GPU: " + esc(env.gpu_name || "unknown") : "Demo (no GPU)") + '</span>' +
     '<span class="chip">' + fmtNum(s.n_flows) + ' flows</span><span class="chip">' + esc((s.source_type || "").toUpperCase()) + '</span>' +
     '<span class="chip">' + (s.accuracy_available ? "labelled" : "no reference labels") + '</span>' +
+    (job.title && vs ? '<span class="chip">' + esc(vs) + '</span>' : "") +
     '<span class="chip mono" title="Session id ' + esc(job.job_id) + '">' + esc(shortId(job.job_id)) + '</span>' +
     (job.owner ? '<span class="chip" title="Started by">' + esc(job.owner) + '</span>' : "");
   setDl($("svc-dl-pdf"), pdfPath(job), "agentmeter_report_" + job.job_id + ".pdf");

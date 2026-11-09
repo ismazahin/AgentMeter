@@ -2,7 +2,7 @@
  "openapi": "3.1.0",
  "info": {
   "title": "AgentMeter API — control plane",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Accounts, stored sessions, Compare and the Leaderboard; it hands out run tokens for the GPU backend and receives the backend's signed calls. Runs as a Supabase Edge Function.",
   "license": {
    "name": "See the repository"
@@ -37,6 +37,9 @@
   },
   {
    "name": "Sessions"
+  },
+  {
+   "name": "Data sets"
   },
   {
    "name": "Compare"
@@ -1747,6 +1750,155 @@
     ]
    }
   },
+  "/api/datasets": {
+   "get": {
+    "operationId": "get__api_datasets",
+    "tags": [
+     "Data sets"
+    ],
+    "summary": "Names and deletions of data sets",
+    "security": [
+     {
+      "userToken": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "Data sets are built from the sessions and the GPU server's prepared sets; this lists only what users changed: {datasets: [{key, set, label, deleted_at}]}."
+   }
+  },
+  "/api/datasets/delete": {
+   "post": {
+    "operationId": "post__api_datasets_delete",
+    "tags": [
+     "Data sets"
+    ],
+    "summary": "Remove a data set from Data sets (owner or admin)",
+    "security": [
+     {
+      "userToken": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "forbidden",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "Sessions that ran on it keep their results. The web app first deletes the set's files on the GPU server (POST /api/prepared/{kind}/{name}/delete). Audit: dataset.delete.",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "key": {
+          "type": "string"
+         },
+         "set": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/datasets/rename": {
+   "post": {
+    "operationId": "post__api_datasets_rename",
+    "tags": [
+     "Data sets"
+    ],
+    "summary": "Rename a data set (owner or admin)",
+    "security": [
+     {
+      "userToken": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "403": {
+      "description": "forbidden",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "key: the set's fingerprint (sha256) or name:<kind>/<name>. Owner: whoever ran the first session on it. Audit: dataset.rename.",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "key": {
+          "type": "string"
+         },
+         "set": {
+          "type": "string"
+         },
+         "label": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/health": {
    "get": {
     "operationId": "get__api_health",
@@ -2470,7 +2622,7 @@
     "tags": [
      "Sessions"
     ],
-    "summary": "Notes and tags (owner or admin)",
+    "summary": "Name, notes and tags (owner or admin)",
     "security": [
      {
       "userToken": []
@@ -2501,6 +2653,7 @@
       }
      }
     },
+    "description": "title: up to 80 characters on one line; \"\" removes the name.",
     "parameters": [
      {
       "name": "id",
@@ -2519,6 +2672,9 @@
        "schema": {
         "type": "object",
         "properties": {
+         "title": {
+          "type": "string"
+         },
          "notes": {
           "type": "string"
          },

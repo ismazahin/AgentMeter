@@ -94,9 +94,15 @@ async function waitDone(id) {
     log(/features\.csv/.test(await p.textContent('#ds-files')) && /Source file/.test(await p.textContent('#ds-detail')), 'Details: source file and the prepared files to download');
     log((await p.$$('#ds-detail .ds-used tbody tr')).length === 2, 'Details: the 2 sessions that used it');
     log(!!(await p.$(`#ds-table a[href="#/new/models?set=${encodeURIComponent(csvSet)}"]`)), 'Benchmark: starts a new benchmark on this set');
-    await p.click(`#ds-table tbody tr[data-ds]:has-text("${csvName}") a:has-text("Compare models")`);
-    await p.waitForSelector('#cmp-list input');
-    log((await p.$$('#cmp-list input')).length === 4, 'Compare models: opens with the 4 models measured on this set');
+    log(!(await p.$('#ds-table :text("Compare models")')), 'No Compare models button on Data sets (Compare lives in Leaderboard)');
+    // "More actions" › Rename: the set shows its new name and search finds it
+    const rowD = `#ds-table tbody tr[data-ds]:has-text("${csvName}")`;
+    await p.click(rowD + ' .rmenu-btn'); await p.click(rowD + ' [data-ds-rename]');
+    await p.fill('#name-dlg-input', 'Smoke flows'); await p.click('#name-dlg-ok');
+    await p.waitForFunction(() => /Smoke flows/.test((document.querySelector('#ds-table') || {}).textContent || ''), null, { timeout: 15000 });
+    await p.fill('#ds-q', 'smoke flows');
+    log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1, 'Rename: the data set shows its new name and search finds it');
+    await p.fill('#ds-q', '');
     await p.goto(BASE + '/app.html#/datasets'); await p.waitForSelector('#ds-table');
     await p.screenshot({ path: S + '/datasets.png', fullPage: true });
     const nav = await p.$$eval('.mainnav [data-nav]', a => a.map(x => x.getAttribute('data-nav')));

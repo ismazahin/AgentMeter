@@ -3,6 +3,6 @@ OpenAPI documents (scripts/build_openapi.py). Raise MINOR for a new endpoint or 
 for a removed or changed one (keep the old one for a while, marked deprecated). The web app warns
 when the GPU backend reports an older MINOR than it needs (MIN_BACKEND in web/app.html).
 
-History: 1.0 the Phase 47 split · 1.1 GET /api/gpu, GET /api/logs/recent, offset/next_offset paging · 1.2 triage results (session "triage" block, flow "priority" / "truth_priority") · 1.3 severity and the triage gate (triage "severity", "gate"; flow "severity") · 1.4 the IDS gate (job "ids", GET /health "ids", session "ids", flow "ids_score") · 1.5 the IDS model in Storage (Admin › IDS model; GET /api/backend/ids-model).
+History: 1.0 the Phase 47 split · 1.1 GET /api/gpu, GET /api/logs/recent, offset/next_offset paging · 1.2 triage results (session "triage" block, flow "priority" / "truth_priority") · 1.3 severity and the triage gate (triage "severity", "gate"; flow "severity") · 1.4 the IDS gate (job "ids", GET /health "ids", session "ids", flow "ids_score") · 1.5 the IDS model in Storage (Admin › IDS model; GET /api/backend/ids-model) · 1.6 session names (session "title"), data-set names and removal (GET/POST /api/datasets…, POST /api/prepared/<kind>/<name>/delete).
 """
-API_VERSION = "1.5.0"
+API_VERSION = "1.6.0"

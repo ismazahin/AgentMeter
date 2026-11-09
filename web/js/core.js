@@ -53,7 +53,7 @@ var METRIC_FMT = { s: fmtTime, MB: fmtMB, tokens: function (v) { return fmtNum(v
 var CP = "", AUTH = { access: null, exp: 0, user: null }, SETTINGS = null, BACKEND = null;
 // "Prepare on this computer" loads Pyodide from here (config.json "pyodide_base" can point elsewhere, e.g. a self-hosted copy)
 var PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/";
-var WORKER_PATHS = /^\/api\/(sessions(\/|\?|$)|compare(\/|\?|$)|leaderboard(\?|$)|settings(\/|$)|me(\/|$)|admin\/|backend$|runs\/|auth\/)/;
+var WORKER_PATHS = /^\/api\/(sessions(\/|\?|$)|datasets(\/|$)|compare(\/|\?|$)|leaderboard(\?|$)|settings(\/|$)|me(\/|$)|admin\/|backend$|runs\/|auth\/)/;
 var STRONG_JOB = /^job_\d{8}_\d{6}_[0-9a-f]{32}$/;
 var READ_TOK = null, FILE_TOK = {}, GRANTS = {};          // cached read/files tokens; jti of my prepare/import
 // "Remember me" on: the refresh token is kept in localStorage (stays after the browser closes);
@@ -137,6 +137,7 @@ function backendNeed(method, path) {
     if (p === "/api/models/verify") return { kind: "verify" };
     if (p === "/api/schedules" || /^\/api\/schedules\/[^/]+\/cancel$/.test(p)) return { kind: "schedule" };
     if ((m = /^\/api\/jobs\/([^/]+)\/(resume|stop)$/.exec(p))) return { kind: m[2], job_id: decodeURIComponent(m[1]) };
+    if ((m = /^\/api\/prepared\/([^/]+)\/([^/]+)\/delete$/.exec(p))) return { kind: "delete_set", set: decodeURIComponent(m[1]) + "/" + decodeURIComponent(m[2]) };
     return null;
   }
   if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog|schedules|gpu|logs\/recent)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
@@ -163,6 +164,7 @@ function runToken(need, opts) {
   }
   var body = { kind: need.kind };
   if (need.kind === "resume" || need.kind === "stop") body.job_id = need.job_id;
+  if (need.kind === "delete_set") body.set = need.set;
   if (need.kind === "schedule") { try { body.job_id = JSON.parse(opts.body || "{}").job_id; } catch (e) { /* not JSON */ } }
   if (need.kind === "verify") { try { body.model = JSON.parse(opts.body || "{}").model; } catch (e) { /* not JSON */ } }
   if (need.kind === "benchmark") {
@@ -434,17 +436,156 @@ function sessionLink(row) {
   var running = row.status === "Running";
   return '<a href="#/session/' + enc(row.session_id) + '" data-open="' + esc(row.session_id) + '">' + (running ? "Watch" : "Open") + '</a>';
 }
+// ---------- row actions: one visible action per row, the rest in a "More actions" menu ----------
+var ICON = {
+  dots: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg>',
+  rename: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>',
+  note: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h10l4 4v12H5zM15 4v4h4M8 12h8M8 16h5"/></svg>',
+  run: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>'
+};
+// items: {label, icon, attr (pre-escaped attributes) | href, danger} or {sep: true}
+function rowMenu(label, items) {
+  items = items.filter(Boolean);
+  if (!items.length) return "";
+  return '<div class="rmenu"><button type="button" class="btn small-btn rmenu-btn" aria-haspopup="menu" aria-expanded="false" aria-label="' + esc(label) + '" title="More actions">' + ICON.dots + '</button>' +
+    '<div class="rmenu-list" role="menu" aria-label="' + esc(label) + '" hidden>' + items.map(function (it) {
+      if (it.sep) return '<div class="rmenu-sep" role="separator"></div>';
+      var cls = it.danger ? ' class="danger"' : "", ic = ICON[it.icon] || "";
+      return it.href ? '<a role="menuitem" tabindex="-1" href="' + esc(it.href) + '"' + cls + '>' + ic + esc(it.label) + '</a>'
+        : '<button type="button" role="menuitem" tabindex="-1" ' + (it.attr || "") + cls + '>' + ic + esc(it.label) + '</button>';
+    }).join("") + '</div></div>';
+}
+var RMENU = null;                                   // the open menu: {btn, list}
+function rmenuItems() { return RMENU ? Array.prototype.slice.call(RMENU.list.querySelectorAll('[role="menuitem"]')) : []; }
+function rmenuClose(focusBtn) {
+  if (!RMENU) return;
+  RMENU.list.hidden = true; RMENU.btn.setAttribute("aria-expanded", "false");
+  if (focusBtn) RMENU.btn.focus();
+  RMENU = null;
+}
+function rmenuOpen(btn, last) {
+  rmenuClose();
+  var list = btn.nextElementSibling;
+  if (!list) return;
+  list.hidden = false; btn.setAttribute("aria-expanded", "true");
+  RMENU = { btn: btn, list: list };
+  rmenuPlace();
+  var it = rmenuItems();
+  if (it.length) it[last ? it.length - 1 : 0].focus({ preventScroll: true });
+}
+// fixed position under its button (above it when there is no room below), inside the viewport; it
+// follows the button while the page or a table scrolls, and closes once the button is out of view
+function rmenuPlace() {
+  if (!RMENU) return;
+  var r = RMENU.btn.getBoundingClientRect(), list = RMENU.list, w = list.offsetWidth, h = list.offsetHeight;
+  if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth) { rmenuClose(); return; }
+  var top = r.bottom + 6 + h > window.innerHeight - 8 && r.top - h - 6 > 8 ? r.top - h - 6 : r.bottom + 6;
+  list.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + "px";
+  list.style.top = top + "px";
+}
+// capture phase: a menu item's own click handler runs after the menu has closed and focus is back on
+// its button, so dialogs it opens return focus to a visible element
+document.addEventListener("click", function (ev) {
+  var t = ev.target.closest ? ev.target : null;
+  var btn = t && t.closest(".rmenu-btn");
+  if (btn) {
+    var again = RMENU && RMENU.btn === btn;
+    rmenuClose();
+    if (!again) rmenuOpen(btn, false);
+    return;
+  }
+  if (RMENU && t && RMENU.list.contains(t)) { if (t.closest('[role="menuitem"]')) rmenuClose(true); return; }
+  rmenuClose();
+}, true);
+document.addEventListener("keydown", function (ev) {
+  var btn = ev.target.closest && ev.target.closest(".rmenu-btn");
+  if (btn && (ev.key === "ArrowDown" || ev.key === "ArrowUp")) { ev.preventDefault(); rmenuOpen(btn, ev.key === "ArrowUp"); return; }
+  if (!RMENU || !RMENU.list.contains(ev.target)) return;
+  var it = rmenuItems(), i = it.indexOf(document.activeElement);
+  if (ev.key === "Escape") { ev.preventDefault(); rmenuClose(true); }
+  else if (ev.key === "Tab") { rmenuClose(false); }
+  else if (ev.key === "ArrowDown") { ev.preventDefault(); it[(i + 1) % it.length].focus({ preventScroll: true }); }
+  else if (ev.key === "ArrowUp") { ev.preventDefault(); it[(i - 1 + it.length) % it.length].focus({ preventScroll: true }); }
+  else if (ev.key === "Home") { ev.preventDefault(); it[0].focus({ preventScroll: true }); }
+  else if (ev.key === "End") { ev.preventDefault(); it[it.length - 1].focus({ preventScroll: true }); }
+});
+window.addEventListener("resize", function () { rmenuPlace(); });
+document.addEventListener("scroll", function () { rmenuPlace(); }, true);
+
+// Rename dialog (sessions, data sets): o = {title, label, hint, value, placeholder, save(name) -> Promise<{ok, data}>}.
+// Resolves the save's response, or null when cancelled; a refused save keeps the dialog open with its error.
+function askName(o) {
+  var d = $("name-dlg"), inp = $("name-dlg-input"), err = $("name-dlg-error"), ok = $("name-dlg-ok"), back = document.activeElement, done = null;
+  $("name-dlg-title").textContent = o.title;
+  $("name-dlg-label").textContent = o.label || "Name";
+  $("name-dlg-hint").textContent = o.hint || ""; $("name-dlg-hint").hidden = !o.hint;
+  inp.value = o.value || ""; inp.placeholder = o.placeholder || ""; err.hidden = true; ok.disabled = false;
+  return new Promise(function (resolve) {
+    var saving = false;
+    function submit(ev) {
+      ev.preventDefault();
+      if (saving) return;
+      saving = true; ok.disabled = true; $("name-dlg-cancel").disabled = true; err.hidden = true;
+      o.save(inp.value.trim().replace(/\s+/g, " ")).then(function (r) {
+        saving = false; ok.disabled = false; $("name-dlg-cancel").disabled = false;
+        if (!r || !r.ok) { showError(err, r && r.data); inp.focus(); return; }
+        done = r; d.close("ok");
+      });
+    }
+    function cancel() { if (!saving) d.close("cancel"); }
+    function escape(ev) { if (saving) ev.preventDefault(); }   // a save in flight finishes first (the caller refreshes on it)
+    $("name-dlg-form").addEventListener("submit", submit);
+    $("name-dlg-cancel").addEventListener("click", cancel);
+    d.addEventListener("cancel", escape);
+    d.addEventListener("close", function () {
+      $("name-dlg-form").removeEventListener("submit", submit);
+      $("name-dlg-cancel").removeEventListener("click", cancel);
+      d.removeEventListener("cancel", escape);
+      if (back && back.focus && document.contains(back)) back.focus();
+      resolve(done);
+    }, { once: true });
+    d.showModal(); inp.focus(); inp.select();
+  });
+}
+// Data sets: the names users gave them and the ones removed ({key, set, label, deleted_at}[]); one
+// request serves the pages opened together (the wizard's two reuse lists), fresh after a change
+var DSMETA = { p: null, at: 0 };
+function datasetMeta(fresh) {
+  if (!fresh && DSMETA.p && Date.now() - DSMETA.at < 5000) return DSMETA.p;
+  DSMETA.at = Date.now();
+  DSMETA.p = api("/api/datasets").then(function (r) { return r.ok ? r.data.datasets || [] : []; }, function () { return []; });
+  return DSMETA.p;
+}
+// the meta row of one data set: by its key (fingerprint), or by its set name (renamed before its first session)
+function dsMetaFor(meta, key, names) {
+  return meta.filter(function (m) { return m.key === key; })[0] ||
+    meta.filter(function (m) { return m.set && (names || []).indexOf(m.set) >= 0; })[0] || null;
+}
+// removed from Data sets? Only what happened before the removal: the same flows prepared again (same
+// fingerprint) or benchmarked again later (lastIso: its newest session or preparation) show up again
+function dsGone(meta, key, names, lastIso) {
+  var m = dsMetaFor(meta, key, names);
+  if (!m || !m.deleted_at) return false;
+  return !(lastIso && Date.parse(lastIso) > Date.parse(m.deleted_at));
+}
+
 function sessionsTable(rows, id, actions) {
   return '<table id="' + id + '"><thead><tr><th>Session</th><th>Input</th><th class="num">Flows</th><th>GPU</th><th>More efficient</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
     rows.map(function (s) {
       var tags = (s.tags || []).map(function (t) { return '<button type="button" class="chip tag-chip" data-tag="' + esc(t) + '" title="Show sessions tagged ' + esc(t) + '">' + esc(t) + '</button>'; }).join("");
-      return '<tr><td><span class="mono" title="' + esc(s.session_id) + '">' + esc(shortId(s.session_id)) + '</span><br><span class="muted small">' + esc((s.models || []).map(short).join(" vs ")) +
+      var sid = esc(s.session_id), canDel = actions && s.can_edit && CP && s.status !== "Running";
+      return '<tr><td>' + (s.title ? '<span class="row-name">' + esc(s.title) + '</span><span class="row-sub mono small muted" title="' + sid + '">' + esc(shortId(s.session_id)) + '</span>'
+          : '<span class="mono" title="' + sid + '">' + esc(shortId(s.session_id)) + '</span>') + '<span class="muted small' + (s.title ? "" : " row-sub") + '">' + esc((s.models || []).map(short).join(" vs ")) +
         '</span>' + (tags ? '<div class="tag-row">' + tags + '</div>' : "") + (s.notes ? '<div class="small note-snip" title="' + esc(s.notes) + '">' + esc(s.notes.length > 90 ? s.notes.slice(0, 88) + "…" : s.notes) + '</div>' : "") +
         '</td><td>' + esc(s.input_type || "—") + '</td><td class="num">' + fmtNum(s.n_flows) + '</td><td>' + esc(s.gpu || "—") +
         '</td><td>' + esc(s.more_efficient ? (s.more_efficient.indexOf("/") > 0 ? short(s.more_efficient) : s.more_efficient) : "—") +
         '</td><td>' + statusChip(s.status) + '</td><td class="row-acts">' + sessionLink(s) +
-        (actions && s.can_edit ? '<button type="button" class="btn small-btn" data-note="' + esc(s.session_id) + '" aria-expanded="false">Note</button>' : "") +
-        (actions && s.can_edit && CP && s.status !== "Running" ? '<button type="button" class="btn small-btn danger-lite" data-del="' + esc(s.session_id) + '">Delete</button>' : "") + '</td></tr>';
+        (actions && s.can_edit ? rowMenu("More actions for session " + (s.title || shortId(s.session_id)), [
+          { label: "Rename", icon: "rename", attr: 'data-rename="' + sid + '"' },
+          { label: s.notes ? "Edit note" : "Add note", icon: "note", attr: 'data-note="' + sid + '"' },
+          canDel && { sep: true },
+          canDel && { label: "Delete session", icon: "trash", attr: 'data-del="' + sid + '"', danger: true }]) : "") + '</td></tr>';
     }).join("") + '</tbody></table>';
 }
 function hbars(title, rows, fmt, unitNote) {

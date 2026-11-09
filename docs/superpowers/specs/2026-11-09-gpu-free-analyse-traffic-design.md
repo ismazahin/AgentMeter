@@ -1,6 +1,6 @@
 # Analyse traffic without a GPU — design
 
-Date: 2026-11-09 · Status: draft for approval
+Date: 2026-11-09 · Status: for approval (open questions answered)
 
 ## Intent and why
 
@@ -44,7 +44,9 @@ measure). The sidebar is reorganised so that no main page needs a GPU.
 - Changing the prepared-set hash of existing sets, or breaking existing sessions/compare.
 - Any page in the main sidebar that is empty or broken when the GPU is off.
 - Presenting IDS output as an LLM triage verdict: priority/severity/MITRE stay LLM-session
-  results (the policy table maps a *class*; the binary IDS has none).
+  results (the policy table maps a *class*; the binary IDS has none). **Decided: the IDS stays
+  binary** — no multiclass model in this change.
+- Showing one user's IP addresses to anyone else (see "Identification columns").
 
 ## Constraints
 
@@ -58,6 +60,11 @@ measure). The sidebar is reorganised so that no main page needs a GPU.
 - Candidate pool caps already exist: CSV ≤ 500,000 rows (stratified), PCAP ≤ 20,000 flows.
 - The prepared set holds ≤ 500 rule-selected flows (`MAX_SELECTED`); its hash
   (`agentmeter/session/prepared_hash.py`) covers features + labels only.
+- The app now lives in `web/app.html` (the landing page is `web/index.html`), and the Data sets
+  page has Details / Benchmark this set / Rename / Delete backed by the control plane's
+  `datasets` table (migration `20261109000000`, `GET /api/datasets`,
+  `POST /api/datasets/rename|delete`, run-token kind `delete_set`). Analyse traffic must keep
+  these actions, ownership rules and audit entries.
 
 ## Approaches considered
 
@@ -83,24 +90,38 @@ Hosting: free HF Space (chosen) over Cloud Run (needs a billing card).
 - New outputs next to `manifest.json` / `features.csv` / `labels.csv`:
   - `ids_scores.csv` — `flow_id, score, label?, selected` for the whole pool
     (`selected` = in the prepared set). Labels only when the input had them.
+  - `ids_flows_identity.csv` — `flow_id` + the identification columns (`src_ip, src_port,
+    dst_ip, protocol, protocol_name, timestamp`) for the whole pool (see below).
   - `ids.json` — model identity (sha256, sklearn version, threshold rule), default τ, pool size,
     scoring time, training-overlap check, features missing (same fields as today's `ids.json`).
 - These files are **outside** the prepared-set hash; existing sets keep their hash.
 - Analyses are prep jobs: they live in the control plane like prep jobs today (`prep.ts`),
   with the two new files added to the job's files.
 
+### Identification columns (decided: stored, owner only)
+- Today the control plane strips identification columns from what it stores (Phase 47).
+  **Decided:** for analyses only, they are stored in a separate file, `ids_flows_identity.csv`,
+  readable **only by the analysis's owner** (not other users; admins only through the existing
+  delete path, never by reading). The prepared set and its stored copy stay stripped as today,
+  so the prepared-set hash and session sharing are unchanged.
+- Deleting the analysis (data set) deletes this file. The audit log records its deletion.
+- Other viewers of the same analysis/data set see flow ids and features only.
+
 ### The Analyse traffic page (browser; no GPU)
 - Upload (file or URL) → progress (including "waking the preparation service") → results.
 - τ slider (default = model's τ). Everything below recomputes in the browser from
   `ids_scores.csv`: flagged/cleared counts, flagged share, alert list ordered by score
-  (with the flow's identification columns where available), and with labels: recall,
+  (with source/destination IP, port and protocol for the owner), and with labels: recall,
   precision, FPR, recall per attack class.
 - Projected LLM cost per model for the flagged alerts: alerts × measured per-flow latency /
   cost / energy from stored sessions (see Cost planner). Shown as a projection, with the
   session(s) and GPU it comes from.
 - "Benchmark LLMs on these alerts" (enabled when a GPU backend is online) opens model choice for
-  this prepared set with the IDS gate on at the page's τ.
-- The list of past analyses replaces the Data sets page (each shows which sessions used it).
+  this prepared set with the IDS gate on at the page's τ. **Decided: today's semantics** — the
+  LLMs get the flagged flows among the ≤ 500 rule-selected flows. The page says
+  "N of these alerts are in the benchmark sample" (N recomputed with τ).
+- The list of past analyses replaces the Data sets page (each shows which sessions used it),
+  keeping its Rename / Delete / Benchmark this set actions.
 
 ### The benchmark uses the stored scores
 - `prepare_session` (`agentmeter/session/benchmark.py`) reads the set's `ids_scores.csv` /
@@ -132,3 +153,19 @@ Hosting: free HF Space (chosen) over Cloud Run (needs a billing card).
 - Alert-list paging for large pools; chart choices.
 - Tests: pytest for the stage and the benchmark reuse path; vitest for `prep.ts` changes;
   e2e update for the new routes.
+
+## Decisions log
+
+| Question | Decision |
+|---|---|
+| Approach | IDS in the data-preparation step on the cloud service |
+| Hosting | Free Hugging Face Space (CPU Basic) |
+| Analysis ↔ session | One flow (A): analysis first, "Benchmark LLMs on these alerts" next |
+| Class without a GPU | Binary IDS only; priority/severity appear after an LLM benchmark |
+| Benchmark sample | Today's semantics: flagged ∩ ≤ 500 rule-selected flows |
+| IP addresses | Stored for the owner only, in a separate file; prepared set stays stripped |
+
+Calls made by the designer (check these): scoring the whole candidate pool, IDS files outside the
+prepared-set hash, refusing a benchmark when the GPU server's IDS model differs, past analyses
+replacing the Data sets page, Repeatability as a Leaderboard tab, the GPU queue in a header-chip
+panel and Admin.

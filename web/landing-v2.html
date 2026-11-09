@@ -79,19 +79,43 @@
   .lead { color: var(--muted-2); font-size: 18px; max-width: 58ch; margin-top: 20px; }
 
   /* ---------- buttons ---------- */
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 22px;
+  /* A fill sweeps in from the left on hover, the arrow nudges, the button presses down on click.
+     Big primary buttons (.magnet) also lean a few px toward the pointer (landing-v2.js sets --mx/--my). */
+  .btn { --sweep: var(--surface-2); --mx: 0px; --my: 0px; --s: 1;
+         position: relative; isolation: isolate; overflow: hidden;
+         display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; padding: 0 22px;
          border-radius: var(--radius); border: 1px solid var(--border-2); background: transparent; color: var(--text);
          font: 600 15px/1 var(--font); text-decoration: none; cursor: pointer;
-         transition: background-color .16s var(--ease), border-color .16s var(--ease), color .16s var(--ease); }
-  .btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+         transform: translate3d(var(--mx), var(--my), 0) scale(var(--s));
+         transition: border-color .16s var(--ease), color .16s var(--ease), transform .2s var(--ease); }
+  .btn::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--sweep);
+                 transform: scaleX(0); transform-origin: right center; transition: transform .28s var(--ease); }
+  .btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s var(--ease); }
+  .btn.primary { --sweep: var(--accent-hover); background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn:active { --s: .97; }
   @media (hover: hover) and (pointer: fine) {
     .btn:hover { border-color: var(--text); }
-    .btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-    .btn.primary:hover svg { transform: translateX(2px); }
+    .btn.primary:hover { border-color: var(--accent-hover); }
+    .btn:hover::before { transform: scaleX(1); transform-origin: left center; }
+    .btn:hover svg { transform: translateX(4px); }
   }
-  .btn.primary svg { transition: transform .16s var(--ease); }
+  .btn.magnet.pulling { transition: border-color .16s var(--ease), color .16s var(--ease), transform .08s linear; }
   .btn.lg { min-height: 56px; padding: 0 28px; font-size: 16px; }
+
+  /* replay button on the hero chart */
+  .replay { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: var(--radius);
+            background: transparent; color: var(--muted-2); font: 600 12px/1 var(--font); cursor: pointer; transition: color .16s var(--ease), border-color .16s var(--ease); }
+  .replay svg { width: 12px; height: 12px; fill: currentColor; transition: transform .28s var(--ease); }
+  .replay:active svg { transform: scale(.85); }
+  @media (hover: hover) and (pointer: fine) { .replay:hover { color: var(--text); border-color: var(--border-2); } .replay:hover svg { transform: rotate(-120deg); } }
+  .replay[disabled] { opacity: .5; cursor: default; }
+
+  /* reading progress under the header */
+  .scrollbar { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; pointer-events: none; }
+  .scrollbar i { display: block; height: 100%; background: var(--accent); transform: scaleX(var(--p, 0)); transform-origin: left center; }
+  .top::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 14px; pointer-events: none;
+                background: linear-gradient(rgba(0, 0, 0, .08), transparent); opacity: 0; transition: opacity .2s var(--ease); }
+  .top.scrolled::after { opacity: 1; }
 
   /* ---------- header ---------- */
   .top { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
@@ -118,9 +142,9 @@
 
   /* the one hero visual: one real flow through the four agents */
   .artifact { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 28px 28px 24px; position: relative; }
-  .artifact-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .artifact-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
   .artifact-head b { font-family: var(--mono); font-weight: 500; font-size: 13px; overflow-wrap: anywhere; }
-  .artifact-head span { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .artifact-head span { font-size: 12px; color: var(--muted); }
   .gantt { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 14px; }
   .gantt li { display: grid; grid-template-columns: 76px minmax(0, 1fr) 54px; align-items: center; gap: 12px; font-size: 13px; }
   .gantt .ag { font-weight: 600; }
@@ -238,13 +262,37 @@
   .foot-in nav { display: flex; gap: 20px; }
   .foot-in nav a { color: var(--muted-2); min-height: 44px; display: inline-flex; align-items: center; }
 
+  /* hero chart: a playhead sweeps one flow; each bar fills as it passes (--r set by landing-v2.js) */
+  .gwrap { position: relative; --ts: 88px; --te: 66px; }
+  .playhead { position: absolute; top: 14px; bottom: 30px; width: 2px; margin-left: -1px; background: var(--text); opacity: 0;
+              left: calc(var(--ts) + var(--ph, 0) * (100% - var(--ts) - var(--te))); transition: opacity .2s var(--ease); pointer-events: none; }
+  .playhead::before { content: ""; position: absolute; top: -5px; left: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--text); }
+  .gwrap.playing .playhead { opacity: 1; }
+  .js .gantt .bar { transform: scaleX(var(--r, 0)); }
+  .gantt li .ag { transition: color .2s var(--ease); }
+  .gwrap.playing .gantt li:not(.on) .ag { color: var(--muted); }
+  .gantt li.on .t { color: var(--text); font-weight: 600; }
+  #hero-lat { display: inline-block; min-width: 4.2ch; }
+
+  /* pipeline: a dot travels along the rule as the section scrolls; the agent it is over lights up */
+  .pipe { position: relative; }
+  .rail { position: absolute; left: 0; right: 0; top: -2px; height: 2px; pointer-events: none; }
+  .rail i { display: block; height: 100%; background: var(--accent); transform: scaleX(var(--pp, 0)); transform-origin: left center; }
+  .rail b { position: absolute; top: -5px; left: calc(var(--pp, 0) * 100%); width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .stage::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--c); transform: scaleX(0); transform-origin: left center; transition: transform .3s var(--ease); }
+  .stage.active::after { transform: scaleX(1); }
+  .stage h3 { transition: color .2s var(--ease); }
+
   /* ---------- motion (landing.js adds .js; reduced motion skips all of it) ---------- */
   .js .rv { opacity: 0; transform: translateY(16px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
   .js .rv.in { opacity: 1; transform: none; }
   .js .grow { transform: scaleX(0); transition: transform .9s var(--ease); transition-delay: var(--d, 0s); }
   .js .in .grow, .js .grow.in { transform: scaleX(1); }
   @media (prefers-reduced-motion: reduce) {
-    .js .rv, .js .grow { opacity: 1; transform: none; transition: none; }
+    .js .rv, .js .grow, .js .gantt .bar { opacity: 1; transform: none; transition: none; }
+    .btn, .btn::before, .btn svg, .replay svg, .stage::after { transition: none; }
+    .btn { transform: none; }
+    .rail, .playhead, .replay { display: none; }
   }
 
   /* ---------- responsive ---------- */
@@ -255,8 +303,8 @@
     .steps { grid-template-columns: minmax(0, 1fr); gap: 48px; }
     .frag { max-width: 460px; }
     .pipe { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .stage:nth-child(3) { padding-left: 0; border-left: 0; border-top: 1px solid var(--border); }
-    .stage:nth-child(4) { border-top: 1px solid var(--border); }
+    .stage:nth-child(4) { padding-left: 0; border-left: 0; border-top: 1px solid var(--border); }
+    .stage:nth-child(5) { border-top: 1px solid var(--border); }
     .ledger { grid-template-columns: minmax(0, 1fr); }
     .ledger > div + div { padding-left: 0; border-left: 0; border-top: 1px solid var(--border); }
     .ledger > div { padding-bottom: 32px; }
@@ -273,7 +321,8 @@
     .stage + .stage { border-top: 1px solid var(--border); }
     .artifact { padding: 20px 16px 18px; }
     .gantt li, .axis { grid-template-columns: 64px minmax(0, 1fr) 46px; gap: 8px; }
-    .artifact-head { flex-direction: column; gap: 4px; }
+    .gwrap { --ts: 72px; --te: 54px; }
+    .rail { display: none; }
     .row { grid-template-columns: minmax(0, 1fr) 80px; }
   }
 </style>
@@ -300,6 +349,7 @@
       <a class="btn primary" href="index.html#/login">Log in</a>
     </div>
   </div>
+  <div class="scrollbar" aria-hidden="true"><i></i></div>
 </header>
 
 <main id="main">
@@ -311,7 +361,7 @@
         <h1 class="rv">See what each agent <em>costs to run</em>, flow by flow.</h1>
         <p class="lead rv">AgentMeter runs open-source LLMs through a four-agent network triage pipeline on a rented GPU, all at the same 4-bit NF4, and records latency, VRAM, tokens, cost and energy for every step.</p>
         <div class="cta-row rv">
-          <a class="btn primary lg" href="index.html#/login">Log in to AgentMeter
+          <a class="btn primary lg magnet" href="index.html#/login">Log in to AgentMeter
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
           </a>
           <a class="btn lg" href="#how">How it works</a>
@@ -321,22 +371,27 @@
 
       <figure class="artifact rv" aria-labelledby="gantt-cap" style="margin:0">
         <div class="artifact-head">
-          <b>Qwen/Qwen2.5-3B-Instruct</b>
-          <span>Mean time per agent, one flow</span>
+          <div><b>Qwen/Qwen2.5-3B-Instruct</b><br><span>Mean time per agent, one flow</span></div>
+          <button type="button" class="replay" id="replay" aria-label="Replay the flow animation">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2a6 6 0 1 1-5.6 3.9l1.9.7A4 4 0 1 0 8 4v2.5L4.5 3.2 8 0z"/></svg>Replay
+          </button>
         </div>
+        <div class="gwrap" id="gwrap">
         <ol class="gantt" id="hero-gantt">
-          <li><span class="ag">Perceive</span><span class="track"><i class="bar grow" style="--x:0%;--w:30.2%;--c:var(--ag-1);--d:.25s"></i></span><span class="t">3.26 s</span></li>
-          <li><span class="ag">Reason</span><span class="track"><i class="bar grow" style="--x:30.2%;--w:37.6%;--c:var(--ag-2);--d:.75s"></i></span><span class="t">4.06 s</span></li>
-          <li><span class="ag">Decide</span><span class="track"><i class="bar grow" style="--x:67.8%;--w:2.5%;--c:var(--ag-3);--d:1.25s"></i></span><span class="t">0.27 s</span></li>
-          <li><span class="ag">Act</span><span class="track"><i class="bar grow" style="--x:70.3%;--w:29.7%;--c:var(--ag-4);--d:1.45s"></i></span><span class="t">3.20 s</span></li>
+          <li data-from="0" data-to="3.26"><span class="ag">Perceive</span><span class="track"><i class="bar" style="--x:0%;--w:30.2%;--c:var(--ag-1)"></i></span><span class="t">3.26 s</span></li>
+          <li data-from="3.26" data-to="7.32"><span class="ag">Reason</span><span class="track"><i class="bar" style="--x:30.2%;--w:37.6%;--c:var(--ag-2)"></i></span><span class="t">4.06 s</span></li>
+          <li data-from="7.32" data-to="7.59"><span class="ag">Decide</span><span class="track"><i class="bar" style="--x:67.8%;--w:2.5%;--c:var(--ag-3)"></i></span><span class="t">0.27 s</span></li>
+          <li data-from="7.59" data-to="10.79"><span class="ag">Act</span><span class="track"><i class="bar" style="--x:70.3%;--w:29.7%;--c:var(--ag-4)"></i></span><span class="t">3.20 s</span></li>
         </ol>
+        <span class="playhead" aria-hidden="true"></span>
         <div class="axis" aria-hidden="true">
           <span></span>
           <div class="axis-ticks"><span style="left:0">0 s</span><span style="left:46.3%">5 s</span><span style="left:100%">10.8 s</span></div>
           <span></span>
         </div>
+        </div>
         <figcaption class="artifact-foot" id="gantt-cap">
-          <span>Mean latency per flow<br><strong>10.80 s</strong></span>
+          <span>Mean latency per flow<br><strong id="hero-lat">10.80 s</strong></span>
           <span class="tag" title="Real RTX 3090 session, 20 flows. An exploratory run, not the locked study.">RTX 3090 · 20 flows · exploratory</span>
         </figcaption>
       </figure>
@@ -351,7 +406,7 @@
         <p class="lead">Multi-agent pipelines pass work from agent to agent, and every hand-off is paid for in tokens, time and memory. AgentMeter puts a number on each of them.</p>
       </div>
       <div class="tokens">
-        <div class="big">303<small>tokens / flow</small></div>
+        <div class="big"><span data-count="303">303</span><small>tokens / flow</small></div>
         <p>spent only on hand-offs between agents in the session above, before any agent did its own work.</p>
         <div class="tokbar" role="img" aria-label="Hand-off tokens are 8.9 percent of all 3,401 tokens per flow"><i class="work"></i><i class="hand grow" style="--d:.4s"></i></div>
         <div class="tokleg"><span>3,401 tokens per flow in total</span><b>8.9% overhead</b></div>
@@ -369,6 +424,7 @@
         <p class="lead">The pipeline triages network flows. It is only the workload: what AgentMeter studies is how much each model spends running it, broken down per agent.</p>
       </div>
       <div class="pipe rv" id="pipe">
+        <div class="rail" aria-hidden="true"><i></i><b></b></div>
         <div class="stage" style="--c:var(--ag-1)">
           <span class="num">01</span><h3>Perceive</h3>
           <p>Reads the flow's features and summarises what happened on the wire.</p>
@@ -549,7 +605,7 @@
         <p class="lead">Your sessions, comparisons and leaderboard stay browsable even while the GPU is off.</p>
       </div>
       <div class="close-cta">
-        <a class="btn primary lg" href="index.html#/login">Log in to AgentMeter
+        <a class="btn primary lg magnet" href="index.html#/login">Log in to AgentMeter
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
         </a>
         <small>No account? Ask your admin for an invite.</small>

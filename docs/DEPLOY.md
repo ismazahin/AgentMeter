@@ -169,7 +169,7 @@ it), the region nearest to you → Create. Note the **project ref**: the `xxxxxx
 cd AgentMeter
 npx supabase login                                  # opens the browser once
 npx supabase link --project-ref <project-ref>       # asks for the database password
-npx supabase db push                                # creates the tables and the private Storage bucket
+npx supabase db push --remote                            # creates the tables and the private Storage bucket
 
 # secrets — generate each with:  python -c "import secrets; print(secrets.token_urlsafe(48))"
 # RUN_TOKEN_SECRET and BACKEND_SECRET: the GPU backend gets the SAME values (backend.env).
@@ -257,7 +257,7 @@ subscription to host Docker Spaces, even on CPU Basic (`402 Payment Required` fr
 pip install huggingface_hub
 python scripts/deploy_cloudprep_hf.py      # creates/updates <you>/agentmeter-prep, sets its secret,
                                            # waits for the build, then runs npx supabase secrets set ...
-npx supabase db push                       # the prep_jobs table (answer Y)
+npx supabase db push --remote                   # the prep_jobs table (answer Y)
 npx supabase functions deploy agentmeter --no-verify-jwt --use-api
 ```
 The Space is public (its code is this repository's; the secret is a Space secret, never in a file,
@@ -277,7 +277,7 @@ SECRET=$(python -c "import secrets; print(secrets.token_urlsafe(48))")
 CLOUD_PREP_SECRET=$SECRET bash scripts/deploy_cloudprep.sh     # builds and deploys; prints the URL
 # Windows PowerShell: $env:CLOUD_PREP_SECRET = "<secret>"; .\scripts\deploy_cloudprep.ps1
 npx supabase secrets set CLOUD_PREP_URL=<the printed URL> CLOUD_PREP_SECRET=$SECRET
-npx supabase db push                                   # the prep_jobs table
+npx supabase db push --remote                               # the prep_jobs table
 npx supabase functions deploy agentmeter --no-verify-jwt --use-api
 ```
 After a change to the preparation code, run `scripts/deploy_cloudprep.sh` again (it rebuilds the
@@ -298,7 +298,7 @@ service installs `scikit-learn==1.9.1`, the version the IDS model is trained wit
 build after this change takes a little longer. After pulling this change:
 ```bash
 python scripts/prep_local.py               # your computer; or deploy_cloudprep.sh (Cloud Run) / _hf.py (PRO)
-npx supabase db push                       # prep_jobs: prepared_sha256 + ids_json (20261110000000)
+npx supabase db push --remote                   # prep_jobs: prepared_sha256 + ids_json (20261110000000)
 npx supabase functions deploy agentmeter --no-verify-jwt --use-api
 ```
 Measured on a laptop CPU with the demo IDS: a 100,000-flow CSV is prepared and scored in about 4 s
@@ -356,7 +356,7 @@ backend are recomputed automatically from their run folder.
 
 **Updating a deployed control plane** (after `git pull`), from the repo folder:
 ```bash
-npx supabase db push                                       # only applies new files in supabase/migrations/
+npx supabase db push --remote                                   # only applies new files in supabase/migrations/
 npx supabase functions deploy agentmeter --no-verify-jwt --use-api
 npx wrangler pages deploy web --project-name agentmeter    # the site (while it is on Cloudflare Pages)
 ```

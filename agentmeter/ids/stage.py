@@ -67,6 +67,61 @@ def apply_ids(run_dir: Path, scen: pd.DataFrame, features: list[str], opt: dict[
     return scen[flagged].reset_index(drop=True), info
 
 
+def has_stored_scores(run_dir: Path) -> bool:
+    """The prepared set carries its traffic analysis (the pool scored at preparation)."""
+    return (Path(run_dir) / IDS_SCORES_CSV).is_file() and (Path(run_dir) / IDS_POOL_JSON).is_file()
+
+
+def apply_stored_scores(run_dir: Path, scen: pd.DataFrame, opt: dict[str, Any], labelled: bool,
+                        model_path: Optional[Path] = None) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """apply_ids without scoring again: the selected flows' scores come from the set's
+    ids_scores.csv (the traffic analysis), so the analysis and the benchmark can never disagree.
+    Only when THIS server's IDS model is the one that scored them (same sha256); otherwise the
+    benchmark is refused. Writes the same ids_results.csv / ids.json as apply_ids."""
+    run_dir = Path(run_dir)
+    pool_info = json.loads((run_dir / IDS_POOL_JSON).read_text(encoding="utf-8"))
+    scored_by = pool_info.get("model") or {}
+    model = load_model(model_path)
+    if scored_by.get("sha256") != model.identity.get("sha256"):
+        raise IdsError(
+            f"this data set was scored by IDS {scored_by.get('version') or scored_by.get('name')} "
+            f"(sha256 {str(scored_by.get('sha256'))[:12]}…), but this server has "
+            f"{model.identity.get('version') or model.identity.get('name')} "
+            f"(sha256 {str(model.identity.get('sha256'))[:12]}…): store the same model in Admin › IDS model "
+            "and restart the GPU server, or analyse the traffic again")
+    tau = model.threshold if opt.get("threshold") is None else float(opt["threshold"])
+    stored = pd.read_csv(run_dir / IDS_SCORES_CSV, dtype={"flow_id": str}).set_index("flow_id")["score"]
+    fid = scen["flow_id"].astype(str)
+    missing = fid[~fid.isin(stored.index)]
+    if len(missing):
+        raise IdsError(f"{len(missing)} benchmark flows have no stored IDS score (e.g. {missing.iloc[0]}): "
+                       "analyse the traffic again")
+    scores = stored.loc[fid].to_numpy(dtype=float)
+    flagged = scores >= tau
+    out = pd.DataFrame({"flow_id": fid.to_numpy(), "score": scores, "flagged": flagged,
+                        "label": scen["label"].to_numpy() if labelled else None})
+    out.to_csv(run_dir / IDS_RESULTS_CSV, index=False)
+    n = int(len(scen))
+    per_flow = pool_info.get("scoring_s_per_flow")
+    info = {
+        "model": model.identity,
+        "model_metrics_holdout": (model.meta.get("metrics") or {}).get("holdout"),
+        "threshold": tau,
+        "threshold_source": "model (" + str(model.meta.get("threshold_rule")) + ")" if opt.get("threshold") is None
+        else "set for this session",
+        "n_flows_in": n, "n_flagged": int(flagged.sum()), "n_cleared": int(n - flagged.sum()),
+        "flagged_share": float(flagged.mean()) if n else None,
+        # measured when the pool was scored (per flow), so cost per 1,000 incoming flows still holds
+        "scoring_s_total": per_flow * n if per_flow is not None else None, "scoring_s_per_flow": per_flow,
+        "training_overlap": model.overlap(scen),
+        "features_missing": [f for f in model.features if f not in scen.columns],
+        "labelled": labelled,
+        "scores_source": "prepared set (traffic analysis)",
+    }
+    (run_dir / IDS_JSON).write_text(json.dumps(info, indent=2), encoding="utf-8")
+    return scen[flagged].reset_index(drop=True), info
+
+
 def score_pool(pool: pd.DataFrame, selected_ids: Any, labelled: bool,
                model_path: Optional[Path] = None) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Score EVERY flow of a candidate pool (the traffic analysis, before any LLM).

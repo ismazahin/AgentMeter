@@ -130,13 +130,17 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
         scen["label"] = UNLABELLED
     # --- the IDS gate: only flows it flags reach the LLM agents -------------------------
     from ..ids.model import IdsError
-    from ..ids.stage import IDS_JSON, IDS_RESULTS_CSV, apply_ids, normalize_ids_option
+    from ..ids.stage import (IDS_JSON, IDS_RESULTS_CSV, apply_ids, apply_stored_scores, has_stored_scores,
+                             normalize_ids_option)
     try:
         ids_opt = normalize_ids_option(ids)
         ids_info = None
         for stale in (IDS_JSON, IDS_RESULTS_CSV):       # a previous session's IDS output in this folder
             (run_dir / stale).unlink(missing_ok=True)
-        if ids_opt is not None:
+        if ids_opt is not None and has_stored_scores(run_dir):
+            # the traffic analysis already scored these flows (data preparation): reuse its scores
+            scen, ids_info = apply_stored_scores(run_dir, scen, ids_opt, labelled=run.labels is not None)
+        elif ids_opt is not None:
             scen, ids_info = apply_ids(run_dir, scen, feats, ids_opt, labelled=run.labels is not None)
     except IdsError as e:
         raise SessionError(str(e)) from e

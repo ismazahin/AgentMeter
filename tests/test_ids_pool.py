@@ -131,3 +131,46 @@ def test_bad_ids_files_are_refused(csv_set, tmp_path, case, msg):
         files[IDS_SCORES_CSV] = files[IDS_SCORES_CSV].replace(b"0.", b"1.", 1)
     with pytest.raises(P.PrepareError, match=msg):
         P.import_prepared(files, tmp_path)
+
+
+# --- the benchmark reuses the stored scores (Phase 3) ----------------------------------------
+def _fresh_set(tmp_path, name="bench"):
+    return _prepare(tmp_path, SAMPLE_CSV, name, DEMO)
+
+
+def test_the_benchmark_reuses_the_stored_scores_and_matches_a_rescoring(tmp_path, monkeypatch):
+    from agentmeter.ids.stage import IDS_JSON, IDS_RESULTS_CSV
+    from agentmeter.session.benchmark import prepare_session
+    monkeypatch.setenv("AGENTMETER_IDS_MODEL", str(DEMO))
+    d = _fresh_set(tmp_path)
+    plan = prepare_session(d, ["mock-a"], provider="mock", ids={"threshold": 0.3})
+    reused = pd.read_csv(d / IDS_RESULTS_CSV, dtype={"flow_id": str})
+    info = json.loads((d / IDS_JSON).read_text())
+    assert info["scores_source"].startswith("prepared set") and info["threshold"] == 0.3
+    assert plan["ids"]["n_flagged"] == int(reused["flagged"].sum()) == plan["n_flows"]
+    # the same flows scored afresh (no stored scores) give the same verdicts
+    (d / IDS_SCORES_CSV).rename(d / "kept.csv")
+    prepare_session(d, ["mock-a"], provider="mock", ids={"threshold": 0.3})
+    fresh = pd.read_csv(d / IDS_RESULTS_CSV, dtype={"flow_id": str})
+    assert list(fresh["flow_id"]) == list(reused["flow_id"]) and list(fresh["flagged"]) == list(reused["flagged"])
+    assert (fresh["score"] - reused["score"]).abs().max() < 1e-12
+    assert "scores_source" not in json.loads((d / IDS_JSON).read_text())
+
+
+def test_a_server_with_another_ids_model_refuses_the_set(tmp_path, monkeypatch):
+    from agentmeter.session.benchmark import SessionError, prepare_session
+    monkeypatch.setenv("AGENTMETER_IDS_MODEL", str(DEMO))
+    d = _fresh_set(tmp_path)
+    info = json.loads((d / IDS_POOL_JSON).read_text())
+    info["model"] = {**info["model"], "sha256": "f" * 64, "version": "ids_rf-other"}
+    (d / IDS_POOL_JSON).write_text(json.dumps(info))
+    with pytest.raises(SessionError, match="scored by IDS ids_rf-other"):
+        prepare_session(d, ["mock-a"], provider="mock", ids=True)
+
+
+def test_a_whole_session_runs_on_the_stored_scores(tmp_path, monkeypatch):
+    from agentmeter.session.benchmark import run_session
+    monkeypatch.setenv("AGENTMETER_IDS_MODEL", str(DEMO))
+    d = _fresh_set(tmp_path)
+    p = run_session(d, ["mock-a"], provider="mock", ids=True)
+    assert p["ids"]["n_flows_in"] == len(pd.read_csv(d / "features.csv")) and p["session"]["n_flows"] == p["ids"]["n_alerts"]

@@ -48,7 +48,7 @@ async function grab(p, click) {
     log(await waitDone(j1) === 'done' && await waitDone(j2) === 'done', 'two sessions on one prepared set');
 
     // Run again: same set, models and options
-    await p.goto(BASE + '/#/session/' + j1); await p.waitForSelector('#session-again:not([hidden])');
+    await p.goto(BASE + '/app.html#/session/' + j1); await p.waitForSelector('#session-again:not([hidden])');
     await p.click('#session-again'); await p.waitForSelector('#wiz-again:not([hidden])');
     await p.waitForFunction(() => document.querySelector('#wiz-data-chip').textContent === 'Ready', null, { timeout: 30000 });
     const ticked = await p.$$eval('#svc-models input:checked', x => x.map(i => i.value).sort());
@@ -71,12 +71,12 @@ async function grab(p, click) {
     await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/new\/run\//.test(location.hash), null, { timeout: 30000 });
     const j3 = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[3]);
-    await p.goto(BASE + '/#/datasets'); await p.waitForSelector('#ds-table');       // somewhere else in the app
+    await p.goto(BASE + '/app.html#/datasets'); await p.waitForSelector('#ds-table');       // somewhere else in the app
     await p.waitForSelector('.toast', { timeout: 120000 });
     log(/Benchmark finished/.test(await p.textContent('.toast')) && !!(await p.$(`.toast a[href="#/session/${j3}"]`)), 'when it finishes, a message links to the results (while on another page)');
 
     // thesis exports: Leaderboard › Compare models
-    await p.goto(BASE + '/#/compare?a=' + j1); await p.waitForSelector('#cmp-list input');
+    await p.goto(BASE + '/app.html#/compare?a=' + j1); await p.waitForSelector('#cmp-list input');
     await p.click('#cmp-go'); await p.waitForSelector('#cmp-rank-table');
     const rankCard = await p.$('#cmp-rank-table >> xpath=ancestor::div[contains(@class,"card")]');
     const tex = fs.readFileSync(await grab(p, () => rankCard.$('[data-exp="latex"]').then(x => x.click())), 'utf8');
@@ -96,7 +96,7 @@ async function grab(p, click) {
     log(!(await p.$('#cmp-diff-table')) || true, 'Compare: back to the latest run');
 
     // Repeatability exports too
-    await p.goto(BASE + '/#/trends?demo=1'); await p.waitForSelector('#tr-summary-table');
+    await p.goto(BASE + '/app.html#/trends?demo=1'); await p.waitForSelector('#tr-summary-table');
     log(!!(await p.$('#tr-summary-card [data-exp="latex"]')), 'Repeatability: its table has the export buttons');
 
     log(/automatic per measure/.test(await p.textContent('#tr-within')), 'Repeatability: stability limits per measure, or one chosen limit');
@@ -105,11 +105,11 @@ async function grab(p, click) {
     await p.selectOption('#tr-within', '');
 
     // warm-up: the steady-state mean next to the headline mean
-    await p.goto(BASE + '/#/session/' + j1 + '/performance/latency'); await p.waitForSelector('#stats-percentiles');
+    await p.goto(BASE + '/app.html#/session/' + j1 + '/performance/latency'); await p.waitForSelector('#stats-percentiles');
     log(/Mean without the first 5 flows/.test(await p.textContent('#stats-percentiles thead')), 'Performance › Latency: the mean without the warm-up flows');
 
     // reproducibility package
-    await p.goto(BASE + '/#/session/' + j1 + '/data'); await p.waitForSelector('#svc-dl-repro');
+    await p.goto(BASE + '/app.html#/session/' + j1 + '/data'); await p.waitForSelector('#svc-dl-repro');
     const zip = await grab(p, () => p.click('#svc-dl-repro'));
     const names = JSON.parse(cp.execFileSync(process.env.PYTHON || 'python', ['-c',
       'import sys,zipfile,json;z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None;print(json.dumps(sorted(z.namelist())))', zip]).toString());
@@ -119,7 +119,7 @@ async function grab(p, click) {
     log(run.repeat_check === true && run.quantization === '4-bit NF4' && run.models.length === 2, 'run.json records the models, options and 4-bit NF4');
 
     // Ctrl+K: search pages, sessions, data sets and models
-    await p.goto(BASE + '/#/'); await p.waitForSelector('#gs-open');
+    await p.goto(BASE + '/app.html#/'); await p.waitForSelector('#gs-open');
     await p.keyboard.press('Control+k'); await p.waitForSelector('#gs:not([hidden])');
     const mname = models[0].split('/').pop();
     await p.keyboard.type(mname.slice(0, 6).toLowerCase());
@@ -135,11 +135,11 @@ async function grab(p, click) {
     await p.keyboard.press('Control+k'); await p.keyboard.press('Escape');
     log(await p.isHidden('#gs'), 'Esc closes the search');
     log(/In short:/.test(await p.textContent('#tr-plain')), 'Repeatability: a plain-language summary first');
-    await p.goto(BASE + '/#/compare?a=' + j1); await p.waitForSelector('#cmp-list input'); await p.click('#cmp-go'); await p.waitForSelector('#cmp-plain');
+    await p.goto(BASE + '/app.html#/compare?a=' + j1); await p.waitForSelector('#cmp-list input'); await p.click('#cmp-go'); await p.waitForSelector('#cmp-plain');
     log(/In short:/.test(await p.textContent('#cmp-plain')), 'Compare: a plain-language summary of the result');
 
     // Methodology
-    await p.goto(BASE + '/#/help'); await p.waitForSelector('#help-method');
+    await p.goto(BASE + '/app.html#/help'); await p.waitForSelector('#help-method');
     const m = await p.textContent('#help-method');
     log(/target ÷ value/.test(m) && /Kruskal-Wallis/.test(m) && /1\.4826/.test(m) && /SHA-256/.test(m), 'How to use › Methodology: setup, measures, SAW formula, statistics');
     // API documentation: the three OpenAPI documents, rendered without any third-party script
@@ -153,7 +153,7 @@ async function grab(p, click) {
     log(shown.includes('/api/gpu'), 'API docs: the filter finds /api/gpu');
     await p.click('#get__api_gpu summary');
     log(/run token: read/.test(await p.textContent('#get__api_gpu')) && /live reading/.test(await p.textContent('#get__api_gpu')), 'API docs: who may call each endpoint, and what it does');
-    await p.goto(BASE + '/#/help'); await p.waitForSelector('#help-method');
+    await p.goto(BASE + '/app.html#/help'); await p.waitForSelector('#help-method');
     log(!!(await p.$('a[href="docs/"]')), 'How to use links the API documentation');
     log(!errs.length, 'no JS errors ' + errs.join(' | '));
   } catch (e) {

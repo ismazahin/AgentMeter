@@ -49,7 +49,7 @@ async function waitDone(id) {
     // GPU & Queue while a run is going and another waits
     const j1 = await bench(csvSet, models.slice(0, 2));
     const j2 = await bench(csvSet, models.slice(2, 4));
-    await p.goto(BASE + '/#/gpu'); await p.waitForSelector('#gq-running-card');
+    await p.goto(BASE + '/app.html#/gpu'); await p.waitForSelector('#gq-running-card');
     await p.waitForFunction(() => /Busy/.test(document.querySelector('#gq-state')?.textContent || ''), null, { timeout: 20000 });
     log(/1 waiting/.test(await p.textContent('#gq-state')), 'GPU & Queue: busy, 1 waiting (' + (await p.textContent('#gq-state')).trim() + ')');
     log(/Benchmark/.test(await p.textContent('#gq-running-card')) && !!(await p.$('#gq-running-card .bar')) && !!(await p.$(`#gq-running-card a[href="#/new/run/${j1}"]`)),
@@ -71,7 +71,7 @@ async function waitDone(id) {
     log(/on the GPU server/.test(await p.textContent('#gq-prep-where')) && /free/.test(await p.textContent('#gq-prep-where')), 'Data preparation: on the GPU server now that it is free');
 
     // Data sets
-    await p.goto(BASE + '/#/datasets'); await p.waitForSelector('#ds-table');
+    await p.goto(BASE + '/app.html#/datasets'); await p.waitForSelector('#ds-table');
     const rows = await p.$$eval('#ds-table tbody tr[data-ds]', r => r.map(x => x.textContent));
     log(rows.length === (pcapSet ? 2 : 1), 'Data sets: one row per prepared set (' + rows.length + ')');
     const csvName = csvSet.split('/').pop();
@@ -97,7 +97,7 @@ async function waitDone(id) {
     await p.click(`#ds-table tbody tr[data-ds]:has-text("${csvName}") a:has-text("Compare models")`);
     await p.waitForSelector('#cmp-list input');
     log((await p.$$('#cmp-list input')).length === 4, 'Compare models: opens with the 4 models measured on this set');
-    await p.goto(BASE + '/#/datasets'); await p.waitForSelector('#ds-table');
+    await p.goto(BASE + '/app.html#/datasets'); await p.waitForSelector('#ds-table');
     await p.screenshot({ path: S + '/datasets.png', fullPage: true });
     const nav = await p.$$eval('.mainnav [data-nav]', a => a.map(x => x.getAttribute('data-nav')));
     log(nav.includes('datasets') && nav.includes('gpu'), 'the sidebar has Data sets and GPU & Queue');

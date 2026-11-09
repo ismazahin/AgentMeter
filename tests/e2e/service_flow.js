@@ -18,7 +18,7 @@ fs.writeFileSync(S + '/bad.csv', 'a,b\n1,2\n');
 const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg);
 
 async function upload(p, file, flows) {
-  await p.goto(ORIGIN + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+  await p.goto(ORIGIN + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.setInputFiles('#svc-file', file);
   await p.fill('#svc-max-flows', String(flows));
   await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
@@ -97,17 +97,17 @@ async function run(p, idx) {
       'session Downloads: prepared-set files');
 
   // 3. reuse a prepared set by id; an unknown id is refused
-  await p.goto(ORIGIN + '/#/new?src=reuse'); await p.waitForSelector('#svc-bench-id');
+  await p.goto(ORIGIN + '/app.html#/new?src=reuse'); await p.waitForSelector('#svc-bench-id');
   await p.fill('#svc-bench-id', setId); await p.click('#svc-bench-id-btn');
   await p.waitForFunction(() => /^#\/new\/models\?set=/.test(location.hash));
   log(await ready(p) === 'Ready' && (await p.textContent('#wiz-data-status')).includes(setId), 'reuse by prepared-set id -> Models with the set ready');
-  await p.goto(ORIGIN + '/#/new?src=reuse'); await p.waitForSelector('#svc-bench-id');
+  await p.goto(ORIGIN + '/app.html#/new?src=reuse'); await p.waitForSelector('#svc-bench-id');
   await p.fill('#svc-bench-id', 'csv_runs/does-not-exist'); await p.click('#svc-bench-id-btn');
   await p.waitForSelector('#svc-bench-id-error:not([hidden])');
   log(/not found/.test(await p.textContent('#svc-bench-id-error')), 'unknown prepared-set id rejected');
 
   // 4. re-upload the downloaded files
-  await p.goto(ORIGIN + '/#/new?src=reuse'); await p.waitForSelector('#svc-import-form');
+  await p.goto(ORIGIN + '/app.html#/new?src=reuse'); await p.waitForSelector('#svc-import-form');
   await p.setInputFiles('#svc-imp-manifest', files['manifest.json']);
   await p.setInputFiles('#svc-imp-features', files['features.csv']);
   await p.click('#svc-import-btn');
@@ -141,7 +141,7 @@ async function run(p, idx) {
   // 7. too large to upload -> pointed to Import from a link (client-side, nothing sent)
   const lim = await p.evaluate(() => fetch('/api/service/config').then(r => r.json()).then(c => c.limits));
   const bigPath = S + '/toobig.csv'; fs.writeFileSync(bigPath, Buffer.alloc(lim.max_upload_bytes + 1024, 97));
-  await p.goto(ORIGIN + '/#/new'); await p.waitForSelector('#svc-file');
+  await p.goto(ORIGIN + '/app.html#/new'); await p.waitForSelector('#svc-file');
   await p.setInputFiles('#svc-file', bigPath); await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
   await p.waitForSelector('#svc-upload-error:not([hidden])');
   log(/Import from a link/.test(await p.textContent('#svc-upload-error')), 'oversized upload points to Import from a link (limit ' + lim.max_upload_label + ')');
@@ -149,7 +149,7 @@ async function run(p, idx) {
 
   // 8. Import from a link -> run
   if (URL_BASE) {
-    await p.goto(ORIGIN + '/#/new'); await p.waitForSelector('#svc-file');
+    await p.goto(ORIGIN + '/app.html#/new'); await p.waitForSelector('#svc-file');
     await p.click('#tab-src-url');
     log(await p.isVisible('#svc-url') && !(await p.isVisible('#svc-drop')), 'link tab shows the URL field');
     await p.fill('#svc-url', URL_BASE + '/big.csv'); await p.fill('#svc-max-flows', '20');
@@ -175,7 +175,7 @@ async function run(p, idx) {
   }
 
   // 9. Sessions page lists runs; phone width
-  await p.goto(ORIGIN + '/#/sessions'); await p.waitForSelector('#sessions-table');
+  await p.goto(ORIGIN + '/app.html#/sessions'); await p.waitForSelector('#sessions-table');
   const n = (await p.$$('#sessions-table tbody tr')).length;
   log(n >= 3, 'Sessions lists the benchmark runs (' + n + '), never a separate "prepare job"');
   await p.selectOption('#flt-input', 'PCAP');

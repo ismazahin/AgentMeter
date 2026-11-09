@@ -17,7 +17,7 @@ const pdfText = f => cp.execFileSync(process.env.PYTHON || 'python', ['-c',
   'import sys,pypdf;print("\\n".join(p.extract_text() for p in pypdf.PdfReader(sys.argv[1]).pages))', f]).toString();
 
 async function session(p, file, flows, idx) {
-  await p.goto(ORIGIN + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+  await p.goto(ORIGIN + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.setInputFiles('#svc-file', file); await p.fill('#svc-max-flows', String(flows));
   await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
   await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
@@ -76,7 +76,7 @@ async function embedded(p, job, labelled, nModels, tag) {
   await embedded(p, csvJob, true, 2, 'csv');
   await embedded(p, pcapJob, false, 1, 'pcap');
 
-  await p.goto(ORIGIN + '/#/session/job_20990101_000000_abcdef');
+  await p.goto(ORIGIN + '/app.html#/session/job_20990101_000000_abcdef');
   await p.waitForSelector('#session-watch .notice.error', { timeout: 15000 });
   log(/no such job/i.test(await p.textContent('#session-watch')), 'unknown session id: a clear error');
   log(errs.length === 0, 'no JS errors ' + errs.join(' | '));

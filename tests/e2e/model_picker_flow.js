@@ -24,7 +24,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   try {
     // 1. upload, then step 2 shows both model groups
-    await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])', { timeout: 15000 });
+    await p.goto(BASE + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])', { timeout: 15000 });
     await p.setInputFiles('#svc-file', CSV); await p.fill('#svc-max-flows', '5'); await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
     await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
     await p.waitForSelector('#svc-models input');
@@ -77,7 +77,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
       job_id: fake, status: 'running', models: [EXTRA, 'Qwen/Qwen2.5-7B-Instruct'], run_name: 'csv_runs/x',
       progress: { completed: 0, total: 10, per_model: {}, current_model: null, percent: 0 },
       model_download: { model: EXTRA, index: 1, count: 1, phase: 'downloading', done_bytes: 2.5 * 1073741824, total_bytes: 6.2 * 1073741824 } }) }));
-    await p.goto(BASE + '/#/new/run/' + fake);
+    await p.goto(BASE + '/app.html#/new/run/' + fake);
     await p.waitForFunction(() => /Downloading model/.test((document.getElementById('svc-job-phase') || {}).textContent || ''), null, { timeout: 15000 });
     const dtext = await p.textContent('#svc-progress-text');
     log(/Downloading Qwen2\.5-3B-Instruct — 2\.5 \/ 6\.2 GB · 40%/.test(dtext) && /not measured/.test(dtext),
@@ -88,9 +88,9 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     await p.unroute('**/api/jobs/' + fake);
 
     // 4. Leaderboard and Settings
-    await p.goto(BASE + '/#/leaderboard'); await p.waitForSelector('.lb-table');
+    await p.goto(BASE + '/app.html#/leaderboard'); await p.waitForSelector('.lb-table');
     log((await p.$$('.lb-table .extra-tag')).length === 1, 'Leaderboard: the extra model is labelled');
-    await p.goto(BASE + '/#/settings'); await p.waitForSelector('#view-settings:not([hidden])');
+    await p.goto(BASE + '/app.html#/settings'); await p.waitForSelector('#view-settings:not([hidden])');
     log(true, 'Settings opens');
   } catch (e) {
     log(false, 'walk-through crashed: ' + e.message);

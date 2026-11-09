@@ -590,7 +590,7 @@ def test_listings_and_stored_results_need_a_read_token(app, monkeypatch):
 
 def test_app_routes(app):
     c = app["c"]
-    assert c.get("/").status_code == 200 and b"New benchmark" in c.get("/").data
+    assert c.get("/app.html").status_code == 200 and b"New benchmark" in c.get("/app.html").data
     r = c.get(f"/?session={app['j1']}")
     assert r.status_code == 302 and r.headers["Location"].endswith(f"/#/session/{app['j1']}/detailed")
     assert c.get("/?session=../../etc").status_code == 200                # not a job id: just the app

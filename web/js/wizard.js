@@ -1,5 +1,5 @@
 // AgentMeter web app — wizard.js: New benchmark: data (upload, link, reuse; where it is prepared: GPU server, cloud or browser), models, settings, the agent pipeline, Run, live telemetry.
-// One of the app's scripts (web/index.html loads them in order: core, home, wizard, session, analysis,
+// One of the app's scripts (web/app.html loads them in order: core, home, wizard, session, analysis,
 // compare, settings, boot); they share the page's global scope, so a function defined in one is used by the others.
 "use strict";
 // ---------- NEW BENCHMARK (wizard) ----------

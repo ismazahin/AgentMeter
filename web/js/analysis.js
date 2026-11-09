@@ -1,5 +1,5 @@
 // AgentMeter web app — analysis.js: Repeatability, charts, exports (CSV / LaTeX / SVG / PNG), the reproducibility package and the remaining session cards.
-// One of the app's scripts (web/index.html loads them in order: core, home, wizard, session, analysis,
+// One of the app's scripts (web/app.html loads them in order: core, home, wizard, session, analysis,
 // compare, settings, boot); they share the page's global scope, so a function defined in one is used by the others.
 "use strict";
 // ---------- REPEATABILITY (History & Trends) ----------

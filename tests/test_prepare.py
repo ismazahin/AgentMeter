@@ -294,10 +294,10 @@ def test_prepare_waits_behind_a_running_benchmark(tmp_path, monkeypatch):
 def test_entry_urls_redirect_to_the_steps(env):
     c, _, _ = env
     # Phase 46: one app — the old step URLs open the New-benchmark wizard
-    assert c.get("/service/prepare").headers["Location"].endswith("/#/new")
-    assert c.get("/service/benchmark").headers["Location"].endswith("/#/new")
+    assert c.get("/service/prepare").headers["Location"].endswith("/app.html#/new")
+    assert c.get("/service/benchmark").headers["Location"].endswith("/app.html#/new")
     html = c.get("/service").get_data(as_text=True)
-    assert html == c.get("/").get_data(as_text=True)
+    assert html == c.get("/app.html").get_data(as_text=True)
     html += "".join(c.get(f"/js/{f.name}").get_data(as_text=True) for f in sorted((PROJECT_ROOT / "web" / "js").glob("*.js")))   # the app's scripts
     for hook in ("view-new", "wiz-step-data", "wiz-step-models", "wiz-step-run", "tab-src-url", "svc-url",
                  "tab-src-reuse", "svc-import-form", "svc-bench-id", "svc-downloads", "New benchmark",

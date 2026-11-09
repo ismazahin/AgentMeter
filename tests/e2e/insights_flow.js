@@ -15,7 +15,7 @@ fs.mkdirSync(S, { recursive: true });
 const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg);
 
 async function session(p, file, flows, idx) {
-  await p.goto(ORIGIN + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+  await p.goto(ORIGIN + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.setInputFiles('#svc-file', file); await p.fill('#svc-max-flows', String(flows));
   await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
   await p.waitForFunction(() => /Ready/.test(document.querySelector('#wiz-data-chip').textContent), null, { timeout: 90000 });
@@ -26,7 +26,7 @@ async function session(p, file, flows, idx) {
   return decodeURIComponent(p.url().split('#/session/')[1].split('/')[0]);
 }
 async function tab(p, id, t, sel) {
-  await p.goto(ORIGIN + '/#/session/' + encodeURIComponent(id) + '/' + t);
+  await p.goto(ORIGIN + '/app.html#/session/' + encodeURIComponent(id) + '/' + t);
   await p.waitForSelector(sel, { timeout: 30000 });
 }
 async function hoverText(p, sel) {        // the hover value of a chart mark (data-hover)
@@ -225,7 +225,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     await p.fill('#svc-notes-text', 'rerun after the tokenizer fix'); await p.fill('#svc-notes-tags', 'thesis ch4, baseline, Baseline');
     await p.click('#svc-notes-save'); await p.waitForFunction(() => /Saved/.test(document.getElementById('svc-notes-saved').textContent));
     log(await p.inputValue('#svc-notes-tags') === 'thesis ch4, baseline', 'notes: saved; tags trimmed and de-duplicated');
-    await p.goto(ORIGIN + '/#/sessions'); await p.waitForSelector('#sessions-table');
+    await p.goto(ORIGIN + '/app.html#/sessions'); await p.waitForSelector('#sessions-table');
     await p.fill('#flt-q', 'tokenizer'); await p.waitForTimeout(900);
     const found = await p.$$eval('#sessions-table tbody tr', rs => rs.map(r => r.textContent));
     log(found.length === 1 && /rerun after the tokenizer fix/.test(found[0]), 'sessions: search finds the session by its notes');
@@ -246,7 +246,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log(/^Model,Flows,p50,p95,p99/.test(csvText) && csvText.trim().split('\n').length === 3, 'downloads: a card\'s table as CSV (' + dl.suggestedFilename() + ')');
     const [png] = await Promise.all([p.waitForEvent('download'), p.click('#stats-trend .exp-bar [data-exp="png"]')]);
     log(fs.readFileSync(await png.path()).slice(1, 4).toString() === 'PNG', 'downloads: a line chart as PNG');
-    await p.goto(ORIGIN + '/#/'); await p.waitForSelector('#home-guide:not([hidden])');
+    await p.goto(ORIGIN + '/app.html#/'); await p.waitForSelector('#home-guide:not([hidden])');
     await p.click('#home-guide-hide'); await p.reload(); await p.waitForSelector('#view-home:not([hidden])'); await p.waitForTimeout(300);
     log(await p.isHidden('#home-guide'), 'home: the first-visit guide stays hidden after "Got it"');
 
@@ -263,7 +263,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log(!(await p.$('#flows-filter option[value="wrong"]')) && !(await p.$('#flows-filter option[value="disagree"]')), 'flow explorer (unlabelled, 1 model): no "wrong" or "disagree" filters');
 
     // Sessions list: a short note from the row; no Delete without a control plane (nothing to delete it with)
-    await p.goto(ORIGIN + '/#/sessions'); await p.waitForSelector('#sessions-table');
+    await p.goto(ORIGIN + '/app.html#/sessions'); await p.waitForSelector('#sessions-table');
     await p.click(`tr:has(a[data-open="${pcap}"]) [data-note]`); await p.waitForSelector('.note-row textarea');
     await p.fill('.note-row textarea', 'pcap smoke test'); await p.click('.note-row button[type="submit"]');
     const snip = await p.waitForSelector(`#sessions-table tr:has(a[data-open="${pcap}"]) .note-snip`, { timeout: 15000 }).then(e => e.textContent()).catch(() => '');
@@ -294,7 +294,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
       await tab(p, four, t, '#session-body:not([hidden])'); await p.waitForTimeout(300);
       maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     }
-    await p.goto(ORIGIN + '/#/sessions'); await p.waitForSelector('#sessions-table'); await p.waitForTimeout(300);
+    await p.goto(ORIGIN + '/app.html#/sessions'); await p.waitForSelector('#sessions-table'); await p.waitForTimeout(300);
     maxW = Math.max(maxW, await p.evaluate(() => document.documentElement.scrollWidth));
     log(maxW <= 375, 'no horizontal page scroll at 375px (max scrollWidth ' + maxW + ')');
   } catch (e) {

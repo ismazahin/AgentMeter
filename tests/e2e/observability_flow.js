@@ -28,7 +28,7 @@ async function dragAcross(p, sel, fromFrac, toFrac) {
   const p = await (await b.newContext({ viewport: { width: 1280, height: 1000 }, acceptDownloads: true })).newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   try {
-    await p.goto(ORIGIN + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+    await p.goto(ORIGIN + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
     await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server');
       localStorage.setItem('agentmeter.limits', JSON.stringify({ max_peak_vram_mb: 4100 })); });
     await p.setInputFiles('#svc-file', path.join(REPO, 'data', 'sample_csv', 'cicids2017_sample.csv'));
@@ -38,14 +38,14 @@ async function dragAcross(p, sel, fromFrac, toFrac) {
     await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/session\//.test(location.hash), null, { timeout: 240000 });
     const id = decodeURIComponent(p.url().split('#/session/')[1].split('/')[0]);
-    await p.goto(ORIGIN + '/#/session/' + encodeURIComponent(id) + '/cost');
+    await p.goto(ORIGIN + '/app.html#/session/' + encodeURIComponent(id) + '/cost');
     await p.waitForSelector('#gpu-power', { timeout: 30000 });
 
     log(/Synthetic test readings/.test(await p.textContent('#gpu-timeline')), 'synthetic readings are labelled as not a measurement');
-    await p.goto(ORIGIN + '/#/session/' + encodeURIComponent(id) + '/overview'); await p.waitForSelector('#svc-gpu-health');
+    await p.goto(ORIGIN + '/app.html#/session/' + encodeURIComponent(id) + '/overview'); await p.waitForSelector('#svc-gpu-health');
     log(/GPU state: normal/.test(await p.textContent('#svc-gpu-health')) && /synthetic readings \(test\)/.test(await p.textContent('#svc-gpu-health')),
         'Overview: the GPU state during the run (normal; synthetic readings labelled)');
-    await p.goto(ORIGIN + '/#/session/' + encodeURIComponent(id) + '/cost'); await p.waitForSelector('#gpu-power', { timeout: 30000 });
+    await p.goto(ORIGIN + '/app.html#/session/' + encodeURIComponent(id) + '/cost'); await p.waitForSelector('#gpu-power', { timeout: 30000 });
     const segs = await p.$$eval('#gpu-lane .lane-seg', x => x.length);
     log(segs >= 12 * 2 * 4 * 0.9, `the agent lane shows each agent's turn (${segs} turns for 12 flows × 2 models × 4 agents)`);
     log(/Perceive|perceive/.test(await p.textContent('#gpu-lane-legend')), 'the lane has an agent legend');
@@ -93,22 +93,22 @@ async function dragAcross(p, sel, fromFrac, toFrac) {
     log(csv[0] === 'chart,series,x,y' && csv.length > 100 && csv.some(l => /,turn,/.test(l)), `Chart data (CSV) has every point, agent turns included (${csv.length - 1} rows)`);
 
     // thresholds from your limits: set under Recommendations, shown on Overview and Performance
-    await p.goto(ORIGIN + '/#/session/' + encodeURIComponent(id) + '/recommendations');
+    await p.goto(ORIGIN + '/app.html#/session/' + encodeURIComponent(id) + '/recommendations');
     await p.waitForSelector('#dh-form');
     log(await p.inputValue('#dh-max_peak_vram_mb') === '4100', 'your saved limits are filled in');
     await p.fill('#dh-max_mean_latency_s', '0.000001'); await p.fill('#dh-max_p95_latency_s', '1000');
     await p.click('#dh-go'); await p.waitForSelector('#dh-table', { timeout: 15000 });
-    await p.goto(ORIGIN + '/#/session/' + encodeURIComponent(id) + '/overview');
+    await p.goto(ORIGIN + '/app.html#/session/' + encodeURIComponent(id) + '/overview');
     await p.waitForSelector('#svc-models-table');
     const over = await p.$$eval('#svc-models-table td.over-limit', x => x.length), within = await p.$$eval('#svc-models-table td.in-limit', x => x.length);
     log(over === 2 && within === 2 && !(await p.isHidden('#lim-note')), `values are coloured against your limits (${over} over, ${within} within)`);
-    await p.goto(ORIGIN + '/#/session/' + encodeURIComponent(id) + '/performance');
+    await p.goto(ORIGIN + '/app.html#/session/' + encodeURIComponent(id) + '/performance');
     await p.waitForSelector('#trend-0', { state: 'attached' });
     log(/your p95 limit/.test(await p.textContent('#trend-0')), 'the latency chart draws your p95 limit');
 
     // variables: one Model / Pipeline filter for Compare and Trends
     const models = await p.evaluate(() => fetch('/api/jobs?limit=20').then(r => r.json()).then(d => d.jobs.find(j => j.kind !== 'prepare').models));
-    await p.goto(ORIGIN + '/#/compare'); await p.waitForSelector('#cmp-vars-model');
+    await p.goto(ORIGIN + '/app.html#/compare'); await p.waitForSelector('#cmp-vars-model');
     const opts = () => p.$$eval('#cmp-setup option', x => x.length - 1);
     const all = await opts();
     await p.selectOption('#cmp-vars-model', models[0]);
@@ -116,7 +116,7 @@ async function dragAcross(p, sel, fromFrac, toFrac) {
     log(all >= 1 && one === all, `Compare: filtering by a model in the session keeps it (${one} of ${all})`);
     await p.selectOption('#cmp-vars-pipeline', 'Default (4 agents)');
     log(await opts() === all, 'Compare: the default pipeline matches it too');
-    await p.goto(ORIGIN + '/#/trends?demo=1'); await p.waitForSelector('#tr-vars-model');      // mock runs are demo sessions
+    await p.goto(ORIGIN + '/app.html#/trends?demo=1'); await p.waitForSelector('#tr-vars-model');      // mock runs are demo sessions
     log(await p.inputValue('#tr-vars-model') === models[0], 'Trends uses the same Model filter');
     await p.waitForSelector('#tr-summary-table');
     const series = await p.$$eval('#tr-summary-table tbody tr td:first-child', x => x.map(o => o.textContent));

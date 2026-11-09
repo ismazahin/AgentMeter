@@ -32,7 +32,7 @@ async function run(p, picks) {
   const p = await (await b.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   try {
-    await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+    await p.goto(BASE + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
     await p.setInputFiles('#svc-file', path.join(REPO, 'data', 'sample_csv', 'cicids2017_sample.csv'));
     await p.fill('#svc-max-flows', '6');
     await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');
@@ -41,14 +41,14 @@ async function run(p, picks) {
     log(n >= 5, 'the catalogue offers at least 5 models (' + n + ')');
     const a = await run(p, [0, 1, 2, 3]);
     const set = await p.evaluate(id => fetch('/api/jobs/' + id).then(r => r.json()).then(j => j.run_name), a.job);
-    await p.goto(BASE + '/#/new/models?set=' + encodeURIComponent(set));
+    await p.goto(BASE + '/app.html#/new/models?set=' + encodeURIComponent(set));
     await p.waitForFunction(() => document.querySelector('#wiz-data-chip') && document.querySelector('#wiz-data-chip').textContent === 'Ready', null, { timeout: 30000 });
     const later = [4, 5, 6].filter(i => i < n);
     const c = await run(p, [0].concat(later));                  // model 0 again: measured twice
     const all = [...new Set(a.names.concat(c.names))];
     log(all.length >= 5, `two sessions on one setup measure ${all.length} different models`);
 
-    await p.goto(BASE + '/#/compare?a=' + c.job); await p.waitForSelector('#cmp-list input');
+    await p.goto(BASE + '/app.html#/compare?a=' + c.job); await p.waitForSelector('#cmp-list input');
     const offered = await p.$$eval('#cmp-list input', xs => xs.map(x => x.value));
     log(offered.length === all.length && all.every(m => offered.includes(m)), `Compare offers every model of the setup once (${offered.length})`);
     log((await p.$$('#cmp-list input:checked')).length === offered.length && (await p.$$('#cmp-list input:disabled')).length === 0,

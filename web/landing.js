@@ -1,4 +1,7 @@
-/* AgentMeter landing page behaviour (loaded from <head>; no inline scripts, so the CSP needs no hash).
+/* AgentMeter landing page behaviour (web/index.html, the site's main page; loaded from <head>, no inline
+   scripts, so the CSP needs no hash).
+   0. Old app links: the app moved from index.html to app.html, so a URL with an app route in its hash
+      (/#/new, /#/session/<id>, links in old e-mails or bookmarks) is forwarded there before anything renders.
    1. Theme before first paint: the same "agentmeter.theme" key as the app (system | light | dark).
    2. Theme toggle button.
    3. Scroll reveals: elements with .rv fade up once; .grow bars inside them scale in; [data-count] counts up.
@@ -7,6 +10,7 @@
    Reduced motion: everything is shown in its final state, nothing moves. */
 (function () {
   "use strict";
+  if (/^#\//.test(location.hash)) { location.replace("app.html" + location.hash); return; }
   var KEY = "agentmeter.theme";
   var root = document.documentElement;
 

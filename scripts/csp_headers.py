@@ -1,7 +1,7 @@
 """Phase 47: write web/_headers (Cloudflare Pages) with a strict Content-Security-Policy.
 
 The refresh token lives in localStorage, so the front-end must not run injected script: only
-this site's own files and the exact inline scripts of web/index.html and web/analysis.html
+this site's own files and the exact inline scripts of web/app.html and web/analysis.html
 (by SHA-256 hash) may run. Re-run after editing an inline script — tests/test_control_plane.py
 fails while web/_headers is stale:
 
@@ -22,7 +22,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 WEB = REPO / "web"
-PAGES = ("index.html", "analysis.html")
+PAGES = ("app.html", "analysis.html")   # index.html (the landing page) has no inline script
 EXTRA_CONNECT: list[str] = []
 _INLINE = re.compile(r"<script>(.*?)</script>", re.S)
 

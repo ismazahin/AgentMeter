@@ -34,9 +34,9 @@ MODEL = "microsoft/Phi-3-mini-4k-instruct"
 
 
 def _app_source():
-    """web/index.html and the app's scripts (web/js/*.js): the whole front-end's code."""
+    """web/app.html and the app's scripts (web/js/*.js): the whole front-end's code."""
     web = PROJECT_ROOT / "web"
-    return (web / "index.html").read_text(encoding="utf-8") + "".join(f.read_text(encoding="utf-8") for f in sorted((web / "js").glob("*.js")))
+    return (web / "app.html").read_text(encoding="utf-8") + "".join(f.read_text(encoding="utf-8") for f in sorted((web / "js").glob("*.js")))
 
 def tok(kind, sub="u1", uname="alice", ttl=300, **extra):
     now = int(time.time())
@@ -506,7 +506,7 @@ def test_pages_csp_is_strict_and_current():
     script_src = csp.split("script-src")[1].split(";")[0]
     assert "'unsafe-inline'" not in script_src and "'unsafe-eval'" not in script_src and "*" not in script_src
     assert "frame-ancestors 'self'" in csp and "object-src 'none'" in csp and "base-uri 'none'" in csp
-    for page in ("index.html", "analysis.html"):
+    for page in ("index.html", "app.html", "analysis.html"):
         html = (PROJECT_ROOT / "web" / page).read_text()
         assert not re.search(r'\son[a-z]+="', html), f"{page}: inline event handler (blocked by the CSP)"
         assert not re.search(r"javascript:", html), page

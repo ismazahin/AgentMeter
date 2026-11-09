@@ -44,7 +44,7 @@ async function waitFor(fn, ms, step = 500) {
   return false;
 }
 async function upload(p, file, flows) {
-  await p.goto(APP + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+  await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.setInputFiles('#svc-file', file);
   await p.fill('#svc-max-flows', String(flows));
   await p.click('#svc-upload-btn');
@@ -64,11 +64,11 @@ const logLines = p => p.$$eval('#svc-local-log li', l => l.map(x => x.textConten
     log(backendOk, 'the GPU backend registered with the control plane');
     log((await cpJson('/api/backend', tok)).cloud_prep === true, 'the control plane reports cloud preparation as available');
 
-    await p.goto(APP + '/'); await p.waitForSelector('#login-form:not([hidden])');
+    await p.goto(APP + '/app.html'); await p.waitForSelector('#login-form:not([hidden])');
     await p.fill('#login-user', 'admin'); await p.fill('#login-pass', 'admin-password-123'); await p.click('#login-go');
     await p.waitForSelector('#view-home:not([hidden])');
     await p.evaluate(() => localStorage.removeItem('agentmeter.prepWhere'));            // no override: automatic
-    await p.goto(APP + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+    await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
     log(await p.$('#svc-prep-where') === null && await p.$('input[name="prep-where"]') === null, 'the user is offered no choice of where to prepare');
     log(/in the cloud instead/.test(await p.textContent('#svc-prep-note')), 'the page says where the data is prepared');
 
@@ -120,7 +120,7 @@ const logLines = p => p.$$eval('#svc-local-log li', l => l.map(x => x.textConten
     } else log(false, 'the benchmark finished too soon to test the PCAP while busy');
 
     // 4. the prepared-in-the-cloud set benchmarks like any other
-    await p.goto(APP + '/#/new/models?set=' + encodeURIComponent(csvSet)); await p.waitForSelector('#svc-models input');
+    await p.goto(APP + '/app.html#/new/models?set=' + encodeURIComponent(csvSet)); await p.waitForSelector('#svc-models input');
     const ready = await p.waitForFunction(() => /Ready|20 flows/.test(document.querySelector('#wiz-data-card')?.textContent || ''), null, { timeout: 30000 }).then(() => true, () => false);
     log(ready, 'the cloud-prepared set is ready to benchmark');
   } catch (e) {

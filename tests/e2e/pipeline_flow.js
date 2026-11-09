@@ -24,7 +24,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
   let posted = null;
   p.on('request', r => { if (r.method() === 'POST' && /\/api\/jobs$/.test(r.url())) posted = JSON.parse(r.postData() || '{}'); });
   try {
-    await p.goto(ORIGIN + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+    await p.goto(ORIGIN + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
     await p.setInputFiles('#svc-file', REPO + '/data/sample_csv/cicids2017_sample.csv'); await p.fill('#svc-max-flows', '8');
     await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
     await p.waitForFunction(() => /Ready/.test(document.querySelector('#wiz-data-chip').textContent), null, { timeout: 90000 });
@@ -66,7 +66,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     await p.screenshot({ path: S + '/pl-editor.png', fullPage: true });
 
     // it persists in this browser
-    await p.goto(ORIGIN + '/#/new'); await p.reload(); await p.waitForSelector('#svc-upload-form:not([hidden])');
+    await p.goto(ORIGIN + '/app.html#/new'); await p.reload(); await p.waitForSelector('#svc-upload-form:not([hidden])');
     log(await p.evaluate(() => JSON.parse(localStorage.getItem('agentmeter.pipeline')).agents.length) === 5, 'the pipeline is remembered in this browser');
 
     // run it
@@ -84,7 +84,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
         'the run request carries the pipeline (' + JSON.stringify(pl.map(a => a.name || a)) + ')');
     await p.waitForSelector('#session-body:not([hidden])', { timeout: 120000 });
     const id = decodeURIComponent(p.url().split('#/session/')[1].split('/')[0]);
-    await p.goto(ORIGIN + '/#/session/' + encodeURIComponent(id) + '/agents'); await p.waitForSelector('#agents-pipeline');
+    await p.goto(ORIGIN + '/app.html#/session/' + encodeURIComponent(id) + '/agents'); await p.waitForSelector('#agents-pipeline');
     log((await texts(p, '#agents-pipeline .pl-view > li b')).join(',') === 'perceive,reason,Classify,Report,Escalation', 'Agent Analysis: the pipeline card lists the 5 agents with their titles');
     log((await p.$$('#agents-table-0 tbody tr')).length === 5 && (await p.$$('#agents-table-1 tbody tr')).length === 5, 'Agent Analysis: 5 agent rows per model');
     const colours = await p.$$eval('#agents-table-0 tbody tr .legend span', ss => ss.map(s => s.getAttribute('style')));
@@ -97,7 +97,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     // the phone width still fits
     await p.setViewportSize({ width: 375, height: 800 }); await p.waitForTimeout(300);
     const w1 = await p.evaluate(() => document.documentElement.scrollWidth);
-    await p.goto(ORIGIN + '/#/new'); await p.waitForTimeout(400);
+    await p.goto(ORIGIN + '/app.html#/new'); await p.waitForTimeout(400);
     const w2 = await p.evaluate(() => document.documentElement.scrollWidth);
     log(Math.max(w1, w2) <= 375, 'no horizontal page scroll at 375px (' + w1 + ', ' + w2 + ')');
   } catch (e) {

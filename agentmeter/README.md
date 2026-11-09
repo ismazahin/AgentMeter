@@ -47,7 +47,7 @@ agentmeter/
 ├── server/             ← WEB / API layer (Flask; served by scripts/serve.py)
 │   ├── service_api.py     /api/prepare, /api/prepared/..., /api/prepared/import,
 │   │                      /api/service/config — backend of the /service web flow
-│   │                      (page: web/index.html — static, also served at /service).
+│   │                      (page: web/app.html — static, also served at /app.html and /service; web/index.html is the landing page).
 │   ├── prepare.py         Prepare: raw file → downloadable prepared set (+ summary).
 │   ├── urlfetch.py        SSRF-safe URL import for Prepare.
 │   ├── jobs.py            Persistent background JOBS — prepare + benchmark (single-job

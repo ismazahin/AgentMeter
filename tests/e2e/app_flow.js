@@ -19,7 +19,7 @@ const pdfText = f => cp.execFileSync(process.env.PYTHON || 'python', ['-c',
   'import sys,pypdf;print("\\n".join(p.extract_text() for p in pypdf.PdfReader(sys.argv[1]).pages))', f]).toString();
 
 async function wizardUpload(p, file, flows, models) {
-  await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+  await p.goto(BASE + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.setInputFiles('#svc-file', file);
   await p.fill('#svc-max-flows', String(flows));
   await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
@@ -69,7 +69,7 @@ async function frameOf(p) {
   p.on('console', m => { if (m.type() === 'error' && !/fonts|ERR_|Failed to load resource/.test(m.text())) errs.push(m.text()); });
 
   // 1. Home: empty state, one header, no baseline data
-  await p.goto(BASE + '/'); await p.waitForSelector('#view-home:not([hidden])', { timeout: 15000 });
+  await p.goto(BASE + '/app.html'); await p.waitForSelector('#view-home:not([hidden])', { timeout: 15000 });
   await p.waitForSelector('#home-empty:not([hidden])', { timeout: 15000 });
   log(true, 'Home empty state shown on first launch');
   const nav = await p.$$eval('.mainnav a:not([hidden])', as => as.map(a => a.textContent.trim()));
@@ -82,7 +82,7 @@ async function frameOf(p) {
   await p.screenshot({ path: S + '/01-home-empty.png', fullPage: true });
 
   // 2. wizard: upload a labelled CSV, pick models while the data prepares, run
-  await p.goto(BASE + '/#/new'); await p.waitForSelector('#wiz-step-data:not([hidden])');
+  await p.goto(BASE + '/app.html#/new'); await p.waitForSelector('#wiz-step-data:not([hidden])');
   const steps = await p.$$eval('#wiz-steps li', ls => ls.map(l => l.textContent.trim()));
   log(steps.join('|') === '1Data|2Models and settings|3Run', 'wizard has 3 steps: ' + steps.join(', '));
   const tabs = await p.$$eval('#wiz-step-data [role=tab]', ts => ts.map(t => t.textContent.trim()));
@@ -115,7 +115,7 @@ async function frameOf(p) {
   log(true, 'run finished -> session page ' + job1);
 
   // 3. the wizard can also run before the data is ready (queued behind the preparation)
-  await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+  await p.goto(BASE + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.setInputFiles('#svc-file', REPO + '/data/sample_pcaps/sample_small.pcap');
   await p.fill('#svc-max-flows', '8');
   await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
@@ -133,7 +133,7 @@ async function frameOf(p) {
 
   // 4. optional: Import from a link
   if (URL_BASE) {
-    await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+    await p.goto(BASE + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
     await p.click('#tab-src-url');
     log(await p.isVisible('#svc-url') && !(await p.isVisible('#svc-file')), 'link tab shows the URL field');
     await p.fill('#svc-url', URL_BASE.replace(/\/$/, '') + '/big.csv');
@@ -143,13 +143,13 @@ async function frameOf(p) {
     await p.waitForFunction(() => document.querySelector('#wiz-data-chip').textContent === 'Ready', null, { timeout: 120000 });
     log(/6 flows ready/.test(await p.textContent('#wiz-data-status')), 'link import prepared: ' + await p.textContent('#wiz-data-status'));
   } else {
-    await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+    await p.goto(BASE + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
     await p.click('#tab-src-url');
     log(await p.isVisible('#svc-url') && !(await p.isVisible('#svc-file')), 'link tab shows the URL field (download not walked: E2E_URL_BASE unset)');
   }
 
   // 5. Home now shows the latest session + recent sessions
-  await p.goto(BASE + '/'); await p.waitForSelector('#home-latest:not([hidden])', { timeout: 15000 });
+  await p.goto(BASE + '/app.html'); await p.waitForSelector('#home-latest:not([hidden])', { timeout: 15000 });
   log(await p.isHidden('#home-empty'), 'Home: empty state gone');
   log((await p.$$('#home-sessions-table tbody tr')).length >= 2, 'Home: recent sessions table lists the sessions');
   const homeCols = await p.$$eval('#home-sessions-table th', ths => ths.map(t => t.textContent.trim()));
@@ -214,7 +214,7 @@ async function frameOf(p) {
   log(/too small/i.test(await p.textContent('#stats-small')), 'Performance › Latency: small-sample note');
   await tab(p, 'performance', 'statistics');
   log((await p.$$('#stats-effects tbody tr')).length === 3, "Performance › Statistics: Cliff's delta + bootstrap CI rows");
-  await p.goto(BASE + '/#/session/' + job1 + '/performance/gpu'); await p.waitForSelector('#spanel-performance [data-pane="gpu"]:not([hidden])');
+  await p.goto(BASE + '/app.html#/session/' + job1 + '/performance/gpu'); await p.waitForSelector('#spanel-performance [data-pane="gpu"]:not([hidden])');
   log(!!(await p.$('#svc-memory-table')), 'a sub-tab has its own link (…/performance/gpu)');
   await p.screenshot({ path: S + '/06b-session-performance.png', fullPage: true });
 
@@ -258,16 +258,16 @@ async function frameOf(p) {
   log(fs.readFileSync(S + '/session.pdf').subarray(0, 5).toString() === '%PDF-', 'header Download PDF works');
 
   // PCAP session: accuracy hidden, efficiency only
-  await p.goto(BASE + '/#/session/' + job2); await p.waitForSelector('#session-body:not([hidden])');
+  await p.goto(BASE + '/app.html#/session/' + job2); await p.waitForSelector('#session-body:not([hidden])');
   log(/no reference labels/.test(await p.textContent('#session-chips')) && !/Accuracy/.test(await p.textContent('#svc-models-table thead')), 'PCAP session: efficiency only, no accuracy column');
-  await p.goto(BASE + '/#/session/' + job2 + '/accuracy'); await p.waitForSelector('#spanel-reliability:not([hidden]) #rel-table');
+  await p.goto(BASE + '/app.html#/session/' + job2 + '/accuracy'); await p.waitForSelector('#spanel-reliability:not([hidden]) #rel-table');
   log(!/Reference-label check/.test(await p.textContent('#rel-table thead')), 'PCAP session: an old Accuracy link opens Output Reliability, without the reference-label check');
   log(/single-model/.test(await p.textContent('#svc-headline')), 'PCAP 1-model session: headline says single-model run');
   await tab(p, 'performance', 'statistics');
   log(/single-model|two models/i.test(await p.textContent('#stats-effects-card')), 'PCAP 1-model session: effect sizes explain they need two models');
 
   // 7. reuse the CSV's prepared set with the same 2 models -> a like-for-like pair
-  await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+  await p.goto(BASE + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.click('#tab-src-reuse'); await p.waitForSelector('#svc-sets-table a[data-set]');
   const sets = await p.$$eval('#svc-sets-table a[data-set]', as => as.map(a => a.getAttribute('data-set')));
   const csvSet = await p.evaluate(id => fetch('/api/jobs/' + id).then(r => r.json()).then(j => j.run_name), job1);
@@ -318,10 +318,10 @@ async function frameOf(p) {
   log(!!(await p.$('#cmp-performance-table')), 'Compare › Performance');
   log(!(await p.$('#ctab-accuracy')) && /SAW \(efficiency\)|efficiency only/i.test(await p.textContent('#cmp-result')), 'Compare: no accuracy tab; the SAW shown is efficiency-only');
   await p.screenshot({ path: S + '/09-compare-like.png', fullPage: true });
-  await p.goto(BASE + '/#/compare?a=' + job2); await p.waitForSelector('#cmp-none');
+  await p.goto(BASE + '/app.html#/compare?a=' + job2); await p.waitForSelector('#cmp-none');
   log(/Only one model/.test(await p.textContent('#cmp-none')) && /Benchmark these flows again/.test(await p.textContent('#cmp-none')),
       'Compare: a setup with one model says so and offers to benchmark its flows again');
-  await p.goto(BASE + '/#/compare?a=' + job1 + '&b=' + job2); await p.waitForSelector('#cmp-error:not([hidden])');
+  await p.goto(BASE + '/app.html#/compare?a=' + job1 + '&b=' + job2); await p.waitForSelector('#cmp-error:not([hidden])');
   log(/same flows, GPU and settings/.test(await p.textContent('#cmp-error')), 'an old link to two different setups is refused (not merged)');
   await p.screenshot({ path: S + '/10-compare-none.png', fullPage: true });
 
@@ -376,14 +376,14 @@ async function frameOf(p) {
   log(/Not measured/.test(await p.textContent('#tr-none')), 'Repeatability: a measure the demo never records says so');
   await p.selectOption('#tr-metric', 'mean_latency_s');
   log(/No series moved/.test(await p.textContent('#tr-drift-card')) && /No schedules yet/.test(await p.textContent('#tr-schedules')), 'Repeatability: nothing flagged; no schedules yet');
-  await p.goto(BASE + '/#/session/' + job3 + '/overview'); await p.waitForSelector('#svc-rep-line:not([hidden])');
+  await p.goto(BASE + '/app.html#/session/' + job3 + '/overview'); await p.waitForSelector('#svc-rep-line:not([hidden])');
   const repLine = await p.textContent('#svc-rep-line');
   log(/Repeatability/.test(repLine) && /2 runs on this setup/.test(repLine) && !!(await p.$('#svc-rep-list a[href^="#/trends?model="]')), 'Session Overview: a Repeatability line per model, linking to its runs');
   await p.click('#svc-rep-list a'); await p.waitForSelector('#tr-chart-card');
   log((await p.$$('#tr-table tbody tr')).length === 2, 'the Overview link opens that model\'s runs on Repeatability');
   await p.screenshot({ path: S + '/11d-trends.png', fullPage: true });
   // Repeat on a schedule (session Overview) -> listed on Trends -> cancel
-  await p.goto(BASE + '/#/session/' + job1 + '/overview'); await p.waitForSelector('#svc-schedule');
+  await p.goto(BASE + '/app.html#/session/' + job1 + '/overview'); await p.waitForSelector('#svc-schedule');
   await p.fill('#sch-runs', '31'); await p.click('#sch-save');
   log(/1 to 30/.test(await p.textContent('#sch-error')), 'Schedule: the number of runs is checked before sending');
   await p.fill('#sch-runs', '5'); await p.selectOption('#sch-every', '12'); await p.click('#sch-save');
@@ -423,17 +423,17 @@ async function frameOf(p) {
   for (const [hash, sel] of [['#/', '#home-latest:not([hidden])'], ['#/new', '#svc-upload-form:not([hidden])'],
                              ['#/session/' + job1, '#session-body:not([hidden])'], ['#/leaderboard', '.lb-group'], ['#/trends?demo=1', '#tr-summary-card'],
                              ['#/compare?sessions=' + job1 + ',' + job3, '#cmp-validity']]) {
-    await ph.goto(BASE + '/' + hash); await ph.waitForSelector(sel, { timeout: 20000 });
+    await ph.goto(BASE + '/app.html' + hash); await ph.waitForSelector(sel, { timeout: 20000 });
     const over = await ph.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     log(over <= 0, 'phone 375px: no horizontal page scroll on ' + hash + ' (' + over + ')');
   }
-  await ph.goto(BASE + '/#/session/' + job1); await ph.waitForSelector('#session-body:not([hidden])');
+  await ph.goto(BASE + '/app.html#/session/' + job1); await ph.waitForSelector('#session-body:not([hidden])');
   const navH = await ph.evaluate(() => document.querySelector('.mainnav').getBoundingClientRect().height);
   log(navH > 44, 'phone: header nav wraps (' + Math.round(navH) + 'px)');
   const small = await ph.$$eval('.mainnav a, .btn, .iconbtn', els => els.filter(e => e.offsetParent && e.getBoundingClientRect().height < 44).length);
   log(small === 0, 'phone: nav links and buttons are >= 44px tall');
   await ph.screenshot({ path: S + '/12-phone-session.png', fullPage: true });
-  await ph.goto(BASE + '/'); await ph.waitForSelector('#home-latest:not([hidden])');
+  await ph.goto(BASE + '/app.html'); await ph.waitForSelector('#home-latest:not([hidden])');
   await ph.screenshot({ path: S + '/13-phone-home.png', fullPage: true });
 
   log(errs.length === 0, 'no JS errors ' + errs.join(' | '));

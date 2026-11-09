@@ -20,7 +20,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
   try {
     const h = await (await p.request.get(BASE + '/health')).json();
     log(h.ids && h.ids.demo === true, '/health offers the demo IDS');
-    await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+    await p.goto(BASE + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
     await p.setInputFiles('#svc-file', SAMPLE);
     await p.fill('#svc-max-flows', '30');
     await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); });

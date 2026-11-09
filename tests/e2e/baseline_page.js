@@ -16,7 +16,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
   p.on('console', m => { if (m.type() === 'error' && !/fonts|ERR_|Failed to load resource/.test(m.text())) errs.push(m.text()); });
 
   // Phase 46: the baseline is NOT in the app's navigation — direct URL only
-  await p.goto(BASE + '/'); await p.waitForSelector('#view-home:not([hidden]), #view-offline:not([hidden])', { timeout: 15000 });
+  await p.goto(BASE + '/app.html'); await p.waitForSelector('#view-home:not([hidden]), #view-offline:not([hidden])', { timeout: 15000 });
   log(!(await p.$('a[href$="/baseline"]')) && !/Validation baseline/.test(await p.textContent('header')), 'the app links no Validation baseline');
   await p.goto(BASE + '/baseline'); await p.waitForSelector('#saw-body tr', { timeout: 15000 });
   log(new URL(p.url()).pathname === '/baseline', 'the baseline page opens by its direct URL /baseline');

@@ -691,7 +691,7 @@
   </nav>
 
     <div class="tools">
-      <a class="loadbtn" id="svc-link" href="/#/new" title="Upload a CSV/PCAP and benchmark up to two models (the benchmark service)">
+      <a class="loadbtn" id="svc-link" href="/app.html#/new" title="Upload a CSV/PCAP and benchmark up to two models (the benchmark service)">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
         <span><span class="lbl-long">Run a </span>benchmark</span></a>
       <script>if (location.protocol === "file:") document.getElementById("svc-link").hidden = true;</script>
@@ -1061,7 +1061,7 @@
       <div class="about"><p>Resource efficiency of open-source LLMs in agentic network traffic triage pipelines.</p></div>
       <div class="cols">
         <div><h4>Results</h4><ul><li><button type="button" data-goto="overview" data-top="1">Overview</button></li><li><button type="button" data-goto="detailed" data-top="1">Detailed analysis</button></li></ul></div>
-        <div><h4>AgentMeter app</h4><ul><li><a href="/">Home</a></li><li><a href="/#/new">New benchmark</a></li><li><a href="/#/sessions">Sessions</a></li></ul></div>
+        <div><h4>AgentMeter app</h4><ul><li><a href="/app.html#/">Home</a></li><li><a href="/app.html#/new">New benchmark</a></li><li><a href="/app.html#/sessions">Sessions</a></li></ul></div>
         <div><h4>Method</h4><ul><li>Four-agent pipeline: Perceive &rarr; Reason &rarr; Decide &rarr; Act</li><li>Per-agent wall time, TTFT, VRAM, tokens</li><li>SAW composite + Kruskal-Wallis / Dunn</li></ul></div>
       </div>
     </div>
@@ -3670,7 +3670,7 @@
         : "<p class='note' id='session-stage3'>No context rule fired (Hugging Face metadata " + esc(s3.metadata_status || "unavailable") + ").</p>") : "") +
       "<h3 style='margin:12px 0 4px;font-size:14px'>Caveats</h3><ul id='session-caveats'>" +
       ((d.relative_comparison ? d.relative_comparison.caveats : s.caveats) || []).map(function (c) { return "<li>" + esc(c) + "</li>"; }).join("") + "</ul>" +
-      "<p class='actions' style='margin-top:10px'><a href='/#/session/" + encodeURIComponent(jobId) + "'>Back to this session</a>" +
+      "<p class='actions' style='margin-top:10px'><a href='/app.html#/session/" + encodeURIComponent(jobId) + "'>Back to this session</a>" +
       "<a href='" + api + "/report.pdf'>PDF report</a><a href='" + api + "/result' download='session_results.json'>Results JSON</a></p>";
     el.hidden = false;
     document.getElementById("ov-title").textContent = "Session analysis (non-validated)";
@@ -3798,7 +3798,7 @@
     }).catch(function (e) {
       var b = document.getElementById("banner");
       b.className = "banner unvalidated";
-      b.innerHTML = "<b>Session analysis unavailable</b><span>" + esc(e.message) + "</span><span><a href='/#/sessions'>Sessions</a> · <a href='/baseline'>Validation baseline</a></span>";
+      b.innerHTML = "<b>Session analysis unavailable</b><span>" + esc(e.message) + "</span><span><a href='/app.html#/sessions'>Sessions</a> · <a href='/baseline'>Validation baseline</a></span>";
     });
     return;
   }

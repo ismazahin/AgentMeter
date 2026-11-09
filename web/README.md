@@ -1,6 +1,10 @@
 # AgentMeter web front-end (static)
 
-This directory is the whole front-end: `index.html` (the page: its markup and styles) with the app's
+This directory is the whole front-end. `index.html` is the site's main page: the public landing page
+(overview of the system, "Log in" buttons to the app; behaviour in `landing.js`, which also forwards old
+`/#/...` app links to `app.html`). `landing.html` is an earlier alternative landing page.
+
+The app is `app.html` (the page: its markup and styles) with the app's
 code in `js/` — loaded in this order and sharing one global scope: `core.js` (helpers, access to the
 backend and the control plane, routing), `home.js`, `wizard.js` (New benchmark), `session.js`,
 `analysis.js` (Repeatability, charts, exports), `compare.js` (Compare models, Data sets, GPU & Queue,

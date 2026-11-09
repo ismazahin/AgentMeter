@@ -51,8 +51,8 @@ WEB_DIR = REPO_ROOT / "web"                 # the static service front-end
 # analysis.json: a canonical results file dropped in dashboard/ auto-loads (gitignored).
 _PREP_ASSETS = {"prep-worker.js", "agentmeter-prep.zip", "wheels/scapy-2.8.0-py3-none-any.whl",
                 "wheels/cicflowmeter-0.2.0-py3-none-any.whl"}
-_ALLOWED_ASSETS = {"saw.js", "report.js", "insights.js", "sample_analysis.json", "README.md", "analysis.json"}
-_WEB_SCRIPTS = {"saw.js", "report.js", "insights.js"}         # served from web/ (no second copy in dashboard/)
+_ALLOWED_ASSETS = {"saw.js", "report.js", "insights.js", "landing.js", "sample_analysis.json", "README.md", "analysis.json"}
+_WEB_SCRIPTS = {"saw.js", "report.js", "insights.js", "landing.js"}   # served from web/ (no second copy in dashboard/; landing.js: the main page)
 # Requests that must not count as "activity" for the idle cost guard: a front-end
 # polling /health would otherwise keep a rented GPU alive forever.
 _PASSIVE_PATHS = {"/health", "/config.json"}
@@ -191,12 +191,13 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
         from flask import redirect
         sid = request.args.get("session", "")
         if sid and _jobs._JOB_ID.match(sid):                  # old "View full analysis" links
-            return redirect(f"/#/session/{sid}/detailed", code=302)
-        return send_from_directory(WEB_DIR, "index.html")
+            return redirect(f"/app.html#/session/{sid}/detailed", code=302)
+        return send_from_directory(WEB_DIR, "index.html")         # the main page: the landing page
 
-    @app.route("/service", methods=["GET"])
-    def service_page():                                        # old entry point: same app
-        return send_from_directory(WEB_DIR, "index.html")
+    @app.route("/app.html", methods=["GET"])
+    @app.route("/service", methods=["GET"])                       # old entry point: same app
+    def service_page():
+        return send_from_directory(WEB_DIR, "app.html")
 
     @app.route("/config.json", methods=["GET"])
     def web_config():
@@ -208,7 +209,7 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
     @app.route("/service/benchmark", methods=["GET"])
     def service_step_page():
         from flask import redirect
-        return redirect("/#/new", code=302)
+        return redirect("/app.html#/new", code=302)
 
     # --- analysis pages (the former dashboard) --------------------------------------
     # /analysis?session=<id>&embed=1  the Detailed-analysis tab's content (in the app)
@@ -229,7 +230,7 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
 
     @app.route("/js/<asset>", methods=["GET"])
     def app_script(asset):
-        # the web app's own scripts (web/js/*.js, loaded in order by web/index.html)
+        # the web app's own scripts (web/js/*.js, loaded in order by web/app.html)
         if not (asset.endswith(".js") and (WEB_DIR / "js" / asset).is_file() and "/" not in asset):
             return jsonify({"error": "not found"}), 404
         return send_from_directory(WEB_DIR / "js", asset, mimetype="text/javascript")

@@ -48,7 +48,7 @@ async function waitFor(fn, ms, step = 500) {
   return false;
 }
 async function login(p, u, pw, remember = false) {
-  await p.goto(APP + '/'); await p.waitForSelector('#login-form:not([hidden])');
+  await p.goto(APP + '/app.html'); await p.waitForSelector('#login-form:not([hidden])');
   await p.fill('#login-user', u); await p.fill('#login-pass', pw);
   if (remember) await p.check('#login-remember');
   await p.click('#login-go');
@@ -70,7 +70,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(await waitFor(async () => (await workerJson('/api/backend', adminTok)).online, 30000), 'the backend registered itself with the Worker (no URL pasted anywhere)');
 
     // 1. login page; wrong password; admin logs in
-    await p.goto(APP + '/');
+    await p.goto(APP + '/app.html');
     await p.waitForSelector('#login-form:not([hidden])');
     log(await p.isHidden('.mainnav'), 'login page first (no public sign-up; navigation hidden)');
     log(/created by your admin/.test(await p.textContent('#view-login')), 'login page says accounts come from the admin');
@@ -89,25 +89,25 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(!(await p.evaluate(() => Object.keys(localStorage).concat(Object.keys(sessionStorage)).some(k => /access/.test(k)))), 'the access token is kept in memory only');
     log(!(await p.evaluate(() => localStorage.getItem('agentmeter.refresh'))) && !!(await p.evaluate(() => sessionStorage.getItem('agentmeter.refresh'))),
         'Remember me off (default): the login is kept only for this browser session (sessionStorage)');
-    await p.goto(APP + '/#/profile'); await p.waitForSelector('#prof-devices-table');
+    await p.goto(APP + '/app.html#/profile'); await p.waitForSelector('#prof-devices-table');
     log(/Admin/.test(await p.textContent('#prof-role')) && /admin/.test(await p.textContent('#prof-username')), 'Profile shows the username and the Admin role');
     log((await p.$$('#prof-devices-table tbody tr')).length >= 1 && /this device/.test(await p.textContent('#prof-devices-table')), 'Profile lists the logged-in devices, this one marked');
     log(await p.isVisible('#set-password'), 'Change password lives on the Profile page');
     await p.screenshot({ path: path.join(OUT, 'profile.png'), fullPage: true });
     const extra = await loginApi('admin', 'admin-password-123');                     // another "device"
     const extraSid = JSON.parse(Buffer.from(extra.access_token.split('.')[1], 'base64url').toString()).sid;
-    await p.goto(APP + '/#/'); await p.goto(APP + '/#/profile'); await p.waitForSelector(`tr[data-device="${extraSid}"]`);
+    await p.goto(APP + '/app.html#/'); await p.goto(APP + '/app.html#/profile'); await p.waitForSelector(`tr[data-device="${extraSid}"]`);
     const before = (await p.$$('#prof-devices-table tbody tr')).length;
     await p.click(`#prof-devices-table button[data-revoke="${extraSid}"]`);
     await p.waitForFunction(n => document.querySelectorAll('#prof-devices-table tbody tr').length === n - 1, before);
     const gone = await fetch(WORKER + '/api/auth/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: extra.refresh_token }) });
     log(gone.status === 401, 'Profile: "Log out" on another device ends that login');
     // a new tab of the same browser (fresh sessionStorage) asks to log in again
-    const p2 = await ctx.newPage(); await p2.goto(APP + '/'); await p2.waitForSelector('#login-form:not([hidden])');
+    const p2 = await ctx.newPage(); await p2.goto(APP + '/app.html'); await p2.waitForSelector('#login-form:not([hidden])');
     log(true, 'a new tab without Remember me starts at the login page'); await p2.close();
 
     // 2. admin creates a user
-    await p.goto(APP + '/#/admin'); await p.waitForSelector('#adm-users-table');
+    await p.goto(APP + '/app.html#/admin'); await p.waitForSelector('#adm-users-table');
     log(/1 of 5/.test(await p.textContent('#adm-count')), 'Admin: 1 of 5 accounts');
     await p.fill('#adm-new-user', 'alice'); await p.fill('#adm-new-pass', 'temporary-pass-1'); await p.click('#adm-new-go');
     await p.waitForSelector('tr[data-user="alice"]');
@@ -158,7 +158,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     const idsNow = await p.textContent('#adm-ids-now');
     log(/demo_ids-/.test(idsNow) && /Threshold/.test(idsNow) && await p.isHidden('#adm-ids-error'), 'Admin › IDS model: the three files upload, are checked and listed');
     await p.screenshot({ path: path.join(OUT, '02b-admin-models.png'), fullPage: true });
-    await p.goto(APP + '/#/'); await p.goto(APP + '/#/admin'); await p.waitForSelector('#adm-audit-table');
+    await p.goto(APP + '/app.html#/'); await p.goto(APP + '/app.html#/admin'); await p.waitForSelector('#adm-audit-table');
     // the table from the first visit is still in the page until the new one arrives: wait for it
     await p.waitForFunction(() => /changed the model catalog/.test((document.getElementById('adm-audit-table') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => {});
     const audit = await p.textContent('#adm-audit-table');
@@ -178,13 +178,13 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await menu(p);
     log(!(await p.isVisible('#nav-admin')) && /User/.test(await p.textContent('#cp-role')), 'alice (user) changed her password; User badge, no Admin link');
     await p.keyboard.press('Escape');
-    const p3 = await ctx.newPage(); await p3.goto(APP + '/'); await p3.waitForSelector('#view-home:not([hidden])');
+    const p3 = await ctx.newPage(); await p3.goto(APP + '/app.html'); await p3.waitForSelector('#view-home:not([hidden])');
     log(true, 'Remember me on: a new tab opens already logged in'); await p3.close();
-    await p.goto(APP + '/#/admin'); await p.waitForTimeout(500);
+    await p.goto(APP + '/app.html#/admin'); await p.waitForTimeout(500);
     log(await p.isVisible('#view-home'), 'a user cannot open the Admin page');
 
     // 4. settings saved to the account
-    await p.goto(APP + '/#/settings'); await p.waitForSelector('#set-account:not([hidden])');
+    await p.goto(APP + '/app.html#/settings'); await p.waitForSelector('#set-account:not([hidden])');
     await p.fill('#set-tg', '123456789'); await p.selectOption('#set-notify', 'done');
     await p.check('#set-models input[value="microsoft/Phi-3-mini-4k-instruct"]'); await p.check('#set-models input[value="Qwen/Qwen2.5-7B-Instruct"]');
     await p.fill('#set-flows', '4'); await p.fill('#set-tz', 'Asia/Kuala_Lumpur');
@@ -201,7 +201,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(tg === 401, 'Telegram test needs a login');
 
     // 5. a mock session through the wizard; defaults applied
-    await p.goto(APP + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+    await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
     log(await p.inputValue('#svc-max-flows') === '4', 'default flows prefilled from Settings');
     await p.setInputFiles('#svc-file', CSV); await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
     await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
@@ -244,42 +244,42 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
 
     // 6. a second session (reuse the prepared set) -> Compare, Leaderboard
     const set = (await (await fetch(WORKER + '/api/sessions/' + job1, { headers: { Authorization: 'Bearer ' + (await loginApi('alice', 'alice-password-123')).access_token } })).json()).run_name;
-    await p.goto(APP + '/#/new/models?set=' + encodeURIComponent(set)); await p.waitForSelector('#svc-models input');
+    await p.goto(APP + '/app.html#/new/models?set=' + encodeURIComponent(set)); await p.waitForSelector('#svc-models input');
     await p.waitForFunction(() => !document.getElementById('svc-run').disabled, null, { timeout: 30000 });
     await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/session\//.test(location.hash), null, { timeout: 180000 });
     const job2 = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[2]);
     await p.waitForSelector('#session-body:not([hidden])', { timeout: 60000 });
-    await p.goto(APP + `/#/compare?a=${job1}&b=${job2}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
+    await p.goto(APP + `/app.html#/compare?a=${job1}&b=${job2}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
     log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Compare: like-for-like (same prepared set, same settings)');
-    await p.goto(APP + '/#/leaderboard'); await p.waitForSelector('.lb-table');
+    await p.goto(APP + '/app.html#/leaderboard'); await p.waitForSelector('.lb-table');
     log(await p.$$eval('.lb-table tbody tr', r => r.length) >= 2, 'Leaderboard ranks the models');
-    await p.goto(APP + '/#/gpu'); await p.waitForSelector('#gq-state');
+    await p.goto(APP + '/app.html#/gpu'); await p.waitForSelector('#gq-state');
     log(/Free|Busy/.test(await p.textContent('#gq-state')) && !!(await p.$('#gq-recent-table')), 'GPU & Queue reads the GPU server through the control plane (read token)');
-    await p.goto(APP + '/#/datasets'); await p.waitForSelector('#ds-table');
+    await p.goto(APP + '/app.html#/datasets'); await p.waitForSelector('#ds-table');
     log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1 && await p.$eval('#ds-table tbody tr[data-ds]', r => r.children[3].textContent.trim()) === '2', 'Data sets: the one set, used by both sessions');
 
     // 7. GPU off: stop the backend
     await stopBackend();
     const offTok = (await loginApi('alice', 'alice-password-123')).access_token;
     log(await waitFor(async () => !(await workerJson('/api/backend', offTok)).online, 30000), 'backend stopped: the Worker marks it offline (missed heartbeats)');
-    await p.goto(APP + '/#/sessions'); await p.reload();
+    await p.goto(APP + '/app.html#/sessions'); await p.reload();
     await p.waitForSelector('#sessions-table');
     log(await p.$$eval('#sessions-table tbody tr', r => r.length) === 2, 'GPU off: Sessions still lists both sessions');
     log(/GPU offline/.test(await p.textContent('#svc-backend-badge')), 'GPU off: the badge says GPU offline');
-    await p.goto(APP + '/#/session/' + job1); await p.waitForSelector('#session-body:not([hidden])', { timeout: 30000 });
+    await p.goto(APP + '/app.html#/session/' + job1); await p.waitForSelector('#session-body:not([hidden])', { timeout: 30000 });
     log(true, 'GPU off: a session opens with all its tabs');
-    await p.goto(APP + `/#/compare?a=${job1}&b=${job2}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
-    await p.goto(APP + '/#/leaderboard'); await p.waitForSelector('.lb-table');
+    await p.goto(APP + `/app.html#/compare?a=${job1}&b=${job2}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
+    await p.goto(APP + '/app.html#/leaderboard'); await p.waitForSelector('.lb-table');
     log(true, 'GPU off: Compare and Leaderboard work');
-    await p.goto(APP + '/#/gpu'); await p.waitForSelector('#gq-state');
+    await p.goto(APP + '/app.html#/gpu'); await p.waitForSelector('#gq-state');
     log(/GPU offline/.test(await p.textContent('#gq-state')), 'GPU off: GPU & Queue says the GPU server is offline');
-    await p.goto(APP + '/#/datasets'); await p.waitForSelector('#ds-table');
+    await p.goto(APP + '/app.html#/datasets'); await p.waitForSelector('#ds-table');
     log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1 && !!(await p.$('#ds-offline')), 'GPU off: Data sets still lists the benchmarked set');
     log(await p.isVisible('.mainnav') && await p.isVisible('#svc-gpu-off') && /viewing/.test(await p.textContent('#svc-backend-badge')), 'GPU off: viewing mode — the menu stays, a banner says so');
-    await p.goto(APP + '/#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
+    await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
     log(/demo runs too/.test(await p.textContent('#wiz-offline')) && await p.isVisible('#wiz-steps'), 'GPU off: New benchmark opens and says runs (demo too) need the GPU server');
-    await p.goto(APP + '/#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
+    await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
     log(await p.isDisabled('#svc-upload-btn'), 'GPU off: New benchmark says GPU offline; Prepare is disabled');
     // the Reuse tab must stay open while the GPU is off (it used to snap back to "Upload a file")
     await p.click('#tab-src-reuse'); await p.waitForSelector('#svc-stored-table', { timeout: 15000 });
@@ -289,16 +289,16 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.click('#svc-stored-table [data-restore]'); await p.waitForSelector('#svc-stored-error:not([hidden])');
     log(/GPU offline/.test(await p.textContent('#svc-stored-error')) && await p.isVisible('#src-reuse'), 'GPU off: using a saved set says the GPU is needed, the tab stays');
     // notes and tags live in the control plane: editable and searchable with the GPU off
-    await p.goto(APP + `/#/session/${job1}/overview`); await p.waitForSelector('form#svc-notes', { timeout: 30000 });
+    await p.goto(APP + `/app.html#/session/${job1}/overview`); await p.waitForSelector('form#svc-notes', { timeout: 30000 });
     await p.fill('#svc-notes-text', 'first demo session'); await p.fill('#svc-notes-tags', 'cp-check');
     await p.click('#svc-notes-save'); await p.waitForFunction(() => /Saved/.test(document.getElementById('svc-notes-saved').textContent), null, { timeout: 15000 });
-    await p.goto(APP + '/#/sessions'); await p.waitForSelector('#sessions-table');
+    await p.goto(APP + '/app.html#/sessions'); await p.waitForSelector('#sessions-table');
     await p.fill('#flt-q', 'first demo'); await p.waitForTimeout(1200);
     const hits = await p.$$eval('#sessions-table tbody tr', rs => rs.map(r => r.textContent));
     log(hits.length === 1 && /cp-check/.test(hits[0]), 'GPU off: the owner saves notes and tags (control plane); search finds them');
-    await p.goto(APP + `/#/session/${job1}/agents`); await p.waitForSelector('#flows-table', { timeout: 30000 });
+    await p.goto(APP + `/app.html#/session/${job1}/agents`); await p.waitForSelector('#flows-table', { timeout: 30000 });
     log((await p.$$('#flows-table tbody tr')).length > 0, 'GPU off: the flow explorer reads the stored flows.json');
-    await p.goto(APP + '/#/new/models?set=' + encodeURIComponent(set)); await p.waitForSelector('#svc-run');
+    await p.goto(APP + '/app.html#/new/models?set=' + encodeURIComponent(set)); await p.waitForSelector('#svc-run');
     log(await p.isDisabled('#svc-run') && /GPU offline/.test(await p.textContent('#svc-run')), 'GPU off: Run shows GPU offline');
 
     // 8. the backend restarts and re-registers
@@ -315,7 +315,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     const healthy = await waitFor(async () => { try { return (await fetch(`http://127.0.0.1:${BP}/health`)).ok; } catch (e) { return false; } }, 60000);
     await sleep(4000);                                    // its first heartbeat (every 3 s here) has registered it
     log(healthy && (await workerJson('/api/backend', offTok)).online, 'new rental (empty disk) registered itself');
-    await p.goto(APP + '/#/new?src=reuse'); await p.reload();
+    await p.goto(APP + '/app.html#/new?src=reuse'); await p.reload();
     await p.waitForSelector('#svc-stored-table', { timeout: 30000 });
     await p.waitForFunction(() => !/Loading/.test(document.getElementById('svc-recent-sets').textContent), null, { timeout: 30000 });
     log(/No prepared|Nothing prepared/.test(await p.textContent('#svc-recent-sets')), 'new rental: nothing prepared on this server');
@@ -330,9 +330,9 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.waitForSelector('#session-body:not([hidden])', { timeout: 60000 });
     const s1 = await workerJson('/api/sessions/' + job1, offTok), s3 = await workerJson('/api/sessions/' + job3, offTok);
     log(s1.identity.prepared_set_sha256 === s3.identity.prepared_set_sha256, 'the restored set has the same prepared-set hash as on the first rental');
-    await p.goto(APP + `/#/compare?a=${job1}&b=${job3}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
+    await p.goto(APP + `/app.html#/compare?a=${job1}&b=${job3}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
     log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Compare: rental-1 session vs rental-2 session on the restored set is like-for-like');
-    await p.goto(APP + '/#/leaderboard'); await p.waitForSelector('.lb-table');
+    await p.goto(APP + '/app.html#/leaderboard'); await p.waitForSelector('.lb-table');
     log((await p.$$('.lb-group')).length === 1, 'Leaderboard keeps all three sessions in one group');
 
     // 8c. Stop a running benchmark (a slow mock run): never scored, never stored as a session
@@ -341,9 +341,9 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(healthy2 && await waitFor(async () => (await workerJson('/api/backend', (await loginApi('admin', 'admin-password-123')).access_token)).online, 30000), 'backend restarted (slow mock runs)');
     await sleep(4000);                               // the next heartbeat re-registers it
     const lbBefore = (await workerJson('/api/leaderboard', (await loginApi('admin', 'admin-password-123')).access_token));
-    await p.goto(APP + '/#/'); await p.waitForTimeout(1500);
+    await p.goto(APP + '/app.html#/'); await p.waitForTimeout(1500);
     const set3 = (await workerJson('/api/sessions/' + job3, offTok)).run_name;          // the restored set on this rental
-    await p.goto(APP + '/#/new/models?set=' + encodeURIComponent(set3)); await p.waitForSelector('#svc-models input');
+    await p.goto(APP + '/app.html#/new/models?set=' + encodeURIComponent(set3)); await p.waitForSelector('#svc-models input');
     await p.waitForFunction(() => !document.getElementById('svc-run').disabled, null, { timeout: 30000 });
     await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/(new\/run|session)\//.test(location.hash), null, { timeout: 30000 });
@@ -362,7 +362,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(!sj.has_results, 'a stopped session has no stored results (never scored or uploaded)');
     const lbAfter = await workerJson('/api/leaderboard', (await loginApi('admin', 'admin-password-123')).access_token);
     log(JSON.stringify(lbAfter.groups) === JSON.stringify(lbBefore.groups), 'the Leaderboard is unchanged by a stopped run');
-    await p.goto(APP + '/#/sessions'); await p.waitForSelector('#sessions-table');
+    await p.goto(APP + '/app.html#/sessions'); await p.waitForSelector('#sessions-table');
     log(/Stopped/.test(await p.textContent(`tr:has(a[data-open="${jobS}"])`)), 'Sessions lists it as Stopped');
     // row actions on the list: a short note, then delete (owner or admin; confirmed)
     await p.click(`tr:has(a[data-open="${jobS}"]) [data-note]`); await p.waitForSelector('.note-row textarea');
@@ -384,11 +384,11 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
 
     // 10. phone width
     await p.setViewportSize({ width: 375, height: 800 });
-    await p.goto(APP + '/'); await p.waitForSelector('#login-form:not([hidden])');
+    await p.goto(APP + '/app.html'); await p.waitForSelector('#login-form:not([hidden])');
     log(await noHScroll(p), 'phone: login page has no horizontal scroll');
     await login(p, 'admin', 'admin-password-123'); await p.waitForSelector('#view-home:not([hidden])');
     for (const v of ['settings', 'admin', 'sessions']) {
-      await p.goto(APP + '/#/' + v); await p.waitForTimeout(800);
+      await p.goto(APP + '/app.html#/' + v); await p.waitForTimeout(800);
       log(await noHScroll(p), 'phone: ' + v + ' has no horizontal scroll');
     }
     await p.screenshot({ path: path.join(OUT, 'phone-admin.png'), fullPage: true });

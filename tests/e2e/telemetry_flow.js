@@ -19,7 +19,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
   const p = await (await b.newContext({ viewport: { width: 1280, height: 1000 } })).newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   try {
-    await p.goto(BASE + '/#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+    await p.goto(BASE + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
     await p.setInputFiles('#svc-file', SAMPLE);
     await p.fill('#svc-max-flows', '40'); await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
     await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
@@ -30,9 +30,9 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     const id = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[3]);
     await p.waitForFunction(() => document.querySelectorAll('#tel-host .tel-line').length >= 3, null, { timeout: 30000 });
     log((await p.$$('#tel-host #tel-steps li')).length === 7, 'run page: the panel shows the steps and the log');
-    await p.goto(BASE + '/#/sessions'); await p.waitForSelector('#view-sessions:not([hidden])');
+    await p.goto(BASE + '/app.html#/sessions'); await p.waitForSelector('#view-sessions:not([hidden])');
     await p.waitForTimeout(800);
-    await p.goto(BASE + '/#/session/' + id);
+    await p.goto(BASE + '/app.html#/session/' + id);
     await p.waitForFunction(() => document.querySelectorAll('#watch-tel .tel-line').length >= 3, null, { timeout: 20000 });
     const n1 = await p.$$eval('#watch-tel .tel-line', l => l.length);
     log(await p.$$eval('#tel-card', c => c.length) === 1 && /Queued/.test(await p.textContent('#watch-tel #tel-log')),

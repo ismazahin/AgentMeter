@@ -1,5 +1,5 @@
 // AgentMeter web app — boot.js: start-up: config.json -> control plane / backend -> online or offline (runs last).
-// One of the app's scripts (web/index.html loads them in order: core, home, wizard, session, analysis,
+// One of the app's scripts (web/app.html loads them in order: core, home, wizard, session, analysis,
 // compare, settings, boot); they share the page's global scope, so a function defined in one is used by the others.
 "use strict";
 // ---------- boot: config.json -> /health -> online | offline ----------

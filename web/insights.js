@@ -2,7 +2,7 @@
  *
  * Every function here only re-reads numbers the analysis already stored (no new
  * measurement, no re-scoring of the locked study): key findings, the per-criterion
- * profile, and the other views of the session tabs. The app (web/index.html) draws
+ * profile, and the other views of the session tabs. The app (web/app.html) draws
  * them; the maths lives here so it is node-tested (tests/test_insights.py).
  *
  * Works in the browser (window.INSIGHTS) and under node (module.exports).

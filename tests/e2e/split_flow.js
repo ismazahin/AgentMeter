@@ -11,6 +11,9 @@ let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) {
   ({ chromium } = require(process.env.PLAYWRIGHT_PATH || '/opt/node22/lib/node_modules/playwright')); }
 const [, , PHASE, FRONT, BLOCKED, URL_BASE] = process.argv;
+// the site's main page is the landing page; the app is app.html (a site root given here is mapped to it)
+const toApp = u => (!u || /\.html$/.test(u)) ? u : u.replace(/\/?$/, '/app.html');
+const FRONT_APP = toApp(FRONT), BLOCKED_APP = toApp(BLOCKED);
 const REPO = path.resolve(__dirname, '..', '..');
 const S = process.env.E2E_OUT || fs.mkdtempSync(path.join(os.tmpdir(), 'split-e2e-'));
 fs.mkdirSync(S, { recursive: true });
@@ -24,18 +27,18 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
 
   if (PHASE === 'offline') {
     // GPU offline = viewing mode: the menu and the pages stay, a banner explains, runs wait
-    await p.goto(FRONT); await p.waitForSelector('#svc-gpu-off:not([hidden])', { timeout: 15000 });
+    await p.goto(FRONT_APP); await p.waitForSelector('#svc-gpu-off:not([hidden])', { timeout: 15000 });
     log(/GPU offline/.test(await p.textContent('#svc-backend-badge')), 'badge says GPU offline');
     log(/viewing mode/.test(await p.textContent('#svc-gpu-off')), 'clear offline banner: viewing mode');
     log(await p.isVisible('.mainnav') && await p.isVisible('#view-home') && await p.isHidden('#view-offline'), 'the menu and Home stay while offline');
-    await p.goto(FRONT + '#/sessions'); await p.waitForSelector('#view-sessions:not([hidden])');
+    await p.goto(FRONT_APP + '#/sessions'); await p.waitForSelector('#view-sessions:not([hidden])');
     log(true, 'Sessions opens while offline');
-    await p.goto(FRONT + '#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
+    await p.goto(FRONT_APP + '#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
     log(await p.isDisabled('#svc-upload-btn'), 'New benchmark opens; starting is disabled until the GPU is back');
     await p.screenshot({ path: S + '/offline.png', fullPage: true });
   } else {
     // 1. online: badge + mode line before anyone clicks Run
-    await p.goto(FRONT + '#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])', { timeout: 15000 });
+    await p.goto(FRONT_APP + '#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])', { timeout: 15000 });
     log(/Demo mode \(no GPU\)/.test(await p.textContent('#svc-backend-badge')), 'GPU chip says Demo mode (no GPU) on a mock backend');
     log(await p.isHidden('#view-offline'), 'offline landing hidden when the backend answers');
     const apiBase = await p.evaluate(() => fetch('config.json').then(r => r.json()).then(c => c.api_base));
@@ -79,12 +82,12 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     // 4. a finished result opens by its URL in a fresh browser
     const jobHash = await p.evaluate(() => location.hash);
     const p2 = await (await b.newContext()).newPage();
-    await p2.goto(FRONT + jobHash.replace(/\/data$/, '')); await p2.waitForSelector('#svc-headline', { timeout: 30000 });
+    await p2.goto(FRONT_APP + jobHash.replace(/\/data$/, '')); await p2.waitForSelector('#svc-headline', { timeout: 30000 });
     log(true, 'finished results open by their job URL in a fresh browser');
 
     // 5. Prepare by URL (cross-origin), optional
     if (URL_BASE) {
-      await p.goto(FRONT + '#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+      await p.goto(FRONT_APP + '#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
       await p.click('#tab-src-url'); await p.fill('#svc-url', URL_BASE + '/big.csv'); await p.fill('#svc-max-flows', '10');
       await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
       await p.waitForSelector('#svc-summary-card', { timeout: 180000 });
@@ -101,7 +104,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     // 6. an origin that is NOT allowed cannot use the backend (CORS)
     if (BLOCKED) {
       const p3 = await (await b.newContext()).newPage();
-      await p3.goto(BLOCKED); await p3.waitForSelector('#view-offline:not([hidden])', { timeout: 15000 });
+      await p3.goto(BLOCKED_APP); await p3.waitForSelector('#view-offline:not([hidden])', { timeout: 15000 });
       log(true, 'a front-end on a non-allowed origin is blocked by CORS (shows offline): ' + new URL(BLOCKED).origin);
     }
   }

@@ -194,6 +194,7 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
             return redirect(f"/app.html#/session/{sid}/detailed", code=302)
         return send_from_directory(WEB_DIR, "index.html")         # the main page: the landing page
 
+    @app.route("/app", methods=["GET"])                           # the landing page links here (Pages' pretty URL)
     @app.route("/app.html", methods=["GET"])
     @app.route("/service", methods=["GET"])                       # old entry point: same app
     def service_page():

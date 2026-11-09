@@ -390,6 +390,7 @@ function show(view) {
   document.title = (view === "home" || !h ? "" : (view === "session" ? "Session" : h.textContent.trim()) + " · ") + "AgentMeter";
   if (LAST_VIEW !== null && LAST_VIEW !== view) $("main").focus({ preventScroll: true });
   LAST_VIEW = view;
+  document.documentElement.classList.remove("boot-login");      // the first-paint login screen (app.html <head>) has done its job
 }
 function route() {
   pollToken++;                                    // stops every running poll loop

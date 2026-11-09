@@ -31,6 +31,9 @@
     try { t = localStorage.getItem("agentmeter.theme") || "system"; } catch (e) { /* storage blocked */ }
     if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
     try { if (localStorage.getItem("agentmeter.side") === "collapsed") document.documentElement.classList.add("side-collapsed"); } catch (e) { /* storage blocked */ }
+    // Opened as #/login (the landing page's Log in buttons): draw the login screen on first paint instead of
+    // the empty app shell; core.js show() removes the class once the app has decided which view to show.
+    if (/^#\/login/.test(location.hash)) document.documentElement.classList.add("boot-login");
   })();
 </script>
 <style>
@@ -803,12 +806,14 @@
      headline and flow chart on the left, the form on the right. While the login view is open the
      sidebar/header is hidden (CSS :has, so no script changes); every id and behaviour is unchanged.
      ===================================================================================== */
-  body:has(#view-login:not([hidden])) .top { display: none; }
-  body:has(#view-login:not([hidden])) { padding-left: 0; }
-  body:has(#view-login:not([hidden])) main.wrap { max-width: none; padding: 0; }
-  body:has(#view-login:not([hidden])) main { padding-top: 0; }
-  body:has(#view-login:not([hidden])) footer { margin-top: 0; }
-  .login-split:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); min-height: calc(100vh - 58px); }
+  /* :root.boot-login = opened as #/login, before the app has decided (see the inline script in <head>) */
+  body:has(#view-login:not([hidden])) .top, :root.boot-login .top { display: none; }
+  body:has(#view-login:not([hidden])), :root.boot-login body { padding-left: 0; }
+  body:has(#view-login:not([hidden])) main.wrap, :root.boot-login main.wrap { max-width: none; padding: 0; }
+  body:has(#view-login:not([hidden])) main, :root.boot-login main { padding-top: 0; }
+  body:has(#view-login:not([hidden])) footer, :root.boot-login footer { display: none; }   /* no framing line under the login */
+  :root.boot-login #view-login[hidden] { display: grid !important; }
+  .login-split:not([hidden]), :root.boot-login .login-split { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); min-height: 100vh; }
   .login-brand { --lf-1: var(--series-1); --lf-2: #4F7FE0; --lf-3: #A2470D; --lf-4: var(--series-2);
     background: var(--band); color: #EEF2FA; padding: 36px clamp(24px, 4.5vw, 64px); display: flex; flex-direction: column; gap: 40px; }
   .login-brand :focus-visible { outline-color: var(--cta); }
@@ -869,15 +874,23 @@
   .login-box:has(#pwchange-form:not([hidden])) > .page-head { display: none; }
   .login-box #pwchange-form h2 { font-family: var(--font); font-weight: 650; font-size: clamp(30px, 3vw, 38px); line-height: 1.05; letter-spacing: -.045em; margin: 0 0 10px; }
   .login-box #pwchange-form > p { margin: 0 0 20px; text-wrap: pretty; }
-  /* the framing line under the split screen lines up with the left panel's content */
-  body:has(#view-login:not([hidden])) footer .wrap { max-width: none; padding: 0 clamp(24px, 4.5vw, 64px); }
 
   @media (max-width: 900px) {
-    .login-split:not([hidden]) { grid-template-columns: minmax(0, 1fr); min-height: 0; }
+    .login-split:not([hidden]), :root.boot-login .login-split { grid-template-columns: minmax(0, 1fr); min-height: 100vh; align-content: start; }
     .login-brand { padding: 20px 16px 28px; gap: 16px; }
     .login-claim { font-size: 28px; }
     .login-flow, .login-back { display: none; }
     .login-main { padding: 32px 16px 48px; }
+  }
+  /* landing page <-> login: a cross-document view transition; the logo, headline and flow chart glide
+     between their places on the two pages (Chrome/Edge 126+, Safari 18.2+; others just navigate) */
+  @media (prefers-reduced-motion: no-preference) {
+    @view-transition { navigation: auto; }
+    .login-logo { view-transition-name: am-logo; }
+    .login-claim { view-transition-name: am-claim; }
+    .login-flow { view-transition-name: am-flow; }
+    ::view-transition-group(*) { animation-duration: .45s; animation-timing-function: cubic-bezier(.2, .7, .2, 1); }
+    .login-flow .lf-track i { animation: none; }               /* the chart arrives drawn when it glides in */
   }
   @media (prefers-reduced-motion: reduce) {
     .lf-track i { animation: none; }
@@ -994,7 +1007,7 @@
         <span class="info-i" tabindex="0" role="button" data-tip="Off: you are logged out when the browser closes, or after a while without activity.">i</span></div>
       <div id="login-info" class="notice" role="status" hidden></div>
       <div id="login-error" class="notice error" role="alert" hidden></div>
-      <div class="actions"><button type="submit" class="btn primary" id="login-go">Log in</button></div>
+      <div class="actions"><button type="submit" class="btn primary" id="login-go" disabled>Log in</button></div>
       <p class="muted small">Accounts are created by your admin.</p>
     </form>
     <form class="card narrow" id="pwchange-form" hidden novalidate>

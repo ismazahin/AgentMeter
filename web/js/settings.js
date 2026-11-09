@@ -400,6 +400,7 @@ $("adm-limits").addEventListener("submit", function (ev) {
 // ---------- LOGIN / LOGOUT ----------
 function showLogin() {
   $("login-form").hidden = false; $("pwchange-form").hidden = true; $("login-error").hidden = true;
+  $("login-go").disabled = false;                                // disabled in the markup until the app is ready
   $("cp-profile").hidden = true; $("nav-admin").hidden = true;
   $("side-profile").hidden = true; $("side-admin").hidden = true;
   if (LOGOUT_REASON) { $("login-info").hidden = false; $("login-info").textContent = LOGOUT_REASON; LOGOUT_REASON = ""; }

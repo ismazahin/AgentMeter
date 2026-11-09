@@ -35,6 +35,7 @@ function goOffline() {
   var was = ONLINE;
   ONLINE = false; HEALTH = null; badge(null);
   $("svc-gpu-off").hidden = false; $("svc-demo").hidden = true; $("view-offline").hidden = true;
+  document.documentElement.classList.remove("boot-login");
   clearTimeout(offlineTimer);
   offlineTimer = setTimeout(CP ? checkControlPlaneBackend : checkBackend, 30000);   // comes back by itself when the GPU is rented
   if (CP) { if (!$("view-new").hidden) routeWizard(parseHash().parts, parseHash().q); return; }

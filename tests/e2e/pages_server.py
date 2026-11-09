@@ -55,6 +55,9 @@ class H(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b)
             return
+        path, _, query = self.path.partition("?")
+        if path != "/" and "." not in path.rsplit("/", 1)[-1] and (WEB / (path.lstrip("/") + ".html")).is_file():
+            self.path = path + ".html" + ("?" + query if query else "")   # Pages' pretty URLs: /app serves app.html
         super().do_GET()
 
 

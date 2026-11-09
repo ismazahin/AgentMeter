@@ -212,6 +212,12 @@ function watchCloud(job, ui) {
       seen = (j.log || []).length;
       if (j.status === "failed") { remember(null); ui.end(); ui.line(j.error || "Cloud preparation failed.", "tel-failed"); showError(err, { error: j.error, code: j.code }); return; }
       if (j.status !== "done") { CLOUD_POLL = setTimeout(tick, 1500); return; }
+      if (!ONLINE) {                                  // GPU off: the set is stored; its analysis page has it
+        remember(null); ui.end();
+        ui.line("Prepared " + String(j.set_name).split("/").pop() + ". The GPU server is offline, so it is kept for later: open it on Analyse traffic.", "tel-done");
+        location.hash = "#/analyse/" + enc(j.job_id);
+        return;
+      }
       ui.line("Prepared " + String(j.set_name).split("/").pop() + " in the cloud. Sending the prepared flows to the GPU server…");
       cloudImport(j).then(function (imp) {
         ui.end();

@@ -206,7 +206,7 @@ function authDownload(path, name) {
   var p = (CP && WORKER_PATHS.test(path)) ? cpFetch(path, { raw: true }) : backendFetch(path, { raw: true });
   return p.then(function (r) {
     if (!r || r.ok === false || (r.status && r.status >= 400)) {
-      return (r.text ? parse(r) : Promise.resolve(r)).then(function (e) { alert((e.data && e.data.error) || "Download failed."); });
+      return (r.text ? parse(r) : Promise.resolve(r)).then(function (e) { alert((e.data && e.data.error) || "Unable to download " + name + ". Check that the GPU server is online, then try again."); });
     }
     return r.blob().then(function (b) {
       var a = document.createElement("a");
@@ -227,7 +227,7 @@ function dlLink(path, name, label, cls) {
 function apiUrl(path) { return API + path; }
 function showError(el, data) {
   el.hidden = false;
-  el.innerHTML = esc((data && data.error) || "Something went wrong.") + (data && data.code ? ' <code>' + esc(data.code) + '</code>' : "");
+  el.innerHTML = esc((data && data.error) || "Unable to reach the server. Check your connection and that the GPU server is online, then try again.") + (data && data.code ? ' <code>' + esc(data.code) + '</code>' : "");
 }
 function setPath(id) { return String(id).split("/").map(enc).join("/"); }
 
@@ -357,6 +357,23 @@ function parseHash() {
   if (qi >= 0) { new URLSearchParams(h.slice(qi + 1)).forEach(function (v, k) { q[k] = v; }); h = h.slice(0, qi); }
   return { parts: h.split("/").filter(Boolean).map(decodeURIComponent), q: q };
 }
+// Confirm a consequential action in a <dialog> whose buttons name it (not the browser's OK / Cancel).
+// opts: { title: "Delete session …?", body: "What is lost.", ok: "Delete session", cancel: "Cancel", danger: true } -> Promise<boolean>
+function confirmAction(opts) {
+  var d = $("confirm-dlg"), ok = $("confirm-ok"), back = document.activeElement;
+  $("confirm-title").textContent = opts.title;
+  $("confirm-body").textContent = opts.body || ""; $("confirm-body").hidden = !opts.body;
+  ok.textContent = opts.ok; $("confirm-cancel").textContent = opts.cancel || "Cancel"; ok.className = "btn " + (opts.danger ? "danger" : "primary");
+  d.returnValue = "cancel";
+  return new Promise(function (resolve) {
+    d.addEventListener("close", function () {
+      if (back && back.focus && document.contains(back)) back.focus();
+      resolve(d.returnValue === "ok");
+    }, { once: true });
+    d.showModal(); $("confirm-cancel").focus();
+  });
+}
+var LAST_VIEW = null;
 function show(view) {
   closeMenu();
   VIEWS.forEach(function (v) { $("view-" + v).hidden = v !== view; });
@@ -368,6 +385,11 @@ function show(view) {
   document.querySelectorAll("[data-nav]").forEach(function (a) {
     if (a.getAttribute("data-nav") === nav) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
+  // a new view: name the tab after it and move focus to it (screen readers hear the change); not on first load
+  var h = document.querySelector("#view-" + view + " h1");
+  document.title = (view === "home" || !h ? "" : (view === "session" ? "Session" : h.textContent.trim()) + " · ") + "AgentMeter";
+  if (LAST_VIEW !== null && LAST_VIEW !== view) $("main").focus({ preventScroll: true });
+  LAST_VIEW = view;
 }
 function route() {
   pollToken++;                                    // stops every running poll loop

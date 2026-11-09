@@ -144,8 +144,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.fill('#adm-model-id', 'TheBloke/Llama-2-7B-GPTQ'); await p.click('#adm-model-add-go');
     await p.waitForSelector('#adm-models-error:not([hidden])');
     log(/pre-quantized/.test(await p.textContent('#adm-models-error')), 'a pre-quantized repo cannot be added');
-    p.once('dialog', d => d.accept());
-    await p.click('button[data-remove="ibm-granite/granite-3.3-8b-instruct"]');
+    await p.click('button[data-remove="ibm-granite/granite-3.3-8b-instruct"]'); await p.click('#confirm-ok');
     await p.waitForFunction(() => !document.querySelector('tr[data-model="ibm-granite/granite-3.3-8b-instruct"]'), null, { timeout: 15000 });
     log(true, 'admin removes an added model');
     // Admin › IDS model: upload the three files (the demo model, under the trained model's names)
@@ -353,8 +352,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.waitForSelector('#svc-stop:not([hidden])', { timeout: 60000 });
     log(true, 'a running benchmark shows a Stop button to its owner');
     await p.waitForFunction(() => /now running/.test(document.getElementById('svc-progress-text').textContent), null, { timeout: 60000 });
-    p.once('dialog', d => d.accept());
-    await p.click('#svc-stop');
+    await p.click('#svc-stop'); await p.click('#confirm-ok');
     await p.waitForFunction(() => /Stopped/.test(document.getElementById('svc-job-status').textContent), null, { timeout: 60000 });
     log(/not scored/.test(await p.textContent('#svc-progress-text')) && await p.isHidden('#svc-stop'), 'after confirming, the run stops: "Stopped … not scored", no Stop button');
     log(await p.isVisible('.again-link a'), 'a stopped run offers "Benchmark these flows again"');
@@ -371,8 +369,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.fill('.note-row textarea', 'stopped on purpose (stop test)'); await p.click('.note-row button[type="submit"]');
     await p.waitForFunction(j => /stopped on purpose/.test((document.querySelector(`tr:has(a[data-open="${j}"])`) || {}).textContent || ''), jobS, { timeout: 15000 });
     log(true, 'Sessions: "Note" adds a short note from the list; it shows under the session');
-    p.once('dialog', d => d.accept());
-    await p.click(`tr:has(a[data-open="${jobS}"]) [data-del]`);
+    await p.click(`tr:has(a[data-open="${jobS}"]) [data-del]`); await p.click('#confirm-ok');
     await p.waitForFunction(j => !document.querySelector(`a[data-open="${j}"]`), jobS, { timeout: 15000 });
     const goneS = await fetch(WORKER + '/api/sessions/' + jobS, { headers: { Authorization: 'Bearer ' + (await loginApi('admin', 'admin-password-123')).access_token } });
     log(goneS.status === 404, 'Sessions: "Delete" (confirmed) removes the session for everyone');

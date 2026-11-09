@@ -54,12 +54,15 @@ function wireRowActions(box, rows) {
   }); });
   box.querySelectorAll("[data-del]").forEach(function (b) { b.addEventListener("click", function () {
     var id = b.getAttribute("data-del"), s = byId[id];
-    if (!confirm("Delete session " + id + " (" + (s.models || []).map(short).join(" vs ") + ") for everyone?\n\nIts results, PDF and stored prepared-set copy are removed. This cannot be undone.")) return;
+    confirmAction({ title: "Delete session " + (s.models || []).map(short).join(" vs ") + "?", danger: true, ok: "Delete session",
+      body: "Session " + id + " is deleted for everyone: its results, PDF and stored prepared-set copy. This cannot be undone." }).then(function (yes) {
+    if (!yes) return;
     b.disabled = true;
     api("/api/sessions/" + enc(id), { method: "DELETE" }).then(function (r) {
       if (!r.ok) { b.disabled = false; alert((r.data || {}).error || "Could not delete the session."); return; }
       if (SESSION.id === id) SESSION = { id: null, res: null, job: null };
       loadSessions();
+    });
     });
   }); });
 }
@@ -252,6 +255,7 @@ function pane(name, html) { return '<div data-pane="' + name + '"' + (name === "
 function renderSession(res, job) {
   var s = res.session, env = res.environment || {}, real = env.provider === "real";
   $("h-session").textContent = (res.per_model || []).map(function (m) { return short(m.model); }).join(" vs ") || job.job_id;
+  document.title = $("h-session").textContent + " · AgentMeter";
   $("session-chips").innerHTML = '<span class="chip ' + (real ? "ok" : "warn") + '">' + (real ? "GPU: " + esc(env.gpu_name || "unknown") : "Demo (no GPU)") + '</span>' +
     '<span class="chip">' + fmtNum(s.n_flows) + ' flows</span><span class="chip">' + esc((s.source_type || "").toUpperCase()) + '</span>' +
     '<span class="chip">' + (s.accuracy_available ? "labelled" : "no reference labels") + '</span>' +

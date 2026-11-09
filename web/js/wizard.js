@@ -518,8 +518,10 @@ $("wiz-preset-save").addEventListener("click", function () {
 });
 $("wiz-preset-del").addEventListener("click", function () {
   var i = +$("wiz-preset").value, list = runPresets();
-  if (!list[i] || !confirm('Delete the preset "' + list[i].name + '"?')) return;
-  list.splice(i, 1); saveRunPresets(list); fillPresets();
+  if (!list[i]) return;
+  confirmAction({ title: 'Delete the preset \u201c' + list[i].name + '\u201d?', ok: "Delete preset", danger: true }).then(function (yes) {
+    if (yes) { list.splice(i, 1); saveRunPresets(list); fillPresets(); }
+  });
 });
 // Run again: the pipeline and options of an earlier session (models come from the link)
 function plFromJob(spec) {
@@ -1095,13 +1097,16 @@ function wireStop(j, t) {
   if (b.getAttribute("data-wired") === t.id) return;
   b.setAttribute("data-wired", t.id);
   b.onclick = function () {
-    if (!confirm("Stop this benchmark?\n\nFlows finished so far will not be scored. You can start it again later with \u201cBenchmark these flows again\u201d.")) return;
+    confirmAction({ title: "Stop this benchmark?", ok: "Stop benchmark", cancel: "Keep running", danger: true,
+      body: "Flows finished so far will not be scored. You can start it again later with \u201cBenchmark these flows again\u201d." }).then(function (yes) {
+    if (!yes) return;
     b.disabled = true;
     api("/api/jobs/" + enc(t.id) + "/stop", { method: "POST" }).then(function (r) {
       b.disabled = false;
       if (!r.ok) { showError(t.error, r.data); return; }
       b.hidden = true; t.text.textContent = "Stopping…";
       if (t.onStopped) t.onStopped();
+    });
     });
   };
 }

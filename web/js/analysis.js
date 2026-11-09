@@ -152,10 +152,12 @@ function schedRow(x) {
     (x.active ? '<button type="button" class="btn small-btn danger-lite" data-sch-cancel="' + esc(x.schedule_id) + '" data-sch-job="' + esc(x.source_job_id) + '">Cancel</button>' : "") + '</td></tr>';
 }
 function cancelSchedule(id, jobId, done) {
-  if (!confirm("Cancel this schedule? Runs already made are kept.")) return;
+  confirmAction({ title: "Cancel this schedule?", body: "No further runs start. Runs already made are kept.", ok: "Cancel schedule", cancel: "Keep schedule", danger: true }).then(function (yes) {
+  if (!yes) return;
   backendFetch("/api/schedules/" + enc(id) + "/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) }).then(function (r) {
     if (!r.ok) { alert(r.data.error || "Could not cancel the schedule."); return; }
     done();
+  });
   });
 }
 document.addEventListener("change", function (ev) {
@@ -624,16 +626,16 @@ function handoffCard(res) {
       var t = agName(e.from) + " → " + agName(e.to) + ": " + lbl + " re-sent per flow";
       if (b === a + 1) {
         var x1 = X(a) + W, x2 = X(b) - 8, y = Y + H / 2;
-        return '<g class="edge" tabindex="0" data-hover="' + esc(t) + '"><line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke-width="' + sw.toFixed(1) + '" marker-end="url(#ho-arrow-' + mi + ')"/>' +
+        return '<g class="edge" data-hover="' + esc(t) + '"><line x1="' + x1 + '" y1="' + y + '" x2="' + x2 + '" y2="' + y + '" stroke-width="' + sw.toFixed(1) + '" marker-end="url(#ho-arrow-' + mi + ')"/>' +
           '<text x="' + (x1 + x2) / 2 + '" y="' + (y - 8) + '" text-anchor="middle">' + esc(lbl) + '</text></g>';
       }
       var xa = X(a) + W / 2, xb = X(b) + W / 2, lift = 26 + 22 * (b - a - 1) + (a % 2) * 8;
-      return '<g class="edge" tabindex="0" data-hover="' + esc(t) + '"><path d="M' + xa + ' ' + Y + ' C ' + xa + ' ' + (Y - lift - 20) + ', ' + xb + ' ' + (Y - lift - 20) + ', ' + xb + ' ' + (Y - 6) + '" stroke-width="' + sw.toFixed(1) + '" marker-end="url(#ho-arrow-' + mi + ')"/>' +
+      return '<g class="edge" data-hover="' + esc(t) + '"><path d="M' + xa + ' ' + Y + ' C ' + xa + ' ' + (Y - lift - 20) + ', ' + xb + ' ' + (Y - lift - 20) + ', ' + xb + ' ' + (Y - 6) + '" stroke-width="' + sw.toFixed(1) + '" marker-end="url(#ho-arrow-' + mi + ')"/>' +
         '<text x="' + (xa + xb) / 2 + '" y="' + (Y - lift - 12) + '" text-anchor="middle">' + esc(lbl) + '</text></g>';
     }).join("");
     var nodes = m.nodes.map(function (n, i) {
       var t = agName(n.agent) + ": " + fmtTime(n.latency_s) + " per flow (" + fmtPct(n.share) + " of flow time), " + fmtNum(n.in_tokens) + " tokens in, " + fmtNum(n.out_tokens) + " out";
-      return '<g class="node" tabindex="0" data-hover="' + esc(t) + '"><rect x="' + X(i) + '" y="' + Y + '" width="' + W + '" height="' + H + '" rx="6"/><rect x="' + X(i) + '" y="' + Y + '" width="5" height="' + H + '" rx="2" style="fill:' + agColor(n.agent) + '"/>' +
+      return '<g class="node" data-hover="' + esc(t) + '"><rect x="' + X(i) + '" y="' + Y + '" width="' + W + '" height="' + H + '" rx="6"/><rect x="' + X(i) + '" y="' + Y + '" width="5" height="' + H + '" rx="2" style="fill:' + agColor(n.agent) + '"/>' +
         '<text x="' + (X(i) + 16) + '" y="' + (Y + 24) + '" class="nt">' + esc(agName(n.agent).length > 14 ? agName(n.agent).slice(0, 13) + "…" : agName(n.agent)) + '</text><text x="' + (X(i) + 16) + '" y="' + (Y + 44) + '" class="ns">' + esc(fmtTime(n.latency_s) + " · " + fmtPct(n.share)) + '</text></g>';
     }).join("");
     return '<div class="ho" data-model="' + esc(m.model) + '"><h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + ' <span class="muted small">' + fmtNum(m.resent_tokens, 1) + ' tokens re-sent per flow</span></h3>' +
@@ -908,10 +910,13 @@ function wireDownloads(res, job) {
   $("svc-dl-saw").addEventListener("click", function () { download("agentmeter_session_saw.csv", window.REPORT.sawCsv(res)); });
   $("svc-dl-agent").addEventListener("click", function () { download("agentmeter_session_per_agent.csv", window.REPORT.perAgentCsv(res)); });
   if ($("svc-delete")) $("svc-delete").addEventListener("click", function () {
-    if (!confirm("Delete session " + job.job_id + " for everyone? This cannot be undone.")) return;
+    confirmAction({ title: "Delete this session?", danger: true, ok: "Delete session",
+      body: "Session " + job.job_id + " is deleted for everyone. This cannot be undone." }).then(function (yes) {
+    if (!yes) return;
     api("/api/sessions/" + enc(job.job_id), { method: "DELETE" }).then(function (r) {
       if (!r.ok) { showError($("svc-delete-error"), r.data); return; }
       SESSION = { id: null, res: null, job: null }; location.hash = "#/sessions";
+    });
     });
   });
   if (CP && job.stored) {                                   // the copy stored with the session (R2)

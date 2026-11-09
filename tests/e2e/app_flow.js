@@ -391,8 +391,7 @@ async function frameOf(p) {
   log(/every 12 hours, 0 of 5 runs done/.test(await p.textContent('#sch-list')), 'Schedule: started from the session, shown with its next run');
   await p.click('.mainnav a[data-nav="trends"]'); await p.waitForSelector('#tr-sched-table');
   log(/every 12 hours/.test(await p.textContent('#tr-sched-table')) && /0 \/ 5/.test(await p.textContent('#tr-sched-table')), 'Trends: the schedule is listed');
-  p.once('dialog', d => d.accept());
-  await p.click('#tr-sched-table [data-sch-cancel]'); await p.waitForFunction(() => /cancelled/.test(document.querySelector('#tr-sched-table').textContent));
+  await p.click('#tr-sched-table [data-sch-cancel]'); await p.click('#confirm-ok'); await p.waitForFunction(() => /cancelled/.test(document.querySelector('#tr-sched-table').textContent));
   log(true, 'Trends: a schedule can be cancelled (runs already made are kept)');
 
   // How to use: a sidebar page; its contents links scroll within the page; the tips come back

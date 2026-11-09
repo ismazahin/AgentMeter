@@ -163,8 +163,9 @@ function renderAdminModels(state, cat) {
   box.querySelectorAll("[data-enable]").forEach(function (i) { i.addEventListener("change", function () { saveModel(i.dataset.enable, { enabled: i.checked }); }); });
   box.querySelectorAll("[data-dlstart]").forEach(function (i) { i.addEventListener("change", function () { saveModel(i.dataset.dlstart, { download_at_start: i.checked }); }); });
   box.querySelectorAll("[data-remove]").forEach(function (b) { b.addEventListener("click", function () {
-    if (!confirm("Remove " + b.dataset.remove + " from the model list?")) return;
-    putModels({ remove: [b.dataset.remove] }, "Removed.");
+    confirmAction({ title: "Remove " + b.dataset.remove + "?", body: "It leaves the model list; you can add it again later.", ok: "Remove model", danger: true }).then(function (yes) {
+      if (yes) putModels({ remove: [b.dataset.remove] }, "Removed.");
+    });
   }); });
   box.querySelectorAll("[data-verify]").forEach(function (b) { b.addEventListener("click", function () { verifyModel(b.dataset.verify); }); });
 }
@@ -356,8 +357,10 @@ $("adm-ids-form").addEventListener("submit", function (ev) {
   }).catch(function (e) { $("adm-ids-go").disabled = false; showError(err, { error: "Upload failed: " + e.message }); });
 });
 $("adm-ids-del").addEventListener("click", function () {
-  if (!confirm("Remove the stored IDS model? GPUs rented afterwards offer the demo IDS only.")) return;
-  api("/api/admin/ids-model", { method: "DELETE" }).then(function (r) { if (!r.ok) showError($("adm-ids-error"), r.data); else { $("adm-ids-status").textContent = "Removed."; loadAdminIds(); } });
+  confirmAction({ title: "Remove the stored IDS model?", body: "GPUs rented afterwards offer the demo IDS only.", ok: "Remove IDS model", danger: true }).then(function (yes) {
+    if (!yes) return;
+    api("/api/admin/ids-model", { method: "DELETE" }).then(function (r) { if (!r.ok) showError($("adm-ids-error"), r.data); else { $("adm-ids-status").textContent = "Removed."; loadAdminIds(); } });
+  });
 });
 function adminAct(b) {
   var id = b.getAttribute("data-id"), act = b.getAttribute("data-act"), req;
@@ -368,8 +371,10 @@ function adminAct(b) {
     if (!pw) return;
     req = api("/api/admin/users/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pw }) });
   } else if (act === "delete") {
-    if (!confirm("Delete this disabled account? Its sessions stay, under its name.")) return;
-    req = api("/api/admin/users/" + id, { method: "DELETE" });
+    confirmAction({ title: "Delete this disabled account?", body: "Its sessions stay, under its name. This cannot be undone.", ok: "Delete account", danger: true }).then(function (yes) {
+      if (yes) api("/api/admin/users/" + id, { method: "DELETE" }).then(function (r) { if (!r.ok) showError($("adm-error"), r.data); else loadAdmin(); });
+    });
+    return;
   }
   req.then(function (r) { if (!r.ok) showError($("adm-error"), r.data); else loadAdmin(); });
 }

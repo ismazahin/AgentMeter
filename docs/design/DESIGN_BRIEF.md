@@ -144,15 +144,18 @@ Demo screenshots show placeholders; real sessions look like this (session
 
 ## 7. The current visual design
 
-- **Style:** dark-first, flat cards on a near-black background, one amber accent.
-- **Font:** Manrope (Google Fonts, 400/500/600/700); monospace for model ids and job ids.
+- **Style:** "research paper": paper/ink neutrals, hairline rules instead of boxed cards, serif
+  headlines (Georgia) for results, a left sidebar from 1024 px (collapsible to an icon rail).
+- **Font:** Inter (Google Fonts, variable 400–800); Georgia for h2/headline/verdict/tile values;
+  monospace for model ids, job ids and numeric table cells.
 - **Tokens** (CSS custom properties on `:root`, redefined for dark under
-  `prefers-color-scheme: dark` and `[data-theme="dark"]`):
-  - light: `--bg #F6F7F9`, `--surface #FFF`, `--text #12161C`, `--muted #5B6470`, `--border #D9DEE5`
-  - dark: `--bg #12161C`, `--surface #161B22`, `--surface-2 #1A2029`, `--text #E6E9ED`, `--muted #9AA3AE`, `--border #262D37`
-  - `--accent #E8A33D` (amber), `--success`, `--danger`, `--series-1/2` (model A amber, model B blue),
-    agent colours `--ag-perceive` blue, `--ag-reason` purple, `--ag-decide` amber, `--ag-act` teal
-  - `--radius 8px`, `--radius-lg 12px`; content max width 1180 px; 44 px touch targets
+  `prefers-color-scheme: dark` and `[data-theme="dark"]`; see `web/index.html`):
+  - light: `--bg #F4F2EC`, `--surface #FBFAF7`, `--surface-2 #ECEBE4`, `--text #17232C`, `--muted #647078`, `--border #D8D7CF`
+  - dark: `--bg #101418`, `--surface #161B20`, `--surface-2 #1D2329`, `--text #E9E7E1`, `--muted #98A1A8`, `--border #2A3138`
+  - `--accent` blue (`#2455D6` / `#7D9CF5`) for actions and measured emphasis, `--accent-ink` for text on it;
+    `--warn` orange for demo/warnings; `--success`, `--danger`; `--series-1/2` (model A blue, model B orange);
+    agent colours `--ag-1…8`
+  - `--radius 3px`, `--radius-lg 4px`; smallest label text 12 px; 44 px touch targets
 - **Components in use:** sticky header with nav and pill badge; page head (h1 + muted lead);
   `.card` (bordered, 20 px padding) for almost every block; metric tiles; chips/pills (status,
   caveats, tags); tables in `.table-wrap` (horizontal scroll); `details/summary` disclosures for

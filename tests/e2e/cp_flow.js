@@ -201,6 +201,8 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(tg === 401, 'Telegram test needs a login');
 
     // 5. a mock session through the wizard; defaults applied
+    // forced to the GPU server before the page opens (this stack has no preparation service; analyse_flow covers it)
+    await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); });
     await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
     log(await p.inputValue('#svc-max-flows') === '4', 'default flows prefilled from Settings');
     await p.setInputFiles('#svc-file', CSV); await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)

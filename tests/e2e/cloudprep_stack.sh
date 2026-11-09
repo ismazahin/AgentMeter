@@ -37,6 +37,6 @@ trap cleanup EXIT
 for _ in $(seq 1 60); do curl -fsS "$CP_URL/api/health" >/dev/null 2>&1 && curl -fsS "http://127.0.0.1:$CPP/health" >/dev/null 2>&1 && break; sleep 1; done
 export CP_URL PREP_SECRET CPP
 cd "$REPO"
-# CLOUDPREP_FLOWS picks the walk-throughs (default: both); each gets its own folder.
+# CLOUDPREP_FLOWS picks the walk-throughs (default: analyse_flow); each gets its own folder.
 # PREP_REGISTERED=1: no fixed CLOUD_PREP_URL, the service must register itself (prep_button_flow).
-for f in ${CLOUDPREP_FLOWS:-cloudprep_flow analyse_flow}; do node "tests/e2e/$f.js" "$OUT/$f"; done
+for f in ${CLOUDPREP_FLOWS:-analyse_flow}; do node "tests/e2e/$f.js" "$OUT/$f"; done

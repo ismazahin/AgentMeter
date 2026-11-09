@@ -1,4 +1,5 @@
-// AgentMeter web app — analyse.js: Analyse traffic (#/analyse): the IDS over a whole upload, no GPU.
+// AgentMeter web app — analyse.js: New Benchmark steps 2-3 (#/new/prep/<job>): the upload prepared and
+// scored by the IDS on the preparation service (no GPU), then "Your data" and Continue to the models.
 // One of the app's scripts (web/app.html loads them in order: core, home, wizard, session, analysis,
 // analyse, compare, settings, boot); they share the page's global scope.
 //
@@ -12,22 +13,6 @@ var AN = { src: "file", job: null, rows: null, pool: null, ident: null, tau: nul
 var AN_PAGE = 50;
 
 function anCloud() { return !!(CP && BACKEND && BACKEND.cloud_prep); }
-function loadAnalyse(p, q) {
-  var id = p[1];
-  $("an-start").hidden = !!id; $("an-detail").hidden = !id;
-  if (id) { anDetail(id); return; }
-  anServiceNotice();
-  if (BACKEND && BACKEND.cloud_prep_max_mb) $("an-limit").textContent = "Maximum upload: " + BACKEND.cloud_prep_max_mb + " MB — use Import from a link for larger files";
-  if (anCloud()) cpFetch("/api/prep/wake", { method: "POST" }).then(function () { /* best effort: wakes a sleeping service */ });
-  anList();
-}
-var anTabs = Array.prototype.slice.call(document.querySelectorAll('#an-start [role="tab"]'));
-tablist(document.querySelector("#an-start .tabs"), function (t) {
-  AN.src = t.id === "tab-an-url" ? "url" : "file";
-  selectTab(anTabs, t);
-  $("an-src-file").hidden = AN.src !== "file"; $("an-src-url").hidden = AN.src !== "url";
-});
-
 // ---------- the preparation service: Start / Stop (scripts/prep_local.py on the owner's PC) ----------
 // The buttons open agentmeter-prep://start|stop, which `python scripts/prep_local.py install` registered
 // on that PC; the browser asks once ("Open AgentMeter prep?"). The page then watches /api/backend
@@ -35,7 +20,7 @@ tablist(document.querySelector("#an-start .tabs"), function (t) {
 var AN_SVC = { waiting: null, until: 0 };
 function anServiceNotice() {
   var un = $("an-unavailable"), svc = BACKEND && BACKEND.prep_service, w = AN_SVC.waiting;
-  $("an-go").disabled = !anCloud();
+  if ($("svc-upload-btn")) $("svc-upload-btn").disabled = !anCloud();
   if (!CP) { un.hidden = false; un.className = "notice warn"; un.innerHTML = "Analyse traffic needs the control plane (the hosted site); on a single GPU server, use New benchmark."; return; }
   if (anCloud()) {
     un.hidden = !(svc && svc.online);
@@ -83,56 +68,49 @@ function anList() {
   cpFetch("/api/analyses").then(function (r) {
     if (!r.ok) { $("an-list").innerHTML = '<div class="notice error">' + esc((r.data || {}).error || "Could not load your analyses.") + '</div>'; return; }
     var a = r.data.analyses || [];
-    if (!a.length) { $("an-list").innerHTML = '<div class="card empty" id="an-empty"><p>No analyses yet. Upload a file above: the IDS scores every flow in it.</p></div>'; return; }
+    if (!a.length) { $("an-list").innerHTML = '<div class="card empty" id="an-empty"><p>No analyses yet. Upload a file on the first tab: it is prepared and the IDS scores every flow in it.</p></div>'; return; }
     $("an-list").innerHTML = '<div class="card"><div class="table-wrap"><table id="an-table"><thead><tr><th>File</th><th class="num">Flows scored</th><th class="num">Alerts</th>' +
       '<th>Labels</th><th>Finished</th>' + (isAdmin() ? "<th>By</th>" : "") + '<th><span class="sr-only">Open</span></th></tr></thead><tbody>' +
       a.map(function (x) {
         var i = x.ids || {}, name = x.filename || (x.url ? x.url.split("/").pop() : (x.set || "").split("/").pop());
         return '<tr><td><b class="mono small">' + esc(name) + '</b></td><td class="num">' + fmtNum(i.n_flows_in) + '</td><td class="num">' + fmtNum(i.n_flagged) +
           '</td><td>' + (i.labelled ? '<span class="chip ok">labelled</span>' : '<span class="chip">no labels</span>') + '</td><td class="small">' + esc(fmtDate(x.finished_at)) +
-          '</td>' + (isAdmin() ? '<td class="small">' + esc(x.owner || "—") + '</td>' : "") + '<td><a class="btn small-btn" href="#/analyse/' + enc(x.job_id) + '">Open</a></td></tr>';
+          '</td>' + (isAdmin() ? '<td class="small">' + esc(x.owner || "—") + '</td>' : "") + '<td><a class="btn small-btn" href="#/new/prep/' + enc(x.job_id) + '">Open</a></td></tr>';
       }).join("") + '</tbody></table></div></div>';
   });
 }
 
-// ---------- upload -> cloud preparation (+ IDS) -> the analysis ----------
-function anLog() {
-  var log = $("an-log");
-  return {
-    start: function () { log.innerHTML = ""; log.hidden = false; $("an-error").hidden = true; $("an-go").disabled = true; },
-    line: function (msg, cls, when) {
-      var li = document.createElement("li"); li.className = "tel-line" + (cls ? " " + cls : "");
-      li.textContent = (when ? new Date(when) : new Date()).toTimeString().slice(0, 8) + "  " + msg; log.appendChild(li); log.scrollTop = log.scrollHeight;
-    },
-    end: function () { $("an-go").disabled = !anCloud(); }
-  };
-}
-$("an-form").addEventListener("submit", function (ev) {
-  ev.preventDefault();
-  var file = $("an-file").files[0], url = $("an-url").value.trim(), ui = anLog(), err = $("an-error");
-  if (AN.src === "file" && !file) { showError(err, { error: "Choose a file first." }); return; }
-  if (AN.src === "url" && !/^https:\/\//i.test(url)) { showError(err, { error: "Give a direct https:// link." }); return; }
-  var sample = Math.max(1, Math.min(500, parseInt($("an-sample").value || "50", 10) || 50));
-  var body = { max_flows: sample, other_attack: false, limits: (CONFIG && CONFIG.limits) || {} };
-  if (AN.src === "file") { body.filename = file.name; body.size = file.size; } else body.url = url;
-  ui.start();
-  ui.line("Sending " + (file ? file.name + " (" + fmtSize(file.size) + ")" : "the link") + " to the preparation service…");
+// ---------- step 1 -> 2: the wizard's upload goes to the preparation service ----------
+function startAnalysis(src) {
+  var err = $("svc-upload-error"), btn = $("svc-upload-btn"), busy = $("svc-upload-busy");
+  err.hidden = true;
+  if (!anCloud()) { anServiceNotice(); showError(err, { error: "The preparation service is not running: start it above first." }); return; }
+  var maxB = ((BACKEND && BACKEND.cloud_prep_max_mb) || 50) * 1024 * 1024;
+  if (src.file && src.file.size > maxB) {
+    showError(err, { error: "This file is " + fmtSize(src.file.size) + "; uploads are limited to " + fmtSize(maxB) + ". Use Import from a link for larger files.", code: "too_large" });
+    return;
+  }
+  var body = { max_flows: Math.max(1, Math.min(500, parseInt($("svc-max-flows").value || "50", 10) || 50)),
+               other_attack: $("svc-other-attack").checked, limits: (CONFIG && CONFIG.limits) || {} };
+  if (src.file) { body.filename = src.file.name; body.size = src.file.size; } else body.url = src.url;
+  btn.disabled = true; busy.hidden = false; busy.textContent = "Sending to the preparation service…";
+  var fail = function (d) { btn.disabled = false; busy.hidden = true; showError(err, d); };
   cpFetch("/api/prep/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
-    if (!r.ok) { ui.end(); ui.line(r.data.error || "The analysis could not start.", "tel-failed"); showError(err, r.data); return; }
+    if (!r.ok) { fail(r.data); return; }
     var id = r.data.job_id;
-    if (AN.src === "url") { location.hash = "#/analyse/" + enc(id); return; }
-    ui.line("Uploading " + fmtSize(file.size) + "…");
-    fetch(r.data.upload_url, { method: "PUT", body: file, headers: { "content-type": file.type || "application/octet-stream" } }).then(function (u) {
+    if (!src.file) { busy.hidden = true; btn.disabled = false; location.hash = "#/new/prep/" + enc(id); return; }
+    busy.textContent = "Uploading " + fmtSize(src.file.size) + "…";
+    fetch(r.data.upload_url, { method: "PUT", body: src.file, headers: { "content-type": src.file.type || "application/octet-stream" } }).then(function (u) {
       if (!u.ok) throw new Error("storage answered HTTP " + u.status);
-      ui.line("Uploaded. Waking the preparation service (about a minute if it was asleep)…");
+      busy.textContent = "Uploaded. Starting the preparation…";
       return cpFetch("/api/prep/jobs/" + enc(id) + "/start", { method: "POST" });
-    }).then(function (s) {
-      ui.end();
-      if (!s.ok) { ui.line(s.data.error || "The preparation service did not start.", "tel-failed"); showError(err, s.data); return; }
-      location.hash = "#/analyse/" + enc(id);
-    }, function (e) { ui.end(); ui.line("Upload failed: " + e.message, "tel-failed"); showError(err, { error: "The upload failed (" + e.message + "). Try again." }); });
+    }).then(function (st) {
+      if (!st.ok) { fail(st.data); return; }
+      btn.disabled = false; busy.hidden = true;
+      location.hash = "#/new/prep/" + enc(id);
+    }, function (e) { fail({ error: "The upload failed (" + e.message + "). Try again.", code: "upload_failed" }); });
   });
-});
+}
 
 // ---------- one analysis ----------
 function anFile(id, name) {
@@ -158,29 +136,38 @@ function anCsv(text) {
 function anDetail(id) {
   var token = pollToken, box = $("an-detail");
   if (!AN.job || AN.job.job_id !== id) { AN = Object.assign(AN, { job: null, rows: null, pool: null, ident: null, tau: null, page: 0, seen: 0 }); }
-  box.innerHTML = '<p><a href="#/analyse">← All analyses</a></p>' + skel(5, true);
+  box.innerHTML = '<p><a href="#/new">← Upload another file</a></p>' + skel(5, true);
   (function tick() {
     if (token !== pollToken) return;
     cpFetch("/api/prep/jobs/" + enc(id)).then(function (r) {
       if (token !== pollToken) return;
-      if (!r.ok) { box.innerHTML = '<p><a href="#/analyse">← All analyses</a></p><div class="notice error">' + esc((r.data || {}).error || "No such analysis.") + '</div>'; return; }
+      if (!r.ok) { box.innerHTML = '<p><a href="#/new">← Upload another file</a></p><div class="notice error">' + esc((r.data || {}).error || "No such analysis.") + '</div>'; return; }
       var j = r.data;
       AN.job = j;
-      if (j.status !== "done" && j.status !== "failed") { anProgress(j); setTimeout(tick, 1500); return; }
-      if (j.status === "failed") { anProgress(j); return; }
+      if (j.status !== "done" && j.status !== "failed") { wizStep("prep"); anProgress(j); setTimeout(tick, 1500); return; }
+      if (j.status === "failed") { wizStep("prep"); anProgress(j); return; }
+      wizStep("review");
       if (j.files.indexOf("ids_scores.csv") < 0) {
-        box.innerHTML = '<p><a href="#/analyse">← All analyses</a></p><div class="card"><h2>' + esc(anName(j)) + '</h2><div class="notice warn">The data was prepared, but ' +
-          'no IDS model was stored when it ran, so there is no analysis. An admin can upload one in <a href="#/admin">Admin › IDS model</a>; then analyse the file again.</div></div>';
+        AN.pool = null; AN.rows = null;
+        anFile(id, "manifest.json").then(function (m) {
+          if (token !== pollToken) return;
+          try { AN.manifest = m ? JSON.parse(m) : null; } catch (e) { AN.manifest = null; }
+          box.innerHTML = '<p><a href="#/new">← Upload another file</a></p><h2>' + esc(anName(j)) + '</h2>' + anContents() +
+            '<div class="notice warn">No IDS model was stored when this was prepared, so there are no IDS results. An admin can upload one in ' +
+            '<a href="#/admin">Admin › IDS model</a>. You can still benchmark every flow of the sample.</div>' + anContinue(false);
+          $("an-bench-go").addEventListener("click", anBenchmark);
+        });
         return;
       }
       if (AN.rows) { anRender(); return; }
-      Promise.all([anFile(id, "ids_scores.csv"), anFile(id, "ids_pool.json"), anFile(id, "ids_flows_identity.csv")]).then(function (fs) {
+      Promise.all([anFile(id, "ids_scores.csv"), anFile(id, "ids_pool.json"), anFile(id, "ids_flows_identity.csv"), anFile(id, "manifest.json")]).then(function (fs) {
         if (token !== pollToken) return;
         if (!fs[0] || !fs[1]) { box.innerHTML = '<div class="notice error">The analysis files could not be read.</div>'; return; }
         AN.rows = anCsv(fs[0]).map(function (x) {
           return { flow_id: x.flow_id, score: +x.score, label: x.label === "" || x.label == null ? null : x.label, selected: /^true$/i.test(x.selected) };
         });
         AN.pool = JSON.parse(fs[1]);
+        try { AN.manifest = fs[3] ? JSON.parse(fs[3]) : null; } catch (e) { AN.manifest = null; }
         AN.ident = null;
         if (fs[2]) {                                                    // the owner only
           var any = false; AN.ident = {};
@@ -200,22 +187,19 @@ function anProgress(j) {
   var log = (j.log || []).map(function (ev) {
     return '<li class="tel-line">' + esc(new Date(ev.t).toTimeString().slice(0, 8)) + "  " + esc((PHASES[ev.phase] ? PHASES[ev.phase] + (ev.message ? ": " : "") : "") + (ev.message || "")) + '</li>';
   }).join("");
-  $("an-detail").innerHTML = '<p><a href="#/analyse">← All analyses</a></p><div class="card"><h2>' + esc(anName(j)) + '</h2>' +
+  $("an-detail").innerHTML = '<p><a href="#/new">← Upload another file</a></p><div class="card"><h2>' + esc(anName(j)) + '</h2>' +
     (j.status === "failed" ? '<div class="notice error" role="alert">' + esc(j.error || "The analysis failed.") + (j.code ? ' <code>' + esc(j.code) + '</code>' : "") + '</div>'
       : '<p class="muted">Preparing the data and scoring every flow with the IDS. The first job after a quiet spell waits about a minute while the preparation service wakes.</p><div class="bar indet"><span></span></div>') +
     '<ol class="tel-log mono" aria-label="Analysis progress">' + log + '</ol></div>';
 }
 function anRender() {
   var j = AN.job, p = AN.pool, m = p.model || {}, h = p.model_metrics_holdout || {};
-  var head = '<p><a href="#/analyse">← All analyses</a></p><div class="page-head" style="margin-top:0"><div><h2 style="margin:0">' + esc(anName(j)) + '</h2>' +
+  var head = '<p><a href="#/new">← Upload another file</a></p><div class="page-head" style="margin-top:0"><div><h2 style="margin:0">' + esc(anName(j)) + '</h2>' +
     '<p class="muted small">IDS <span class="mono">' + esc(m.version || m.name || "—") + '</span>' + (m.demo ? ' <span class="chip warn">Demo IDS</span>' : "") +
     ' · its threshold ' + fmtNum(p.threshold, 4) + (h.recall != null ? ' · on its hold-out flows: recall ' + fmtPct(h.recall) + ', false-positive rate ' + fmtPct(h.false_positive_rate) : "") +
     (p.training_overlap ? ' · <span class="chip warn">' + fmtNum(p.training_overlap) + ' flows were in its training data</span>' : "") + '</p></div></div>';
-  var bench = '<div class="card" id="an-bench"><h2>Benchmark LLMs on these alerts</h2><p class="muted small">The LLM agents triage the alerts among the ' + fmtNum(p.n_selected) +
-    '-flow benchmark sample, using these same scores at your threshold. It needs the GPU server.</p><div class="actions"><button type="button" class="btn primary" id="an-bench-go"' +
-    (ONLINE ? "" : " disabled") + '>Benchmark these alerts</button>' + (ONLINE ? "" : '<span class="small muted">GPU offline: start the GPU server first.</span>') +
-    '</div><div id="an-bench-msg" class="small" role="status"></div></div>';
-  $("an-detail").innerHTML = head +
+  var bench = anContinue(true);
+  $("an-detail").innerHTML = head + anContents() +
     '<div class="card"><div class="row" style="margin-top:0;gap:16px;flex-wrap:wrap;align-items:center"><label for="an-tau"><b>Threshold</b></label>' +
     '<input type="range" id="an-tau" min="0.001" max="1" step="0.001" value="' + AN.tau + '" style="flex:1 1 240px" aria-describedby="an-tau-hint">' +
     '<input type="number" id="an-tau-n" min="0.001" max="1" step="0.001" value="' + AN.tau + '" style="max-width:110px" aria-label="Threshold value">' +
@@ -233,6 +217,30 @@ function anRender() {
   $("an-tau-reset").addEventListener("click", function () { set(p.threshold); });
   $("an-bench-go").addEventListener("click", anBenchmark);
   anFigures(); anProjection();
+}
+// "What is in it": the prepared set's manifest (file, rows, flows kept, labels, class mix)
+function anContents() {
+  var ps = (AN.manifest || {}).prepared_set || {}, sel = ps.selection || {}, cc = ps.class_counts || {}, src = ps.source || {};
+  var mix = cc.available ? cc.selected || {} : {}, keys = Object.keys(mix).sort(function (a, b) { return mix[b] - mix[a]; });
+  var tot = keys.reduce(function (a, k) { return a + mix[k]; }, 0);
+  return '<div class="card" id="an-contents"><h2>What is in it</h2><div class="grid2"><div><ul class="lk-list small">' +
+    '<li>File: <b>' + esc(src.filename || anName(AN.job)) + '</b>' + (src.size_bytes ? " (" + fmtSize(src.size_bytes) + ")" : "") + '</li>' +
+    '<li>Type: <b>' + esc(String(ps.input_type || "—").toUpperCase()) + '</b></li>' +
+    '<li>Flows read: <b>' + fmtNum(sel.pool_size) + '</b> · benchmark sample: <b>' + fmtNum(sel.selected) + '</b> flows</li>' +
+    '<li>Labels: <b>' + (cc.available ? "yes — accuracy can be checked" : "no — efficiency only") + '</b></li>' +
+    (ps.content_sha256 ? '<li>Fingerprint: <span class="mono">' + esc(ps.content_sha256.slice(0, 16)) + '…</span></li>' : "") + '</ul></div>' +
+    '<div>' + (keys.length ? '<h3 style="margin-top:0">Benchmark sample by class</h3><div class="hbars">' + keys.map(function (k) {
+      return '<div class="hbar"><span class="hb-l">' + esc(k) + '</span><span class="hb-t"><span class="hb-f" style="width:' + (100 * mix[k] / tot).toFixed(1) + '%"></span></span><span class="hb-v num">' + fmtNum(mix[k]) + '</span></div>';
+    }).join("") + '</div>' : '<p class="muted small">No class labels (PCAP or unlabelled CSV).</p>') + '</div></div></div>';
+}
+// step 3 -> 4: needs the GPU server (the set goes to it; then models and settings)
+function anContinue(ids) {
+  return '<div class="card" id="an-bench"><h2>Next: models and settings</h2><p class="muted small">' +
+    (ids ? 'The LLM agents triage the alerts among the ' + fmtNum((AN.pool || {}).n_selected) + '-flow benchmark sample, using these same IDS scores at your threshold.'
+         : 'The LLM agents analyse the flows of the benchmark sample.') + '</p>' +
+    '<div class="actions"><button type="button" class="btn primary" id="an-bench-go"' + (ONLINE ? "" : " disabled") + '>Continue</button>' +
+    (ONLINE ? "" : '<span class="small" id="an-gpu-off">To run a benchmark, the GPU server must be running first.</span>') +
+    '</div><div id="an-bench-msg" class="small" role="status"></div></div>';
 }
 function anFigures() {
   var t = INSIGHTS.trafficAnalysis(AN.rows, AN.tau);
@@ -297,6 +305,6 @@ function anBenchmark() {
   cloudImport(j).then(function (imp) {
     btn.disabled = false;
     if (!imp.ok) { msg.textContent = "The GPU server did not accept it: " + ((imp.data || {}).error || imp.status); return; }
-    location.hash = "#/new/models?set=" + enc(imp.data.prepared_set) + "&ids=" + enc(String(AN.tau));
+    location.hash = "#/new/models?set=" + enc(imp.data.prepared_set) + (AN.pool ? "&ids=" + enc(String(AN.tau)) : "");
   });
 }

@@ -944,13 +944,10 @@
       <button type="button" class="gs-btn" id="gs-open" title="Search pages, sessions, data sets and models (Ctrl+K)" aria-label="Search" aria-keyshortcuts="Control+K"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span class="nl">Search</span><kbd>Ctrl K</kbd></button>
       <span class="nav-group" aria-hidden="true">Workspace</span>
       <a href="#/" data-nav="home" title="Home"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span class="nl">Home</span></a>
-      <a href="#/analyse" data-nav="analyse" title="Analyse traffic"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h1.5l1-2.5 2 5 1-2.5H15"/></svg><span class="nl">Analyse traffic</span></a>
-      <a href="#/new" data-nav="new" class="nav-primary" title="New benchmark"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span class="nl">New benchmark</span></a>
+      <a href="#/new" data-nav="new" class="nav-primary" title="New benchmark"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span class="nl">New Benchmark</span></a>
       <a href="#/sessions" data-nav="sessions" title="Sessions"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg><span class="nl">Sessions</span></a>
-      <a href="#/datasets" data-nav="datasets" title="Data sets"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="8" ry="2.5"/><path d="M4 5.5v13c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-13M4 12c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5"/></svg><span class="nl">Data sets</span></a>
       <a href="#/leaderboard" data-nav="leaderboard" title="Leaderboard"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 20V11M12 20V4M18 20v-6"/></svg><span class="nl">Leaderboard</span></a>
-      <a href="#/trends" data-nav="trends" title="Repeatability"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l5-5 4 4 8-8M15 8h5v5"/></svg><span class="nl">Repeatability</span></a>
-      <a href="#/gpu" data-nav="gpu" title="GPU &amp; Queue"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4M10 10h4v4h-4z"/></svg><span class="nl">GPU &amp; Queue</span></a>
+      <a href="#/planner" data-nav="planner" title="Cost planner"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M6 16l4-4 3 3 5-6"/><circle cx="18" cy="9" r="1.5"/></svg><span class="nl">Cost planner</span></a>
     </nav>
     <nav class="sidenav-account" id="side-account" aria-label="Account">
       <span class="nav-group" aria-hidden="true">Account</span>
@@ -961,7 +958,7 @@
       <a href="#/help" data-nav="help" title="How to use"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg><span class="nl">How to use</span></a>
     </nav>
     <div class="top-right">
-      <span id="svc-backend-badge" class="chip-gpu" role="status" aria-live="polite">Checking backend…</span>
+      <a href="#/gpu" id="svc-backend-badge" class="chip-gpu" role="status" aria-live="polite" title="GPU status and queue">Checking backend…</a>
       <div class="profile" id="cp-profile" hidden>
         <button type="button" class="profile-btn" id="cp-profile-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="cp-menu">
           <span class="avatar" id="cp-avatar" aria-hidden="true"></span><span class="profile-name" id="cp-user"></span><span class="role-chip" id="cp-role"></span>
@@ -1113,13 +1110,14 @@
     <div class="card" id="help-run">
       <h2>1. Run a benchmark</h2>
       <ol class="guide-steps">
-        <li><b>Data.</b> Open <a href="#/new">New benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for the reference-label check) or a PCAP. Choose how many flows to sample. The result is a <i>prepared set</i>; use <b>Reuse a prepared set</b> next time to skip this step.</li>
+        <li><b>Upload.</b> Open <a href="#/new">New Benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for the reference-label check) or a PCAP, and choose how many flows the benchmark samples. No GPU needed: the preparation service on your computer does it (if it is not running, click <b>Start the preparation service</b>).</li>
+        <li><b>Preparing and your data.</b> The data is prepared and the IDS scores every flow. Then you see what is in it, the alerts, what the IDS caught and missed (labelled CSV), a threshold to try, and the projected LLM cost. <b>Continue</b> when the GPU server is running.</li>
         <li><b>Models.</b> Pick one to four open models. Every model runs in 4-bit NF4 on the same GPU, one at a time, so the numbers are comparable. The wizard estimates time and cost from earlier runs.</li>
         <li><b>Agents.</b> Keep the default pipeline (Perceive → Reason → Decide → Act) or build your own: up to 8 agents, from the built-ins, ready-made templates or agents you write. Exactly one agent gives the answer (a <i>label</i> agent); each agent reads the flow and/or earlier agents' answers.</li>
         <li><b>Options.</b> Tick <b>Load test</b> to also measure how throughput scales with 1, 2 and 4 flows in parallel, and <b>repeat check</b> to answer the first 10 flows twice (does the model give the same answer?).</li>
-        <li><b>Run.</b> The session page shows live progress. You can leave it; the run continues on the GPU server. Stop it from the same page if needed.</li>
+        <li><b>Run.</b> The session page shows live progress. If the GPU is busy, your run is queued and starts by itself; with a Telegram chat in Settings you get a message when it finishes. You can leave the page; the run continues on the GPU server. Stop it from the same page if needed.</li>
       </ol>
-      <p class="muted small">No GPU connected? The app says so in the top bar. Preparing data and reading old sessions still work; new runs wait for the GPU.</p>
+      <p class="muted small">No GPU connected? The app says so in the sidebar. Uploading and preparing data, the IDS results and old sessions still work; to run a benchmark, the GPU server must be running first.</p>
     </div>
     <div class="card" id="help-read">
       <h2>2. Read a session</h2>
@@ -1145,14 +1143,15 @@
       <p class="small" id="help-charts"><b>Reading the charts.</b> On <i>GPU over the run</i> (Cost &amp; Energy), hover any chart to read power, utilisation and memory at that moment together with the flow and agent that were running; drag across a chart to zoom all of them, double-click to zoom out. <i>Inspect data</i> under a chart shows the numbers behind it, and <i>Chart data (CSV)</i> downloads them. The limits you enter under Recommendations are drawn as threshold lines and colour the values that break them. Compare models (on the Leaderboard) and Repeatability share a Model and Pipeline filter. In Settings, you can be alerted on Telegram when a finished run got worse than its usual range on the same setup.</p>
     </div>
     <div class="card" id="help-manage">
-      <h2>4. Sessions, Leaderboard and Repeatability</h2>
+      <h2>4. Sessions, Leaderboard, Repeatability and the Cost planner</h2>
       <ul class="guide-steps">
         <li><a href="docs/" target="_blank" rel="noopener">API documentation</a> describes every endpoint of the control plane, the GPU backend and the cloud preparation service (who may call it, its parameters and answers). The services AgentMeter calls (Hugging Face, Telegram, Vast.ai, Supabase) are described in <code>docs/INTEGRATIONS.md</code>.</li>
-        <li><a href="#/datasets">Data sets</a> lists every prepared set of flows: its size, labels, flow mix and fingerprint, which sessions and models used it, and buttons to benchmark it again or compare the models measured on it.</li>
-        <li><a href="#/gpu">GPU &amp; Queue</a> shows the GPU server right now: live utilisation, memory, power and temperature, the run on it with its progress, the runs waiting in order, scheduled re-runs coming up, what just finished, and where a new file would be prepared.</li>
+        <li><b>Data sets</b> are under <a href="#/new?src=reuse">New Benchmark › Reuse a prepared set</a>: your analyses (each with its IDS results) and every prepared set of flows, with its size, labels, flow mix and fingerprint, the sessions that used it, and Rename / Delete / Benchmark this set.</li>
+        <li><a href="#/gpu">GPU &amp; Queue</a> (click the GPU status chip in the sidebar) shows the GPU server right now: live utilisation, memory, power and temperature, the run on it with its progress, the runs waiting in order, scheduled re-runs coming up, what just finished, and where a new file would be prepared.</li>
         <li><a href="#/sessions">Sessions</a> lists every run. Search by text, filter by tag, open a session, add a note, or delete a finished session (with an account).</li>
+        <li><a href="#/planner">Cost planner</a> projects each model's GPU time, cost and energy for a daily number of alerts, from its latest real benchmark on that GPU. No GPU needed.</li>
         <li><a href="#/leaderboard">Leaderboard</a> ranks and compares models, in three tabs. <b>By setup</b> ranks every model on each setup (the same flows, GPU and settings). <a href="#/compare"><b>Compare models</b></a> lets you choose one setup and the models on it — as many as you like, from any sessions — and puts them side by side with a ranking and a bar per model; sessions on other flows, GPUs or settings are listed with the reason they are left out. <b>Overall</b> counts how often each model ranks first across setups.</li>
-        <li><a href="#/trends">Repeatability</a> checks that the same model on the same setup gives the same result each time it runs: each model gets a verdict — Stable, Varies or Moved — after 3 runs. To collect such runs automatically, open a finished session and use <b>Repeat on a schedule</b> on its Overview tab. In short: Compare = different models, same setup, one moment; Repeatability = the same model, same setup, over time.</li>
+        <li><a href="#/trends">Repeatability</a> (a tab of Leaderboard) checks that the same model on the same setup gives the same result each time it runs: each model gets a verdict — Stable, Varies or Moved — after 3 runs. To collect such runs automatically, open a finished session and use <b>Repeat on a schedule</b> on its Overview tab. In short: Compare = different models, same setup, one moment; Repeatability = the same model, same setup, over time.</li>
       </ul>
     </div>
     <div class="card" id="help-method">
@@ -1209,15 +1208,18 @@
   <!-- NEW BENCHMARK: one wizard -->
   <section id="view-new" class="view" hidden aria-labelledby="h-new">
     <div class="page-head"><div><h1 id="h-new">New benchmark</h1></div></div>
-    <div id="wiz-offline" class="notice error" role="status" hidden><b>GPU offline</b>: new benchmarks — demo runs too — need the GPU server, so they can't start now. You can still look through the steps, and browse Sessions, Data sets, Leaderboard and Repeatability.<span class="info-i" tabindex="0" role="button" data-tip="The benchmark backend is not running (no GPU rented). Sessions, Compare and Leaderboard still work. This page notices by itself when the GPU comes back.">i</span></div>
+    <div id="wiz-offline" class="notice error" role="status" hidden><b>GPU offline.</b> You can upload and prepare data now. To run a benchmark, the GPU server must be running first.<span class="info-i" tabindex="0" role="button" data-tip="The benchmark backend is not running (no GPU rented). Sessions, Compare and Leaderboard still work. This page notices by itself when the GPU comes back.">i</span></div>
     <ol class="stepper" id="wiz-steps" aria-label="Benchmark steps">
-      <li data-step="data"><b>1</b>Data</li>
-      <li data-step="models"><b>2</b>Models and settings</li>
-      <li data-step="run"><b>3</b>Run</li>
+      <li data-step="data"><b>1</b>Upload</li>
+      <li data-step="prep"><b>2</b>Preparing</li>
+      <li data-step="review"><b>3</b>Your data</li>
+      <li data-step="models"><b>4</b>Models and settings</li>
+      <li data-step="run"><b>5</b>Run</li>
     </ol>
 
-    <!-- step 1: data -->
+    <!-- step 1: upload -->
     <div id="wiz-step-data">
+      <div id="an-unavailable" class="notice warn" hidden></div>
       <div class="tabs" role="tablist" aria-label="Where the data comes from">
         <button type="button" role="tab" id="tab-src-file" aria-controls="src-file" aria-selected="true">Upload a file</button>
         <button type="button" role="tab" id="tab-src-url" aria-controls="src-url" aria-selected="false" tabindex="-1">Import from a link</button>
@@ -1260,6 +1262,17 @@
         <div id="svc-upload-error" class="notice error" role="alert" hidden></div>
       </form>
       <div id="src-reuse" role="tabpanel" aria-labelledby="tab-src-reuse" hidden>
+        <h2>Your analyses</h2>
+        <p class="muted small">Data you uploaded and prepared here, with its IDS results. Open one to continue to the benchmark.</p>
+        <div id="an-list"></div>
+        <h2>All data sets</h2>
+        <p class="muted small">Every prepared set of flows, what is in it and which sessions used it. Models are only compared on the same set.</p>
+        <div class="card" id="ds-controls"><div class="row" style="margin-top:0;gap:16px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="margin:0;flex:2 1 260px"><label for="ds-q">Search</label><input type="search" id="ds-q" placeholder="Name, model or fingerprint"></div>
+      <div class="field" style="margin:0;flex:1 1 160px"><label for="ds-type">Type</label><select id="ds-type"><option value="">All</option><option value="CSV">CSV</option><option value="PCAP">PCAP</option></select></div>
+    </div></div>
+    <div id="ds-body"></div>
+        <h2>More ways to reuse a set</h2>
         <div class="card" id="svc-stored-card" hidden>
           <h2>Saved sets</h2>
           <p class="muted small">The exact flows of earlier sessions. Reuse them on any GPU.<span class="info-i" tabindex="0" role="button" data-tip="Kept by the control plane, so they work on any GPU rental, even after the one that prepared them is gone. They are restored without identification columns (IPs, ports, protocol, timestamp), which no model ever sees; the prepared-set hash is the same, so new sessions compare like-for-like with the old ones.">i</span></p>
@@ -1290,6 +1303,9 @@
         </form>
       </div>
     </div>
+
+    <!-- steps 2-3: preparing, then your data (web/js/analyse.js) -->
+    <div id="wiz-step-prep" hidden><div id="an-detail"></div></div>
 
     <!-- step 2: models and settings (data prepares in the background) -->
     <div id="wiz-step-models" hidden>
@@ -1458,6 +1474,7 @@
       <button type="button" role="tab" id="lbtab-setup" data-lbtab="setup" aria-controls="lb-setup-panel" aria-selected="true">By setup</button>
       <button type="button" role="tab" id="lbtab-compare" data-lbtab="compare" aria-controls="lb-compare-panel" aria-selected="false" tabindex="-1">Compare models</button>
       <button type="button" role="tab" id="lbtab-overall" data-lbtab="overall" aria-controls="lb-overall-panel" aria-selected="false" tabindex="-1">Overall</button>
+      <a role="tab" id="lbtab-repeat" href="#/trends" aria-selected="false" tabindex="-1">Repeatability</a>
     </div>
     <div id="lb-setup-panel" role="tabpanel" aria-labelledby="lbtab-setup">
       <div class="card">
@@ -1518,57 +1535,6 @@
     <div class="card"><div id="pl-body"></div></div>
   </section>
 
-  <!-- ANALYSE TRAFFIC (route #/analyse, #/analyse/<job id>): the IDS over a whole upload, no GPU -->
-  <section id="view-analyse" class="view" hidden aria-labelledby="h-analyse">
-    <div class="page-head"><div><h1 id="h-analyse">Analyse traffic</h1>
-      <p>Upload a CSV or PCAP of network flows. The IDS scores every flow and lists the alerts — no GPU needed.
-        When a GPU is running, benchmark the LLM agents on these alerts.</p></div></div>
-    <div id="an-start">
-      <div id="an-unavailable" class="notice warn" hidden></div>
-      <div class="tabs" role="tablist" aria-label="Where the traffic comes from">
-        <button type="button" role="tab" id="tab-an-file" aria-controls="an-src-file" aria-selected="true">Upload a file</button>
-        <button type="button" role="tab" id="tab-an-url" aria-controls="an-src-url" aria-selected="false" tabindex="-1">Import from a link</button>
-      </div>
-      <form id="an-form" class="card" novalidate>
-        <div id="an-src-file" role="tabpanel" aria-labelledby="tab-an-file">
-          <label class="drop" id="an-drop" for="an-file">
-            <strong>Choose a .csv, .pcap or .pcapng file</strong>
-            <span class="muted">Labelled CSV: the page also shows what the IDS caught and missed · PCAP or unlabelled CSV: the alerts only</span><br>
-            <span class="muted small" id="an-limit">Maximum upload: 50 MB — use Import from a link for larger files</span>
-            <input type="file" id="an-file" accept=".csv,.pcap,.pcapng">
-          </label>
-        </div>
-        <div id="an-src-url" role="tabpanel" aria-labelledby="tab-an-url" hidden>
-          <div class="field"><label for="an-url">Direct https link to the file</label>
-            <input type="url" id="an-url" placeholder="https://example.org/capture.pcap" inputmode="url" autocomplete="off">
-            <span class="hint">A direct download link; the preparation service downloads it itself.</span></div>
-        </div>
-        <div class="row" style="gap:16px;flex-wrap:wrap;align-items:flex-end">
-          <div class="field" style="margin:0"><label for="an-sample">Benchmark sample (flows)</label>
-            <input type="number" id="an-sample" min="1" max="500" value="50" style="max-width:120px">
-            <span class="hint">The IDS scores every flow; a later LLM benchmark uses this many of them.</span></div>
-        </div>
-        <div class="actions"><button type="submit" class="btn primary" id="an-go">Analyse</button></div>
-        <div id="an-error" class="notice error" role="alert" hidden></div>
-        <ol id="an-log" class="tel-log mono" aria-label="Analysis progress" aria-live="polite" hidden></ol>
-      </form>
-      <h2>Your analyses</h2>
-      <div id="an-list"></div>
-    </div>
-    <div id="an-detail" hidden></div>
-  </section>
-
-  <section id="view-datasets" class="view" hidden aria-labelledby="h-datasets">
-    <div class="page-head"><div><h1 id="h-datasets">Data sets</h1>
-      <p>Every prepared set of flows: what is in it, its fingerprint, and which sessions and models used it. Models are only compared on the same set, so this is the list of everything they can be compared on.</p></div>
-      <a class="btn primary" href="#/new">Prepare a new set</a></div>
-    <div class="card" id="ds-controls"><div class="row" style="margin-top:0;gap:16px;flex-wrap:wrap;align-items:flex-end">
-      <div class="field" style="margin:0;flex:2 1 260px"><label for="ds-q">Search</label><input type="search" id="ds-q" placeholder="Name, model or fingerprint"></div>
-      <div class="field" style="margin:0;flex:1 1 160px"><label for="ds-type">Type</label><select id="ds-type"><option value="">All</option><option value="CSV">CSV</option><option value="PCAP">PCAP</option></select></div>
-    </div></div>
-    <div id="ds-body"></div>
-  </section>
-
   <!-- GPU & QUEUE -->
   <section id="view-gpu" class="view" hidden aria-labelledby="h-gpu">
     <div class="page-head"><div><h1 id="h-gpu">GPU &amp; Queue</h1>
@@ -1583,6 +1549,12 @@
 
   <!-- REPEATABILITY (route #/trends) -->
   <section id="view-trends" class="view" hidden aria-labelledby="h-trends">
+    <div class="tabs" role="tablist" aria-label="Leaderboard views" id="tr-lb-tabs">
+      <a role="tab" href="#/leaderboard" aria-selected="false" tabindex="-1">By setup</a>
+      <a role="tab" href="#/compare" aria-selected="false" tabindex="-1">Compare models</a>
+      <a role="tab" href="#/leaderboard?tab=overall" aria-selected="false" tabindex="-1">Overall</a>
+      <a role="tab" href="#/trends" aria-selected="true">Repeatability</a>
+    </div>
     <div class="page-head"><div><h1 id="h-trends">Repeatability</h1>
       <p id="tr-purpose">Run the same model on the same setup more than once and see if results stay the same. Stable results can be trusted; a result that moves may point to a problem such as a slower rented GPU, a driver change or a model update.</p>
       <p class="small muted cmp-vs-rep" id="tr-distinct"><a href="#/compare"><b>Compare</b></a> = different models, same setup, one moment. <b>Repeatability</b> = the same model, same setup, over time.</p></div></div>

@@ -4,9 +4,16 @@
 "use strict";
 // ---------- NEW BENCHMARK (wizard) ----------
 var WIZ = { prep: null, set: null, summary: null, src: "file" };
+// With a control plane every upload goes to the preparation service (New Benchmark steps 2-3). The
+// end-to-end tests may still force the GPU server ("agentmeter.prepWhere" = server), as before.
+function viaService() {
+  if (!CP) return false;
+  try { return localStorage.getItem("agentmeter.prepWhere") !== "server"; } catch (e) { return true; }
+}
 function wizStep(step) {
-  ["data", "models", "run"].forEach(function (s) { $("wiz-step-" + s).hidden = s !== step; });
-  var order = ["data", "models", "run"], idx = order.indexOf(step);
+  var panel = step === "review" ? "prep" : step;            // steps 2 and 3 share one panel (analyse.js)
+  ["data", "prep", "models", "run"].forEach(function (s) { $("wiz-step-" + s).hidden = s !== panel; });
+  var order = ["data", "prep", "review", "models", "run"], idx = order.indexOf(step);
   document.querySelectorAll("#wiz-steps li").forEach(function (li, i) {
     li.classList.toggle("done", i < idx);
     if (i === idx) li.setAttribute("aria-current", "step"); else li.removeAttribute("aria-current");
@@ -15,10 +22,13 @@ function wizStep(step) {
 function routeWizard(p, q) {
   var off = !ONLINE;
   $("wiz-offline").hidden = !off;
-  ["svc-upload-btn", "svc-import-btn"].forEach(function (id) { if ($(id)) $(id).disabled = off; });
+  // with a control plane, uploading and preparing need no GPU (the preparation service does it)
+  if ($("svc-upload-btn")) $("svc-upload-btn").disabled = viaService() ? !anCloud() : off;
+  if ($("svc-import-btn")) $("svc-import-btn").disabled = off;
   if (p[1] === "models") { wizStep("models"); wizModels(q); }
   else if (p[1] === "run" && p[2]) { wizStep("run"); watchRun(p[2]); }
-  else { wizStep("data"); wizData(q.src || "file"); }
+  else if (p[1] === "prep" && p[2] && CP) { wizStep("prep"); anDetail(p[2]); }
+  else { wizStep("data"); wizData(q.src || "file", q); }
 }
 var srcTabs = Array.prototype.slice.call(document.querySelectorAll('#wiz-step-data [role="tab"]'));
 function setSrc(name) {
@@ -27,7 +37,7 @@ function setSrc(name) {
   $("svc-upload-form").hidden = name === "reuse";
   $("src-reuse").hidden = name !== "reuse";
   $("svc-upload-error").hidden = true;
-  if (name === "reuse") { loadRecentSets(); loadStoredSets(); }
+  if (name === "reuse") { loadRecentSets(); loadStoredSets(); if (CP) anList(); loadDatasets(); }
 }
 // the chosen source lives in the URL (#/new?src=…): a re-render (e.g. the GPU going offline)
 // keeps it instead of falling back to "Upload a file"; replaceState fires no hashchange
@@ -36,7 +46,12 @@ tablist(document.querySelector("#wiz-step-data .tabs"), function (t) {
   try { history.replaceState(null, "", "#/new" + (src === "file" ? "" : "?src=" + src)); } catch (e) { /* URL unchanged */ }
   setSrc(src);
 });
-function wizData(src) { setSrc(src === "url" || src === "reuse" ? src : "file"); resumeCloud(); wakeCloud(); }
+function wizData(src, q) {
+  if (q && q.open) DS.open = q.open;
+  setSrc(src === "url" || src === "reuse" ? src : "file");
+  if (viaService()) { anServiceNotice(); wakeCloud(); } else $("an-unavailable").hidden = true;
+  resumeCloud();
+}
 // a free cloud service (Hugging Face Space) sleeps when unused: nudge it awake while the user picks a file
 var WOKEN = 0;
 function wakeCloud() {
@@ -65,6 +80,7 @@ $("svc-upload-form").addEventListener("submit", function (ev) {
     fd.append("file", file);
   }
   var src = WIZ.src === "url" ? { url: fd.get("url") } : { file: file };
+  if (viaService()) { startAnalysis(src); return; }   // the preparation service: no GPU needed (analyse.js)
   $("svc-upload-btn").disabled = true; $("svc-upload-busy").hidden = false;
   $("svc-upload-busy").textContent = "Checking the GPU…";
   prepRoute(src).then(function (where) {
@@ -215,7 +231,7 @@ function watchCloud(job, ui) {
       if (!ONLINE) {                                  // GPU off: the set is stored; its analysis page has it
         remember(null); ui.end();
         ui.line("Prepared " + String(j.set_name).split("/").pop() + ". The GPU server is offline, so it is kept for later: open it on Analyse traffic.", "tel-done");
-        location.hash = "#/analyse/" + enc(j.job_id);
+        location.hash = "#/new/prep/" + enc(j.job_id);
         return;
       }
       ui.line("Prepared " + String(j.set_name).split("/").pop() + " in the cloud. Sending the prepared flows to the GPU server…");
@@ -250,6 +266,7 @@ function resumeCloud() {
   var job = null;
   try { job = JSON.parse(localStorage.getItem(CLOUD_KEY) || "null"); } catch (e) { job = null; }
   if (!job || !job.id || !CP || !$("svc-local-prep").hidden) return;
+  remember(null); location.replace("#/new/prep/" + enc(job.id)); return;
   var ui = prepLogUi();
   ui.start(); ui.line("Following the cloud preparation of " + job.name + " started earlier.");
   watchCloud(job, ui);
@@ -972,7 +989,10 @@ function renderProgress(j, target) {
       bar.classList.toggle("indet", !dl.total_bytes);
     }
     if (downloading) { /* text and bar set above */ }
-    else if (j.status === "queued") text = "Queued — " + (j.queue_position ? j.queue_position + " job(s) ahead" : "starting next") + ". One benchmark runs at a time.";
+    else if (j.status === "queued") text = "Queued — " + (j.queue_position ? j.queue_position + " job(s) ahead" : "starting next") + ". One benchmark runs at a time." +
+      (!CP ? "" : SETTINGS && SETTINGS.telegram_chat_id && SETTINGS.notify_on && SETTINGS.notify_on !== "none"
+        ? " You'll get a Telegram message when it finishes — you can close this page."
+        : " To get a Telegram message when it finishes, set your Telegram chat in Settings.");
     else if (j.status === "running") text = (p.completed || 0) + " / " + (p.total || 0) + " flows · " + pct + "% · now running " + (p.current_model || "…");
     else if (j.status === "done") text = (p.completed || 0) + " / " + (p.total || 0) + " flows · done";
     else if (j.status === "stopped") text = "Stopped" + (j.stopped_by ? " by " + j.stopped_by : "") + " after " + (p.completed || 0) + " / " + (p.total || 0) + " flows — not scored.";

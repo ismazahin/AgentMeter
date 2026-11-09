@@ -32,8 +32,8 @@ async function asService(route, payload) {                 // what scripts/prep_
     await p.goto(APP + '/app.html'); await p.waitForSelector('#login-form:not([hidden])');
     await p.fill('#login-user', 'admin'); await p.fill('#login-pass', 'admin-password-123'); await p.click('#login-go');
     await p.waitForSelector('#view-home:not([hidden])');
-    await p.goto(APP + '/app.html#/analyse'); await p.waitForSelector('#an-svc-start', { timeout: 20000 });
-    log(await p.$eval('#an-go', e => e.disabled), 'no service: the upload is off and "Start the preparation service" is offered');
+    await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#an-svc-start', { timeout: 20000 });
+    log(await p.$eval('#svc-upload-btn', e => e.disabled), 'no service: the upload is off and "Start the preparation service" is offered');
     log((await p.getAttribute('#an-svc-start', 'href')) === 'agentmeter-prep://start', 'the button opens agentmeter-prep://start');
     await p.screenshot({ path: path.join(OUT, 'start-button.png') });
 
@@ -42,22 +42,22 @@ async function asService(route, payload) {                 // what scripts/prep_
     await p.click('#an-svc-start');
     log(/Starting/.test(await p.textContent('#an-svc-wait')), 'after the click the page says it is starting');
     log(await asService('register', { url: `http://127.0.0.1:${CPP}`, version: 'test' }) === 200, 'the service registered itself (signed)');
-    await p.waitForSelector('#an-go:not([disabled])', { timeout: 15000 });
+    await p.waitForSelector('#svc-upload-btn:not([disabled])', { timeout: 15000 });
     log(!!(await p.$('#an-svc-stop')), 'the page noticed: upload enabled, "Stop it" shown');
 
     // an analysis goes to the registered address
-    await p.setInputFiles('#an-file', CSV); await p.click('#an-go');
-    await p.waitForFunction(() => /^#\/analyse\/[0-9a-f]{32}$/.test(location.hash), null, { timeout: 60000 });
+    await p.setInputFiles('#svc-file', CSV); await p.click('#svc-upload-btn');
+    await p.waitForFunction(() => /^#\/new\/prep\/[0-9a-f]{32}$/.test(location.hash), null, { timeout: 60000 });
     const done = await p.waitForSelector('#an-figures .tiles, #an-detail .notice', { timeout: 120000 }).then(() => true, () => false);
     log(done && !!(await p.$('#an-figures .tiles')) || !!(await p.$('#an-detail .notice.warn')), 'the analysis ran on the registered service');
 
     // Stop -> 'stopping' -> Start offered again
-    await p.goto(APP + '/app.html#/analyse'); await p.waitForSelector('#an-svc-stop');
+    await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#an-svc-stop');
     await p.evaluate(() => document.addEventListener('click', e => { if (e.target.closest('#an-svc-start, #an-svc-stop')) e.preventDefault(); }, true));
     await p.click('#an-svc-stop');
     log(await asService('register', { stopping: true }) === 200, 'the service said it is stopping');
     await p.waitForSelector('#an-svc-start', { timeout: 15000 });
-    log(await p.$eval('#an-go', e => e.disabled), 'the page offers Start again and the upload is off');
+    log(await p.$eval('#svc-upload-btn', e => e.disabled), 'the page offers Start again and the upload is off');
   } catch (e) {
     log(false, 'walk-through crashed: ' + e.message.split('\n')[0]);
   }

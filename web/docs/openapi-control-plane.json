@@ -2170,6 +2170,53 @@
     }
    }
   },
+  "/api/prep/heartbeat": {
+   "post": {
+    "operationId": "post__api_prep_heartbeat",
+    "tags": [
+     "Data preparation"
+    ],
+    "summary": "The preparation service is still there (every minute)",
+    "security": [
+     {
+      "prepSignature": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "url": {
+          "type": "string"
+         },
+         "version": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/prep/jobs": {
    "post": {
     "operationId": "post__api_prep_jobs",
@@ -2425,6 +2472,57 @@
       }
      }
     ]
+   }
+  },
+  "/api/prep/register": {
+   "post": {
+    "operationId": "post__api_prep_register",
+    "tags": [
+     "Data preparation"
+    ],
+    "summary": "The preparation service says where it is (or that it is stopping)",
+    "security": [
+     {
+      "prepSignature": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "Sent by scripts/prep_local.py on the owner's PC (the Start button). It is online while its heartbeats are under 3 minutes old; jobs then go to this address instead of CLOUD_PREP_URL.",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "url": {
+          "type": "string"
+         },
+         "version": {
+          "type": "string"
+         },
+         "stopping": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    }
    }
   },
   "/api/prep/wake": {

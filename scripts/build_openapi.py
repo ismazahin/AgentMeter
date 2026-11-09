@@ -104,6 +104,10 @@ op(CP, "get", "/api/prep/jobs/{id}", "Data preparation", "A cloud preparation's 
 op(CP, "post", "/api/prep/jobs/{id}/start", "Data preparation", "Start preparing (after the upload)", USER, [PREP_ID])
 op(CP, "get", "/api/prep/jobs/{id}/files/{name}", "Data preparation", "A prepared file", USER, [PREP_ID, FILE], errors=["403 owner_only"],
    desc="manifest.json, features.csv, labels.csv; a traffic analysis adds ids_scores.csv, ids_pool.json and ids_flows_identity.csv (source/destination addresses: the job's owner only, not admins).")
+op(CP, "post", "/api/prep/register", "Data preparation", "The preparation service says where it is (or that it is stopping)", PREP_SIGNED,
+   body={"url": "string", "version": "string", "stopping": "boolean"},
+   desc="Sent by scripts/prep_local.py on the owner's PC (the Start button). It is online while its heartbeats are under 3 minutes old; jobs then go to this address instead of CLOUD_PREP_URL.")
+op(CP, "post", "/api/prep/heartbeat", "Data preparation", "The preparation service is still there (every minute)", PREP_SIGNED, body={"url": "string", "version": "string"})
 op(CP, "post", "/api/prep/jobs/{id}/events", "Data preparation", "Progress, done or failed (from the preparation service)", PREP_SIGNED, [PREP_ID],
    body={"event": "object", "done": "object", "failed": "object"})
 # ------------------------------------------------------------------ control plane: sessions and analysis

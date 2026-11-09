@@ -1,4 +1,4 @@
-// Analyse traffic without a GPU (Playwright; run via tests/e2e/cloudprep_stack.sh):
+// New Benchmark as one flow, steps 1-3 without a GPU (Playwright; run via tests/e2e/cloudprep_stack.sh):
 //   an admin stores the IDS model -> with NO GPU server, a labelled CSV is uploaded on Analyse traffic
 //   -> the preparation service scores every flow -> the page shows the alerts, recall / precision /
 //   false-positive rate and the addresses (the uploader's) -> the threshold changes the figures in the
@@ -69,18 +69,24 @@ const txt = (p, sel) => p.$eval(sel, e => e.textContent).catch(() => '');
     await p.goto(APP + '/app.html'); await p.waitForSelector('#login-form:not([hidden])');
     await p.fill('#login-user', 'admin'); await p.fill('#login-pass', 'admin-password-123'); await p.click('#login-go');
     await p.waitForSelector('#view-home:not([hidden])');
-    await p.click('a[data-nav="analyse"]');
-    await p.waitForSelector('#view-analyse:not([hidden]) #an-form');
-    log(await p.$eval('#an-unavailable', e => e.hidden) && !(await p.$eval('#an-go', e => e.disabled)), 'GPU off: Analyse traffic is open for uploads');
+    await p.click('a[data-nav="new"]');
+    await p.waitForSelector('#view-new:not([hidden]) #svc-upload-form');
+    const navs = await p.$$eval('#main-nav a[data-nav]', l => l.map(a => a.getAttribute('data-nav')));
+    log(JSON.stringify(navs) === JSON.stringify(['home', 'new', 'sessions', 'leaderboard', 'planner']), 'the sidebar: Home, New Benchmark, Sessions, Leaderboard, Cost planner (' + navs + ')');
+    const steps = await p.$$eval('#wiz-steps li', l => l.map(x => x.textContent.replace(/^\d/, '')));
+    log(steps.join('|') === 'Upload|Preparing|Your data|Models and settings|Run', 'five steps: ' + steps.join(' → '));
+    log(!(await p.$eval('#svc-upload-btn', e => e.disabled)), 'GPU off: step 1 (upload) works');
 
     // 1. upload a labelled CSV with the GPU off
-    await p.setInputFiles('#an-file', CSV);
-    await p.fill('#an-sample', '20');
-    await p.click('#an-go');
-    await p.waitForFunction(() => /^#\/analyse\/[0-9a-f]{32}$/.test(location.hash), null, { timeout: 60000 });
-    const jobId = (await p.evaluate(() => location.hash)).split('/')[2];
+    await p.setInputFiles('#svc-file', CSV);
+    await p.fill('#svc-max-flows', '20');
+    await p.click('#svc-upload-btn');
+    await p.waitForFunction(() => /^#\/new\/prep\/[0-9a-f]{32}$/.test(location.hash), null, { timeout: 60000 });
+    const jobId = (await p.evaluate(() => location.hash)).split('/')[3];        // #/new/prep/<job>
     const shown = await p.waitForSelector('#an-figures .tiles', { timeout: 120000 }).then(() => true, () => false);
-    log(shown, 'the preparation service scored the traffic and the page shows the analysis');
+    log(shown, 'step 2 → 3: the preparation service prepared and scored the data, and "Your data" shows it');
+    const cur = await p.$eval('#wiz-steps li[aria-current="step"]', e => e.textContent);
+    log(/Your data/.test(cur) && /benchmark sample: 20/.test(await txt(p, '#an-contents')), 'step 3 shows what is in it (' + cur + ')');
     const scored = await txt(p, '#an-figures .tile:first-child .v');
     const pool = JSON.parse((await (await fetch(WORKER + `/api/prep/jobs/${jobId}/files/ids_pool.json`, { headers: { Authorization: 'Bearer ' + tok } })).text()) || '{}');
     log(Number(scored.replace(/\D/g, '')) === pool.n_flows_in && pool.n_flows_in > 20, `every flow of the pool was scored (${scored}), not only the 20-flow sample`);
@@ -88,7 +94,8 @@ const txt = (p, sel) => p.$eval(sel, e => e.textContent).catch(() => '');
     const header = await p.$$eval('#an-alerts-table th', l => l.map(x => x.textContent).join('|'));
     log(!/Source → destination/.test(header), 'this CSV has no addresses: no empty address column');
     log(/No finished benchmark to project from/.test(await txt(p, '#an-proj')), 'no benchmark yet: the projection says so');
-    log(await p.$eval('#an-bench-go', e => e.disabled), 'GPU off: "Benchmark these alerts" waits for the GPU server');
+    log(await p.$eval('#an-bench-go', e => e.disabled) && /GPU server must be running first/.test(await txt(p, '#an-gpu-off')),
+        'GPU off: Continue is disabled — "To run a benchmark, the GPU server must be running first."');
     await p.screenshot({ path: path.join(OUT, 'analyse-gpu-off.png'), fullPage: true });
 
     // 2. the threshold changes the figures in the browser
@@ -99,14 +106,16 @@ const txt = (p, sel) => p.$eval(sel, e => e.textContent).catch(() => '');
     log(Number(high.replace(/\D/g, '')) < Number(before.replace(/\D/g, '')) && (await txt(p, '#an-t-alerts .v')) === before,
         `a higher threshold gives fewer alerts (${before} -> ${high}), and the model's own restores them`);
 
-    // 3. listed
-    await p.goto(APP + '/app.html#/analyse'); await p.waitForSelector('#an-table');
-    log(await p.$(`#an-table a[href="#/analyse/${jobId}"]`) !== null, 'the analysis is listed on Analyse traffic');
+    // 3. listed under Reuse a prepared set, with the data sets
+    await p.goto(APP + '/app.html#/analyse'); await p.waitForFunction(() => location.hash === '#/new', null, { timeout: 10000 });
+    await p.goto(APP + '/app.html#/datasets'); await p.waitForSelector('#an-table', { timeout: 20000 });
+    log(await p.$(`#an-table a[href="#/new/prep/${jobId}"]`) !== null && !!(await p.$('#ds-body')),
+        'old links redirect; Reuse a prepared set lists the analysis and the data sets');
 
     // 4. the GPU server starts -> benchmark the alerts, with the stored scores
     startBackend();
     log(await waitFor(async () => (await cp_('/api/backend', tok)).data.online, 40000), 'the GPU server started and registered');
-    await p.goto(APP + '/app.html#/analyse/' + jobId); await p.reload();
+    await p.goto(APP + '/app.html#/new/prep/' + jobId); await p.reload();
     await p.waitForSelector('#an-bench-go:not([disabled])', { timeout: 60000 });
     await p.fill('#an-tau-n', '0.3'); await p.dispatchEvent('#an-tau-n', 'change');
     await p.click('#an-bench-go');

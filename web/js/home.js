@@ -104,7 +104,7 @@ function skel(lines, card) {
 // ---------- search everything (Ctrl+K): pages, sessions, data sets, models ----------
 var GS = { items: [], shown: [], sel: 0, last: null };
 var GS_PAGES = [["Home", "#/", "start latest"], ["New benchmark", "#/new", "run upload prepare csv pcap"], ["Sessions", "#/sessions", "runs list history"],
-  ["Data sets", "#/datasets", "prepared sets flows fingerprint"], ["Leaderboard — by setup", "#/leaderboard", "rank ranking"], ["Leaderboard — Compare models", "#/compare", "compare models side by side"],
+  ["Data sets", "#/new?src=reuse", "prepared sets flows fingerprint analyses analyse traffic"], ["Cost planner", "#/planner", "cost price per day alerts gpu hours energy"], ["Leaderboard — by setup", "#/leaderboard", "rank ranking"], ["Leaderboard — Compare models", "#/compare", "compare models side by side"],
   ["Repeatability", "#/trends", "trends history stable moved"], ["GPU & Queue", "#/gpu", "queue running waiting gpu now"], ["Settings", "#/settings", "theme telegram alerts limits"],
   ["How to use", "#/help", "help guide"], ["Methodology", "#/help", "saw formula statistics how measured"], ["Profile", "#/profile", "password devices"], ["Admin", "#/admin", "users audit log problems limits models"]];
 function gsBuild() {

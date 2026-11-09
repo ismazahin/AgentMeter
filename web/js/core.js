@@ -353,7 +353,7 @@ document.addEventListener("focusin", function (ev) {
 function hoverTip(el) { openTip(el, el.getAttribute("data-hover")); if (TIP) { TIP._for = el; TIP._hover = true; } }
 
 // ---------- routing ----------
-var VIEWS = ["home", "analyse", "planner", "new", "sessions", "session", "datasets", "gpu", "leaderboard", "trends", "settings", "profile", "admin", "help", "login"];
+var VIEWS = ["home", "planner", "new", "sessions", "session", "gpu", "leaderboard", "trends", "settings", "profile", "admin", "help", "login"];
 function parseHash() {
   var h = location.hash.replace(/^#\/?/, ""), q = {}, qi = h.indexOf("?");
   if (qi >= 0) { new URLSearchParams(h.slice(qi + 1)).forEach(function (v, k) { q[k] = v; }); h = h.slice(0, qi); }
@@ -383,7 +383,7 @@ function show(view) {
   document.querySelector(".mainnav").hidden = view === "login";
   if (view === "login") $("svc-gpu-off").hidden = true;
   $("side-account").hidden = view === "login";
-  var nav = view === "session" ? "sessions" : view;
+  var nav = view === "session" ? "sessions" : view === "trends" ? "leaderboard" : view;
   document.querySelectorAll("[data-nav]").forEach(function (a) {
     if (a.getAttribute("data-nav") === nav) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
@@ -402,6 +402,9 @@ function route() {
   if (v === "prepare" || v === "upload") { location.replace("#/new"); return; }
   if (v === "benchmark") { location.replace("#/new?src=reuse"); return; }
   if (v === "jobs") { location.replace("#/sessions"); return; }
+  // one flow in New Benchmark (2026-11-10): Analyse traffic and Data sets live there now
+  if (v === "analyse") { location.replace(p[1] ? "#/new/prep/" + enc(p[1]) : "#/new"); return; }
+  if (v === "datasets") { location.replace("#/new?src=reuse" + (r.q.open ? "&open=" + enc(r.q.open) : "")); return; }
   if ((v === "prepared" || v === "run") && p.length === 3) { location.replace("#/new/models?set=" + enc(p[1] + "/" + p[2])); return; }
   if (v === "job" && p[1]) { legacyJob(p[1]); return; }
   if (CP && !AUTH.user) { show("login"); showLogin(); return; }
@@ -411,14 +414,12 @@ function route() {
   if (VIEWS.indexOf(v) < 0 || v === "login" || (v === "admin" && !isAdmin()) || (v === "profile" && !CP)) v = "home";
   show(v);
   if (v === "home") loadHome();
-  else if (v === "analyse") loadAnalyse(p, r.q);
   else if (v === "planner") loadPlanner(r.q);
   else if (v === "new") routeWizard(p, r.q);
   else if (v === "sessions") loadSessions();
   else if (v === "session" && p[1]) loadSession(p[1], p[2] ? p[2] + (p[3] ? "/" + p[3] : "") : rememberedTab());
-  else if (v === "leaderboard") lbTab(LB.tab === "compare" ? "setup" : LB.tab);
+  else if (v === "leaderboard") lbTab(r.q.tab === "overall" || r.q.tab === "setup" ? r.q.tab : LB.tab === "compare" ? "setup" : LB.tab);
   else if (v === "trends") loadTrends(r.q);
-  else if (v === "datasets") loadDatasets(r.q);
   else if (v === "gpu") loadGpu();
   else if (v === "settings") loadSettings();
   else if (v === "profile") loadProfile();

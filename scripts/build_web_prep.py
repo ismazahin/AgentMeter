@@ -26,6 +26,8 @@ FILES = (["agentmeter/config.py", "agentmeter/server/__init__.py", "agentmeter/s
           "agentmeter/session/__init__.py", "agentmeter/session/prepared_hash.py",
           "agentmeter/data/__init__.py", "agentmeter/data/dataprep.py",
           "agentmeter/pipeline/triage.py",
+          # the traffic analysis (cloud service): scikit-learn is imported only when a model loads
+          "agentmeter/ids/__init__.py", "agentmeter/ids/model.py", "agentmeter/ids/stage.py",
           "config.yaml", "pyproject.toml", "configs/flow_rules.yaml", "configs/input_formats.yaml"]
          + sorted(str(p.relative_to(REPO)) for p in (REPO / "agentmeter" / "ingest").glob("*.py")))
 STUB_INIT = '"""AgentMeter (browser data-preparation bundle: scripts/build_web_prep.py)."""\n'

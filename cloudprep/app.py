@@ -7,6 +7,11 @@ packaged by scripts/build_web_prep.py), so a set prepared here has byte-identica
 the same prepared-set hash. It never sees a user or a password: the control plane starts each job
 and holds every key.
 
+  Optional `ids` in the job: {sha256, files: {"ids_rf.joblib": url, "ids_rf.json": url,
+  "ids_rf.hashes.npy": url?}} (single-use download URLs of the IDS model the admin stored) and
+  outputs for ids_scores.csv, ids_pool.json, ids_flows_identity.csv: the IDS then scores every
+  candidate-pool flow (the traffic analysis, no GPU). The model is cached by its sha256.
+
   POST /prepare   (signed by the control plane: X-AM-Timestamp, X-AM-Signature =
                    hex HMAC(CLOUD_PREP_SECRET, "POST\\n/prepare\\n" + ts + "\\n" + sha256(body)))
       {job_id, filename, source: {kind: "file", url} | {kind: "url", url},
@@ -49,6 +54,11 @@ log = logging.getLogger("cloudprep")
 MAX_SKEW_S = 120
 MAX_BODY = 64 * 1024
 FILES = ("manifest.json", "features.csv", "labels.csv")
+# The traffic analysis (optional, when the job carries `ids`): the IDS scores every pool flow.
+IDS_OUT = ("ids_scores.csv", "ids_pool.json", "ids_flows_identity.csv")
+IDS_MODEL_FILES = ("ids_rf.joblib", "ids_rf.json", "ids_rf.hashes.npy")
+IDS_MODEL_MAX = 60 * 2 ** 20            # per model file (the control plane stores up to 50 MB)
+_ids_lock = threading.Lock()
 REPORT_EVERY_S = 1.0
 ENVIRONMENT = {"provider": "cloud", "prepared_on": "the AgentMeter cloud preparation service (Google Cloud Run)",
                "runtime": f"Python {platform.python_version()}"}
@@ -149,6 +159,32 @@ def _put(url: str, data: bytes, content_type: str) -> None:
             raise OSError(f"upload answered HTTP {r.status}")
 
 
+def ids_model(ids: dict, cache_root: Path) -> Path:
+    """The job's IDS model, downloaded once per sha256 into cache_root/<sha256>/ (reused by later
+    jobs). The .joblib must hash to the sha256 the control plane named; load_model checks the rest
+    (metadata, scikit-learn version) when the pool is scored."""
+    sha = str(ids["sha256"]).lower()
+    d = cache_root / sha
+    joblib_p = d / "ids_rf.joblib"
+    with _ids_lock:
+        if joblib_p.is_file() and P.sha256_file(joblib_p) == sha:
+            return joblib_p
+        tmp = Path(tempfile.mkdtemp(prefix="ids-", dir=cache_root))
+        try:
+            for name in IDS_MODEL_FILES:
+                url = (ids.get("files") or {}).get(name)
+                if url:
+                    _download(url, tmp / name, IDS_MODEL_MAX)
+            if P.sha256_file(tmp / "ids_rf.joblib") != sha:
+                raise P.PrepareError("the IDS model's file does not match its sha256: upload it again in "
+                                     "Admin › IDS model", "ids_model_invalid", 502)
+            shutil.rmtree(d, ignore_errors=True)
+            tmp.rename(d)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    return joblib_p
+
+
 def run_job(job: dict, rep: Reporter, work_root: Path) -> bool:
     """One preparation, start to finish. Returns True when it was stored and reported done."""
     work = Path(tempfile.mkdtemp(prefix=f"prep-{job['job_id'][:12]}-", dir=work_root))
@@ -169,14 +205,20 @@ def run_job(job: dict, rep: Reporter, work_root: Path) -> bool:
             path = work / filename
             size, sha = _download(src["url"], path, max_bytes)
             source = {"kind": "upload", "filename": filename, "size_bytes": size, "sha256": sha}
+        model = None
+        if job.get("ids"):
+            rep.event(phase="ids", message="loading the IDS model")
+            cache = work_root / "ids-models"
+            cache.mkdir(parents=True, exist_ok=True)
+            model = ids_model(job["ids"], cache)
         out_root = work / "results"
         sid = P.prepare_file(path, source=source, results_root=out_root, name=P.unique_name(filename),
                              max_flows=int(job["max_flows"]), other_attack=bool(job.get("other_attack")),
-                             limits=lim, progress=rep.event, environment=ENVIRONMENT)
+                             limits=lim, progress=rep.event, environment=ENVIRONMENT, ids=model)
         run_dir = out_root / sid
         rep.event(phase="writing", message="storing the prepared set")
         stored = []
-        for name in FILES:
+        for name in FILES + (IDS_OUT if model else ()):
             p = run_dir / name
             if p.is_file():
                 _put(job["outputs"][name], p.read_bytes(), "application/json" if name.endswith(".json") else "text/csv")
@@ -208,6 +250,15 @@ def validate(job: Any) -> Optional[str]:
         return "source must be {kind: file|url, url}"
     if not isinstance(job["outputs"], dict) or not all(isinstance(job["outputs"].get(n), str) for n in FILES):
         return "outputs needs an upload URL for " + ", ".join(FILES)
+    ids = job.get("ids")
+    if ids is not None:
+        files = ids.get("files") if isinstance(ids, dict) else None
+        sha = str(ids.get("sha256") or "") if isinstance(ids, dict) else ""
+        if not (len(sha) == 64 and all(c in "0123456789abcdefABCDEF" for c in sha)) or not isinstance(files, dict) \
+                or not all(str(files.get(n, "")).startswith(("https://", "http://")) for n in IDS_MODEL_FILES[:2]):
+            return "ids must be {sha256, files: {ids_rf.joblib: url, ids_rf.json: url}}"
+        if not all(isinstance(job["outputs"].get(n), str) for n in IDS_OUT):
+            return "outputs needs an upload URL for " + ", ".join(IDS_OUT)
     return None
 
 

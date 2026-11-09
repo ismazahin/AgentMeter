@@ -195,3 +195,67 @@ def test_the_hugging_face_space_bundle(tmp_path):
     assert "ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8080" in (d / "Dockerfile").read_text()
     assert not any("SECRET" in p.read_text(errors="ignore") and "secret" in p.name.lower() for p in d.iterdir() if p.is_file())
     assert D.space_url("Isma_Zahin/agentmeter-prep") == "https://isma-zahin-agentmeter-prep.hf.space"
+
+
+# --- the traffic analysis: the job carries the IDS model, the service scores the pool ----------
+DEMO_IDS = PROJECT_ROOT / "models" / "ids"
+
+
+def _ids_job(stub: Stub, filename: str, sha: str | None = None, **kw) -> dict:
+    for n, src in (("ids_rf.joblib", "demo_ids.joblib"), ("ids_rf.json", "demo_ids.json"),
+                   ("ids_rf.hashes.npy", "demo_ids.hashes.npy")):
+        stub.inputs[n] = (DEMO_IDS / src).read_bytes()
+    real = hashlib.sha256(stub.inputs["ids_rf.joblib"]).hexdigest()
+    outputs = {n: f"{stub.base}/out/{n}" for n in C.FILES + C.IDS_OUT}
+    ids = {"sha256": sha or real, "files": {n: f"{stub.base}/in/{n}" for n in C.IDS_MODEL_FILES}}
+    return stub.job(filename, outputs=outputs, ids=ids, **kw)
+
+
+def test_a_job_with_the_ids_scores_the_pool_and_stores_the_analysis(service, tmp_path):
+    svc, base = service
+    stub = Stub()
+    stub.inputs[SAMPLE_CSV.name] = SAMPLE_CSV.read_bytes()
+    assert signed_post(base, json.dumps(_ids_job(stub, SAMPLE_CSV.name)).encode())[0] == 202
+    assert stub.done.wait(120), stub.reports
+    final = stub.reports[-1]
+    assert "done" in final, final
+    assert set(final["done"]["files"]) == set(C.FILES + C.IDS_OUT)
+    assert any(r.get("event", {}).get("phase") == "ids" for r in stub.reports)
+    info = json.loads(stub.outputs["ids_pool.json"])
+    assert info["scope"] == "pool" and info["n_flows_in"] > 0
+    # the same analysis as the server's own preparation with the same model
+    ref = P.prepare_file(SAMPLE_CSV, source={"filename": SAMPLE_CSV.name}, results_root=tmp_path / "s", name="ref",
+                         max_flows=20, other_attack=False, limits=LIMITS, ids=DEMO_IDS / "demo_ids.joblib")
+    import io
+
+    import pandas as pd
+    a = pd.read_csv(tmp_path / "s" / ref / "ids_scores.csv")
+    b = pd.read_csv(io.BytesIO(stub.outputs["ids_scores.csv"]))
+    # same flows in the same order, same labels and selection; scores equal up to float noise
+    # (the forest's trees may be summed in another order across threads)
+    assert (a[["label", "selected"]].equals(b[["label", "selected"]]) and len(a) == len(b))
+    assert (a["score"] - b["score"]).abs().max() < 1e-12
+    # the model is cached by sha256 for the next job
+    assert (svc.work_root / "ids-models" / info["model"]["sha256"] / "ids_rf.joblib").is_file()
+
+
+def test_a_model_that_does_not_match_its_sha256_fails_the_job(service):
+    _, base = service
+    stub = Stub()
+    stub.inputs[SAMPLE_CSV.name] = SAMPLE_CSV.read_bytes()
+    assert signed_post(base, json.dumps(_ids_job(stub, SAMPLE_CSV.name, sha="0" * 64)).encode())[0] == 202
+    assert stub.done.wait(60)
+    assert stub.reports[-1]["failed"]["code"] == "ids_model_invalid"
+    assert not stub.outputs
+
+
+def test_an_ids_job_needs_its_model_urls_and_outputs(service):
+    _, base = service
+    stub = Stub()
+    no_out = stub.job("a.csv", ids={"sha256": "a" * 64, "files": {"ids_rf.joblib": f"{stub.base}/in/x",
+                                                                    "ids_rf.json": f"{stub.base}/in/y"}})
+    status, data = signed_post(base, json.dumps(no_out).encode())
+    assert status == 400 and "ids_scores.csv" in data["error"]
+    bad = _ids_job(stub, "a.csv")
+    bad["ids"]["files"]["ids_rf.json"] = "file:///etc/passwd"
+    assert signed_post(base, json.dumps(bad).encode())[0] == 400

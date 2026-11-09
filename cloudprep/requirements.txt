@@ -4,3 +4,6 @@ pandas>=2.0
 scipy>=1.10
 PyYAML>=6.0
 requests>=2.31
+# The traffic analysis (IDS scoring of the candidate pool). Pinned to the version the IDS model
+# was trained with (requirements.txt): load_model refuses any other.
+scikit-learn==1.9.1

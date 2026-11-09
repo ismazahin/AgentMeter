@@ -413,12 +413,12 @@ function needLogin() {
 }
 $("login-form").addEventListener("submit", function (ev) {
   ev.preventDefault();
-  $("login-error").hidden = true; $("login-go").disabled = true;
+  $("login-error").hidden = true; $("login-go").disabled = true; $("login-go").textContent = "Logging in\u2026";
   fetch(CP + "/api/auth/login", { method: "POST", credentials: "omit", headers: { "Content-Type": "application/json" },
                                   body: JSON.stringify({ username: $("login-user").value.trim(), password: $("login-pass").value,
                                                          remember: $("login-remember").checked }) })
     .then(parse, function () { return netErr("control plane"); }).then(function (r) {
-      $("login-go").disabled = false;
+      $("login-go").disabled = false; $("login-go").textContent = "Log in";
       if (!r.ok) { showError($("login-error"), r.data); return; }
       $("login-pass").value = ""; $("login-info").hidden = true;
       markActive();

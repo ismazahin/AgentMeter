@@ -858,8 +858,19 @@
     .login-box .btn.primary:hover::after { transform: translateX(4px); }
   }
   .login-box .btn.primary:active { transform: scale(.98); }
-  .login-box .muted.small { margin-top: 16px; text-align: center; }
-  .login-box #pwchange-form h2 { margin-bottom: 6px; }
+  #login-form > .muted.small { margin-top: 16px; text-align: center; }
+  .login-box .page-head p { text-wrap: pretty; }
+  .login-box .check { align-items: center; }
+  .login-box .check input { margin-top: 0; }
+  .login-box .notice { border-radius: 8px; margin-top: 16px; }
+  #login-error code { display: none; }                         /* the machine code stays in the DOM, not on screen */
+  .login-box .btn.primary[disabled] { opacity: .7; cursor: progress; }
+  /* first login: "Choose a new password" replaces the log-in heading instead of stacking under it */
+  .login-box:has(#pwchange-form:not([hidden])) > .page-head { display: none; }
+  .login-box #pwchange-form h2 { font-family: var(--font); font-weight: 650; font-size: clamp(30px, 3vw, 38px); line-height: 1.05; letter-spacing: -.045em; margin: 0 0 10px; }
+  .login-box #pwchange-form > p { margin: 0 0 20px; text-wrap: pretty; }
+  /* the framing line under the split screen lines up with the left panel's content */
+  body:has(#view-login:not([hidden])) footer .wrap { max-width: none; padding: 0 clamp(24px, 4.5vw, 64px); }
 
   @media (max-width: 900px) {
     .login-split:not([hidden]) { grid-template-columns: minmax(0, 1fr); min-height: 0; }
@@ -972,7 +983,7 @@
     <div class="login-box">
     <div class="page-head"><div>
       <h1 id="h-login">Log in to AgentMeter</h1>
-      <p>Measure how efficiently open-source LLMs run a 4-agent task.</p>
+      <p>Measure how efficiently open&#8209;source LLMs run a 4&#8209;agent task.</p>
     </div></div>
     <form class="card narrow" id="login-form" novalidate>
       <div class="field"><label for="login-user">Username</label>

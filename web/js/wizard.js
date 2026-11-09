@@ -226,10 +226,13 @@ function watchCloud(job, ui) {
 }
 function cloudImport(j) {
   return Promise.all(j.files.map(function (n) {
+    if (n === "ids_flows_identity.csv") return Promise.resolve(null);
     return cpFetch("/api/prep/jobs/" + enc(j.job_id) + "/files/" + n, { raw: true }).then(function (r) { return r && r.ok ? r.blob() : null; });
   })).then(function (blobs) {
-    var fd = new FormData(), field = { "manifest.json": "manifest", "features.csv": "features", "labels.csv": "labels" };
+    var fd = new FormData(), field = { "manifest.json": "manifest", "features.csv": "features", "labels.csv": "labels",
+                                       "ids_scores.csv": "ids_scores", "ids_pool.json": "ids_pool" };   // the addresses never go
     for (var i = 0; i < j.files.length; i++) {
+      if (!field[j.files[i]]) continue;
       if (!blobs[i]) return { ok: false, data: { error: "Could not read " + j.files[i] + " from the cloud." } };
       fd.append(field[j.files[i]], blobs[i], j.files[i]);
     }
@@ -356,7 +359,7 @@ $("svc-import-form").addEventListener("submit", function (ev) {
 // step 2
 var PHASES = { queued: "Queued", downloading: "Downloading", downloaded: "Downloaded", validating: "Validating",
   sampling: "Sampling rows across the file", indexing: "Indexing the capture", windowing: "Copying time windows",
-  extracting: "Extracting flows", selecting: "Selecting flows", writing: "Writing the prepared set", done: "Done" };
+  extracting: "Extracting flows", selecting: "Selecting flows", writing: "Writing the prepared set", ids: "Scoring with the IDS", done: "Done" };
 function wizModels(q) {
   WIZ.prep = q.prep || null; WIZ.set = q.set || null; WIZ.summary = null; WIZ.from = q.from || null;
   WIZ.want = q.models ? q.models.split(",").filter(Boolean) : null;          // Run again / a preset: these models
@@ -369,6 +372,9 @@ function wizModels(q) {
   renderSettings();
   loadHistory();
   setDataState("preparing", "Checking your data…", null);    // never show the previous data set's Ready/Failed
+  if (q.ids && !$("svc-ids").disabled) {                     // from Analyse traffic: the IDS gate at its threshold
+    $("svc-ids").checked = true; $("svc-ids-box").hidden = false; $("svc-ids-tau").value = q.ids;
+  }
   if (WIZ.set) dataReady(WIZ.set);
   else if (WIZ.prep) pollPrepare(WIZ.prep, ++pollToken);
   else location.replace("#/new");

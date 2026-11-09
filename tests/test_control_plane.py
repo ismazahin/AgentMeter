@@ -513,7 +513,12 @@ def test_pages_csp_is_strict_and_current():
 
 
 def test_front_end_never_shows_identification_columns():
-    html = _app_source()
+    # The one exception (design 2026-11-09, decided by the owner): Analyse traffic shows an analysis's
+    # addresses to the person who uploaded it, read from the owner-only ids_flows_identity.csv
+    # (test below). Every other part of the front end still never shows them.
+    web = PROJECT_ROOT / "web"
+    html = (web / "app.html").read_text(encoding="utf-8") + "".join(
+        f.read_text(encoding="utf-8") for f in sorted((web / "js").glob("*.js")) if f.name != "analyse.js")
     for col in control_plane.IDENTIFICATION_COLUMNS:            # as a field / key (prose naming them is fine)
         assert not re.search(rf"""(["'.\[]){col}(["'\]])""", html) and not re.search(rf"\.{col}\b", html), col
     assert "src_ip" not in html and "dst_ip" not in html
@@ -534,3 +539,13 @@ def test_merged_compare_only_on_the_same_setup():
     assert saw["values"][0] == a["metrics"][next(iter(a["metrics"]))]["saw_composite_100"]   # stored, copied
     assert S.compare_many_s([a, c])["error"] == "not_same_setup"
     assert by                                                              # fixtures loaded
+
+
+def test_analyse_traffic_reads_addresses_only_from_the_owner_only_file():
+    src = (PROJECT_ROOT / "web" / "js" / "analyse.js").read_text(encoding="utf-8")
+    # the addresses come from ids_flows_identity.csv only (403 for anyone but the uploader) ...
+    assert src.count("ids_flows_identity.csv") == 1 and "AN.ident" in src
+    # ... and are only ever read through AN.ident
+    for col in ("src_ip", "dst_ip", "src_port"):
+        assert re.findall(rf"\.{col}\b", src) and all(
+            "x." + col in line or "x.src_ip" in line for line in src.splitlines() if re.search(rf"\.{col}\b", line)), col

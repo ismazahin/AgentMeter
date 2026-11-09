@@ -36,4 +36,5 @@ trap cleanup EXIT
 for _ in $(seq 1 60); do curl -fsS "$CP_URL/api/health" >/dev/null 2>&1 && curl -fsS "http://127.0.0.1:$CPP/health" >/dev/null 2>&1 && break; sleep 1; done
 export CP_URL
 cd "$REPO"
-node tests/e2e/cloudprep_flow.js "$OUT"
+# CLOUDPREP_FLOWS picks the walk-throughs (default: both); each gets its own folder
+for f in ${CLOUDPREP_FLOWS:-cloudprep_flow analyse_flow}; do node "tests/e2e/$f.js" "$OUT/$f"; done

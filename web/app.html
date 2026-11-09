@@ -944,6 +944,7 @@
       <button type="button" class="gs-btn" id="gs-open" title="Search pages, sessions, data sets and models (Ctrl+K)" aria-label="Search" aria-keyshortcuts="Control+K"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><span class="nl">Search</span><kbd>Ctrl K</kbd></button>
       <span class="nav-group" aria-hidden="true">Workspace</span>
       <a href="#/" data-nav="home" title="Home"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span class="nl">Home</span></a>
+      <a href="#/analyse" data-nav="analyse" title="Analyse traffic"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h1.5l1-2.5 2 5 1-2.5H15"/></svg><span class="nl">Analyse traffic</span></a>
       <a href="#/new" data-nav="new" class="nav-primary" title="New benchmark"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span class="nl">New benchmark</span></a>
       <a href="#/sessions" data-nav="sessions" title="Sessions"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg><span class="nl">Sessions</span></a>
       <a href="#/datasets" data-nav="datasets" title="Data sets"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5.5" rx="8" ry="2.5"/><path d="M4 5.5v13c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5v-13M4 12c0 1.4 3.6 2.5 8 2.5s8-1.1 8-2.5"/></svg><span class="nl">Data sets</span></a>
@@ -1504,6 +1505,46 @@
   </section>
 
   <!-- DATA SETS -->
+  <!-- ANALYSE TRAFFIC (route #/analyse, #/analyse/<job id>): the IDS over a whole upload, no GPU -->
+  <section id="view-analyse" class="view" hidden aria-labelledby="h-analyse">
+    <div class="page-head"><div><h1 id="h-analyse">Analyse traffic</h1>
+      <p>Upload a CSV or PCAP of network flows. The IDS scores every flow and lists the alerts — no GPU needed.
+        When a GPU is running, benchmark the LLM agents on these alerts.</p></div></div>
+    <div id="an-start">
+      <div id="an-unavailable" class="notice warn" hidden></div>
+      <div class="tabs" role="tablist" aria-label="Where the traffic comes from">
+        <button type="button" role="tab" id="tab-an-file" aria-controls="an-src-file" aria-selected="true">Upload a file</button>
+        <button type="button" role="tab" id="tab-an-url" aria-controls="an-src-url" aria-selected="false" tabindex="-1">Import from a link</button>
+      </div>
+      <form id="an-form" class="card" novalidate>
+        <div id="an-src-file" role="tabpanel" aria-labelledby="tab-an-file">
+          <label class="drop" id="an-drop" for="an-file">
+            <strong>Choose a .csv, .pcap or .pcapng file</strong>
+            <span class="muted">Labelled CSV: the page also shows what the IDS caught and missed · PCAP or unlabelled CSV: the alerts only</span><br>
+            <span class="muted small" id="an-limit">Maximum upload: 50 MB — use Import from a link for larger files</span>
+            <input type="file" id="an-file" accept=".csv,.pcap,.pcapng">
+          </label>
+        </div>
+        <div id="an-src-url" role="tabpanel" aria-labelledby="tab-an-url" hidden>
+          <div class="field"><label for="an-url">Direct https link to the file</label>
+            <input type="url" id="an-url" placeholder="https://example.org/capture.pcap" inputmode="url" autocomplete="off">
+            <span class="hint">A direct download link; the preparation service downloads it itself.</span></div>
+        </div>
+        <div class="row" style="gap:16px;flex-wrap:wrap;align-items:flex-end">
+          <div class="field" style="margin:0"><label for="an-sample">Benchmark sample (flows)</label>
+            <input type="number" id="an-sample" min="1" max="500" value="50" style="max-width:120px">
+            <span class="hint">The IDS scores every flow; a later LLM benchmark uses this many of them.</span></div>
+        </div>
+        <div class="actions"><button type="submit" class="btn primary" id="an-go">Analyse</button></div>
+        <div id="an-error" class="notice error" role="alert" hidden></div>
+        <ol id="an-log" class="tel-log mono" aria-label="Analysis progress" aria-live="polite" hidden></ol>
+      </form>
+      <h2>Your analyses</h2>
+      <div id="an-list"></div>
+    </div>
+    <div id="an-detail" hidden></div>
+  </section>
+
   <section id="view-datasets" class="view" hidden aria-labelledby="h-datasets">
     <div class="page-head"><div><h1 id="h-datasets">Data sets</h1>
       <p>Every prepared set of flows: what is in it, its fingerprint, and which sessions and models used it. Models are only compared on the same set, so this is the list of everything they can be compared on.</p></div>
@@ -1712,6 +1753,7 @@
 <script src="js/wizard.js"></script>
 <script src="js/session.js"></script>
 <script src="js/analysis.js"></script>
+<script src="js/analyse.js"></script>
 <script src="js/compare.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/boot.js"></script>

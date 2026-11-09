@@ -1080,7 +1080,66 @@
     }).sort(function (a, b) { return ({ moved: 0, varies: 1, stable: 2, few: 3 })[a.status] - ({ moved: 0, varies: 1, stable: 2, few: 3 })[b.status] || b.runs - a.runs; });
   }
 
-  var api = { CRIT: CRIT, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
+  // ---- Analyse traffic (no GPU): the IDS over the whole uploaded pool, at a threshold the user picks ----
+  // rows: [{flow_id, score, label (null when unlabelled), selected}]. A label other than "Benign" is an
+  // attack. Every number restates the stored scores at tau; nothing is re-scored.
+  function trafficAnalysis(rows, tau) {
+    rows = rows || [];
+    var n = rows.length, flagged = 0, inSample = 0, labelled = n > 0 && rows.every(function (r) { return r.label != null && r.label !== ""; });
+    var tp = 0, fp = 0, fn = 0, tn = 0, byClass = {};
+    rows.forEach(function (r) {
+      var f = r.score >= tau;
+      if (f) { flagged++; if (r.selected) inSample++; }
+      if (!labelled) return;
+      var attack = r.label !== "Benign";
+      if (attack && f) tp++; else if (attack) fn++; else if (f) fp++; else tn++;
+      if (attack) {
+        var c = byClass[r.label] || (byClass[r.label] = { cls: r.label, n: 0, caught: 0 });
+        c.n++; if (f) c.caught++;
+      }
+    });
+    var div = function (a, b) { return b ? a / b : null; };
+    return {
+      n_flows: n, threshold: tau, flagged: flagged, cleared: n - flagged, flagged_share: div(flagged, n),
+      alerts_in_benchmark_sample: inSample, labelled: labelled,
+      recall: labelled ? div(tp, tp + fn) : null, precision: labelled ? div(tp, tp + fp) : null,
+      false_positive_rate: labelled ? div(fp, fp + tn) : null,
+      missed_attacks: labelled ? fn : null, false_alarms: labelled ? fp : null,
+      per_class: Object.keys(byClass).map(function (k) { var c = byClass[k]; return { cls: c.cls, n: c.n, recall: div(c.caught, c.n) }; })
+        .sort(function (a, b) { return (a.recall == null ? 2 : a.recall) - (b.recall == null ? 2 : b.recall) || b.n - a.n; })
+    };
+  }
+
+  // The latest finished, non-demo session of each model on a GPU (default pipeline only: another
+  // pipeline costs differently): per-flow latency, cost and energy, the basis of a projection.
+  function measuredModels(summaries, gpu) {
+    var by = {};
+    (summaries || []).forEach(function (s) {
+      if (s.status !== "Done" || s.demo || (gpu && s.gpu !== gpu) || (s.pipeline && s.pipeline.length)) return;
+      Object.keys(s.metrics || {}).forEach(function (m) {
+        var x = s.metrics[m] || {}, k = m + "||" + s.gpu, at = s.finished_at || s.created_at || "";
+        if (num(x.mean_latency_s) == null) return;
+        if (!by[k] || at > by[k].at) by[k] = { model: m, gpu: s.gpu, at: at, session_id: s.session_id, n_flows: x.n_flows,
+          latency_s: num(x.mean_latency_s), cost_per_1k_usd: num(x.cost_per_1k_flows_usd), wh_per_flow: num(x.wh_per_flow) };
+      });
+    });
+    return Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return a.latency_s - b.latency_s; });
+  }
+  // flows triaged per day (or the alerts of one analysis) -> GPU time, cost and energy per model, from
+  // what was measured. A projection: the same GPU, settings and flow mix as the source session.
+  function projectCost(summaries, opts) {
+    opts = opts || {};
+    var n = num(opts.flows), want = opts.models && opts.models.length ? opts.models : null;
+    return measuredModels(summaries, opts.gpu).filter(function (m) { return !want || want.indexOf(m.model) >= 0; }).map(function (m) {
+      return { model: m.model, gpu: m.gpu, source_session: m.session_id, measured_at: m.at, measured_flows: m.n_flows, flows: n,
+               latency_s_per_flow: m.latency_s, gpu_hours: n == null ? null : n * m.latency_s / 3600,
+               cost_usd: n == null || m.cost_per_1k_usd == null ? null : n / 1000 * m.cost_per_1k_usd,
+               energy_wh: n == null || m.wh_per_flow == null ? null : n * m.wh_per_flow,
+               fits_in_a_day: n == null ? null : n * m.latency_s <= 86400 };
+    });
+  }
+
+  var api = { CRIT: CRIT, trafficAnalysis: trafficAnalysis, measuredModels: measuredModels, projectCost: projectCost, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
               workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, energyEfficiency: energyEfficiency, priceCompare: priceCompare, idleCost: idleCost, recommend: recommend, removeAgent: removeAgent, budgetTuning: budgetTuning, pipelineCompare: pipelineCompare, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,

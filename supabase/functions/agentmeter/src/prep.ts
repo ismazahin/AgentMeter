@@ -268,8 +268,9 @@ export async function prepEvents(req: Request, env: Env, id: string): Promise<Re
     if (!/^(csv_runs|pcap_runs)\/[A-Za-z0-9_.-]{1,120}$/.test(setName) || !files.includes("manifest.json") || !files.includes("features.csv")
         || files.some((f) => !ALL_FILES.includes(f))) fail(400, "bad_request", "done: set_name and files");
     for (const f of files) if ((await env.STORE.size(outKey(id, f))) === null) fail(409, "not_uploaded", `${f} is not in storage`);
-    await env.DB.prepare("UPDATE prep_jobs SET status='done', phase='done', message=?, set_name=?, files_json=?, updated_at=?, finished_at=? WHERE id=? AND status='running'")
-      .bind(`prepared ${setName.split("/").pop()}`, setName, JSON.stringify(files), t, t, id).run();
+    const { sha, ids } = await analysisFacts(env, id, files);
+    await env.DB.prepare("UPDATE prep_jobs SET status='done', phase='done', message=?, set_name=?, files_json=?, prepared_sha256=?, ids_json=?, updated_at=?, finished_at=? WHERE id=? AND status='running'")
+      .bind(`prepared ${setName.split("/").pop()}`, setName, JSON.stringify(files), sha, ids, t, t, id).run();
     if (r.source_kind === "file") await env.STORE.delete([inputKey(r)]).catch(() => {});
     return json({ ok: true });
   }
@@ -278,6 +279,64 @@ export async function prepEvents(req: Request, env: Env, id: string): Promise<Re
     return json({ ok: true });
   }
   return fail(400, "bad_request", "send {event}, {done} or {failed}");
+}
+
+/** What a finished job records for listings: the prepared set's fingerprint (the Data sets key) and
+ *  the IDS analysis summary. Best effort: a file that cannot be read leaves the field null. */
+async function analysisFacts(env: Env, id: string, files: string[]): Promise<{ sha: string | null; ids: string | null }> {
+  const read = async (n: string) => {
+    if (!files.includes(n)) return null;
+    try { return await (await env.STORE.get(outKey(id, n)))?.json<Record<string, any>>() ?? null; } catch { return null; }
+  };
+  const man = await read("manifest.json"), pool = await read("ids_pool.json");
+  const sha = man?.prepared_set?.content_sha256;
+  const ids = pool ? JSON.stringify({ model: pool.model ?? null, threshold: pool.threshold ?? null, n_flows_in: pool.n_flows_in ?? null,
+    n_flagged: pool.n_flagged ?? null, n_selected: pool.n_selected ?? null, labelled: !!pool.labelled }) : null;
+  return { sha: typeof sha === "string" && /^[0-9a-f]{64}$/.test(sha) ? sha : null, ids };
+}
+
+/** GET /api/analyses — the caller's finished traffic analyses (an admin: everyone's), newest first:
+ *  the Analyse traffic list, including sets nobody has benchmarked yet. */
+export async function listAnalyses(req: Request, env: Env): Promise<Response> {
+  const a = await requireUser(req, env);
+  const admin = a.user.role === "admin";
+  const r = await env.DB.prepare(
+    `SELECT p.id, p.owner_id, u.username, p.filename, p.url, p.set_name, p.prepared_sha256, p.ids_json, p.files_json, p.finished_at
+       FROM prep_jobs p LEFT JOIN users u ON u.id = p.owner_id
+      WHERE p.status='done' AND p.ids_json IS NOT NULL ${admin ? "" : "AND p.owner_id=?"}
+      ORDER BY p.finished_at DESC LIMIT 500`,
+  ).bind(...(admin ? [] : [a.user.id])).all<Record<string, any>>();
+  return json({ analyses: r.results.map((x) => ({
+    job_id: x.id, owner: x.username ?? null, mine: x.owner_id === a.user.id, filename: x.filename ?? null, url: x.url ?? null,
+    set: x.set_name, key: x.prepared_sha256 ?? (x.set_name ? `name:${x.set_name}` : null), ids: JSON.parse(x.ids_json),
+    files: JSON.parse(x.files_json || "[]"), finished_at: x.finished_at,
+  })) });
+}
+
+/** Delete the stored files of every finished job that prepared this data set (found by its key: the
+ *  fingerprint, or the set name of a name:<kind>/<name> key). Returns how many jobs, and whether an
+ *  address file was among the files. Called by POST /api/datasets/delete after its owner check. */
+export async function deletePrepOutputs(env: Env, key: string): Promise<{ jobs: number; identity_file_deleted: boolean }> {
+  const byName = key.startsWith("name:");
+  const r = await env.DB.prepare(`SELECT id, files_json FROM prep_jobs WHERE status='done' AND ${byName ? "set_name" : "prepared_sha256"}=?`)
+    .bind(byName ? key.slice(5) : key).all<{ id: string; files_json: string | null }>();
+  let identity = false;
+  for (const j of r.results) {
+    const files = JSON.parse(j.files_json || "[]") as string[];
+    identity ||= files.includes(OWNER_ONLY);
+    await env.STORE.delete(files.map((f) => outKey(j.id, f)));
+    await env.DB.prepare("UPDATE prep_jobs SET files_json='[]', ids_json=NULL WHERE id=?").bind(j.id).run();
+  }
+  return { jobs: r.results.length, identity_file_deleted: identity };
+}
+
+/** The person who uploaded this data set for a traffic analysis (by its key alone), or null. */
+export async function prepOwner(env: Env, key: string): Promise<string | null> {
+  const byName = key.startsWith("name:");
+  const r = await env.DB.prepare(
+    `SELECT owner_id FROM prep_jobs WHERE status='done' AND ${byName ? "set_name" : "prepared_sha256"}=? ORDER BY finished_at ASC, id ASC LIMIT 1`,
+  ).bind(byName ? key.slice(5) : key).first<{ owner_id: string }>();
+  return r ? r.owner_id : null;
 }
 
 /** POST /api/prep/wake — New benchmark opened: nudge a sleeping cloud service (free Hugging Face

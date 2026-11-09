@@ -7,7 +7,7 @@ import { getBackend, heartbeat, register } from "./backend.ts";
 import { authorize } from "./runs.ts";
 import { backendGetFile, backendListSessions, backendSetIdentity, compareCandidatesRoute, compareMergedRoute, compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus, commitUpload, leaderboardRoute, listSessions, patchSession, putFile, putResults, putSummary, uploadUrl } from "./sessions.ts";
 import { telegramTest } from "./notify.ts";
-import { createPrepJob, getPrepFile, getPrepJob, prepEvents, startPrepJob, wakePrep } from "./prep.ts";
+import { createPrepJob, getPrepFile, getPrepJob, listAnalyses, prepEvents, startPrepJob, wakePrep } from "./prep.ts";
 import { getLimits, getSettings, putLimits, putSettings } from "./settings.ts";
 import { backendModelState, backendModelVerified, getAdminModels, putAdminModels } from "./models.ts";
 import { type Env, corsHeaders, fail, json } from "./util.ts";
@@ -67,6 +67,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/api\/sessions\/([^/]+)\/files\/([a-z_.]+)$/, getFile],
   // data sets: names and removals (read: any user; rename/delete: owner or admin)
   ["GET", /^\/api\/datasets$/, listDatasets],
+  ["GET", /^\/api\/analyses$/, listAnalyses],
   ["POST", /^\/api\/datasets\/rename$/, renameDataset],
   ["POST", /^\/api\/datasets\/delete$/, deleteDataset],
   ["GET", /^\/api\/compare$/, compareRoute],

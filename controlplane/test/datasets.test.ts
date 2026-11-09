@@ -111,3 +111,45 @@ describe("data sets: names and removal", () => {
     expect(payload(ta.data.token).admin).toBe(true);
   });
 });
+
+// An analysis (Analyse traffic) is a finished cloud preparation job whose service scored the pool:
+// it is listed before anyone benchmarks it, its uploader owns it, and deleting the data set removes
+// its stored files, the owner-only address file included.
+describe("traffic analyses", () => {
+  const FILES = ["manifest.json", "features.csv", "ids_scores.csv", "ids_pool.json", "ids_flows_identity.csv"];
+  async function analysisBy(u: { id: string }, set: string, sha: string, id = "a".repeat(31) + "1") {
+    const t = "2026-11-10T09:00:00Z";
+    await E.DB.prepare(`INSERT INTO prep_jobs (id, owner_id, status, source_kind, filename, options_json, set_name, files_json,
+                          prepared_sha256, ids_json, created_at, updated_at, finished_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .bind(id, u.id, "done", "file", "flows.csv", "{}", set, JSON.stringify(FILES), sha,
+            JSON.stringify({ threshold: 0.07, n_flows_in: 40, n_flagged: 12, n_selected: 10, labelled: true }), t, t, t).run();
+    for (const f of FILES) await E.STORE.put(`prep/${id}/out/${f}`, `${f} bytes`, "text/plain");
+    return id;
+  }
+
+  it("lists the uploader's analyses (an admin sees all), with the data set key", async () => {
+    const u = await user(), other = await user(), admin = await user("admin");
+    const sha = "1".repeat(64);
+    const id = await analysisBy(u, "csv_runs/flows_a1", sha);
+    const mine = await api("/api/analyses", { token: u.token });
+    expect(mine.data.analyses.find((x: any) => x.job_id === id)).toMatchObject({ mine: true, set: "csv_runs/flows_a1", key: sha,
+                                                                               ids: { n_flagged: 12 } });
+    expect((await api("/api/analyses", { token: other.token })).data.analyses.some((x: any) => x.job_id === id)).toBe(false);
+    expect((await api("/api/analyses", { token: admin.token })).data.analyses.some((x: any) => x.job_id === id)).toBe(true);
+  });
+
+  it("the uploader owns an unbenchmarked analysis; deleting it removes its files and is audited", async () => {
+    const u = await user(), other = await user(), admin = await user("admin");
+    const sha = "2".repeat(64);
+    const id = await analysisBy(u, "csv_runs/flows_a2", sha, "b".repeat(31) + "2");
+    expect((await api("/api/datasets/rename", { body: { key: sha, label: "theirs" }, token: other.token })).status).toBe(403);
+    expect((await api("/api/datasets/delete", { body: { key: sha }, token: other.token })).status).toBe(403);
+    expect((await api("/api/datasets/rename", { body: { key: sha, label: "Tuesday capture" }, token: u.token })).status).toBe(200);
+    expect((await api("/api/datasets/delete", { body: { key: sha, set: "csv_runs/flows_a2" }, token: u.token })).status).toBe(200);
+    for (const f of FILES) expect(await E.STORE.get(`prep/${id}/out/${f}`)).toBeNull();
+    expect((await api("/api/analyses", { token: u.token })).data.analyses.some((x: any) => x.job_id === id)).toBe(false);
+    const log = await api("/api/admin/audit?action=dataset.delete", { token: admin.token });
+    const entry = (log.data.entries || log.data.audit || []).find((e: any) => e.target === sha);
+    expect(entry?.detail ?? JSON.parse(entry?.detail_json ?? "{}")).toMatchObject({ analysis_jobs: 1, identity_file_deleted: true });
+  });
+});

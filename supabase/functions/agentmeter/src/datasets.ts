@@ -5,6 +5,7 @@
 // prepared it before it deletes the files (POST /api/prepared/<kind>/<name>/delete, a delete_set token).
 import { requireUser } from "./auth.ts";
 import { audit } from "./audit.ts";
+import { deletePrepOutputs, prepOwner } from "./prep.ts";
 import { type Env, fail, json, nowIso, readJson } from "./util.ts";
 
 const KEY = /^([0-9a-f]{64}|name:(csv_runs|pcap_runs)\/[A-Za-z0-9_.-]{1,80})$/;
@@ -39,7 +40,8 @@ export async function datasetOwner(env: Env, key: string): Promise<string | null
     `SELECT owner_id FROM sessions WHERE owner_id IS NOT NULL AND deleted_at IS NULL AND status IN ('Done','Demo')
        AND ${byName ? "prepared_set" : "prepared_set_sha256"}=? ORDER BY COALESCE(finished_at, created_at) ASC, id ASC LIMIT 1`,
   ).bind(byName ? key.slice(5) : key).first<{ owner_id: string }>();
-  return r ? r.owner_id : null;
+  // nobody has benchmarked it yet: the person who uploaded it for a traffic analysis (Analyse traffic)
+  return r ? r.owner_id : await prepOwner(env, key);
 }
 
 /** The owner or an admin. No session yet: not checked here (see the header). */
@@ -78,6 +80,9 @@ export async function deleteDataset(req: Request, env: Env): Promise<Response> {
   const b = await readKey(req);
   await checkOwner(env, a.user, b.key, "delete");
   await upsert(env, b.key, b.set, a.user, null, true);
-  await audit(env, a.user, "dataset.delete", b.key, { set: b.set });
+  // the traffic analysis's stored files go too, the owner-only address file included
+  const removed = await deletePrepOutputs(env, b.key);
+  await audit(env, a.user, "dataset.delete", b.key, { set: b.set, analysis_jobs: removed.jobs,
+                                                       identity_file_deleted: removed.identity_file_deleted });
   return json({ ok: true, key: b.key });
 }

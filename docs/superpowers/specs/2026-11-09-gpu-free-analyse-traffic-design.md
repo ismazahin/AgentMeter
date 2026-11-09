@@ -1,6 +1,6 @@
 # Analyse traffic without a GPU — design
 
-Date: 2026-11-09 · Status: for approval (open questions answered)
+Date: 2026-11-09 · Status: approved 2026-11-09
 
 ## Intent and why
 

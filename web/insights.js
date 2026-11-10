@@ -60,7 +60,7 @@
       }).sort(function (a, b) { return b.pct_better - a.pct_better; });
       if (wins.length) {
         var w = wins[0];
-        out.push({ key: "gap", text: "Biggest measured gap: " + short(w.winner) + " is " + w.pct_better + "% better on " + w.label + (w.runner_up ? " than the runner-up, " + short(w.runner_up) : "") +
+        out.push({ key: "gap", text: "The biggest measured gap is that " + short(w.winner) + " is " + w.pct_better + "% better on " + w.label + (w.runner_up ? " than the runner-up, " + short(w.runner_up) : "") +
           (w.p_value != null ? " (p = " + (+w.p_value).toPrecision(2) + ")" : "") + "." });
       } else {
         out.push({ key: "gap", text: "No efficiency metric separates the models beyond the tie range." });
@@ -72,7 +72,7 @@
     }).filter(function (t) { return t.ratio != null; }).sort(function (a, b) { return b.ratio - a.ratio; });
     if (tails.length) {
       var t = tails[0];
-      out.push({ key: "tail", text: "Slowest 5% of flows: " + short(t.model) + " takes " + t.ratio.toFixed(1) + "× its median time (p95 " + time(t.p95) + ")." });
+      out.push({ key: "tail", text: "On its slowest 5% of flows, " + short(t.model) + " takes " + t.ratio.toFixed(1) + "× its median time (p95 " + time(t.p95) + ")." });
     }
     var ag = (res.agents || {}).per_model || [];
     var tops = ag.map(function (m) {
@@ -93,10 +93,10 @@
     var ce = ((res.cost_energy || {}).per_model || []).filter(function (r) { return r.cost_per_1k_flows_usd != null; })
       .sort(function (a, b) { return a.cost_per_1k_flows_usd - b.cost_per_1k_flows_usd; });
     if (ce.length) {
-      out.push({ key: "cost", text: "Cheapest to run: " + short(ce[0].model) + " at $" + ce[0].cost_per_1k_flows_usd.toFixed(4) + " per 1,000 flows" +
+      out.push({ key: "cost", text: "The cheapest to run is " + short(ce[0].model) + " at $" + ce[0].cost_per_1k_flows_usd.toFixed(4) + " per 1,000 flows" +
         (ce.length > 1 ? " ($" + ce[ce.length - 1].cost_per_1k_flows_usd.toFixed(4) + " for " + short(ce[ce.length - 1].model) + ")" : "") + "." });
     } else if (res.cost_energy) {
-      out.push({ key: "cost", text: "Cost and energy were not measured in this run: " + ((((res.cost_energy || {}).per_model || [])[0] || {}).cost_reason || "no GPU") + "." });
+      out.push({ key: "cost", text: "Cost and energy were not measured in this run (" + ((((res.cost_energy || {}).per_model || [])[0] || {}).cost_reason || "no GPU") + ")." });
     }
     var rl = ((res.output_reliability || {}).per_model || []).filter(function (m) { return num(m.valid_rate) != null; })
       .sort(function (a, b) { return a.valid_rate - b.valid_rate; });
@@ -801,7 +801,10 @@
          .replace(/\bno significant trend\b/g, "no trend beyond chance")
          .replace(/last\/first quarter medians ([\d.]+)x/g, "last quarter $1\u00d7 the first")
          .replace(/latency follows a rank trend over the run/g, "latency drifts a little over the run")
-         .replace(/\s+\u2014\s+/g, ": ").replace(/\u2014/g, ", ");
+         .replace(/\s+\u2014\s+/g, ", ").replace(/\u2014/g, ", ")
+         // backend notes: no colons or semicolons mid-sentence, no back-to-back brackets
+         .replace(/ over the run: /g, " over the run, ").replace(/:\s*not available/g, " not available")
+         .replace(/\):\s+/g, "), ").replace(/\)\s+\(/g, ", ").replace(/;\s+/g, ", ");
     var pairs = [];
     (models || []).forEach(function (m) { var n = nick(m); pairs.push(["mock:" + bare(m), n], [bare(m), n], [short(m), n]); });
     pairs.filter(function (x) { return x[0] !== x[1]; })
@@ -862,15 +865,23 @@
         ? "Every model is best (or within 5% of it) on " + (wins[0].n === dims.length ? "all " + dims.length : wins[0].n + " of " + dims.length) + " measured criteria."
         : names(lead.map(function (w) { return w.model; })) + (lead.length > 1 ? " are" : " is") + " best (or within 5% of it) on " +
           (wins[0].n === dims.length ? "all " + dims.length : wins[0].n + " of " + dims.length) + " measured criteria" +
-          (next ? "; " + nick(next.model) + " on " + next.n : "") + ".";
+          (next ? ", and " + nick(next.model) + " on " + next.n : "") + ".";
     }
     var cp = criteriaProfile(res);
     if (cp.rows.length) {
-      var meet = cp.criteria.filter(function (k) { return !cp.missing[k]; }).map(function (k) {
-        var n = cp.rows.filter(function (r) { return r.scores[k] != null && r.scores[k] >= 0.999; }).length;
-        return CRIT_WORD[k] + ": " + (n === cp.rows.length ? (n > 1 ? "all " + n : "yes") : n ? n + " of " + cp.rows.length : "none");
-      });
-      if (meet.length) out["How does each model score on each criterion?"] = "Models that meet the study target, per criterion: " + meet.join("; ") + ".";
+      var crit = cp.criteria.filter(function (k) { return !cp.missing[k]; }), nm = cp.rows.length;
+      var met = function (k) { return cp.rows.filter(function (r) { return r.scores[k] != null && r.scores[k] >= 0.999; }).length; };
+      if (crit.length && nm === 1) {
+        var yes = crit.filter(function (k) { return met(k) === 1; }).map(function (k) { return CRIT_WORD[k]; });
+        var no = crit.filter(function (k) { return met(k) === 0; }).map(function (k) { return CRIT_WORD[k]; });
+        out["How does each model score on each criterion?"] = !yes.length ? "It misses the study target on " + andList(no) + "."
+          : !no.length ? "It meets the study target on " + andList(yes) + "."
+          : "It meets the study target on " + andList(yes) + ", but not on " + andList(no) + ".";
+      } else if (crit.length) {
+        out["How does each model score on each criterion?"] = "Models meeting the study target are " + andList(crit.map(function (k) {
+          var n = met(k); return (n === nm ? "all " + n : n ? n + " of " + nm : "none") + " on " + CRIT_WORD[k];
+        })) + ".";
+      }
     }
     var gh = res.gpu_health || {}, nFlows = num((res.session || {}).n_flows);
     var small = nFlows != null && nFlows < 50 ? " With " + nFlows + " flows, small differences could still be chance." : "";
@@ -915,17 +926,17 @@
     if (orl.length) {
       var lowv = minBy(orl, function (m) { return num(m.valid_rate); });
       if (lowv) out["Did every flow get a usable answer?"] = orl.every(function (m) { return m.valid_rate === 1; }) ? (many ? "Yes. Every model" : "Yes. The model") + " gave a usable answer for every flow."
-        : "Not always: " + nick(lowv.model) + " gave a usable answer for " + pct(lowv.valid_rate, 0) + " of flows" + (many ? ", the lowest" : "") + ". The rest came back empty, cut off or with an unknown label.";
+        : "Not always. " + nick(lowv.model) + " gave a usable answer for " + pct(lowv.valid_rate, 0) + " of flows" + (many ? ", the lowest" : "") + ". The rest came back empty, cut off or with an unknown label.";
       var cons = orl.filter(function (m) { return m.verdict_consistency && m.verdict_consistency.checked; });
       if (cons.length) {
         var lc = minBy(cons, function (m) { return num(m.verdict_consistency.rate); }), vc = lc && lc.verdict_consistency;
         if (vc) out["Do the explanations match the verdict?"] = vc.rate === 1 ? (many ? "Yes. Every model's" : "Yes. Every") + " explanation names the class that was chosen."
-          : "Mostly: " + (many ? "at worst, " : "") + nick(lc.model) + "'s explanation names a different class in " + vc.disagree + " of " + vc.checked + " flows.";
+          : "Mostly. " + (many ? "At worst, " : "") + nick(lc.model) + "'s explanation names a different class in " + vc.disagree + " of " + vc.checked + " flows.";
       }
       var fails = orl.map(function (m) { return { model: m.model, n: (m.empty || 0) + (m.truncated || 0) + (m.unparseable || 0), t: m.truncated || 0 }; });
       var wf = maxBy(fails, function (f) { return f.n; });
       out["Where do answers fail?"] = !wf || !wf.n ? "Nowhere. There are no empty answers, no answers cut off at the token budget and no unknown labels."
-        : nick(wf.model) + " fails most: " + wf.n + " answer" + (wf.n === 1 ? "" : "s") + " empty, cut off or unreadable" + (wf.t ? " (" + wf.t + " hit the token budget)" : "") + ".";
+        : nick(wf.model) + " fails most, with " + wf.n + " answer" + (wf.n === 1 ? "" : "s") + " empty, cut off or unreadable" + (wf.t ? " (" + wf.t + " hit the token budget)" : "") + ".";
       var fm = orl.filter(function (m) { return m.format && m.format.checked; });
       if (fm.length) {
         var lf = minBy(fm, function (m) { return num(m.format.exact_rate); }) || fm[0], mi = orl.filter(function (m) { return m.mitre && m.mitre.checked; });
@@ -951,7 +962,7 @@
       Object.keys(cf).forEach(function (m) { Object.keys(cf[m]).forEach(function (t) { Object.keys(cf[m][t]).forEach(function (p) {
         if (p !== t && cf[m][t][p]) mix[t + "\u0000" + p] = (mix[t + "\u0000" + p] || 0) + cf[m][t][p]; }); }); });
       var mk = Object.keys(mix).sort(function (a, b) { return mix[b] - mix[a]; })[0];
-      if (mk) { var tp = mk.split("\u0000"); out["Which classes does each model mix up?"] = "The most common mistake: " + tp[0] + " flows answered as " + tp[1] + " (" + mix[mk] + " times" + (Object.keys(cf).length > 1 ? " across the models" : "") + ")."; }
+      if (mk) { var tp = mk.split("\u0000"); out["Which classes does each model mix up?"] = "The most common mistake is " + tp[0] + " flows answered as " + tp[1] + " (" + mix[mk] + " times" + (Object.keys(cf).length > 1 ? " across the models" : "") + ")."; }
       else out["Which classes does each model mix up?"] = "None. Every answer matched its flow's class.";
     }
     var tri = ((res.triage || {}).per_model || []).filter(function (m) { return num(m.n_attacks); });
@@ -1005,12 +1016,12 @@
     var mem = ((res.memory || {}).per_model || []).filter(function (m) { return num(m.total_peak_mb); });
     if (mem.length) {
       var ml = minBy(mem, function (m) { return m.total_peak_mb; }), mh = maxBy(mem, function (m) { return m.total_peak_mb; });
-      out["How much GPU memory does it need?"] = nick(ml.model) + (many && mh !== ml ? " needs the least: " + gb(ml.total_peak_mb) + " at its peak; " + nick(mh.model) + " the most: " + gb(mh.total_peak_mb) + "." : " needs " + gb(ml.total_peak_mb) + " at its peak.");
+      out["How much GPU memory does it need?"] = nick(ml.model) + (many && mh !== ml ? " needs the least, " + gb(ml.total_peak_mb) + " at its peak, and " + nick(mh.model) + " the most, " + gb(mh.total_peak_mb) + "." : " needs " + gb(ml.total_peak_mb) + " at its peak.");
     } else if (((res.memory || {}).per_model || []).length) out["How much GPU memory does it need?"] = "Not measured in this run (" + (((res.memory.per_model[0] || {}).reason) || "no GPU memory readings") + ").";
     var es = effectSizes(res), el = es && es.rows.filter(function (r) { return r.metric === "latency_s" && r.available; })[0];
     if (el) {
       var fa = el.diff > 0 ? es.model_b : es.model_a, sa = el.diff > 0 ? es.model_a : es.model_b;
-      out["Is the difference real?"] = !el.excludes_zero ? "Not clearly: " + nick(es.model_a) + " and " + nick(es.model_b) + " differ by " + ftime(el.diff) + " per flow, which could be chance."
+      out["Is the difference real?"] = !el.excludes_zero ? "Not clearly. " + nick(es.model_a) + " and " + nick(es.model_b) + " differ by " + ftime(el.diff) + " per flow, which could be chance."
         : nick(fa) + " is faster than " + nick(sa) + " by about " + ftime(el.diff) + " per flow, a " + el.magnitude + " difference that is not chance.";
     }
     var ssz = sampleSize(res);
@@ -1026,7 +1037,7 @@
     pa.forEach(function (r) { var k = bare(r.model); (byM[k] = byM[k] || []).push(r); });
     Object.keys(byM).forEach(function (k) {
       var rows = byM[k], tot = rows.reduce(function (s, r) { return s + (num(r.mean_wall_s) || 0); }, 0), d = maxBy(rows, function (r) { return num(r.mean_wall_s); });
-      if (d && tot) out["@agent:" + k] = "The " + d.agent_name + " step takes the most time: " + pct(d.mean_wall_s / tot, 0) + " of each flow (" + time(d.mean_wall_s) + ").";
+      if (d && tot) out["@agent:" + k] = "The " + d.agent_name + " step takes the most time, " + pct(d.mean_wall_s / tot, 0) + " of each flow (" + time(d.mean_wall_s) + ").";
     });
     var hg = handoffGraph(res);
     if (hg && hg.per_model.length) {
@@ -1088,7 +1099,7 @@
       var dbest = maxBy(dm, function (m) { return m.passes; }), checked = dbest.cells.filter(function (c) { return c.result !== "no_data"; }).length;
       var allSame = dm.every(function (m) { return m.passes === dbest.passes; });
       out["Which deployment setups does each model fit?"] = allSame ? (dbest.passes === checked ? "Every model fits all " : "Every model fits " + dbest.passes + " of the ") + checked + " setups that could be checked."
-        : nick(dbest.model) + " fits the most: " + dbest.passes + " of the " + checked + " setups that could be checked.";
+        : nick(dbest.model) + " fits the most, " + dbest.passes + " of the " + checked + " setups that could be checked.";
     }
     Object.keys(out).forEach(function (k) { if (out[k] == null) delete out[k]; else out[k] = String(out[k]).replace(/\s+—\s+/g, ": "); });
   }
@@ -1107,7 +1118,7 @@
       var st = weightStability(res), flips = st.rows.filter(function (r) { return r.changes && !r.no_data; }).map(function (r) { return r.criterion; });
       out.ranking = {
         h: tie ? (saw.length > 2 ? "The top two models tie" : "The two models tie") + " on the efficiency score (" + saw[0].v.toFixed(1) + ")."
-               : nick(saw[0].model) + " ranks first on the efficiency score: " + saw[0].v.toFixed(1) + " against " + saw[1].v.toFixed(1) + ".",
+               : nick(saw[0].model) + " ranks first on the efficiency score, " + saw[0].v.toFixed(1) + " against " + saw[1].v.toFixed(1) + ".",
         s: tie ? "Neither is ahead on these flows." : flips.length ? "Weighting " + flips.join(" or ") + " much more heavily could change the order."
                : "No single change to the weights overturns the order.",
         chips: saw.map(function (x, i) { return chip(x.model, x.v.toFixed(1), i === 0 && !tie, x.v); }) };
@@ -1130,8 +1141,8 @@
     if (lat && lat.available) {
       var sig = lat.p_value == null ? "" : (+lat.p_value < 0.05 ? "The gap is larger than chance (p = " : "The gap could be chance (p = ") + (+lat.p_value).toPrecision(2) + ").";
       out.performance = lat.winner === "tie"
-        ? { h: "The models are about equally fast.", s: lat.note ? "The gap is small: " + plainText(lat.note) + "." : "No clear difference between them.", chips: latChips.map(function (c) { c.best = false; return c; }) }
-        : { h: nick(lat.winner) + " is the fastest: " + lat.pct_better + "% quicker per flow" + (lat.runner_up ? " than " + nick(lat.runner_up) : "") + ".", s: sig || null, chips: latChips };
+        ? { h: "The models are about equally fast.", s: lat.note ? "The gap is small (" + plainText(lat.note) + ")." : "No clear difference between them.", chips: latChips.map(function (c) { c.best = false; return c; }) }
+        : { h: nick(lat.winner) + " is the fastest, " + lat.pct_better + "% quicker per flow" + (lat.runner_up ? " than " + nick(lat.runner_up) : "") + ".", s: sig || null, chips: latChips };
     } else if (pm.length === 1) {
       var e = ((pm[0].efficiency || {}).end_to_end) || {};
       if (e.mean_latency_s != null) out.performance = { h: nick(pm[0].model) + " takes " + time(e.mean_latency_s) + " per flow on average.", s: "The slowest 5% of flows take " + time(e.p95_latency_s) + " or more.", chips: [] };
@@ -1160,7 +1171,7 @@
       var byFit = fit.models.slice().sort(function (a, b) { return b.passes - a.passes; }), n = fit.profiles.length;
       var allSame = byFit.every(function (m) { return m.passes === byFit[0].passes; });
       out.recommendations = { h: allSame ? (byFit.length > 1 ? "Every model fits " : nick(byFit[0].model) + " fits ") + byFit[0].passes + " of " + n + " common deployment profiles."
-                                         : nick(byFit[0].model) + " fits the most deployment profiles: " + byFit[0].passes + " of " + n + ".",
+                                         : nick(byFit[0].model) + " fits the most deployment profiles, " + byFit[0].passes + " of " + n + ".",
                               s: "Checked against " + n + " common setups for memory, speed, daily volume and cost.",
                               chips: byFit.map(function (m) { return chip(m.model, m.passes + " of " + n, !allSame && m.passes === byFit[0].passes, m.passes / n); }) };
     }

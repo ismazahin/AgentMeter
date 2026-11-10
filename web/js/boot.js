@@ -53,12 +53,12 @@ function goOnline(h) {
   return api("/api/service/config").then(function (r) {
     CONFIG = r.ok ? r.data : { canonical_models: [], max_models: 4, provider: "mock", base_config: null, demo_mode: true, note: "Service config unavailable." };
     $("svc-demo").hidden = !CONFIG.demo_mode;
-    $("svc-demo").innerHTML = '<b>Demo mode:</b> no GPU, so results are simulated, not model measurements.' + infoI(CONFIG.note || "");
+    $("svc-demo").innerHTML = '<b>Demo mode.</b> There is no GPU, so results are simulated, not model measurements.' + infoI(CONFIG.note || "");
     $("svc-max-flows").value = (SETTINGS && SETTINGS.default_flows) || CONFIG.default_max_flows || 50;
     if (SETTINGS) $("svc-other-attack").checked = !!SETTINGS.default_other_attack;
     var L = CONFIG.limits;
     if (L) {
-      $("svc-limits").innerHTML = "Maximum upload: " + esc(L.max_upload_label) + "; bigger files: Import from a link." +
+      $("svc-limits").innerHTML = "Maximum upload " + esc(L.max_upload_label) + ". Use Import from a link for bigger files." +
         infoI("For larger files use Import from a link (up to " + L.max_url_download_label + "). Large inputs are sampled across the whole file.");
       $("svc-url-limits").textContent = "A direct download link, up to " + L.max_url_download_label + ".";
     }

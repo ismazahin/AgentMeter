@@ -75,8 +75,8 @@ function renderTrends() {
         esc((st.gpu || "GPU") + ", " + (st.input_type || "") + " " + (st.n_flows == null ? "" : st.n_flows + " flows") + ", set " + String(st.prepared_set_sha256).slice(0, 8)) +
         '</td><td class="num">' + x.runs + '</td><td>' + repBadge(x) + (x.moved.length ? ' <span class="small muted">' + esc(x.moved[0].metric_label.toLowerCase()) + ' ' + (x.moved[0].change > 0 ? "+" : "") + fmtNum(100 * x.moved[0].change, 0) + '%</span>' : "") +
         (x.changed.length || (x.last_health && x.last_health.status === "check") ? '<br><span class="small rep-why" data-rep-why>' +
-          [x.changed.length ? "changed in the latest run: " + x.changed.map(INSIGHTS.changeText).join(", ") : null,
-           x.last_health && x.last_health.status === "check" ? "the GPU was not normal in the latest run" : null].filter(Boolean).map(esc).join("; ") + '</span>' : "") +
+          [x.changed.length ? "changed in the latest run, " + x.changed.map(INSIGHTS.changeText).join(", ") : null,
+           x.last_health && x.last_health.status === "check" ? "the GPU was not normal in the latest run" : null].filter(Boolean).map(esc).join(". ") + '</span>' : "") +
         '</td><td class="num">' + (x.latency_spread == null ? "—" : "±" + fmtNum(100 * x.latency_spread, 1) + "%") + '</td><td class="small">' + esc(x.last_at ? fmtDate(x.last_at) : "—") + '</td></tr>';
     }).join("") + '</tbody></table></div></div>';
   ser.innerHTML = t.series.map(function (s) { return '<option value="' + esc(s.id) + '"' + (s.id === TR.series ? " selected" : "") + '>' + esc(s.label + " — " + s.points.length + " run" + (s.points.length === 1 ? "" : "s")) + '</option>'; }).join("");
@@ -103,7 +103,7 @@ function historyCard(s, ts, t) {
         ", settings " + String(s.setup.settings_fingerprint).slice(0, 8)) + ', ' + (ts.lower_is_better ? "lower is better" : "higher is better") + '</p>';
   if (!pts.length) return head + '<p class="muted" id="tr-none">Not measured in these runs (e.g. demo runs have no GPU energy or price).</p></div>';
   var d = ts.drift, verdict = !d.enough ? '<p class="small" id="tr-verdict">' + pts.length + ' run' + (pts.length === 1 ? "" : "s") + ' so far. A judgement needs at least ' + t.min_points + '.</p>'
-    : '<p class="small" id="tr-verdict">Latest run ' + esc(fmtUnit(ts.unit, d.latest)) + ' vs ' + esc(fmtUnit(ts.unit, d.baseline)) + ' (median of the ' + (d.n - 1) + ' earlier runs): ' +
+    : '<p class="small" id="tr-verdict">Latest run ' + esc(fmtUnit(ts.unit, d.latest)) + ' vs ' + esc(fmtUnit(ts.unit, d.baseline)) + ' (median of the ' + (d.n - 1) + ' earlier runs), a change of ' +
       (d.change > 0 ? "+" : "") + fmtNum(100 * d.change, 1) + '%. ' + (d.flagged ? '<b>' + (d.worse ? "Worse" : "Better") + ' than the usual spread (±' + fmtNum(100 * d.band, 0) + '%).</b>' : 'Within the usual spread (±' + fmtNum(100 * d.band, 0) + '%).') + '</p>';
   return head + verdict + '<div id="tr-plot">' + trendSvg(ts, pts, d) + '</div>' +
     '<div class="table-wrap"><table id="tr-table"><thead><tr><th>Finished</th><th>Session</th><th class="num">' + esc(ts.label) + '</th><th class="num">Change vs previous</th><th>What was different</th></tr></thead><tbody>' +
@@ -342,7 +342,7 @@ function loadCard(res) {
   var ls = window.INSIGHTS && INSIGHTS.loadScaling(res);
   if (!ls) return "";
   var head = '<h2>Load scaling</h2>';
-  if (!ls.measured) return '<div class="card" id="load-card">' + head + '<p class="muted">Not measured in this session: ' + esc(ls.reason) + '. Tick "Also measure load scaling" when you start a benchmark.</p></div>';
+  if (!ls.measured) return '<div class="card" id="load-card">' + head + '<p class="muted">' + (/^not requested/.test(ls.reason || "") ? "This session did not ask for it, so it was not measured." : "Not measured in this session (" + esc(ls.reason) + ").") + ' Tick "Also measure load scaling" when you start a benchmark to see it.</p></div>';
   var pos = function (c) { return ls.levels.indexOf(c); }, xFmt = function (v) { var c = ls.levels[Math.round(v)]; return c == null ? "" : c + " at once"; };
   var rows = ls.levels.map(function (c) {
     return { x: pos(c), text: c + " in flight. " + ls.models.map(function (m) {
@@ -362,7 +362,7 @@ function loadCard(res) {
   return '<div class="card" id="load-card">' + head + '<p class="muted small" style="margin-top:0">' + esc(ls.note || "") + '</p>' + legendHtml(ls.models.map(function (m) { return m.model; })) +
     '<div class="load-grid"><div><h3 class="lc-h">Throughput (flows per second, higher is better)</h3>' + chart("load-tp", "throughput_flows_per_s", ls.max_throughput, function (v) { return fmtNum(v, 2); }, "Throughput by concurrency") + '</div>' +
     '<div><h3 class="lc-h">p95 latency per flow (lower is better)</h3>' + chart("load-p95", "p95_latency_s", ls.max_p95, fmtTime, "p95 latency by concurrency") + '</div></div>' +
-    ls.models.filter(function (m) { return m.error; }).map(function (m) { return '<div class="notice warn" role="note">' + esc(short(m.model)) + ' failed with ' + m.failed_at + ' in flight: ' + esc(m.error) + '</div>'; }).join("") +
+    ls.models.filter(function (m) { return m.error; }).map(function (m) { return '<div class="notice warn" role="note">' + esc(short(m.model)) + ' failed with ' + m.failed_at + ' in flight (' + esc(m.error) + ').' + '</div>'; }).join("") +
     '<div class="table-wrap"><table id="load-table"><thead><tr><th>Model</th><th class="num">In flight</th><th class="num">Flows</th><th class="num">Throughput</th><th class="num">Speed-up vs 1</th><th class="num">Scaling efficiency</th><th class="num">p50</th><th class="num">p95</th></tr></thead><tbody>' +
     ls.models.map(function (m) { return m.levels.map(function (l) {
       return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + l.concurrency + '</td><td class="num">' + l.n + '</td>' + (l.error ? '<td colspan="5" class="muted">failed: ' + esc(l.error) + '</td>' :
@@ -569,7 +569,7 @@ function setAgentSlots(res) {
   (ag.pipeline || []).forEach(function (a) { if (!a.builtin) AG_TITLE[a.name] = a.title; });
 }
 function pipelineCard(ag) {
-  return '<div class="card" id="agents-pipeline"><h2>This session\'s pipeline</h2><p class="muted small" style="margin-top:0">A custom pipeline: ' + ag.pipeline.length +
+  return '<div class="card" id="agents-pipeline"><h2>This session\'s pipeline</h2><p class="muted small" style="margin-top:0">A custom pipeline of ' + ag.pipeline.length +
     ' agents, run one after another on every flow. Compare and the Leaderboard treat it as its own setup, never like-for-like with the default four.</p><ol class="pl-view">' +
     ag.pipeline.map(function (a) {
       var reads = (a.reads || []).map(agName).concat(a.features === false ? [] : ["the flow features"]);
@@ -894,7 +894,7 @@ function reproPackage(res, job, btn) {
       "- Settings fingerprint: `" + (ident.settings_fingerprint || "unknown") + "`\n" +
       "- Driver / CUDA: " + (env.driver_version || "—") + " / " + (env.cuda_runtime_version || "—") + ", torch " + (env.torch || "—") + ", transformers " + (env.transformers || "—") + ", bitsandbytes " + (env.bitsandbytes || "—") + "\n" +
       "\n## How to run it again\n\n" +
-      "1. Open AgentMeter and use **Run again** on the session page, or open: " + again + "\n" +
+      "1. Open AgentMeter and use **Run again** on the session page, or open " + again + "\n" +
       "   (if the prepared set is not on the GPU server, import `prepared_set/` under New benchmark › Reuse a prepared set, and its hash stays the same).\n" +
       "2. Use the same GPU type. Results are only comparable on the same prepared set, GPU and settings.\n" +
       "3. The new session appears on Repeatability next to this one, and a change beyond the usual spread is flagged.\n";

@@ -51,20 +51,33 @@ def recommendation(data: dict, ranked: Optional[list[dict]] = None,
     targets = p8.get("targets") or {}
     acc_target = float(targets["accuracy_pct"]) if targets.get("accuracy_pct") is not None else 80.0
     all_critical = all((r.get("tier") or "") == "Critical" for r in rows)
-    headline = (f"Based on your current priorities ({pri_txt}), {top} is the most "
-                f"resource-efficient choice.") if top else ""
+    one = len(rows) == 1
+    if not top:
+        headline = ""
+    elif one:
+        headline = (f"{top} is the only model in this run, so it is read on its own against "
+                    f"your current priorities of {pri_txt}.")
+    else:
+        headline = (f"Based on your current priorities of {pri_txt}, {top} is the most "
+                    f"resource-efficient choice.")
+    subj = f"{top} falls" if one else f"All {len(rows)} models fall"
+    lead = "" if one else (f". {top} is the best resource-efficient starting point." if top else ".")
     # efficiency-only scores (accuracy weight 0: a benchmark session) speak of efficiency targets
     eff_only = not (float(w.get("accuracy") or 0) > 0)
     if all_critical and eff_only:
-        caveat = (f"All {len(rows)} models fall in the Critical tier on resource efficiency (below the "
-                  "study's latency, memory and token targets), so none meets them as-is"
-                  + (f". {top} is the best resource-efficient starting point." if top else "."))
+        caveat = (f"{subj} in the Critical tier on resource efficiency (below the "
+                  "study's latency, memory and token targets), so "
+                  + ("it does not meet them as-is" if one else "none meets them as-is")
+                  + ("." if one else lead))
     elif all_critical:
-        caveat = (f"All {len(rows)} models fall in the Critical tier (accuracy below the "
-                  f"{_js_num(acc_target)}% target), so none is recommended for zero-shot deployment as-is"
-                  + (f". {top} is the best resource-efficient starting point." if top else "."))
+        caveat = (f"{subj} in the Critical tier (accuracy below the "
+                  f"{_js_num(acc_target)}% target), so "
+                  + ("it is not recommended" if one else "none is recommended")
+                  + " for zero-shot deployment as-is"
+                  + ("." if one else lead))
     else:
-        caveat = ("This is decision support, not a deployment sign-off. Check each model's tier "
+        caveat = ("This is decision support, not a deployment sign-off. Check "
+                  + ("its" if one else "each model's") + " tier "
                   + ("against your own latency, memory and budget limits before deploying." if eff_only
                      else "and the accuracy target before deploying."))
     return {"headline": headline, "caveat": caveat, "top": top,

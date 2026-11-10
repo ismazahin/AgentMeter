@@ -482,8 +482,8 @@ function presetRank(res, preset) {
 }
 function weightsCard(res) {
   var p8 = res.phase8 || {}, presets = (SETTINGS && SETTINGS.weight_presets) || [], ew = (res.phase8_efficiency_only || {}).weights || p8.weights;
-  return '<div class="card" id="svc-weights-card"><h2>SAW weights</h2><p class="small" id="svc-weights-used"><b>The score uses:</b> ' +
-    esc(weightsText(ew) || "not recorded") + ' <span class="muted">(efficiency only, meaning latency, VRAM and tokens. Agreement with reference labels is a validity check under Output Reliability, not a criterion)</span></p>' +
+  return '<div class="card" id="svc-weights-card"><h2>SAW weights</h2><p class="small" id="svc-weights-used"><b>The score uses</b> ' +
+    esc(weightsText(ew) || "weights that were not recorded") + '. <span class="muted">It measures efficiency only. Agreement with reference labels is a validity check under Output Reliability, not a criterion.</span></p>' +
     (presets.length ? '<div class="row"><div class="field"><label for="svc-preset">Re-rank with one of your presets (view only)</label><select id="svc-preset"><option value="">Stored weights</option>' +
       presets.map(function (p, i) { return '<option value="' + i + '">' + esc(p.name) + '</option>'; }).join("") + '</select></div></div><div id="svc-preset-view"></div>'
       : '<p class="muted small">Add weight presets in Settings to re-rank here (view only).</p>') +
@@ -527,14 +527,14 @@ function tiles(res) {
   var orl = (res.output_reliability || {}).per_model || [];
   var low = orl.slice().sort(function (a, b) { return (a.valid_rate || 0) - (b.valid_rate || 0); })[0];
   t.push('<div class="tile" data-metric="valid"><div class="k">Valid answers</div><div class="v">' + (low ? fmtPct(low.valid_rate) : "—") + '</div><div class="w">' +
-    esc(!low ? "not recorded" : orl.every(function (m) { return m.valid_rate === 1; }) ? "every model, every flow" : "lowest: " + nick(low.model)) + '</div></div>');
+    esc(!low ? "not recorded" : orl.every(function (m) { return m.valid_rate === 1; }) ? "every model, every flow" : "lowest for " + nick(low.model)) + '</div></div>');
   if (res.ids) t.push('<div class="tile" data-metric="ids"><div class="k">IDS gate</div><div class="v">' + fmtPct(res.ids.llm_calls_saved_share) + ' saved</div><div class="w">' +
     esc(fmtNum(res.ids.n_alerts) + " of " + fmtNum(res.ids.n_flows_in) + " flows sent to the LLM") + '</div></div>');
   var tg = ((res.triage || {}).per_model || []).filter(function (m) { return m.gate; });
   if (tg.length) {
     var pass = tg.filter(function (m) { return effGate(m).passed === true; }), fail = tg.filter(function (m) { return effGate(m).passed === false; });
     t.push('<div class="tile" data-metric="gate"><div class="k">Triage gate</div><div class="v">' + (pass.length + fail.length ? pass.length + " of " + tg.length + " pass" : "not checked") + '</div><div class="w">' +
-      esc(fail.length ? "fails: " + fail.map(function (m) { return nick(m.model); }).join(", ") : pass.length ? "every checked model" : "needs labelled input") + '</div></div>');
+      esc(fail.length ? "fails for " + fail.map(function (m) { return nick(m.model); }).join(", ") : pass.length ? "every checked model" : "needs labelled input") + '</div></div>');
   }
   return '<div class="tiles" id="svc-tiles">' + t.join("") + '</div>';
 }
@@ -583,7 +583,7 @@ function overviewTab(res) {
     '<details class="info" id="svc-measured"><summary>ⓘ How this was measured</summary><p class="small muted">' +
       (real ? 'GPU ' + esc(env.gpu_name || "unknown") + ', NVIDIA driver ' + esc(env.driver_version || "—") + ', CUDA ' + esc(env.cuda_runtime_version || "—") + ', 4-bit NF4' + (env.engine === "vllm" ? ', vLLM engine (continuous batching, so per-agent working VRAM and time-to-first-token are not measured with it)' : env.engine ? ", " + esc(env.engine) + " engine" : "") + ', one model at a time.'
         : 'MOCK provider. It is a fixed heuristic, not a language model. It shows the flow, and the numbers are not model measurements.') + '</p>' +
-      (rel && cmp ? '<p class="small muted" id="svc-absolute"><b>Absolute SAW</b> (against fixed L4-study targets): ' + esc(cmp.statement) + '</p>' : "") + '</details></div>');
+      (rel && cmp ? '<p class="small muted" id="svc-absolute"><b>Absolute SAW</b> against fixed L4-study targets. ' + esc(cmp.statement) + '</p>' : "") + '</details></div>');
   h.push(gpuHealthCard(res), findingsCard(res), scorecardCard(res), '<div id="svc-changed-host"></div>', profileCard(res));
   var tip = function (t) { return '<span class="info-i" tabindex="0" title="' + esc(t) + '" aria-label="' + esc(t) + '">i</span>'; };
   var rows = pm.map(function (m) {
@@ -596,7 +596,7 @@ function overviewTab(res) {
       '<td class="num">' + (vr[m.model] ? fmtPct(vr[m.model].valid_rate) : '<span class="muted">—</span>') + '</td>' +
       '<td class="num">' + esc(sawE(m).composite_100) + ' <span class="muted">' + esc(sawE(m).tier) + '</span></td></tr>';
   }).join("");
-  h.push('<div class="card"><h2>Per model</h2><p class="muted small" id="lim-note" hidden style="margin-top:0">Coloured against your limits: <span class="over-limit">over</span> or <span class="in-limit">within</span> (set them under Recommendations → Does a model fit your limits?).</p><div class="table-wrap"><table id="svc-models-table"><thead><tr><th>Model</th><th class="num">Latency / flow</th><th class="num">p95</th><th class="num">Tokens / flow</th>' +
+  h.push('<div class="card"><h2>Per model</h2><p class="muted small" id="lim-note" hidden style="margin-top:0">Values are coloured <span class="over-limit">over</span> or <span class="in-limit">within</span> your limits, which you set under Recommendations → Does a model fit your limits?</p><div class="table-wrap"><table id="svc-models-table"><thead><tr><th>Model</th><th class="num">Latency / flow</th><th class="num">p95</th><th class="num">Tokens / flow</th>' +
     '<th class="num">Working VRAM' + tip("The memory the agent calls add, without the model weights") + '</th><th class="num">Total peak VRAM' + tip("Model weights + working memory") + '</th>' +
     '<th class="num">Cost / 1k flows</th><th class="num">Energy / flow</th>' +
     '<th class="num">Valid answers' + tip("Share of flows with a usable answer (see Output Reliability)") + '</th><th class="num">SAW (efficiency)</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
@@ -686,7 +686,7 @@ function scorecardCard(res) {
       return '<td class="num" data-grade="' + c.grade + '">' + fmtUnit(d.unit, c.value) + rel + (sc.models.length > 1 && c.grade !== "no_data" ? ' <span class="chip ' + g[1] + '">' + g[0] + '</span>' : "") + '</td>';
     }).join("") + '</tr>';
   }).join("");
-  return '<div class="card" id="svc-scorecard"><h2>Scorecard</h2><p class="muted small" style="margin-top:0">Each model against the best of this session: <b>best</b> = within ' + (sc.band * 100) +
+  return '<div class="card" id="svc-scorecard"><h2>Scorecard</h2><p class="muted small" style="margin-top:0">Each model against the best of this session. <b>best</b> = within ' + (sc.band * 100) +
     '% of the best, <b>close</b> = within 25% (validity: 5 points), <b>behind</b> = further. Lower is better except valid answers.</p>' +
     '<div class="table-wrap"><table id="svc-scorecard-table"><thead>' + head + '</thead><tbody>' + body + '</tbody></table></div></div>';
 }
@@ -927,7 +927,7 @@ function compositionCard(res) {
         return '<div class="cat-row"><span class="lbl">' + esc(agName(a.agent)) + '</span><div class="cat-track"><div class="cat-bar" style="width:' + (100 * a.input_tokens / mx).toFixed(1) + '%">' + bar + '</div></div><span class="val">' + fmtNum(a.input_tokens) + '</span></div>';
       }).join("") + '</div>';
   }).join("");
-  return '<div class="card" id="agents-composition"><h2>What the prompts are made of</h2><p class="muted small" style="margin-top:0">Input tokens per call, split into the agent\'s system prompt, the flow features, the earlier answers it re-reads, and the rest. <b>Cacheable</b>: the system prompt opens every call of an agent unchanged, so an engine with prefix caching (e.g. vLLM) could skip that share.</p>' +
+  return '<div class="card" id="agents-composition"><h2>What the prompts are made of</h2><p class="muted small" style="margin-top:0">Input tokens per call, split into the agent\'s system prompt, the flow features, the earlier answers it re-reads, and the rest. <b>Cacheable</b> is the system prompt, which opens every call of an agent unchanged, so an engine with prefix caching (e.g. vLLM) could skip that share.</p>' +
     legend + groups +
     '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="agents-composition-table"><thead><tr><th>Model</th><th>Agent</th><th class="num">Input</th><th class="num">System</th><th class="num">Features</th><th class="num">Hand-off</th><th class="num">Other</th><th class="num">Cacheable</th></tr></thead><tbody>' +
     pc.per_model.map(function (m) { return m.agents.map(function (a) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(agName(a.agent)) + '</td><td class="num">' + fmtNum(a.input_tokens) + '</td><td class="num">' + fmtNum(a.system_tokens) + '</td><td class="num">' + fmtNum(a.feature_tokens) +
@@ -1198,7 +1198,7 @@ function confusionCard(res) {
         }).join("") + '</tr>';
       }).join("") + '</tbody></table></div>';
     return '<div class="cm-model"><h3 class="mono">' + esc(short(pm.model)) + '</h3>' + html +
-      (worst.length ? '<p class="small muted">Most often confused: ' + worst.slice(0, 3).map(function (w) { return '<b>' + esc(w[1]) + '</b> answered as <b>' + esc(w[2]) + '</b> (' + w[0] + ')'; }).join("; ") + '.</p>'
+      (worst.length ? '<p class="small muted">Most often confused are ' + worst.slice(0, 3).map(function (w) { return '<b>' + esc(w[1]) + '</b> answered as <b>' + esc(w[2]) + '</b> (' + w[0] + ')'; }).join(", ") + '.</p>'
                     : '<p class="small muted">No confusions on these flows.</p>') + '</div>';
   };
   return '<div class="card" id="rel-confusion"><h2>Which classes each model mixes up</h2><p class="muted small" style="margin-top:0">Rows are the true class, columns the answer. ' +
@@ -1215,7 +1215,7 @@ function socCard(res) {
     '<div class="row" style="margin-top:0;gap:14px;align-items:center;flex-wrap:wrap"><label for="soc-share"><b>Benign share of traffic</b></label>' +
       '<input type="range" id="soc-share" min="0.5" max="0.999" step="0.001" value="' + SOC.share + '" style="flex:1 1 220px"><b id="soc-share-v" class="num">' + fmtPct(SOC.share) + '</b></div>' +
     '<div id="soc-body">' + socTable(res) + '</div>' +
-    '<p class="small muted">Measured on this session: ' + esc(t.per_model.map(function (m) { return short(m.model) + " " + m.n_attacks + " attacks / " + m.n_benign + " benign"; }).join(", ")) +
+    '<p class="small muted">Measured on this session with ' + esc(t.per_model.map(function (m) { return short(m.model) + " " + m.n_attacks + " attacks / " + m.n_benign + " benign"; }).join(", ")) +
     '. This projection assumes each model treats attacks and benign flows the same way in the new mix.</p></div>';
 }
 function socTable(res) {
@@ -1341,7 +1341,7 @@ function gpuHealthCard(res) {
     if ((m.other_processes || []).length) w.push("other programs were using it");
     return w.length ? w.join(", ") : m.reasons.join("; ");
   };
-  return '<div class="notice warn" id="svc-gpu-health" role="status"><b>Check the GPU: it was not in a normal state during this run.</b> The timings and energy below may reflect the GPU, not the model.' +
+  return '<div class="notice warn" id="svc-gpu-health" role="status"><b>Check the GPU. It was not in a normal state during this run.</b> The timings and energy below may reflect the GPU, not the model.' +
     '<ul class="small" style="margin:6px 0 0">' + bad.map(function (m) {
       return '<li><b class="model-name" title="' + esc(m.model) + '">' + esc(nick(m.model)) + '</b>: ' + esc(plain(m)) + '.</li>';
     }).join("") + '</ul><p class="small" style="margin:6px 0 0">Run it again when the GPU is cool and not shared, then compare on <a href="#/trends">Repeatability</a>.</p>' +
@@ -1505,7 +1505,7 @@ var MARKS_MAX = 80;                        // flow-start lines drawn only when t
 function gpuTimelineCard(res) {
   var g = window.INSIGHTS && INSIGHTS.gpuTimeline(res);
   if (!g) return "";
-  if (!g.sampled) return '<div class="card" id="gpu-timeline"><h2>GPU over the run</h2><p class="muted">Not sampled: ' + esc(g.reason) + '.</p></div>';
+  if (!g.sampled) return '<div class="card" id="gpu-timeline"><h2>GPU over the run</h2><p class="muted">Not sampled (' + esc(g.reason) + ').</p></div>';
   if (GPU_RES !== res) { GPU_RES = res; GPUZ = null; }
   var x0 = GPUZ ? GPUZ.from : 0, x1 = GPUZ ? GPUZ.to : (g.t_max || 1), mk = g.markers;
   var bands = g.windows.map(function (w) { return { from: w.from_s, to: w.to_s, color: modelColor(w.model), cls: "win", label: short(w.model) }; })
@@ -1780,7 +1780,7 @@ function drawFlows() {
 function flowDetail() {
   var d = FLOWS.data, f = FLOWS.open && d.flows.filter(function (x) { return x.scenario_id === FLOWS.open; })[0];
   if (!f) return "";
-  return '<div class="flow-detail"><h3>Flow ' + esc(f.scenario_id) + (f.truth ? ' <span class="muted small">true class: ' + esc(f.truth) + '</span>' : "") +
+  return '<div class="flow-detail"><h3>Flow ' + esc(f.scenario_id) + (f.truth ? ' <span class="muted small">true class ' + esc(f.truth) + '</span>' : "") +
     (f.ids_score != null ? ' <span class="muted small">IDS score ' + fmtNum(f.ids_score, 3) + '</span>' : "") + '</h3><div class="flow-cols">' +
     d.models.map(function (m) {
       var pm = f.per_model[m];

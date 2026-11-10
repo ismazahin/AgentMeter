@@ -222,7 +222,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     const st = await workerJson('/api/sessions/' + job1, (await loginApi('admin', 'admin-password-123')).access_token);
     log(st.status === 'Demo' && st.has_results && st.owner === 'alice', 'stored in the control plane: status Demo, results, owner alice');
     await p.click('#stab-ranking'); await p.click('#ssub-weighting'); await p.waitForSelector('#svc-weights-used');
-    log(/The score uses:/.test(await p.textContent('#svc-weights-used')) && !/accuracy \d/.test(await p.textContent('#svc-weights-used')), 'Model Ranking › Weighting shows the efficiency-only SAW weights');
+    log(/The score uses /.test(await p.textContent('#svc-weights-used')) && !/accuracy \d/.test(await p.textContent('#svc-weights-used')), 'Model Ranking › Weighting shows the efficiency-only SAW weights');
     await p.selectOption('#svc-preset', '0');
     log(/speed first/.test(await p.textContent('#svc-preset-weights')) && await p.$$eval('#svc-preset-table tbody tr', r => r.length) === 2,
         'a preset re-ranks in the view only, naming its weights');

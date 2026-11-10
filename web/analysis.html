@@ -88,6 +88,7 @@
     --warn: #8a4a12; --warn-bg: #fbeee0; --warn-line: #e08a3c;
     --radius: 6px; --radius-lg: 8px;
     --nav-h: 40px;
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
     --page: #0B1222; --band: #0E172B; --panel: #111B31; --panel-2: #17233D;
@@ -108,6 +109,7 @@
     --sample: #f6d27a; --sample-bg: #2a220b; --sample-line: #5f4c17;
     --loaded: #6fe0cf; --loaded-bg: #0f2e2a; --loaded-line: #1f6156;
     --warn: #f0c088; --warn-bg: #352514; --warn-line: #a4652a;
+    color-scheme: dark;
   } }
   :root[data-theme="dark"] {
     --page: #0B1222; --band: #0E172B; --panel: #111B31; --panel-2: #17233D;
@@ -128,6 +130,7 @@
     --sample: #f6d27a; --sample-bg: #2a220b; --sample-line: #5f4c17;
     --loaded: #6fe0cf; --loaded-bg: #0f2e2a; --loaded-line: #1f6156;
     --warn: #f0c088; --warn-bg: #352514; --warn-line: #a4652a;
+    color-scheme: dark;
   }
 
   /* ---------------- base ---------------- */
@@ -300,6 +303,24 @@
     background: var(--panel-2); border: 1px solid var(--line); border-left: 3px solid var(--ink); border-radius: var(--radius);
   }
   .ds-caveat { margin-top: 12px; padding: 0 0 0 16px; border-left: 3px solid var(--critical); font-size: 13px; font-weight: 500; color: var(--ink); }
+  /* decision support, explained: a points ledger, a per-step breakdown, numbered next steps */
+  .ds-detail:empty { display: none; }
+  .ds-detail { margin-top: 24px; display: grid; gap: 24px; }
+  .ds-detail h3 { margin: 0 0 4px; font: 600 14px/1.4 var(--sans); color: var(--ink); }
+  .ds-detail .ds-lede { margin: 0 0 12px; font-size: 13.5px; line-height: 1.6; color: var(--ink-2); max-width: 78ch; }
+  .ds-detail table { margin: 0; }
+  .ds-detail td.l { white-space: normal; }
+  .ds-detail td.why { font: 12.5px/1.5 var(--sans); color: var(--muted); white-space: normal; text-align: left; min-width: 220px; }
+  .ds-meter { display: flex; align-items: center; gap: 10px; min-width: 170px; }
+  .ds-meter .trk { position: relative; flex: 1; height: 8px; background: var(--chip-2); border-radius: 2px; overflow: hidden; }
+  .ds-meter .trk > i { position: absolute; inset: 0 auto 0 0; background: var(--series-a); border-radius: 2px; }
+  .ds-meter .trk > i.warm { background: var(--series-b); }
+  .ds-meter b { font: 600 12.5px/1 var(--mono); color: var(--ink); min-width: 46px; text-align: right; }
+  .ds-steps { margin: 0; padding: 0; list-style: none; counter-reset: dsstep; display: grid; gap: 12px; }
+  .ds-steps li { counter-increment: dsstep; display: grid; grid-template-columns: 28px 1fr; gap: 12px; font-size: 13.5px; line-height: 1.6; color: var(--ink-2); max-width: 86ch; }
+  .ds-steps li::before { content: counter(dsstep); display: grid; place-items: center; width: 24px; height: 24px; font: 600 12px/1 var(--sans); color: var(--ink); background: var(--chip); border: 1px solid var(--line-strong); border-radius: 50%; }
+  .ds-steps li b { color: var(--ink); font-weight: 600; }
+  .ds-steps li .est { display: block; margin-top: 2px; font-size: 12.5px; color: var(--muted); }
   .crud-h3 { margin: 0 0 12px; font: 600 14px/1.4 var(--sans); }
   .crud-h3 .hint, h3 .hint { font-weight: 400; font-size: 12px; color: var(--muted); }
 
@@ -657,17 +678,21 @@
   html.embed body { --sans: "Inter", "Aptos", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
                     --serif: Georgia, "Times New Roman", serif; }
   html.embed[data-theme="dark"] {
-    --page: #101418; --band: #101418; --panel: #161B20; --panel-2: #1D2329; --chip: #1D2329; --chip-2: #2A3138;
-    --ink: #E9E7E1; --ink-2: #C3C8CC; --muted: #98A1A8; --line: #2A3138; --line-strong: #3A434C;
-    --inv: #7D9CF5; --inv-ink: #0D1420; --inv-hover: #9DB4F8; --brand: #9DB4F8; --brand-hover: #B5C7FA; --plum: #E9E7E1;
-    --series-a: #7D9CF5; --series-b: #E58A62;
+    /* the app's navy dark palette (app.html :root[data-theme="dark"]), so embedded parts blend in */
+    --page: #0B1222; --band: #0B1222; --panel: #111B31; --panel-2: #17233D; --chip: #17233D; --chip-2: #22304D;
+    --ink: #E8ECF5; --ink-2: #C7CFDF; --muted: #9AA6BE; --line: #22304D; --line-strong: #33456A;
+    --inv: #7FA3F5; --inv-ink: #0B1222; --inv-hover: #9DB8F8; --brand: #9DB8F8; --brand-hover: #B5C7FA; --plum: #E8ECF5;
+    --series-a: #7FA3F5; --series-b: #F59A5A;
+    color-scheme: dark;
     --loaded: #6CC3A0; --loaded-bg: #14291F; --loaded-line: #2B5F4A;
   }
   html.embed[data-theme="light"] {
-    --page: #F4F2EC; --band: #F4F2EC; --panel: #FBFAF7; --panel-2: #ECEBE4; --chip: #ECEBE4; --chip-2: #DEDCD3;
-    --ink: #17232C; --ink-2: #3E4A53; --muted: #647078; --line: #D8D7CF; --line-strong: #C4C2B8;
-    --inv: #2455D6; --inv-ink: #FFFFFF; --inv-hover: #183FAE; --brand: #2455D6; --brand-hover: #183FAE; --plum: #17232C;
-    --series-a: #2455D6; --series-b: #C65C34;
+    /* the app's light palette (app.html :root) */
+    --page: #F4F6FB; --band: #F4F6FB; --panel: #FFFFFF; --panel-2: #E9EDF6; --chip: #E9EDF6; --chip-2: #D6DDEB;
+    --ink: #0F1B33; --ink-2: #333F55; --muted: #5A657A; --line: #D6DDEB; --line-strong: #B7C2D8;
+    --inv: #1E4BB8; --inv-ink: #FFFFFF; --inv-hover: #163A91; --brand: #1E4BB8; --brand-hover: #163A91; --plum: #0F1B33;
+    --series-a: #1E4BB8; --series-b: #E8742A;
+    color-scheme: light;
     --loaded: #2D6D56; --loaded-bg: #DFECE5; --loaded-line: #8FC3AE;
   }
   .site-foot li, .site-foot li button { font: 400 13px/1.5 var(--sans); color: inherit; }
@@ -795,9 +820,10 @@
   <h2 class="section-label">Decision support</h2>
   <p class="section-desc">What to do with this result. There is a plain-language recommendation, a what-if filter against your own limits, and where the resource cost sits.</p>
   <div class="panel">
-    <h2>Deployment recommendation <span class="hint">what to do with this result, in plain language (updates live with the weights below)</span><span class="help"><button class="help-btn" type="button" data-help="ds-rec" aria-label="What is this?">?</button></span></h2>
+    <h2>Deployment recommendation <span class="hint">what to do with this result, why the score is what it is, and what to check before deploying (updates live with the weights below)</span><span class="help"><button class="help-btn" type="button" data-help="ds-rec" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="ds-rec-headline"></p>
     <p class="note ds-caveat" id="ds-rec-caveat"></p>
+    <div class="ds-detail" id="ds-rec-detail"></div>
   </div>
 
   <div class="panel">
@@ -814,8 +840,9 @@
   </div>
 
   <div class="panel">
-    <h2>Optimisation guidance <span class="hint">where resource cost concentrates and how to reduce it (resource cost only)</span><span class="help"><button class="help-btn" type="button" data-help="ds-optim" aria-label="What is this?">?</button></span></h2>
+    <h2>Optimisation guidance <span class="hint">where each pipeline step spends time and memory, and what each change would save (resource cost only)</span><span class="help"><button class="help-btn" type="button" data-help="ds-optim" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="ds-optim"></p>
+    <div class="ds-detail" id="ds-optim-detail"></div>
   </div>
 
   <h2 class="section-label">Model context &amp; weights</h2>
@@ -2538,12 +2565,136 @@
     // Session analysis: lead with the session's MEASURED head-to-head verdict (the same
     // sentence as the service results and PDF), never a SAW rank-1 picked inside a tie.
     if (state.session && d.relative_comparison) {
-      if (h) h.textContent = d.relative_comparison.verdict;
-      if (c) c.textContent = "Session analysis (non-validated), measured on this session's flows and GPU. " +
-        "See the stage-3 recommendation at the top for external model context.";
+      if (h) h.textContent = window.INSIGHTS ? INSIGHTS.plainText(d.relative_comparison.verdict, (d.per_model || []).map(function (m) { return m.model; })) : d.relative_comparison.verdict;
+      if (c) c.textContent = "This reading comes from this session's flows and GPU only. It is not the validated study, " +
+        "so run it again on more flows before relying on a small gap.";
     }
     var o = document.getElementById("ds-optim");
     if (o) o.textContent = REPORT.optimisationHint(d, rec.top).text;
+    renderRecDetail(d, ranked, rec.top);
+    renderOptimDetail(d, rec.top);
+  }
+
+  // ---- Deployment recommendation, explained: where the score comes from and what to check ----
+  var DS_CRIT = {
+    accuracy: { name: "Accuracy", raw: "accuracy_pct", tgt: "accuracy_pct", higher: true,
+                fmt: function (v) { return fmtPct(v); } },
+    latency:  { name: "Speed (latency per flow)", low: "speed", raw: "latency_s", tgt: "latency_s",
+                fmt: function (v) { return dsTime(v); } },
+    vram:     { name: "GPU memory", low: "GPU memory", raw: "vram_mb", tgt: "vram_mb", fmt: function (v) { return fmtGB(v); } },
+    tokens:   { name: "Tokens per flow", low: "tokens", raw: "tokens_total", tgt: "tokens_total", fmt: function (v) { return fmtInt(v); } }
+  };
+  DS_CRIT.accuracy.low = "accuracy";
+  function dsTime(v) { v = +v; return v < 0.001 ? "under 1 ms" : v < 1 ? Math.round(v * 1000) + " ms" : v.toFixed(2) + " s"; }
+  function dsRow(list, model) { return (list || []).filter(function (r) { return r.model === model; })[0] || null; }
+  function dsTimes(x) { return x >= 10 ? Math.round(x) + " times" : (+x).toFixed(1) + " times"; }
+  function dsGpuSize(mb) {
+    var need = mb * 1.2 / 1024, sizes = [8, 12, 16, 24, 40, 48, 80];
+    for (var i = 0; i < sizes.length; i++) if (sizes[i] >= need) return sizes[i];
+    return null;
+  }
+  function renderRecDetail(d, ranked, top) {
+    var box = document.getElementById("ds-rec-detail"); if (!box) return;
+    var p8 = d.phase8 || {}, raw = dsRow(p8.saw_table || p8.raw_criteria, top), nrm = dsRow(p8.normalised, top);
+    if (!top || !raw || !nrm) { box.innerHTML = ""; return; }
+    var w = SAW.normalizeWeights(state.weights), t = p8.targets || {}, tiers = p8.tiers || { healthy_min: 80, degraded_min: 60 };
+    var name = shortModel(top), keys = CRIT.filter(function (k) { return w[k] > 0; });
+    var rows = keys.map(function (k) {
+      var c = DS_CRIT[k], v = raw[c.raw], tg = t[c.tgt], n = +nrm[k] || 0;
+      var max = 100 * w[k], pts = max * n, why;
+      if (v == null || isNaN(v)) why = "Not measured in this run, so it adds nothing.";
+      else if (n >= 0.999) why = c.higher ? "At or above the target, full points." : "Within the target, full points.";
+      else if (c.higher) why = "Below the " + c.fmt(tg) + " target.";
+      else why = dsTimes(v / tg) + " the " + c.fmt(tg) + " target, so it keeps " + Math.round(100 * n) + "% of its points.";
+      var miss = v == null || isNaN(v);
+      return { k: k, c: c, v: miss ? null : v, tg: tg, n: n, max: max, pts: pts, lost: miss ? 0 : max - pts, miss: miss, why: why };
+    });
+    var score = rows.reduce(function (s, r) { return s + r.pts; }, 0), missing = rows.filter(function (r) { return r.miss; });
+    var tier = SAW.tierOf(score, tiers), worst = rows.slice().sort(function (a, b) { return b.lost - a.lost; })[0];
+    var next = tier === "Critical" ? { name: "Degraded", at: tiers.degraded_min } : tier === "Degraded" ? { name: "Healthy", at: tiers.healthy_min } : null;
+    var lede = esc(name) + " earns <b>" + score.toFixed(1) + " of 100 points</b>, which puts it in the " + tier + " tier. " +
+      (next ? "It needs " + next.at + " to reach " + next.name + ", " + (next.at - score).toFixed(1) + " more. " : "") +
+      (worst && worst.lost > 0.5 ? "Most points are lost on " + worst.c.low + " (" + worst.lost.toFixed(1) + " of its " + worst.max.toFixed(1) + "). " : "") +
+      (missing.length ? missing.map(function (r) { return r.c.name; }).join(" and ") + " was not measured in this run, so its " +
+        missing.reduce(function (s, r) { return s + r.max; }, 0).toFixed(1) + " points are missing rather than lost." : "");
+    var ledger = "<table><thead><tr><th class='l'>Criterion</th><th>Weight</th><th>Measured</th><th>Target</th><th class='l'>Points earned</th><th class='l'>Why</th></tr></thead><tbody>" +
+      rows.map(function (r) {
+        var share = r.max ? 100 * r.pts / r.max : 0;
+        return "<tr><td class='l" + (r === worst && r.lost > 0.5 ? " hot" : "") + "'>" + esc(r.c.name) + "</td><td>" + Math.round(100 * w[r.k]) + "%</td>" +
+          "<td>" + (r.v == null ? "—" : esc(r.c.fmt(r.v))) + "</td><td>" + (r.tg == null ? "—" : esc(r.c.fmt(r.tg))) + "</td>" +
+          "<td class='l'><span class='ds-meter'><span class='trk'><i style='width:" + share.toFixed(1) + "%'></i></span><b>" + r.pts.toFixed(1) + "</b></span>" +
+          "<span class='sr-only'> of " + r.max.toFixed(1) + " points</span></td><td class='why'>" + esc(r.why) + "</td></tr>";
+      }).join("") + "</tbody></table>";
+    // what to check before deploying, each grounded in one measured number
+    var steps = [], lat = raw.latency_s, mem = raw.total_device_vram_mb || raw.vram_mb, tok = raw.tokens_total;
+    if (lat >= 0.05) steps.push("<b>Check it keeps up with your alert volume.</b> At " + dsTime(lat) + " per flow, one GPU answers about " +
+      fmtInt(86400 / lat) + " flows a day, one at a time. If your network raises more alerts than that, plan for more GPUs or a faster model.");
+    if (mem > 0) { var g = dsGpuSize(mem);
+      steps.push("<b>Pick a GPU with enough memory.</b> It needed " + fmtGB(mem) + " at its peak" +
+        (g ? ", so a GPU with " + g + " GB or more leaves room for longer prompts." : ", more than a single common GPU offers.")); }
+    if (tok > 0 && t.tokens_total) steps.push("<b>Expect about " + fmtInt(tok) + " tokens per flow.</b> " +
+      (tok > t.tokens_total ? "That is " + dsTimes(tok / t.tokens_total) + " the " + fmtInt(t.tokens_total) + " target, and shorter agent answers lower both time and tokens. Optimisation guidance below shows where."
+                            : "That is within the " + fmtInt(t.tokens_total) + " target."));
+    if (w.accuracy > 0 && raw.accuracy_pct != null && t.accuracy_pct != null && raw.accuracy_pct < t.accuracy_pct)
+      steps.push("<b>Keep an analyst in the loop.</b> Its accuracy is " + fmtPct(raw.accuracy_pct) + ", below the " + fmtPct(t.accuracy_pct) +
+        " target, so treat its labels as triage hints rather than final decisions.");
+    if (ranked && ranked.length > 1) { var r2 = ranked[1], gap = 100 * (ranked[0].composite - r2.composite);
+      steps.push(gap < 0.05
+        ? "<b>Treat it as a tie.</b> " + esc(shortModel(r2.model)) + " has the same " + (100 * r2.composite).toFixed(1) + " points, so either is a fair starting point. Decide on the measures you care about most, such as speed or valid answers."
+        : "<b>" + (gap < 3 ? "Treat the lead as narrow." : "Compare it with the runner-up.") + "</b> " + esc(shortModel(r2.model)) + " is next with " +
+          (100 * r2.composite).toFixed(1) + " points, " + gap.toFixed(1) + " behind." + (gap < 3 ? " A gap this small can flip with other weights, so check the Robustness view." : "")); }
+    steps.push("<b>Test it against your own limits.</b> Enter your latency, memory and token limits in the What-if constraint filter to see whether it passes, without a new run.");
+    box.innerHTML = "<div><h3>Where the score comes from</h3><p class='ds-lede'>" + lede + "</p>" + ledger + "</div>" +
+      "<div><h3>Before you deploy it</h3><ol class='ds-steps'>" + steps.map(function (s) { return "<li><span>" + s + "</span></li>"; }).join("") + "</ol></div>";
+  }
+
+  // ---- Optimisation guidance, explained: each step's cost, then each change with what it would save ----
+  function dsAgent(a) { a = String(a || ""); return a.charAt(0).toUpperCase() + a.slice(1); }
+  function renderOptimDetail(d, top) {
+    var box = document.getElementById("ds-optim-detail"); if (!box) return;
+    var all = ((d.per_agent || {}).table || []).filter(function (r) { return r.model === top; });
+    if (!top || !all.length) { box.innerHTML = ""; return; }
+    var p8 = d.phase8 || {}, raw = dsRow(p8.saw_table || p8.raw_criteria, top) || {};
+    var num = function (v) { return v == null || isNaN(v) ? null : +v; };
+    var sumWall = all.reduce(function (s, r) { return s + (num(r.mean_wall_s) || 0); }, 0);
+    var flow = num(raw.latency_s) || sumWall;
+    var hasMem = all.some(function (r) { return num(r.mean_vram_delta_mb) != null; });
+    var slow = all.slice().sort(function (a, b) { return (num(b.mean_wall_s) || 0) - (num(a.mean_wall_s) || 0); })[0];
+    var heavy = hasMem ? all.slice().sort(function (a, b) { return (num(b.mean_vram_delta_mb) || 0) - (num(a.mean_vram_delta_mb) || 0); })[0] : null;
+    var maxWall = num(slow.mean_wall_s) || 1;
+    var hasTtft = all.some(function (r) { return num(r.mean_ttft_s) != null; });
+    var table = "<table><thead><tr><th class='l'>Step</th><th class='l'>Time per flow</th><th>Share</th>" + (hasTtft ? "<th>Reading the prompt</th>" : "") + "<th>Prompt tokens</th><th>Answer tokens</th>" +
+      (hasMem ? "<th>Working memory</th>" : "") + "</tr></thead><tbody>" +
+      all.map(function (r) {
+        var wall = num(r.mean_wall_s) || 0, ttft = num(r.mean_ttft_s), mem = num(r.mean_vram_delta_mb);
+        return "<tr><td class='l" + (r === slow ? " hot" : "") + "'>" + esc(dsAgent(r.agent_name)) + "</td>" +
+          "<td class='l'><span class='ds-meter'><span class='trk'><i" + (r === slow ? " class='warm'" : "") + " style='width:" + (100 * wall / maxWall).toFixed(1) + "%'></i></span><b>" + dsTime(wall) + "</b></span></td>" +
+          "<td>" + (flow ? Math.round(100 * wall / flow) + "%" : "—") + "</td>" +
+          (hasTtft ? "<td>" + (ttft == null ? "—" : dsTime(ttft)) + "</td>" : "") + "<td>" + fmtInt(r.mean_input_tokens) + "</td><td>" + fmtInt(r.mean_output_tokens) + "</td>" +
+          (hasMem ? "<td" + (r === heavy ? " class='hot'" : "") + ">" + (mem == null ? "—" : fmtInt(mem) + " MB") + "</td>" : "") + "</tr>";
+      }).join("") + "</tbody></table>";
+    var steps = [], sw = num(slow.mean_wall_s) || 0, st = num(slow.mean_ttft_s) || 0, so = num(slow.mean_output_tokens) || 0;
+    var perTok = so > 0 ? Math.max(0, sw - st) / so : null;
+    if (perTok && so >= 20 && (so - Math.round(so * 0.75)) * perTok >= 0.01) { var cut = Math.round(so * 0.75), save = (so - cut) * perTok;
+      steps.push("<b>Shorten the " + esc(dsAgent(slow.agent_name)) + " step's answer.</b> It writes about " + fmtInt(so) + " tokens per flow and spends about " +
+        (perTok * 1000).toFixed(1) + " ms on each one. Capping its answer at " + fmtInt(cut) + " tokens (its max_new_tokens) or asking for a shorter answer in its instructions would save about " +
+        dsTime(save) + " per flow" + (flow ? ", " + (100 * save / flow).toFixed(1) + "% of the " + dsTime(flow) + " total" : "") + "." +
+        "<span class='est'>Estimate, assuming answer time grows in line with answer length. Check Output Reliability afterwards, because answers cut off at the budget can become unusable.</span>"); }
+    var reader = all.slice().sort(function (a, b) { return (num(b.mean_ttft_s) || 0) - (num(a.mean_ttft_s) || 0); })[0], rt = num(reader.mean_ttft_s) || 0, rw = num(reader.mean_wall_s) || 0;
+    if (rt > 0 && rw > 0 && rt / rw >= 0.1)
+      steps.push("<b>Send the " + esc(dsAgent(reader.agent_name)) + " step a shorter prompt.</b> It spends " + dsTime(rt) + " reading its " + fmtInt(reader.mean_input_tokens) +
+        "-token prompt before it writes anything, " + Math.round(100 * rt / rw) + "% of its time. Fewer flow features, or a shorter hand-off from earlier steps, cuts this part." +
+        "<span class='est'>Reading time grows with prompt length, so halving the prompt roughly halves this part.</span>");
+    if (heavy && num(heavy.mean_vram_delta_mb) > 0)
+      steps.push("<b>Watch the " + esc(dsAgent(heavy.agent_name)) + " step if memory is tight.</b> It adds " + fmtInt(heavy.mean_vram_delta_mb) + " MB of working memory on top of the model weights, the most of any step" +
+        ((raw.total_device_vram_mb || raw.vram_mb) ? ", within a " + fmtGB(raw.total_device_vram_mb || raw.vram_mb) + " peak" : "") + ". Working memory grows with prompt length, so a shorter prompt helps here too. It only matters when you are close to your GPU's memory limit.");
+    if (flow && sw / flow >= 0.3)
+      steps.push("<b>Consider a smaller model for that one step.</b> " + esc(dsAgent(slow.agent_name)) + " takes " + Math.round(100 * sw / flow) +
+        "% of every flow, so a faster model there would cut the most time. Its answers may change, so run the benchmark again to measure both speed and output validity.");
+    steps.push("<b>Measure the change.</b> Build the adjusted pipeline under New benchmark (Build my own) and run it on the same prepared set. The new session compares like for like with this one. None of these suggestions changes a stored score.");
+    box.innerHTML = "<div><h3>Where each step spends its time</h3><p class='ds-lede'>Mean per flow for " + esc(shortModel(top)) + ". The " + esc(dsAgent(slow.agent_name)) + " step takes the longest" +
+      (heavy ? ", and " + esc(dsAgent(heavy.agent_name)) + " needs the most working memory" : "") + (heavy && heavy !== slow ? ". Both are highlighted.</p>" : ". It is highlighted.</p>") + table + "</div>" +
+      "<div><h3>What you can change, and what it would save</h3><ol class='ds-steps'>" + steps.map(function (s) { return "<li><span>" + s + "</span></li>"; }).join("") + "</ol></div>";
   }
 
   function cfNum(id) {
@@ -2690,7 +2841,7 @@
       (moves.length ? "Order changed. " + moves.join(". ") + "." : "Same order as the stored weights.") +
       (tied.length > 1 ? " Top place is a tie (" + tied.map(function (r) { return shortModel(r.model); }).join(", ") +
         " within 0.05 points), so with these weights the score cannot separate them."
-        : " Top model now: " + shortModel(top.model) + (baseTop && baseTop !== top.model ? " (stored weights: " + shortModel(baseTop) + ")." : " (unchanged)."));
+        : " The top model is now " + shortModel(top.model) + (baseTop && baseTop !== top.model ? " (with the stored weights it was " + shortModel(baseTop) + ")." : " (unchanged)."));
   }
 
   function setWeights(w) {
@@ -3073,7 +3224,7 @@
 
     var top = classes[maxIdx];
     noteEl.textContent = "Resource cost per attack class for " + model + ". The highest " +
-      (PC_METRIC_LABEL[metric] || metric) + " on the " + (top || "—") +
+      (PC_METRIC_LABEL[metric] || metric) + " is on the " + (top || "—") +
       " class. This shows WHERE resource cost concentrates by class, and accuracy is shown as plain context, not a ranking.";
   }
 
@@ -3174,8 +3325,8 @@
     var lat = pts.filter(function (p) { return p.pareto_latency; }).map(function (p) { return shortModel(p.model); });
     var tok = pts.filter(function (p) { return p.pareto_tokens; }).map(function (p) { return shortModel(p.model); });
     document.getElementById("pareto-note").textContent =
-      "Non-dominated (Pareto-optimal) for accuracy vs latency: " + (lat.join(", ") || "none") +
-      ". For accuracy vs tokens: " + (tok.join(", ") || "none") +
+      "Non-dominated (Pareto-optimal) for accuracy vs latency are " + (lat.join(", ") || "none") +
+      ". For accuracy vs tokens they are " + (tok.join(", ") || "none") +
       ". Dark-ringed dots joined by the dotted line mark the front (higher accuracy, lower cost).";
   }
 

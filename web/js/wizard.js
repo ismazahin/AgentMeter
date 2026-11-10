@@ -640,9 +640,9 @@ function renderExtras(cat) {
   var why = (cat.extra || []).filter(function (x) { return !x.available; }).map(function (x) {
     var r = x.unavailable_reason || (x.status === "unknown" ? "model info unavailable" : "not suitable");
     var n = (x.reasons || []).filter(function (y) { return y.outcome === (x.status === "blocked" ? "block" : "warn"); })[0];
-    return x.id.split("/").pop() + ": " + r + (n && (x.status === "warning" || x.status === "blocked") ? " — " + n.note.replace(/\.$/, "") : "");
+    return x.id.split("/").pop() + " (" + r + (n && (x.status === "warning" || x.status === "blocked") ? ", " + n.note.replace(/\.$/, "") : "") + ")";
   });
-  $("svc-extra-note").textContent = others ? others + " more listed model" + (others === 1 ? " is" : "s are") + " not available here: " + why.join("; ") + "." : "";
+  $("svc-extra-note").textContent = others ? others + " more listed model" + (others === 1 ? " is" : "s are") + " not available here, " + (why.length < 2 ? why.join("") : why.slice(0, -1).join(", ") + " and " + why[why.length - 1]) + "." : "";
   var defs = (SETTINGS && SETTINGS.default_models) || [];
   box.querySelectorAll("input").forEach(function (inp) {
     if (defs.indexOf(inp.value) >= 0 && !inp.dataset.locked && picked().length < ((CONFIG && CONFIG.max_models) || 2)) { inp.checked = true; det.open = true; }
@@ -1087,7 +1087,7 @@ function startTelemetry(host, id) {
       '<div class="tel-agents">' + (f.agents || []).map(function (a) {
         return '<div class="tel-agent"><span class="small">' + esc(agName(a.agent)) + '</span><span class="track" aria-hidden="true"><span class="fill" style="width:' + Math.max(2, 100 * (a.s || 0) / max) + '%;background:' + agColor(a.agent) + '"></span></span>' +
           '<span class="small mono">' + fmtTime(a.s) + ', ' + fmtNum((a.in || 0) + (a.out || 0)) + ' tok</span></div>';
-      }).join("") + '</div><p class="small muted" style="margin:6px 0 0">Last ' + mine.length + ' flow' + (mine.length === 1 ? "" : "s") + ' of this model: ' +
+      }).join("") + '</div><p class="small muted" style="margin:6px 0 0">Last ' + mine.length + ' flow' + (mine.length === 1 ? "" : "s") + ' of this model took on average ' +
       fmtTime(secs / (mine.length || 1)) + ' per flow' + (secs > 0 ? ', ' + fmtNum(outTok / secs, 1) + ' output tokens/s' : "") + '.</p>';
   }
   function renderLog(fresh) {

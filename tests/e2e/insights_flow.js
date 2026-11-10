@@ -183,9 +183,9 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     await p.mouse.move(tb.x + tb.width * 0.5, tb.y + tb.height * 0.5);
     log(/flow \d+: .*rolling median/.test(await p.textContent('.tip-pop').catch(() => '')), 'latency over the run: crosshair shows the flow, its time and the rolling median');
     await tab(p, csv, 'cost', '#gpu-timeline');
-    log(/Not sampled: mock\/CPU run/.test(await p.textContent('#gpu-timeline')), 'GPU over the run (mock): says it was not sampled and why');
+    log(/Not sampled \(mock\/CPU run/.test(await p.textContent('#gpu-timeline')), 'GPU over the run (mock): says it was not sampled and why');
     await tab(p, csv, 'performance/gpu', '#load-card');
-    log(/Not measured in this session/.test(await p.textContent('#load-card')), 'load scaling: not measured unless asked for');
+    log(/so it was not measured|Not measured in this session/.test(await p.textContent('#load-card')), 'load scaling: not measured unless asked for');
     await tab(p, csv, 'performance/statistics', '#svc-repeat');
     log(/No other session ran on these flows/.test(await p.textContent('#svc-repeat')), 'repeatability: no other run yet, offers to benchmark the flows again');
     // run the same flows again, this time with load scaling

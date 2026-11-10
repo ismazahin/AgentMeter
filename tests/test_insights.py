@@ -83,11 +83,11 @@ def test_criteria_profile_flags_missing_criteria_and_strips_mock_prefix():
 def test_key_findings_restate_stored_numbers():
     f = {x["key"]: x["text"] for x in call("keyFindings", SESSION)}
     # the biggest efficiency win (accuracy is excluded: context only)
-    assert f["gap"] == "Biggest measured gap: model-b is 30% better on tokens per flow (p = 0.20)."
+    assert f["gap"] == "The biggest measured gap is that model-b is 30% better on tokens per flow (p = 0.20)."
     # the widest p95 / median ratio: A 5/2 = 2.5x
-    assert f["tail"].startswith("Slowest 5% of flows: model-a takes 2.5× its median time")
+    assert f["tail"].startswith("On its slowest 5% of flows, model-a takes 2.5× its median time")
     assert "25% of all tokens for model-b" in f["overhead"]
-    assert f["cost"].startswith("Cheapest to run: model-a at $0.0200 per 1,000 flows ($0.0500 for model-b)")
+    assert f["cost"].startswith("The cheapest to run is model-a at $0.0200 per 1,000 flows ($0.0500 for model-b)")
     assert f["valid"] == "Output validity. model-b gave a usable answer for 95.0% of flows (2 without one). See Output Reliability."
     assert "accuracy" not in f and not any("ccura" in t for t in f.values())
 
@@ -104,7 +104,7 @@ def test_key_findings_merge_a_shared_slowest_step_and_report_ties():
     f = {x["key"]: x["text"] for x in out}
     assert f["gap"] == "No efficiency metric separates the models beyond the tie range."
     assert f["valid"] == "Output validity. Every model gave a usable answer for every flow."
-    assert f["cost"] == "Cost and energy were not measured in this run: mock run."
+    assert f["cost"] == "Cost and energy were not measured in this run (mock run)."
 
 
 def test_key_findings_skip_accuracy_when_unlabelled_and_handle_one_model():
@@ -366,9 +366,9 @@ def test_tab_summaries_restate_stored_numbers():
     s["per_model"][1]["saw"] = {"composite_100": 48.0}
     out = call("tabSummaries", s)
     r = out["ranking"]
-    assert r["h"] == "model-a ranks first on the efficiency score: 51.5 against 48.0."
+    assert r["h"] == "model-a ranks first on the efficiency score, 51.5 against 48.0."
     assert [(c["label"], c["value"], c["best"]) for c in r["chips"]] == [("model-a", "51.5", True), ("model-b", "48.0", False)]
-    assert out["performance"]["h"] == "model-a is the fastest: 12.5% quicker per flow."
+    assert out["performance"]["h"] == "model-a is the fastest, 12.5% quicker per flow."
     assert out["performance"]["s"] == "The gap is larger than chance (p = 0.010)."
     assert out["cost"]["h"] == "model-a is the cheapest: $0.0200 per 1,000 flows."
     assert "accuracy" not in out                                   # no confusion matrices in this fixture
@@ -379,7 +379,7 @@ def test_tab_summaries_restate_stored_numbers():
     assert out["ranking"]["h"] == "The two models tie on the efficiency score (51.5)."
     assert not any(c["best"] for c in out["ranking"]["chips"])
     assert out["performance"]["h"] == "The models are about equally fast."
-    assert out["performance"]["s"] == "The gap is small: within 5%."
+    assert out["performance"]["s"] == "The gap is small (within 5%)."
 
 
 def test_everyday_model_names():
@@ -594,10 +594,10 @@ def _report_session():
 
 def test_section_answers_restate_stored_numbers_in_plain_words():
     out = call("sectionAnswers", _report_session())
-    assert out["Did every flow get a usable answer?"].startswith("Not always: Qwen2.5 7B gave a usable answer for 90% of flows")
-    assert out["Where do answers fail?"] == "Qwen2.5 7B fails most: 20 answers empty, cut off or unreadable (15 hit the token budget)."
-    assert out["Do the explanations match the verdict?"] == "Mostly: at worst, Qwen2.5 7B's explanation names a different class in 10 of 200 flows."
-    assert out["How much GPU memory does it need?"] == "Mistral 7B needs the least: 4.9 GB at its peak; Qwen2.5 7B the most: 9.0 GB."
+    assert out["Did every flow get a usable answer?"].startswith("Not always. Qwen2.5 7B gave a usable answer for 90% of flows")
+    assert out["Where do answers fail?"] == "Qwen2.5 7B fails most, with 20 answers empty, cut off or unreadable (15 hit the token budget)."
+    assert out["Do the explanations match the verdict?"] == "Mostly. At worst, Qwen2.5 7B's explanation names a different class in 10 of 200 flows."
+    assert out["How much GPU memory does it need?"] == "Mistral 7B needs the least, 4.9 GB at its peak, and Qwen2.5 7B the most, 9.0 GB."
     assert out["What does it cost per 1,000 flows?"] == "Mistral 7B is cheapest at $0.12 per 1,000 flows; Qwen2.5 7B costs $0.20."
     assert out["How energy-efficient is each model?"] == "Mistral 7B does the most work per unit of energy: 2,000 flows per kWh."
     assert out["Which model is faster, and by how much?"] == "Mistral 7B is 33% faster per flow than Qwen2.5 7B."
@@ -625,11 +625,11 @@ def test_section_answers_skip_sections_without_data():
 def test_plain_text_translates_drift_notes_and_full_names():
     t = call("plainText", "Stable over the run: no significant trend (Spearman rho -0.24, p = 0.25; last/first quarter medians 0.91x). "
              "mock:" + REAL_A + " — ok", [REAL_A])
-    assert t == "Stable over the run: no trend beyond chance (p = 0.25; last quarter 0.91× the first). Mistral 7B: ok"
+    assert t == "Stable over the run, no trend beyond chance (p = 0.25, last quarter 0.91× the first). Mistral 7B, ok"
 
 
 def test_scorecard_answer_names_every_leader():
     s = _report_session()
     s["per_model"].append({"model": "microsoft/Phi-3-mini-4k-instruct", "efficiency": {"end_to_end": {"mean_latency_s": 2.05, "p95_latency_s": 3.05, "mean_tokens_per_flow": 800}}})
     out = call("sectionAnswers", s)["How do the models compare, criterion by criterion?"]
-    assert out == "Mistral 7B is best (or within 5% of it) on 5 of 6 measured criteria; Phi-3 mini on 3."
+    assert out == "Mistral 7B is best (or within 5% of it) on 5 of 6 measured criteria, and Phi-3 mini on 3."

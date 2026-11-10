@@ -2,3 +2,6 @@
 2026-11-10 | kept | session tab takeaways | hierarchy | A + C: large serif answer, one plain "why" sentence, models ranked with bars (best marked) | owner chose it over A, B (chips) and C alone, after first picking B
 2026-11-10 | rejected | session tab takeaways | hierarchy | B: answer in a box with per-model chips | owner changed their mind after seeing it built
 2026-11-10 | kept | explanations app-wide | copy | everyday model names in prose; plain statistics wording; no em dashes; card ledes 15px darker | owner asked for explanations that are easy to understand
+2026-11-10 | pending-review | embedded analysis panels | color | follow the app's navy dark / light tokens and declare color-scheme so the iframe never paints white | owner reported white boxes with unreadable text
+2026-11-10 | pending-review | deployment recommendation + optimisation guidance | hierarchy | one-line verdict kept, then a points ledger (measured vs target, bars), numbered "before you deploy" checks, a per-step time table and numbered changes with estimated savings | owner asked for more detailed elaboration
+2026-11-10 | pending-review | copy app-wide | copy | colons kept only for labels and error messages; sentence colons rewritten as full stops, commas or brackets | owner asked to minimise colons in sentences

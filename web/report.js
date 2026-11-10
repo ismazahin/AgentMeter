@@ -260,23 +260,25 @@
     var accTarget = (p8.targets && p8.targets.accuracy_pct != null) ? +p8.targets.accuracy_pct : 80;
     // LOCKED facts: every model sits in the Critical tier AND below the accuracy target.
     var allCritical = rows.every(function (r) { return (r.tier || "") === "Critical"; });
-    var headline = topModel
-      ? ("Based on your current priorities (" + priTxt + "), " + topModel +
-         " is the most resource-efficient choice.")
-      : "";
+    var one = rows.length === 1;
+    var headline = !topModel ? "" : one
+      ? (topModel + " is the only model in this run, so it is read on its own against your current priorities of " + priTxt + ".")
+      : ("Based on your current priorities of " + priTxt + ", " + topModel + " is the most resource-efficient choice.");
+    var subj = one ? topModel + " falls" : "All " + rows.length + " models fall";
+    var lead = one ? "" : (topModel ? (". " + topModel + " is the best resource-efficient starting point.") : ".");
     var caveat;
     // efficiency-only scores (accuracy weight 0: a benchmark session) speak of efficiency targets
     var effOnly = !(+w.accuracy > 0);
     if (allCritical && effOnly) {
-      caveat = "All " + rows.length + " models fall in the Critical tier on resource efficiency (below the " +
-        "study's latency, memory and token targets), so none meets them as-is" +
-        (topModel ? (". " + topModel + " is the best resource-efficient starting point.") : ".");
+      caveat = subj + " in the Critical tier on resource efficiency (below the " +
+        "study's latency, memory and token targets), so " + (one ? "it does not meet them as-is" : "none meets them as-is") +
+        (one ? "." : lead);
     } else if (allCritical) {
-      caveat = "All " + rows.length + " models fall in the Critical tier (accuracy below the " +
-        accTarget + "% target), so none is recommended for zero-shot deployment as-is" +
-        (topModel ? (". " + topModel + " is the best resource-efficient starting point.") : ".");
+      caveat = subj + " in the Critical tier (accuracy below the " +
+        accTarget + "% target), so " + (one ? "it is not recommended" : "none is recommended") + " for zero-shot deployment as-is" +
+        (one ? "." : lead);
     } else {
-      caveat = "This is decision support, not a deployment sign-off. Check each model's tier " +
+      caveat = "This is decision support, not a deployment sign-off. Check " + (one ? "its" : "each model's") + " tier " +
         (effOnly ? "against your own latency, memory and budget limits before deploying." : "and the accuracy target before deploying.");
     }
     return { headline: headline, caveat: caveat, top: topModel,

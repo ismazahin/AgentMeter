@@ -426,7 +426,7 @@ function renderDatasets() {
   var live = DS.rows.filter(function (g) { return !dsInfo(g).deleted; });
   var rows = live.filter(dsMatch), off = DS.offline && CP;
   if (!live.length) {
-    $("ds-body").innerHTML = '<div class="card empty" id="ds-empty"><h2>No data sets yet</h2><p>Upload a CSV or PCAP file on <a href="#/new">New benchmark</a>: it is prepared into a set of flows that every model then answers.</p></div>';
+    $("ds-body").innerHTML = '<div class="card empty" id="ds-empty"><h2>No data sets yet</h2><p>Upload a CSV or PCAP file on <a href="#/new">New benchmark</a>. It is prepared into a set of flows that every model then answers.</p></div>';
     return;
   }
   $("ds-body").innerHTML = (off ? '<p class="notice small" id="ds-offline">The GPU server is offline. Sets that have been benchmarked are listed, and sets prepared but not yet benchmarked appear when it is back.</p>' : "") +
@@ -539,7 +539,7 @@ function dsDelete(g) {
       var extra = g.names.filter(function (n) { return "name:" + n !== g.key; }).map(function (n) { return dsPost("delete", { key: "name:" + n, set: n }); });
       Promise.all([dsPost("delete", { key: g.key, set: g.name || null })].concat(extra)).then(function (rs) {
         if (!rs[0].ok) { alert((rs[0].data || {}).error || "Could not delete the data set."); return; }
-        if (failed) alert("The data set was removed, but the files of " + failed.name.split("/").pop() + " are still on the GPU server: " + (failed.error || "the server refused"));
+        if (failed) alert("The data set was removed, but the files of " + failed.name.split("/").pop() + " are still on the GPU server (" + (failed.error || "the server refused") + ").");
         if (DS.open === g.key) DS.open = null;
         datasetMeta(true).then(function (m) { DS.meta = m; renderDatasets(); });
       });

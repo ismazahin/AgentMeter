@@ -262,7 +262,112 @@ function showSessionTab(tab) {
   panel.querySelectorAll("[data-pane]").forEach(function (pn) { pn.hidden = pn.getAttribute("data-pane") !== (t.sub || "main"); });
   showEmbed(EMBED_PARTS[key] || null, t.tab);
   if (t.tab === "agents") loadFlows();
+  tocSpy(t.tab);
+  var want = (parseHash().q || {}).sec;                    // a link to a section: open it there
+  if (want) setTimeout(function () { tocGo(want, true); }, 60);
 }
+// ---------- report layout (2026-11-10): every subtab is a short report ----------
+// After a tab renders, each card becomes a section: its heading the question it answers, a plain
+// answer line when the results support one, then the card's own content. A contents list ("On this
+// page") follows the reader and remembers the section in the link (?sec=).
+var SECTION_Q = {
+  "Can it keep up?": "How many flows can one GPU handle?", "Cold start": "How much does the first flow cost?",
+  "Consistency of answers": "Are the answers consistent?", "Cost and energy": "What does it cost per 1,000 flows?",
+  "Cost per valid answer": "What does each usable answer cost?", "Criteria profile": "How does each model score on each criterion?",
+  "Deployment fit at a glance": "Which deployment setups does each model fit?", "Effect size and confidence": "How big is the difference?",
+  "Efficiency frontier": "Which models are never beaten on two costs at once?", "Energy efficiency": "How energy-efficient is each model?",
+  "Flow explorer": "Explore every flow", "GPU idle while running": "How much does an idle GPU cost?",
+  "GPU memory": "How much GPU memory does it need?", "GPU over the run": "What did the GPU do during the run?",
+  "Good to know": "Can these results be trusted?", "Hand-offs between agents": "What do agents pass to each other?",
+  "Head-to-head": "Which model is faster, and by how much?", "IDS → LLM triage": "How did the IDS and the LLM split the work?",
+  "Latency distribution": "How fast is each model?", "Latency over the run": "Does it slow down during the run?",
+  "Measured verdict": "Which model should I deploy?", "Model context": "What is known about these models?",
+  "Per model": "Each model at a glance", "Pipeline timeline for one flow": "One flow, step by step",
+  "Project to your workload": "What would my volume cost?", "Prompt size and latency": "Do bigger prompts make it slower?",
+  "SAW weights": "How much does each criterion count?", "Scorecard": "How do the models compare, criterion by criterion?",
+  "Time per agent by attack class": "Which attack classes take longest, agent by agent?", "Token budgets": "Are the token budgets right?",
+  "Triage": "What would an analyst have to do?", "Valid answers": "Did every flow get a usable answer?",
+  "Where answers fail": "Where do answers fail?", "What makes a flow slow?": "Which flows are slow, and why?",
+  "Which classes each model mixes up": "Which classes does each model mix up?", "What this would look like in a real SOC": "What would this look like in a real SOC?",
+  "Prepared set": "Which flows were used?", "Report and results": "Download the report and results",
+  "Since the last run on these flows": "What changed since the last run?", "Other pipelines on these flows": "How do other pipelines compare on these flows?",
+  "Best model for my priority": "Which model is best for my priority?", "What the prompts are made of": "What are the prompts made of?"
+};
+var EMBED_TITLE = { "ranking/scores": "Score tables in detail", "ranking/weighting": "Weights in detail", "ranking/guide": "Model notes, questions and glossary",
+  "performance/comparison": "Per attack class", "performance/latency": "How predictable is it, and where does the time go?",
+  "performance/gpu": "Throughput", "performance/statistics": "Statistical tests", "recommendations/guidance": "What to do next, and how to optimise" };
+function secSlug(s) { return "sec-" + String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48); }
+function reportify(tab, res) {
+  var panel = $("spanel-" + tab), answers = window.INSIGHTS ? INSIGHTS.sectionAnswers(res) : {}, summary = panel.querySelector(".takeaway");
+  var NAMES = {};                                     // a model's full or short name -> its full name
+  (res.per_model || []).forEach(function (m) { NAMES[m.model] = m.model; NAMES[short(m.model)] = m.model; if (m.db_label) NAMES[m.db_label] = m.model; });
+  if (summary) summary.id = "sec-summary-" + tab;
+  panel.querySelectorAll("[data-pane]").forEach(function (pn) {
+    var items = [], seen = {};
+    Array.prototype.slice.call(pn.children).filter(function (c) { return c.classList.contains("card") && c.querySelector("h2"); }).forEach(function (card) {
+      var h2 = card.querySelector("h2"), title = h2.textContent.trim(), q = SECTION_Q[title] || title, id = secSlug(q);
+      while (seen[id]) id += "-2";
+      seen[id] = true;
+      h2.textContent = q; card.id = card.id || id; card.classList.add("rsec");
+      var a = answers[q];
+      if (a && !card.querySelector(".rsec-a")) {
+        var p = document.createElement("p"); p.className = "rsec-a"; p.textContent = a;
+        (h2.parentNode === card ? h2 : h2.parentNode).insertAdjacentElement("afterend", p);
+      }
+      card.querySelectorAll("details.info > summary").forEach(function (s) {
+        if (/what each column means|what the columns mean|how this is (tested|measured)|how these are measured|definitions/i.test(s.textContent)) s.textContent = "How to read this";
+      });
+      // model names in tables and legends: the everyday name (full name on hover), so a narrow column stays readable
+      card.querySelectorAll("td.mono, td .mono, span.mono, b.mono, .lg-name, .hb-l").forEach(function (el) {
+        var full = NAMES[el.textContent.trim()];
+        if (!full) return;
+        var tn = null;                                // the name's text node (a legend may also hold a colour swatch)
+        el.childNodes.forEach(function (n) { if (n.nodeType === 3 && n.nodeValue.trim()) tn = n; });
+        if (!tn || el.querySelector("*:not(i)")) return;
+        el.title = full; tn.nodeValue = nick(full); el.classList.add("model-name");
+      });
+      items.push({ id: card.id, q: q });
+    });
+    var key = tab + "/" + pn.getAttribute("data-pane");
+    if (EMBED_PARTS[key]) items.push({ id: "embed-host", q: EMBED_TITLE[key] || "More detail" });
+    if (items.length < 2) return;
+    if (summary) items.unshift({ id: summary.id, q: "Summary" });
+    var body = document.createElement("div"); body.className = "report-body";
+    while (pn.firstChild) body.appendChild(pn.firstChild);
+    var nav = document.createElement("nav"); nav.className = "report-toc"; nav.setAttribute("aria-label", "On this page");
+    nav.innerHTML = '<p class="toc-k">On this page</p><ol>' + items.map(function (it) {
+      return '<li><a href="#" data-toc="' + esc(it.id) + '">' + esc(it.q) + '</a></li>';
+    }).join("") + '</ol>';
+    pn.classList.add("report"); pn.appendChild(nav); pn.appendChild(body);
+  });
+}
+// the section in view is marked in the visible pane's contents list
+var TOC_SPY = null;
+function tocSpy(tab) {
+  if (TOC_SPY) TOC_SPY.disconnect();
+  var pn = Array.prototype.filter.call($("spanel-" + tab).querySelectorAll("[data-pane].report"), function (x) { return !x.hidden; })[0];
+  if (!pn || !window.IntersectionObserver) return;
+  var links = pn.querySelectorAll("[data-toc]"), mark = function (id) {
+    links.forEach(function (l) { if (l.getAttribute("data-toc") === id) l.setAttribute("aria-current", "true"); else l.removeAttribute("aria-current"); });
+  };
+  TOC_SPY = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) mark(e.target.id); });
+  }, { rootMargin: "-15% 0px -70% 0px" });
+  links.forEach(function (l) { var el = document.getElementById(l.getAttribute("data-toc")); if (el) TOC_SPY.observe(el); });
+  if (links[0]) mark(links[0].getAttribute("data-toc"));
+}
+function tocGo(id, instant) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: instant || reduce ? "auto" : "smooth", block: "start" });
+  try { history.replaceState(null, "", location.hash.split("?")[0] + "?sec=" + encodeURIComponent(id)); } catch (e) { /* the link stays as it was */ }
+}
+document.addEventListener("click", function (ev) {
+  var a = ev.target.closest && ev.target.closest("[data-toc]");
+  if (!a) return;
+  ev.preventDefault(); tocGo(a.getAttribute("data-toc"));
+});
 function pane(name, html) { return '<div data-pane="' + name + '"' + (name === "main" ? "" : " hidden") + '>' + html + '</div>'; }
 // The takeaway at the top of a tab (A + C): the answer in large type, why it matters in a plain
 // sentence, then each model ranked with a bar (the best one marked). Bars are relative to the largest.
@@ -316,6 +421,7 @@ function renderSession(res, job) {
   $("spanel-cost").innerHTML = lead("cost") + pane("main", costCard(res) + energyEffCard(res) + gpuTimelineCard(res) + idleCard(res) + projectionCard(res) + priceCard(res) + correctCard(res));
   $("spanel-recommendations").innerHTML = lead("recommendations") + pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
   $("spanel-data").innerHTML = pane("main", downloadsTab(res, job));
+  ["overview", "ranking", "reliability", "performance", "agents", "cost", "recommendations", "data"].forEach(function (t) { reportify(t, res); });
   resetEmbed();
   wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); SAME_SETUP = {};       // fresh per render: a later session on these flows must show up
   wireRepeat(res, job); wireRepLine(job); wireNotes(job); wireSchedule(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePipelineCompare(job); wirePrices(res); wirePicker(res);

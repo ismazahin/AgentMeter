@@ -799,6 +799,30 @@
       .forEach(function (x) { t = t.split(x[0]).join(x[1]); });
     return t;
   }
+  // ---- Report sections: one plain answer line per section question (2026-11-10 report layout) ----
+  // Keyed by the section's question. Only where the stored results support one sentence; a section
+  // without an entry keeps its own introduction as its first line.
+  function sectionAnswers(res) {
+    var out = {}, sec = function (s) { return time(s); };
+    // Performance > Latency
+    var ld = ((res.latency_distribution || {}).per_model || []).filter(function (m) { return num(m.p50) != null; })
+      .sort(function (a, b) { return a.p50 - b.p50; });
+    if (ld.length) {
+      var f = ld[0], steady = ld.slice().sort(function (a, b) { return ((a.p95 || 0) / (a.p50 || 1)) - ((b.p95 || 0) / (b.p50 || 1)); })[0];
+      out["How fast is each model?"] = (ld.length > 1 ? nick(f.model) + " has the quickest typical flow: " : nick(f.model) + ": a typical flow takes ") + sec(f.p50) +
+        " and the slowest 5% stay under " + sec(f.p95) + "." + (ld.length > 1 && steady.model !== f.model ? " " + nick(steady.model) + " is the most predictable." : "");
+    }
+    var tr = ((res.latency_trend || {}).per_model || []).filter(function (m) { return m.drift && m.drift.tested; });
+    if (tr.length) {
+      var slow = tr.filter(function (m) { return m.drift.verdict === "slows_down"; }), fast = tr.filter(function (m) { return m.drift.verdict === "speeds_up"; });
+      out["Does it slow down during the run?"] = !slow.length && !fast.length ? (tr.length > 1 ? "No model" : "The model") + " slowed down or sped up: the last flows took as long as the first."
+        : slow.length ? slow.map(function (m) { return nick(m.model); }).join(" and ") + " slowed down: the last quarter of flows took " +
+            pct((slow[0].drift.ratio || 1) - 1, 0) + " longer than the first. Check the GPU temperature (Cost & Energy)."
+        : fast.map(function (m) { return nick(m.model); }).join(" and ") + " sped up after the first flows: a warm-up, not a problem.";
+    }
+    return out;
+  }
+
   // The takeaway at the top of each session tab: the answer in one short sentence (h), what it means (s),
   // and one chip per model with its number (the best one marked). Restates stored numbers only.
   function tabSummaries(res) {
@@ -1211,7 +1235,7 @@
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
               workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, energyEfficiency: energyEfficiency, priceCompare: priceCompare, idleCost: idleCost, recommend: recommend, removeAgent: removeAgent, budgetTuning: budgetTuning, pipelineCompare: pipelineCompare, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, runningAt: runningAt, repeatability: repeatability,
-              loadScaling: loadScaling, trends: trends, trendSeries: trendSeries, setupKey: setupKey, compareSetups: compareSetups, excludedFrom: excludedFrom, repeatSummary: repeatSummary, STABLE_WITHIN: STABLE_WITHIN, STABLE_BY: STABLE_BY, envChanges: envChanges, changeText: changeText, runStats: runStats, welch: welch, compareRuns: compareRuns, tTwoSided: tTwoSided, runEstimate: runEstimate, flowGuidance: flowGuidance, sampleSize: sampleSize, tabSummaries: tabSummaries, nick: nick, plainText: plainText };
+              loadScaling: loadScaling, trends: trends, trendSeries: trendSeries, setupKey: setupKey, compareSetups: compareSetups, excludedFrom: excludedFrom, repeatSummary: repeatSummary, STABLE_WITHIN: STABLE_WITHIN, STABLE_BY: STABLE_BY, envChanges: envChanges, changeText: changeText, runStats: runStats, welch: welch, compareRuns: compareRuns, tTwoSided: tTwoSided, runEstimate: runEstimate, flowGuidance: flowGuidance, sampleSize: sampleSize, tabSummaries: tabSummaries, nick: nick, plainText: plainText, sectionAnswers: sectionAnswers };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

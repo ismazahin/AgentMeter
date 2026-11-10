@@ -556,6 +556,25 @@
   .flow-agent { margin: 8px 0; }
   .flow-text { margin: 4px 0 0; padding: 8px 10px; background: var(--surface-2); border-radius: var(--radius); white-space: pre-wrap; overflow-wrap: anywhere; font: 12.5px/1.45 var(--mono, ui-monospace, monospace); max-height: 220px; overflow: auto; }
   .tab-summary { margin: 0 0 14px; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 var(--radius) var(--radius) 0; font-size: 14.5px; }
+  /* report layout (2026-11-10): sections with a question, an answer line, and an "On this page" list */
+  [data-pane].report { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .report-toc { order: -1; margin: 0 0 8px; }
+  .report-toc .toc-k { font: 700 11px/1 var(--font); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+  .report-toc ol { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; }
+  .report-toc a { display: block; white-space: nowrap; padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; font-size: 13.5px; color: var(--muted-2); text-decoration: none; }
+  .report-toc a[aria-current] { color: var(--text); border-color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+  @media (min-width: 1100px) {
+    [data-pane].report { grid-template-columns: 220px minmax(0, 1fr); gap: 0 36px; align-items: start; }
+    .report-toc { order: 0; position: sticky; top: 18px; max-height: calc(100vh - 36px); overflow-y: auto; margin: 0; padding: 26px 0 0; border-left: 2px solid var(--border); padding-left: 14px; }
+    .report-toc ol { display: block; overflow: visible; }
+    .report-toc a { white-space: normal; border: 0; border-radius: 0; padding: 6px 0; margin-left: -16px; padding-left: 14px; border-left: 2px solid transparent; font-size: 14px; line-height: 1.35; }
+    .report-toc a[aria-current] { background: transparent; border-left-color: var(--accent); }
+  }
+  .rsec { scroll-margin-top: 16px; }
+  .rsec .model-name { font-family: var(--font); font-weight: 600; white-space: nowrap; }
+  .rsec > h2, .rsec > .row > h2 { font-size: 23px; }
+  .rsec-a { font-size: 16.5px; line-height: 1.5; color: var(--text); font-weight: 500; margin: 2px 0 12px; max-width: 70ch; }
+  .takeaway[id] { scroll-margin-top: 16px; }
   /* How to read a session: tab name, then one short line */
   .read-guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 14px 32px; margin: 4px 0 0; }
   .read-guide dt { font-weight: 650; font-size: 15px; }

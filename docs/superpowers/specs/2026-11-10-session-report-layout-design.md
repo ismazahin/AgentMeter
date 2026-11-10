@@ -1,6 +1,6 @@
 # Session pages as short reports — design
 
-Date: 2026-11-10 · Status: for approval · Visual direction: tastemaker (existing AgentMeter
+Date: 2026-11-10 · Status: approved 2026-11-10 · Visual direction: tastemaker (existing AgentMeter
 "research paper" style; `.tastemaker/decisions.log`).
 
 ## Intent and why

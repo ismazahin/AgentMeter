@@ -15,11 +15,13 @@ const S = process.argv[3] || fs.mkdtempSync(path.join(os.tmpdir(), 'obs-e2e-'));
 fs.mkdirSync(S, { recursive: true });
 const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg);
 
-async function dragAcross(p, sel, fromFrac, toFrac) {
+// drag across a chart from page x `from` to page x `to` (kept inside the plot area)
+async function dragAcross(p, sel, from, to) {
   const box = await p.locator(sel + ' svg').boundingBox();
-  const y = box.y + box.height * 0.5, x = f => box.x + box.width * (0.08 + 0.9 * f);
-  await p.mouse.move(x(fromFrac), y); await p.mouse.down();
-  await p.mouse.move(x((fromFrac + toFrac) / 2), y, { steps: 4 }); await p.mouse.move(x(toFrac), y, { steps: 4 });
+  const y = box.y + box.height * 0.5, lo = box.x + box.width * 0.08, hi = box.x + box.width * 0.98;
+  const x = v => Math.max(lo, Math.min(hi, v)), a = x(from), z = x(to);
+  await p.mouse.move(a, y); await p.mouse.down();
+  await p.mouse.move((a + z) / 2, y, { steps: 4 }); await p.mouse.move(z, y, { steps: 4 });
   await p.mouse.up();
 }
 
@@ -64,7 +66,10 @@ async function dragAcross(p, sel, fromFrac, toFrac) {
 
     // synced drag-to-zoom
     const before = await p.$$eval('#gpu-util polyline', x => x[0].getAttribute('points').split(' ').length);
-    await dragAcross(p, '#gpu-power', 0.3, 0.45);
+    // where the flows ran depends on timing (idle baseline, model load), so zoom around a flow's
+    // start read from the chart rather than a fixed share of it: the band then always holds one
+    const startX = await p.$eval('#gpu-power .lc-mark', m => m.getBoundingClientRect().x);
+    await dragAcross(p, '#gpu-power', startX - box.width * 0.07, startX + box.width * 0.07);
     await p.waitForSelector('[data-gpu-zoom="reset"]', { timeout: 5000 });
     const after = await p.$$eval('#gpu-util polyline', x => x[0].getAttribute('points').split(' ').length);
     log(/Showing [\d.,]+–[\d.,]+ s/.test(await p.textContent('.gpu-zoom')), 'dragging across a chart zooms: the range is shown');

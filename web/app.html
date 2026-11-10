@@ -858,6 +858,8 @@
     .profile-menu { top: auto; bottom: calc(100% + 6px); left: 0; right: auto; }
     main.wrap { max-width: 1260px; padding: 0 48px; }
     footer .wrap { max-width: 1260px; padding: 0 48px; }
+    /* a session report uses the width: it starts beside the sidebar instead of a centred column */
+    main.wrap:has(> #view-session:not([hidden])) { max-width: 1640px; margin-left: 0; padding: 0 40px; }
 
     /* collapsed: an icon rail; every label stays readable to screen readers and as a tooltip */
     :root.side-collapsed { --side: 76px; }

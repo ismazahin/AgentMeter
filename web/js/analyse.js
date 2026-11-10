@@ -21,7 +21,7 @@ var AN_SVC = { waiting: null, until: 0 };
 function anServiceNotice() {
   var un = $("an-unavailable"), svc = BACKEND && BACKEND.prep_service, w = AN_SVC.waiting;
   if ($("svc-upload-btn")) $("svc-upload-btn").disabled = !anCloud();
-  if (!CP) { un.hidden = false; un.className = "notice warn"; un.innerHTML = "Analyse traffic needs the control plane (the hosted site); on a single GPU server, use New benchmark."; return; }
+  if (!CP) { un.hidden = false; un.className = "notice warn"; un.innerHTML = "Analyse traffic needs the control plane on the hosted site. On a single GPU server, use New benchmark."; return; }
   if (anCloud()) {
     un.hidden = !(svc && svc.online);
     un.className = "notice small";
@@ -34,7 +34,7 @@ function anServiceNotice() {
     '<div class="actions" style="margin-top:8px"><a class="btn primary" href="agentmeter-prep://start" id="an-svc-start">Start the preparation service</a>' +
     (w === "start" ? '<span class="small" id="an-svc-wait" role="status">Starting… your browser may ask to open AgentMeter prep (tick <i>Always allow</i>).</span>' : "") + '</div>' +
     (w === "late" ? '<p class="small" id="an-svc-late" role="alert">It did not start. Check <code>results/prep_local.log</code>, or run <code>python scripts/prep_local.py</code> in a terminal to see why.</p>' : "") +
-    '<p class="small muted" style="margin-bottom:0">First time on this PC? Run <code>python scripts/prep_local.py install</code> once in the AgentMeter folder; the button works from then on.</p>';
+    '<p class="small muted" style="margin-bottom:0">First time on this PC? Run <code>python scripts/prep_local.py install</code> once in the AgentMeter folder. The button works from then on.</p>';
 }
 function anWatchService(what) {
   AN_SVC.waiting = what; AN_SVC.until = Date.now() + 120000;
@@ -68,7 +68,7 @@ function anList() {
   cpFetch("/api/analyses").then(function (r) {
     if (!r.ok) { $("an-list").innerHTML = '<div class="notice error">' + esc((r.data || {}).error || "Could not load your analyses.") + '</div>'; return; }
     var a = r.data.analyses || [];
-    if (!a.length) { $("an-list").innerHTML = '<div class="card empty" id="an-empty"><p>No analyses yet. Upload a file on the first tab: it is prepared and the IDS scores every flow in it.</p></div>'; return; }
+    if (!a.length) { $("an-list").innerHTML = '<div class="card empty" id="an-empty"><p>No analyses yet. Upload a file on the first tab. It is prepared and the IDS scores every flow in it.</p></div>'; return; }
     $("an-list").innerHTML = '<div class="card"><div class="table-wrap"><table id="an-table"><thead><tr><th>File</th><th class="num">Flows scored</th><th class="num">Alerts</th>' +
       '<th>Labels</th><th>Finished</th>' + (isAdmin() ? "<th>By</th>" : "") + '<th><span class="sr-only">Open</span></th></tr></thead><tbody>' +
       a.map(function (x) {
@@ -84,7 +84,7 @@ function anList() {
 function startAnalysis(src) {
   var err = $("svc-upload-error"), btn = $("svc-upload-btn"), busy = $("svc-upload-busy");
   err.hidden = true;
-  if (!anCloud()) { anServiceNotice(); showError(err, { error: "The preparation service is not running: start it above first." }); return; }
+  if (!anCloud()) { anServiceNotice(); showError(err, { error: "The preparation service is not running. Start it above first." }); return; }
   var maxB = ((BACKEND && BACKEND.cloud_prep_max_mb) || 50) * 1024 * 1024;
   if (src.file && src.file.size > maxB) {
     showError(err, { error: "This file is " + fmtSize(src.file.size) + "; uploads are limited to " + fmtSize(maxB) + ". Use Import from a link for larger files.", code: "too_large" });
@@ -196,15 +196,15 @@ function anRender() {
   var j = AN.job, p = AN.pool, m = p.model || {}, h = p.model_metrics_holdout || {};
   var head = '<p><a href="#/new">← Upload another file</a></p><div class="page-head" style="margin-top:0"><div><h2 style="margin:0">' + esc(anName(j)) + '</h2>' +
     '<p class="muted small">IDS <span class="mono">' + esc(m.version || m.name || "—") + '</span>' + (m.demo ? ' <span class="chip warn">Demo IDS</span>' : "") +
-    ' · its threshold ' + fmtNum(p.threshold, 4) + (h.recall != null ? ' · on its hold-out flows: recall ' + fmtPct(h.recall) + ', false-positive rate ' + fmtPct(h.false_positive_rate) : "") +
-    (p.training_overlap ? ' · <span class="chip warn">' + fmtNum(p.training_overlap) + ' flows were in its training data</span>' : "") + '</p></div></div>';
+    ', threshold ' + fmtNum(p.threshold, 4) + (h.recall != null ? '. On its hold-out flows it has recall ' + fmtPct(h.recall) + ', false-positive rate ' + fmtPct(h.false_positive_rate) : "") +
+    (p.training_overlap ? ' <span class="chip warn">' + fmtNum(p.training_overlap) + ' flows were in its training data</span>' : "") + '</p></div></div>';
   var bench = anContinue(true);
   $("an-detail").innerHTML = head + anContents() +
     '<div class="card"><div class="row" style="margin-top:0;gap:16px;flex-wrap:wrap;align-items:center"><label for="an-tau"><b>Threshold</b></label>' +
     '<input type="range" id="an-tau" min="0.001" max="1" step="0.001" value="' + AN.tau + '" style="flex:1 1 240px" aria-describedby="an-tau-hint">' +
     '<input type="number" id="an-tau-n" min="0.001" max="1" step="0.001" value="' + AN.tau + '" style="max-width:110px" aria-label="Threshold value">' +
     '<button type="button" class="btn small-btn" id="an-tau-reset">The model\'s own</button></div>' +
-    '<p class="hint" id="an-tau-hint">A flow with an IDS score at or above the threshold is an alert. Lower: fewer missed attacks, more false alarms.</p>' +
+    '<p class="hint" id="an-tau-hint">A flow with an IDS score at or above the threshold is an alert. A lower threshold misses fewer attacks but raises more false alarms.</p>' +
     '<div id="an-figures"></div></div>' +
     '<div class="card"><h2>Projected LLM cost for these alerts</h2><div id="an-proj">' + skel(3) + '</div></div>' +
     bench + '<div class="card"><h2>Alerts</h2><div id="an-alerts"></div></div>';
@@ -226,8 +226,8 @@ function anContents() {
   return '<div class="card" id="an-contents"><h2>What is in it</h2><div class="grid2"><div><ul class="lk-list small">' +
     '<li>File: <b>' + esc(src.filename || anName(AN.job)) + '</b>' + (src.size_bytes ? " (" + fmtSize(src.size_bytes) + ")" : "") + '</li>' +
     '<li>Type: <b>' + esc(String(ps.input_type || "—").toUpperCase()) + '</b></li>' +
-    '<li>Flows read: <b>' + fmtNum(sel.pool_size) + '</b> · benchmark sample: <b>' + fmtNum(sel.selected) + '</b> flows</li>' +
-    '<li>Labels: <b>' + (cc.available ? "yes — accuracy can be checked" : "no — efficiency only") + '</b></li>' +
+    '<li>Flows read: <b>' + fmtNum(sel.pool_size) + '</b>, benchmark sample <b>' + fmtNum(sel.selected) + '</b> flows</li>' +
+    '<li>Labels: <b>' + (cc.available ? "yes, so accuracy can be checked" : "no, so efficiency only") + '</b></li>' +
     (ps.content_sha256 ? '<li>Fingerprint: <span class="mono">' + esc(ps.content_sha256.slice(0, 16)) + '…</span></li>' : "") + '</ul></div>' +
     '<div>' + (keys.length ? '<h3 style="margin-top:0">Benchmark sample by class</h3><div class="hbars">' + keys.map(function (k) {
       return '<div class="hbar"><span class="hb-l">' + esc(k) + '</span><span class="hb-t"><span class="hb-f" style="width:' + (100 * mix[k] / tot).toFixed(1) + '%"></span></span><span class="hb-v num">' + fmtNum(mix[k]) + '</span></div>';
@@ -235,7 +235,7 @@ function anContents() {
 }
 // step 3 -> 4: needs the GPU server (the set goes to it; then models and settings)
 function anContinue(ids) {
-  return '<div class="card" id="an-bench"><h2>Next: models and settings</h2><p class="muted small">' +
+  return '<div class="card" id="an-bench"><h2>Next, choose models and settings</h2><p class="muted small">' +
     (ids ? 'The LLM agents triage the alerts among the ' + fmtNum((AN.pool || {}).n_selected) + '-flow benchmark sample, using these same IDS scores at your threshold.'
          : 'The LLM agents analyse the flows of the benchmark sample.') + '</p>' +
     '<div class="actions"><button type="button" class="btn primary" id="an-bench-go"' + (ONLINE ? "" : " disabled") + '>Continue</button>' +
@@ -254,7 +254,7 @@ function anFigures() {
     tile("False-positive rate", fmtPct(t.false_positive_rate), "benign flows flagged");
   var cls = t.labelled && t.per_class.length ? '<h3>Recall per attack class</h3><div class="table-wrap"><table id="an-classes"><thead><tr><th>Class</th><th class="num">Flows</th><th class="num">Caught</th></tr></thead><tbody>' +
     t.per_class.map(function (c) { return '<tr><td>' + esc(c.cls) + '</td><td class="num">' + fmtNum(c.n) + '</td><td class="num">' + fmtPct(c.recall) + '</td></tr>'; }).join("") + '</tbody></table></div>'
-    : (t.labelled ? "" : '<p class="small muted">No labels in this file (PCAP or unlabelled CSV): the alerts are shown, but what the IDS missed cannot be known.</p>');
+    : (t.labelled ? "" : '<p class="small muted">This file has no labels (PCAP or unlabelled CSV). The alerts are shown, but what the IDS missed cannot be known.</p>');
   $("an-figures").innerHTML = '<div class="tiles">' + tiles + '</div>' + cls;
   anAlerts();
 }
@@ -288,7 +288,7 @@ function anProjection() {
   var alerts = AN.fig.flagged, rows = INSIGHTS.projectCost(AN.sessions, { flows: alerts });
   $("an-proj").innerHTML = !rows.length ? '<p class="muted small" id="an-proj-none">No finished benchmark to project from yet. Once a model has been benchmarked on a GPU, ' +
       'this shows what triaging these ' + fmtNum(alerts) + ' alerts would cost with it.</p>' :
-    '<p class="small muted" style="margin-top:0">For the ' + fmtNum(alerts) + ' alerts at this threshold, from each model\'s latest benchmark on that GPU (time and cost per flow as measured there). A projection: the same GPU, settings and similar flows.</p>' +
+    '<p class="small muted" style="margin-top:0">For the ' + fmtNum(alerts) + ' alerts at this threshold, from each model\'s latest benchmark on that GPU (time and cost per flow as measured there). It is a projection that assumes the same GPU, the same settings and similar flows.</p>' +
     '<div class="table-wrap"><table id="an-proj-table"><thead><tr><th>Model</th><th>GPU</th><th class="num">GPU time</th><th class="num">Cost</th><th class="num">Energy</th><th>Measured in</th></tr></thead><tbody>' +
     rows.map(function (x) {
       return '<tr><td>' + esc(short(x.model)) + '</td><td class="small">' + esc(x.gpu) + '</td><td class="num">' + anHours(x.gpu_hours) + '</td><td class="num">' +

@@ -172,7 +172,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     const fr = Object.fromEntries((await p.$$eval('#fit-table tbody tr[data-profile]', rs => rs.map(r => r.getAttribute('data-profile')))).map((id, i) => [id, fit[i]]));
     log(fr.gpu8.every(x => x === 'no_data') && fr.usd1.every(x => x === 'no_data') && fr.rt2.every(x => x === 'pass'),
         'recommendations (mock): memory and budget have no data, response time fits');
-    log(/no data — /.test(await hoverText(p, '#fit-table tr[data-profile="gpu8"] [data-result]')), 'recommendations: hovering a "no data" cell says why');
+    log(/no data, /.test(await hoverText(p, '#fit-table tr[data-profile="gpu8"] [data-result]')), 'recommendations: hovering a "no data" cell says why');
     log(!!(await p.$('#dh-form')), 'recommendations: "Your limits" form still below the matrix');
 
     // Phase 8 — new measurements: latency over the run, GPU timeline, repeatability, load scaling
@@ -196,7 +196,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log(/no earlier session of .* in demo mode yet/.test(await p.textContent('#wiz-settings')), 'estimate: a model never run before gets no estimate, and says so');
     await p.locator('#svc-models input').nth(1).uncheck();
     for (const i of [0, 3]) await p.locator('#svc-models input').nth(i).check();
-    log(/Estimate\s*about \d+ s of model time \(from earlier sessions in demo mode; model loading/.test(await p.textContent('#wiz-settings')),
+    log(/Estimate\s*about \d+ s of model time \(from earlier sessions in demo mode, plus model loading/.test(await p.textContent('#wiz-settings')),
         'estimate: time before Run from the earlier session of the same models');
     await p.check('#svc-load-test'); await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/session\//.test(location.hash), null, { timeout: 180000 });

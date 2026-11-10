@@ -61,7 +61,7 @@ async function dragAcross(p, sel, from, to) {
     const tip = (await p.textContent('.tip-pop').catch(() => '')) || '';
     const crosses = await p.$$eval('#gpu-timeline .lc-cross', xs => xs.filter(x => x.getAttribute('visibility') === 'visible').length);
     log(crosses >= 4, `one crosshair on every chart and the lane at once (${crosses} visible)`);
-    log(/ s · .*flow .* (agent|between agent calls)/.test(tip) && / W/.test(tip), 'the hover names the model, flow and agent with the power at that moment: ' + tip.slice(0, 110));
+    log(/ s, .*flow .* (agent|between agent calls)/.test(tip) && / W/.test(tip), 'the hover names the model, flow and agent with the power at that moment: ' + tip.slice(0, 110));
     await p.screenshot({ path: S + '/gpu-hover.png', fullPage: false });
 
     // synced drag-to-zoom

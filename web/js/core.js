@@ -38,7 +38,7 @@ function nick(m) { return window.INSIGHTS ? INSIGHTS.nick(m) : short(m); }
 var STUDY_MODELS = ["mistralai/Mistral-7B-Instruct-v0.3", "meta-llama/Meta-Llama-3-8B-Instruct", "Qwen/Qwen2.5-7B-Instruct",
                     "microsoft/Phi-3-mini-4k-instruct", "google/gemma-2-9b-it"];
 function isStudy(m) { return STUDY_MODELS.indexOf(m) >= 0; }
-function extraTag(m) { return isStudy(m) ? "" : ' <span class="chip warn extra-tag" title="Extra model — not in the validated baseline. Quantized to 4-bit NF4 like the study models.">extra</span>'; }
+function extraTag(m) { return isStudy(m) ? "" : ' <span class="chip warn extra-tag" title="Extra model, not in the validated baseline. Quantized to 4-bit NF4 like the study models.">extra</span>'; }
 // 128-bit job ids are long: show the date part + the first random hex digits (full id on hover)
 function shortId(id) { id = String(id || ""); var m = /^(job_\d{8}_\d{6}_)([0-9a-f]{32})$/.exec(id); return m ? m[1] + m[2].slice(0, 8) + "…" : id; }
 var METRIC_FMT = { s: fmtTime, MB: fmtMB, tokens: function (v) { return fmtNum(v); }, share: fmtPct,
@@ -185,7 +185,7 @@ function backendFetch(path, opts) {
   var pre = need ? runToken(need, opts) : Promise.resolve(null);
   return pre.then(function (t) {
     if (t && !t.ok) return t;                              // rate_limited, queue_full, backend_offline, ...
-    if (CP && !API) return { ok: false, status: 503, data: { error: "GPU offline: the benchmark backend is not running.", code: "backend_offline" } };
+    if (CP && !API) return { ok: false, status: 503, data: { error: "GPU offline. The benchmark backend is not running.", code: "backend_offline" } };
     var h = Object.assign({}, opts.headers || {});
     if (t) h.Authorization = "Bearer " + t.data.token;
     return fetch(API + path, Object.assign({}, opts, { headers: h })).then(opts.raw ? function (r) { return r; } : parse,
@@ -391,7 +391,7 @@ function show(view) {
   });
   // a new view: name the tab after it and move focus to it (screen readers hear the change); not on first load
   var h = document.querySelector("#view-" + view + " h1");
-  document.title = (view === "home" || !h ? "" : (view === "session" ? "Session" : h.textContent.trim()) + " · ") + "AgentMeter";
+  document.title = (view === "home" || !h ? "" : (view === "session" ? "Session" : h.textContent.trim()) + " | ") + "AgentMeter";
   if (LAST_VIEW !== null && LAST_VIEW !== view) $("main").focus({ preventScroll: true });
   LAST_VIEW = view;
   document.documentElement.classList.remove("boot-login");      // the first-paint login screen (app.html <head>) has done its job

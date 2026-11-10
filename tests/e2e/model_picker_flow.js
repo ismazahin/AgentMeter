@@ -80,7 +80,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     await p.goto(BASE + '/app.html#/new/run/' + fake);
     await p.waitForFunction(() => /Downloading model/.test((document.getElementById('svc-job-phase') || {}).textContent || ''), null, { timeout: 15000 });
     const dtext = await p.textContent('#svc-progress-text');
-    log(/Downloading Qwen2\.5-3B-Instruct — 2\.5 \/ 6\.2 GB · 40%/.test(dtext) && /not measured/.test(dtext),
+    log(/Downloading Qwen2\.5-3B-Instruct, 2\.5 \/ 6\.2 GB, 40%/.test(dtext) && /not measured/.test(dtext),
         'Progress page: "Downloading model" with GB done / total and %, before the benchmark (' + dtext.slice(0, 70) + ')');
     await p.waitForTimeout(700);                                       // the bar animates (.4 s)
     log(await p.evaluate(() => document.getElementById('svc-progress-bar').style.width) === '40%', 'Progress bar shows the download %');

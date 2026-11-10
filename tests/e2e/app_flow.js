@@ -303,7 +303,7 @@ async function frameOf(p) {
   await p.check('#cmp-list input >> nth=1');
   await p.click('#cmp-go');
   await p.waitForSelector('#cmp-validity');
-  log(/Like-for-like comparison/.test(await p.textContent('#cmp-validity')) && /2 models/.test(await p.textContent('#cmp-validity')) && /only the model differs/.test(await p.textContent('#cmp-validity')),
+  log(/Like-for-like comparison/.test(await p.textContent('#cmp-validity')) && /2 models/.test(await p.textContent('#cmp-validity')) && /[Oo]nly the model differs/.test(await p.textContent('#cmp-validity')),
       'Compare: like-for-like, 2 models, only the model differs');
   log((await p.$$('#cmp-table thead th')).length === 3 && (await p.$$('#cmp-table tbody tr')).length >= 15, 'Compare: every metric (+ SAW, accuracy), one column per model (not per run)');
   log(/latest of 2 runs/.test(await p.textContent('#cmp-table thead')), 'Compare: a model run twice is one column, marked "latest of 2 runs"');

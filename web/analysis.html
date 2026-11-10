@@ -680,7 +680,7 @@
 <div class="app">
 <header class="topbar">
   <div class="container">
-    <a class="brand" href="#" data-goto="overview" aria-label="AgentMeter — Overview">
+    <a class="brand" href="#" data-goto="overview" aria-label="AgentMeter overview">
       <svg viewBox="0 0 16 16" aria-hidden="true"><rect class="mark-b" x="0" y="12" width="4" height="4"/><rect class="mark-b" x="4" y="8" width="4" height="4"/><rect class="mark-b" x="8" y="4" width="4" height="4"/><rect class="mark-a" x="12" y="0" width="4" height="4"/></svg>
       <span class="name">AgentMeter</span>
     </a>
@@ -712,9 +712,9 @@
     <div id="getting-started" class="getting-started" hidden>
       <div class="gs-body"><b>New here?</b> Start on <b>Overview</b> for the model ranking, open
         <b>Detailed Analysis</b> for the breakdowns, and click any <span class="gs-q">?</span> to learn
-        what a metric means — or open the <button type="button" class="gs-link" data-goto="detailed" data-scroll="glossary-panel">Glossary</button>
-        for every term. AgentMeter measures <b>resource efficiency</b> — speed, memory and token
-        use — with accuracy as one factor; it does not claim to pick the single "best" threat detector.</div>
+        what a metric means, or open the <button type="button" class="gs-link" data-goto="detailed" data-scroll="glossary-panel">Glossary</button>
+        for every term. AgentMeter measures <b>resource efficiency</b>, meaning speed, memory and token
+        use, with accuracy as one factor. It does not claim to pick the single "best" threat detector.</div>
       <button id="gs-dismiss" class="gs-x" type="button">Got it</button>
     </div>
     <div id="banner" class="banner sample"></div>
@@ -741,7 +741,7 @@
           <li><b>VRAM</b><span>Total device memory while the model runs</span></li>
           <li><b>Tokens</b><span>Input + output tokens per scenario</span></li>
         </ul>
-        <p class="foot">Weights renormalise to sum to 1; move the <b>Live weights</b> sliders to change them. Accuracy is one factor &mdash; AgentMeter measures resource efficiency, not which model is the best threat detector.</p>
+        <p class="foot">Weights renormalise to sum to 1. Move the <b>Live weights</b> sliders to change them. Accuracy is one factor, and AgentMeter measures resource efficiency, not which model is the best threat detector.</p>
       </div>
     </div>
   </header>
@@ -750,19 +750,19 @@
   <div class="highlights">
     <div class="hcard">
       <div class="hhead"><span class="sq" style="background:var(--hi-1)"></span><h3>Composite Health Score</h3><span class="help"><button class="help-btn" type="button" data-help="hc-composite" aria-label="What is this?">?</button></span></div>
-      <p class="sub">SAW composite ×100 · Higher is better</p>
+      <p class="sub">SAW composite ×100, higher is better</p>
       <div class="vbars" id="hc-composite"></div>
     </div>
     <div class="hcard acc-only">
       <div class="hhead"><span class="sq" style="background:var(--hi-2)"></span><h3>Accuracy</h3><span class="help"><button class="help-btn" type="button" data-help="hc-accuracy" aria-label="What is this?">?</button></span></div>
-      <p class="sub" id="hc-acc-sub">Detection accuracy across 300 scenarios · Higher is better</p>
+      <p class="sub" id="hc-acc-sub">Detection accuracy across 300 scenarios, higher is better</p>
       <div class="vbars" id="hc-accuracy"></div>
     </div>
     <div class="hcard acc-missing"><div class="hhead"><h3>Accuracy</h3></div><p class="sub">Not measured</p>
-      <p class="note">Accuracy not measured for unlabelled input: this session's flows have no ground-truth labels, so it measures resource efficiency only.</p></div>
+      <p class="note">Accuracy is not measured for unlabelled input. This session's flows have no ground-truth labels, so it measures resource efficiency only.</p></div>
     <div class="hcard">
       <div class="hhead"><span class="sq" style="background:var(--hi-3)"></span><h3>Latency per scenario</h3><span class="help right"><button class="help-btn" type="button" data-help="hc-latency" aria-label="What is this?">?</button></span></div>
-      <p class="sub">Mean wall time per scenario · Lower is better</p>
+      <p class="sub">Mean wall time per scenario, lower is better</p>
       <div class="vbars" id="hc-latency"></div>
     </div>
   </div>
@@ -793,7 +793,7 @@
   </div>
 
   <h2 class="section-label">Decision support</h2>
-  <p class="section-desc">What to do with this result: a plain-language recommendation, a what-if filter against your own limits, and where the resource cost sits.</p>
+  <p class="section-desc">What to do with this result. There is a plain-language recommendation, a what-if filter against your own limits, and where the resource cost sits.</p>
   <div class="panel">
     <h2>Deployment recommendation <span class="hint">what to do with this result, in plain language (updates live with the weights below)</span><span class="help"><button class="help-btn" type="button" data-help="ds-rec" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="ds-rec-headline"></p>
@@ -801,7 +801,7 @@
   </div>
 
   <div class="panel">
-    <h2>What-if constraint filter <span class="hint">set resource/accuracy limits; see which models pass against the measured values (no new runs)</span><span class="help"><button class="help-btn" type="button" data-help="ds-filter" aria-label="What is this?">?</button></span></h2>
+    <h2>What-if constraint filter <span class="hint">set resource or accuracy limits and see which models pass against the measured values (no new runs)</span><span class="help"><button class="help-btn" type="button" data-help="ds-filter" aria-label="What is this?">?</button></span></h2>
     <div class="controls ds-filter-controls" style="margin-bottom:12px">
       <label>Max latency (s): <input type="number" id="cf-latency" min="0" step="0.1" autocomplete="off"></label>
       <label style="margin-left:14px">Max VRAM (MB): <input type="number" id="cf-vram" min="0" step="100" autocomplete="off"></label>
@@ -839,7 +839,7 @@
       <p class="finding" id="wimpact-sum" aria-live="polite"></p>
       <div class="wlegend" id="wimpact-legend"></div>
       <table id="wimpact-table"></table>
-      <p class="note">Each bar is the model's live composite split into what each factor contributes (weight × normalised score). &ldquo;Move&rdquo; and &ldquo;vs stored&rdquo; compare against the weights the stored scores use. View only: no stored score, rank or verdict changes.</p>
+      <p class="note">Each bar is the model's live composite split into what each factor contributes (weight × normalised score). &ldquo;Move&rdquo; and &ldquo;vs stored&rdquo; compare against the weights the stored scores use. This is a view only, and no stored score, rank or verdict changes.</p>
     </div>
 
   </div>
@@ -852,15 +852,15 @@
     <h2 class="section-label">Frequently asked questions</h2>
   <div class="faq">
     <details><summary>How is the composite score weighted?</summary>
-      <p>Each of the four criteria (accuracy, latency, VRAM, tokens) is normalised against a target value and multiplied by its weight; the weights are renormalised to sum to 1. The defaults come from the study config. Move the <b>Live weights</b> sliders and the ranking recomputes in your browser with <code>saw.js</code>, the same formula the analysis uses.</p></details>
+      <p>Each of the four criteria (accuracy, latency, VRAM, tokens) is normalised against a target value and multiplied by its weight. The weights are renormalised to sum to 1. The defaults come from the study config. Move the <b>Live weights</b> sliders and the ranking recomputes in your browser with <code>saw.js</code>, the same formula the analysis uses.</p></details>
     <details><summary>Why can every model land in the Critical tier?</summary>
-      <p>Tiers come from fixed thresholds on the composite &times;100: Healthy &ge; 80, Degraded &ge; 60, Critical below that. When zero-shot accuracy sits well below the accuracy target, every composite is pulled down, so a whole field can be Critical. That is a finding about zero-shot detection on this data, not a display error.</p></details>
+      <p>Tiers come from fixed thresholds on the composite &times;100. Healthy is &ge; 80, Degraded is &ge; 60, and Critical is below that. When zero-shot accuracy sits well below the accuracy target, every composite is pulled down, so a whole field can be Critical. That is a finding about zero-shot detection on this data, not a display error.</p></details>
     <details><summary>Does AgentMeter pick the best threat detector?</summary>
-      <p>No. It measures resource efficiency &mdash; speed, memory and token use &mdash; with accuracy as one factor. The pipeline is the test subject; the contribution is the measurement harness and the comparison method.</p></details>
+      <p>No. It measures resource efficiency, meaning speed, memory and token use, with accuracy as one factor. The pipeline is the test subject, and the contribution is the measurement harness and the comparison method.</p></details>
     <details><summary>What is the difference between total device VRAM and marginal working memory?</summary>
-      <p><b>Total device VRAM</b> is the memory footprint while the model runs, and it is what the ranking uses. <b>Marginal working memory</b> (<code>vram_delta</code>) is the memory an agent adds above the fresh-context baseline; it excludes the model weights and is shown only in the per-agent diagnostics.</p></details>
+      <p><b>Total device VRAM</b> is the memory footprint while the model runs, and it is what the ranking uses. <b>Marginal working memory</b> (<code>vram_delta</code>) is the memory an agent adds above the fresh-context baseline. It excludes the model weights and is shown only in the per-agent diagnostics.</p></details>
     <details><summary>What does the sample banner mean?</summary>
-      <p>The dashboard opens on a bundled sample: accuracy, composite, rank and tier are the locked real results, while latency and token magnitudes and all per-agent numbers are illustrative placeholders. Load a real <code>analysis.json</code> with <b>Load results.json</b> and the banner turns green.</p></details>
+      <p>The dashboard opens on a bundled sample. Accuracy, composite, rank and tier are the locked real results, while latency and token magnitudes and all per-agent numbers are illustrative placeholders. Load a real <code>analysis.json</code> with <b>Load results.json</b> and the banner turns green.</p></details>
     <details><summary>Are runs from the benchmark service comparable with the study?</summary>
       <p>Service runs use the same pipeline, scoring and 4-bit NF4 settings, but on your data and on whichever GPU the service runs on (named in every result). They are labelled non-validated and never enter this page's locked study or its statistics.</p></details>
   </div>
@@ -873,9 +873,9 @@
   <header class="view-hero">
     <div class="hero-grid">
       <div class="hero-main">
-        <h1>Detailed analysis: the breakdowns behind the ranking</h1>
+        <h1>Detailed analysis, the breakdowns behind the ranking</h1>
         <p class="tab-intro">Read-only views of the
-    same loaded results: where time and memory go inside the pipeline, how stable the ranking is, statistical
+    same loaded results. They show where time and memory go inside the pipeline, how stable the ranking is, statistical
     tests, per-class costs, and efficiency trade-offs. Hover any <b>?</b> to learn how to read a chart.</p>
       </div>
     </div>
@@ -896,7 +896,7 @@
   <p class="section-desc">How often each model was right, where it confused classes, and what a wrong answer cost in time and tokens.</p>
 
   <div class="panel acc-missing"><h2>Accuracy not measured</h2>
-    <p class="lead">Accuracy not measured for unlabelled input: this session's flows (a raw PCAP or an unlabelled CSV) have no ground-truth labels, so there is no accuracy, per-class accuracy, confusion matrix or misclassification cost to show. The resource-efficiency views are complete.</p></div>
+    <p class="lead">Accuracy is not measured for unlabelled input. This session's flows (a raw PCAP or an unlabelled CSV) have no ground-truth labels, so there is no accuracy, per-class accuracy, confusion matrix or misclassification cost to show. The resource-efficiency views are complete.</p></div>
 
   <div class="panel acc-only">
     <h2>Accuracy detail<span class="help"><button class="help-btn" type="button" data-help="accuracy" aria-label="What is this?">?</button></span></h2>
@@ -904,7 +904,7 @@
     <table id="acc-table"></table>
     <div id="acc-perclass" style="margin-top:18px"></div>
     <div id="acc-confusion" style="margin-top:18px"></div>
-    <details class="howto"><summary>How to read this table</summary><p>accuracy is how often a model's final label matched the true class across all scenarios — higher is better. When a confusion matrix is shown below, rows are the <b>true</b> class and columns are what the model <b>predicted</b>: the diagonal is correct calls, off-diagonal cells are mix-ups.</p></details>
+    <details class="howto"><summary>How to read this table</summary><p>accuracy is how often a model's final label matched the true class across all scenarios, and higher is better. When a confusion matrix is shown below, rows are the <b>true</b> class and columns are what the model <b>predicted</b>. The diagonal is correct calls, and off-diagonal cells are mix-ups.</p></details>
   </div>
 
   <div class="panel acc-only">
@@ -931,10 +931,10 @@
     <h2>Per-agent diagnostics <span class="hint">which of the 4 pipeline steps (Perceive → Reason → Decide → Act) uses the most time and memory</span><span class="help"><button class="help-btn" type="button" data-help="peragent" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="pa-finding"></p>
     <table class="subtable" id="pa-wall-table">
-      <caption>Mean wall time per agent (seconds) — highest per model highlighted</caption>
+      <caption>Mean wall time per agent in seconds, with the highest per model highlighted</caption>
     </table>
     <table class="subtable" id="pa-vram-table" style="margin-top:18px">
-      <caption>Mean marginal working memory per agent (vram_delta, MB — above the fresh-context baseline, EXCLUDES model weights; not total device VRAM)</caption>
+      <caption>Mean marginal working memory per agent (vram_delta in MB above the fresh-context baseline, without model weights, not total device VRAM)</caption>
     </table>
     <div style="margin-top:20px">
       <div class="controls" style="margin-bottom:14px">
@@ -946,7 +946,7 @@
           <div id="wall-bars"></div>
         </div>
         <div class="chart-block">
-          <h3>Marginal working memory per agent <small>(mean vram_delta, MB — EXCLUDES model weights; not total device VRAM)</small></h3>
+          <h3>Marginal working memory per agent <small>(mean vram_delta in MB, without model weights, not total device VRAM)</small></h3>
           <div id="vram-bars"></div>
         </div>
         <div class="legend">
@@ -959,12 +959,12 @@
   </div>
 
   <div class="panel">
-    <h2>Resource cost per attack class <span class="hint">how time, memory and tokens split across attack classes; a cost breakdown, not a detection score</span><span class="help"><button class="help-btn" type="button" data-help="perclass" aria-label="What is this?">?</button></span></h2>
+    <h2>Resource cost per attack class <span class="hint">how time, memory and tokens split across attack classes, as a cost breakdown and not a detection score</span><span class="help"><button class="help-btn" type="button" data-help="perclass" aria-label="What is this?">?</button></span></h2>
     <div class="controls" style="margin-bottom:14px">
       <label>Model: <select id="pc-model"></select></label>
       <label style="margin-left:14px">Metric: <select id="pc-metric">
         <option value="mean_latency_s">Latency (s)</option>
-        <option value="mean_vram_mb">VRAM — marginal working memory (MB)</option>
+        <option value="mean_vram_mb">VRAM, marginal working memory (MB)</option>
         <option value="mean_tokens">Tokens (input+output)</option>
       </select></label>
     </div>
@@ -974,10 +974,10 @@
   </div>
 
   <div class="panel">
-    <h2>Latency stability (CoV) <span class="hint">how steady each model's speed is run to run; lower means more predictable timing</span><span class="help"><button class="help-btn" type="button" data-help="cov" aria-label="What is this?">?</button></span></h2>
+    <h2>Latency stability (CoV) <span class="hint">how steady each model's speed is run to run, where lower means more predictable timing</span><span class="help"><button class="help-btn" type="button" data-help="cov" aria-label="What is this?">?</button></span></h2>
     <div id="cov-bars"></div>
     <table id="cov-table" style="margin-top:16px"></table>
-    <details class="howto"><summary>How to read this chart</summary><p>this is how consistent a model's speed is from scenario to scenario. <b>Lower = steadier, more predictable timing</b> (good for reliable response); a high value means the model is sometimes much slower than its average. The formula is std ÷ mean of end-to-end latency.</p></details>
+    <details class="howto"><summary>How to read this chart</summary><p>this is how consistent a model's speed is from scenario to scenario. <b>Lower means steadier, more predictable timing</b>, which is good for reliable response. A high value means the model is sometimes much slower than its average. The formula is std ÷ mean of end-to-end latency.</p></details>
   </div>
 
   <div class="panel">
@@ -987,10 +987,10 @@
   </div>
 
   <div class="panel">
-    <h2>Output throughput <span class="hint">how fast each model writes its answer once generating; higher is quicker</span><span class="help"><button class="help-btn" type="button" data-help="throughput" aria-label="What is this?">?</button></span></h2>
+    <h2>Output throughput <span class="hint">how fast each model writes its answer once generating, where higher is quicker</span><span class="help"><button class="help-btn" type="button" data-help="throughput" aria-label="What is this?">?</button></span></h2>
     <div id="tp-bars"></div>
     <table id="tp-table" style="margin-top:16px"></table>
-    <details class="howto"><summary>How to read this chart</summary><p>how fast a model writes its answer once it starts generating — output tokens per second. <b>Higher = quicker to finish a response.</b> This is raw generation speed, separate from how long the answer ends up being.</p></details>
+    <details class="howto"><summary>How to read this chart</summary><p>how fast a model writes its answer once it starts generating, in output tokens per second. <b>Higher means quicker to finish a response.</b> This is raw generation speed, separate from how long the answer ends up being.</p></details>
   </div>
 
   </div>
@@ -1009,13 +1009,13 @@
 
   <div class="panel acc-missing"><h2>Pareto frontier</h2><p class="lead">Accuracy not measured for unlabelled input, so there is no accuracy-vs-cost trade-off to plot.</p></div>
   <div class="panel acc-only">
-    <h2>Pareto frontier <span class="hint">accuracy vs resource cost; the best trade-offs sit on the front line</span><span class="help"><button class="help-btn" type="button" data-help="pareto" aria-label="What is this?">?</button></span></h2>
+    <h2>Pareto frontier <span class="hint">accuracy vs resource cost, where the best trade-offs sit on the front line</span><span class="help"><button class="help-btn" type="button" data-help="pareto" aria-label="What is this?">?</button></span></h2>
     <div class="pareto-grid">
       <div class="chartwm"><h3 class="crud-h3">Accuracy vs mean latency</h3><div id="pareto-latency"></div></div>
       <div class="chartwm"><h3 class="crud-h3">Accuracy vs mean tokens</h3><div id="pareto-tokens"></div></div>
     </div>
     <p class="note" id="pareto-note"></p>
-    <details class="howto"><summary>How to read this chart</summary><p>each dot is a model, placed by accuracy (up) against resource cost (right). <b>Dots joined by the dotted Pareto line are the best accuracy-vs-cost trade-offs; any dot behind the line is beaten on both</b> by a model on it. Up-and-left is better. The green "most attractive quadrant" marks models that are both more accurate and cheaper than the median model; the grey corner marks the opposite.</p></details>
+    <details class="howto"><summary>How to read this chart</summary><p>each dot is a model, placed by accuracy (up) against resource cost (right). <b>Dots joined by the dotted Pareto line are the best accuracy-vs-cost trade-offs. Any dot behind the line is beaten on both</b> by a model on it. Up-and-left is better. The green "most attractive quadrant" marks models that are both more accurate and cheaper than the median model, and the grey corner marks the opposite.</p></details>
   </div>
 
   </div>
@@ -1029,7 +1029,7 @@
     <h2>Statistics <span class="hint">are the differences between models real or just noise? (Kruskal-Wallis + Dunn)</span><span class="help"><button class="help-btn" type="button" data-help="statistics" aria-label="What is this?">?</button></span></h2>
     <p class="finding" id="stats-finding"></p>
     <div id="stats-body"></div>
-    <details class="howto"><summary>How to read these tests</summary><p>the Kruskal-Wallis test asks whether the models' per-scenario differences are real or could be chance. <b>A small p-value (p &lt; 0.05) means the difference is real, not luck.</b> In the Dunn table below, each cell is the p-value for that <b>pair</b> of models — a small cell means those two genuinely differ.</p></details>
+    <details class="howto"><summary>How to read these tests</summary><p>the Kruskal-Wallis test asks whether the models' per-scenario differences are real or could be chance. <b>A small p-value (p &lt; 0.05) means the difference is real, not luck.</b> In the Dunn table below, each cell is the p-value for that <b>pair</b> of models, and a small cell means those two genuinely differ.</p></details>
   </div>
 
   </div>
@@ -1040,15 +1040,15 @@
   <div class="panel" id="glossary-panel">
     <h2>Glossary <span class="hint">key terms in plain language</span></h2>
     <div class="glossary" id="glossary">
-      <div><span class="term">SAW composite score</span> — <span class="def">one 0–1 number blending accuracy, latency, memory and tokens by the chosen weights; higher is better.</span></div>
-      <div><span class="term">Tier</span> — <span class="def">a health label from the score ×100: Healthy (≥ 80), Degraded (≥ 60), Critical (below 60).</span></div>
-      <div><span class="term">Latency</span> — <span class="def">wall-clock time to process one scenario end-to-end through all four agents; lower is better.</span></div>
-      <div><span class="term">TTFT (time to first token)</span> — <span class="def">how long until the model starts producing output — the "prefill" part of a response.</span></div>
-      <div><span class="term">VRAM (working memory)</span> — <span class="def">GPU memory used while running, excluding the model's fixed weights; lower is better.</span></div>
-      <div><span class="term">Tokens</span> — <span class="def">chunks of text the model reads and writes; fewer usually means cheaper and faster.</span></div>
-      <div><span class="term">Zero-shot</span> — <span class="def">the model gets only instructions, no worked examples; it must classify unseen network flows directly.</span></div>
-      <div><span class="term">CoV (coefficient of variation)</span> — <span class="def">spread ÷ average of latency; lower means more consistent, predictable response times.</span></div>
-      <div><span class="term">Pareto front</span> — <span class="def">the models where you can't improve one metric without worsening another — the best available trade-offs.</span></div>
+      <div><span class="term">SAW composite score.</span> <span class="def">One number from 0 to 1 blending accuracy, latency, memory and tokens by the chosen weights. Higher is better.</span></div>
+      <div><span class="term">Tier.</span> <span class="def">A health label from the score ×100. It is Healthy (≥ 80), Degraded (≥ 60) or Critical (below 60).</span></div>
+      <div><span class="term">Latency.</span> <span class="def">Wall-clock time to process one scenario end-to-end through all four agents. Lower is better.</span></div>
+      <div><span class="term">TTFT (time to first token).</span> <span class="def">How long until the model starts producing output, which is the "prefill" part of a response.</span></div>
+      <div><span class="term">VRAM (working memory).</span> <span class="def">GPU memory used while running, without the model's fixed weights. Lower is better.</span></div>
+      <div><span class="term">Tokens.</span> <span class="def">Chunks of text the model reads and writes. Fewer usually means cheaper and faster.</span></div>
+      <div><span class="term">Zero-shot.</span> <span class="def">The model gets only instructions and no worked examples, so it must classify unseen network flows directly.</span></div>
+      <div><span class="term">CoV (coefficient of variation).</span> <span class="def">Spread ÷ average of latency. Lower means more consistent, predictable response times.</span></div>
+      <div><span class="term">Pareto front.</span> <span class="def">The models where you can't improve one metric without worsening another, which are the best available trade-offs.</span></div>
     </div>
   </div>
   </section><!-- /detailed -->
@@ -1083,12 +1083,12 @@
     "SAMPLE-illustrative"
   ],
   "notes": {
-    "SAMPLE": "ILLUSTRATIVE sample. accuracy / composite / rank / tier and the VRAM->1.0 finding are the LOCKED real L4 results. latency & token MAGNITUDES and ALL per-agent numbers are placeholders solved to reproduce the locked composites under default weights; load a real analysis.json to replace them.",
+    "SAMPLE": "ILLUSTRATIVE sample. accuracy / composite / rank / tier and the VRAM->1.0 finding are the LOCKED real L4 results. latency & token MAGNITUDES and ALL per-agent numbers are placeholders solved to reproduce the locked composites under default weights. Load a real analysis.json to replace them.",
     "tokens_definition": "tokens = mean over scenarios of the per-scenario TOTAL tokens (sum over the 4 agents of input+output).",
     "normalisation_formula": "benefit (accuracy): norm = clamp(value/target,0,1); cost (latency,vram,tokens): norm = clamp(target/value,0,1)",
     "vram_per_agent_note": "vram_delta (per-agent) is MARGINAL working memory above the fresh-context baseline and EXCLUDES model weights.",
     "vram_saw_criterion": "SAW VRAM criterion = TOTAL device footprint = weight_footprint_mb + mean(scenario_peak_vram_mb). Target 16000 MB / weight 0.20.",
-    "vram_finding": "VRAM (total device footprint) ranges 3.1-6.6 GB across models, all well below the 16 GB target -> VRAM is not a binding constraint on this hardware; it normalises to 1.0 for all models and does not differentiate the ranking. Differentiation is driven by accuracy, latency, and tokens."
+    "vram_finding": "VRAM (total device footprint) ranges 3.1-6.6 GB across models, all well below the 16 GB target, so VRAM is not a binding constraint on this hardware. It normalises to 1.0 for all models and does not differentiate the ranking. Differentiation is driven by accuracy, latency, and tokens."
   },
   "model_vram": {
     "path": "sample",
@@ -1670,7 +1670,7 @@
   },
   "statistics": {},
   "per_class": {
-    "note": "ILLUSTRATIVE per-class resource sample. Real magnitudes come from a loaded analysis.json's per_class section (analyze.py). RESOURCE cost per attack class (not detection quality); accuracy is plain context.",
+    "note": "ILLUSTRATIVE per-class resource sample. Real magnitudes come from a loaded analysis.json's per_class section (analyze.py). RESOURCE cost per attack class (not detection quality), with accuracy as plain context.",
     "classes": [
       "Brute Force",
       "Volumetric DDoS",
@@ -2427,7 +2427,7 @@
       var x = raw[r.model] || {};
       var isExp = (r.model === expModel);
       var badge = '<span class="badge ' + r.tier + '">' + r.tier + "</span>" +
-        (isExp ? '<span class="badge exp" title="Pulled on demand; not part of the validated 5-model study">exploratory</span>' : "");
+        (isExp ? '<span class="badge exp" title="Pulled on demand and not part of the validated 5-model study">exploratory</span>' : "");
       return '<tr class="' + (isExp ? "exp-row" : "") + '">' +
         '<td class="rank l">' + r.rank + "</td>" +
         '<td class="model l"><span class="vtick" style="background:' + vendorOf(r.model).color + '" title="' + esc(vendorOf(r.model).name) + '"></span>' + esc(r.model) + "</td>" +
@@ -2539,7 +2539,7 @@
     // sentence as the service results and PDF), never a SAW rank-1 picked inside a tie.
     if (state.session && d.relative_comparison) {
       if (h) h.textContent = d.relative_comparison.verdict;
-      if (c) c.textContent = "Session analysis (non-validated): measured on this session's flows and GPU. " +
+      if (c) c.textContent = "Session analysis (non-validated), measured on this session's flows and GPU. " +
         "See the stage-3 recommendation at the top for external model context.";
     }
     var o = document.getElementById("ds-optim");
@@ -2580,7 +2580,7 @@
     var msg;
     if (out.activeCount === 0) {
       msg = "Enter one or more limits above to test the " + out.results.length +
-        " models against their measured values (read-only — no new runs).";
+        " models against their measured values. This is read-only, with no new runs.";
     } else if (!out.anyPass) {
       msg = "No model satisfies all " + out.activeCount + " constraint" +
         (out.activeCount === 1 ? "" : "s") + " at once. Loosen a limit, or accept the trade-off shown.";
@@ -2589,7 +2589,7 @@
       msg = n + " of " + out.results.length + " models pass all set constraints.";
     }
     if (out.ignored && out.ignored.length) {
-      msg += " (Ignored — not measured in this analysis: " + esc(out.ignored.join(", ")) + ".)";
+      msg += " (Ignored because not measured in this analysis: " + esc(out.ignored.join(", ")) + ".)";
     }
     if (note) note.textContent = msg;
   }
@@ -2626,8 +2626,8 @@
       if (el) el.innerHTML = "raw " + (+state.weights[k]).toFixed(2) + " → <b>" + w[k].toFixed(3) + "</b>";
     });
     document.getElementById("wsum").textContent =
-      "Live renormalised weights (sum = 1.000): " +
-      CRIT.map(function (k) { return CRIT_LABEL[k] + " " + w[k].toFixed(3); }).join("   ·   ");
+      "Live renormalised weights (sum = 1.000) are " +
+      CRIT.map(function (k) { return CRIT_LABEL[k] + " " + w[k].toFixed(3); }).join(", ");
     // preset active-state
     var active = null;
     Object.keys(state.presets).forEach(function (name) {
@@ -2662,7 +2662,7 @@
     });
     document.getElementById("wimpact-legend").innerHTML = crits.map(function (k) {
       return '<span><i style="background:var(--crit-' + k + ')"></i>' + CRIT_LABEL[k] + " " + w[k].toFixed(2) +
-        (empty[k] ? ' <span class="note">(no readings in this run — adds 0)</span>' : "") + "</span>";
+        (empty[k] ? ' <span class="note">(no readings in this run, adds 0)</span>' : "") + "</span>";
     }).join("");
     var moves = [];
     tbl.innerHTML = "<thead><tr><th class='l'>Rank now</th><th class='l'>Move</th><th class='l'>Model</th>" +
@@ -2687,9 +2687,9 @@
     var top = live[0] || {}, baseTop = Object.keys(base).filter(function (m) { return base[m].rank === 1; })[0];
     var tied = live.filter(function (r) { return Math.abs(r.composite - top.composite) * 100 < 0.05; });
     document.getElementById("wimpact-sum").textContent = !live.length ? "" :
-      (moves.length ? "Order changed: " + moves.join("; ") + "." : "Same order as the stored weights.") +
+      (moves.length ? "Order changed. " + moves.join(". ") + "." : "Same order as the stored weights.") +
       (tied.length > 1 ? " Top place is a tie (" + tied.map(function (r) { return shortModel(r.model); }).join(", ") +
-        " within 0.05 points): with these weights the score cannot separate them."
+        " within 0.05 points), so with these weights the score cannot separate them."
         : " Top model now: " + shortModel(top.model) + (baseTop && baseTop !== top.model ? " (stored weights: " + shortModel(baseTop) + ")." : " (unchanged)."));
   }
 
@@ -2847,11 +2847,11 @@
     var el = document.getElementById("pa-finding");
     if (dom.length) {
       var lat = Object.keys(latAgents).join(", "), vr = Object.keys(vrAgents).join(", ");
-      el.textContent = "Finding: latency is dominated by the " + (lat || "reason") +
+      el.textContent = "Finding. Latency is dominated by the " + (lat || "reason") +
         " agent, and marginal working memory by the " + (vr || "decide") +
-        " agent — consistent across all models (highlighted below).";
+        " agent, consistently across all models (highlighted below).";
     } else {
-      el.textContent = "Finding: reason dominates latency; decide dominates marginal working memory (highlighted per row below).";
+      el.textContent = "Finding. Reason dominates latency, and decide dominates marginal working memory (highlighted per row below).";
     }
   }
 
@@ -2878,18 +2878,18 @@
     var fin = document.getElementById("sens-finding");
     var top = s.top_by_set || {};
     if (s.top_stable && s.stable_top_model) {
-      fin.textContent = "Finding: " + s.stable_top_model + " ranks #1 under every weight set — the top result is rank-stable.";
+      fin.textContent = "Finding. " + s.stable_top_model + " ranks #1 under every weight set, so the top result is rank-stable.";
     } else if (Object.keys(top).length) {
-      fin.textContent = "Top model by weight set: " +
-        Object.keys(top).map(function (k) { return k + " → " + top[k]; }).join("   ·   ") + ".";
+      fin.textContent = "Top model by weight set. " +
+        Object.keys(top).map(function (k) { return k + " → " + top[k]; }).join(", ") + ".";
     } else { fin.textContent = ""; }
     // weight-set composition note
     var ws = s.weight_sets || {};
     var note = Object.keys(ws).map(function (name) {
       var w = ws[name];
-      return name + " {" + CRIT.map(function (k) { return k + ":" + w[k]; }).join(", ") + "}";
-    }).join("   ·   ");
-    document.getElementById("sens-note").textContent = note ? ("Weight sets — " + note) : "";
+      return name + " {" + CRIT.map(function (k) { return k + " " + w[k]; }).join(", ") + "}";
+    }).join(", ");
+    document.getElementById("sens-note").textContent = note ? ("Weight sets are " + note) : "";
   }
 
   // Statistics: Kruskal-Wallis (+ Dunn) — read-only
@@ -2904,7 +2904,7 @@
     var body = document.getElementById("stats-body");
     var fin = document.getElementById("stats-finding");
     if (!keys.length) {
-      body.innerHTML = "<p class='note'>(no statistics block in this file — load a real analysis.json)</p>";
+      body.innerHTML = "<p class='note'>(no statistics block in this file, so load a real analysis.json)</p>";
       fin.textContent = ""; return;
     }
     var sigMetrics = [];
@@ -2918,15 +2918,15 @@
         "<div class='stat-row'><span class='k'>Statistic (H)</span><span>" + (e.H != null ? (+e.H).toFixed(2) : "—") + "</span></div>" +
         "<div class='stat-row'><span class='k'>p-value</span><span>" + fmtP(e.p_value) + " (α = " + (e.alpha != null ? e.alpha : 0.05) + ")</span></div>" +
         "<div class='stat-row'><span class='k'>Result</span><span class='sig " + (sig ? "yes" : "no") + "'>" +
-          (sig ? "SIGNIFICANT — models differ" : "not significant") + "</span></div>" +
+          (sig ? "SIGNIFICANT, models differ" : "not significant") + "</span></div>" +
         (e.posthoc ? "<div class='stat-row'><span class='k'>Post-hoc</span><span>" + esc(e.posthoc) + "</span></div>" : "");
       var dunn = dunnTable(e.dunn_matrix);
       return "<div style='margin-bottom:18px'><h3 style='font-size:14px;margin:0 0 6px'>" +
         esc(metricLabel(k)) + "</h3>" + rows + dunn + "</div>";
     }).join("");
     fin.textContent = sigMetrics.length
-      ? ("Finding: differences across models are statistically significant for " + sigMetrics.join(" and ") + ".")
-      : "Finding: no statistically significant differences across models in this file.";
+      ? ("Finding. Differences across models are statistically significant for " + sigMetrics.join(" and ") + ".")
+      : "Finding. No statistically significant differences across models in this file.";
   }
   function dunnTable(mat) {
     if (!mat || typeof mat !== "object") return "";
@@ -3035,7 +3035,7 @@
     if (!barsEl) return;
     var rows = pcRows();
     if (!rows.length) {
-      barsEl.innerHTML = "<span class='note'>(no per-class data in this file — produced by analyze.py as the <code>per_class</code> section)</span>";
+      barsEl.innerHTML = "<span class='note'>(no per-class data in this file. analyze.py produces it as the <code>per_class</code> section)</span>";
       tblEl.innerHTML = ""; noteEl.textContent = ""; return;
     }
     var model = state.pcModel;
@@ -3072,9 +3072,9 @@
       }).join("") + "</tbody>";
 
     var top = classes[maxIdx];
-    noteEl.textContent = "Resource cost per attack class for " + model + " — highest " +
+    noteEl.textContent = "Resource cost per attack class for " + model + ". The highest " +
       (PC_METRIC_LABEL[metric] || metric) + " on the " + (top || "—") +
-      " class. This shows WHERE resource cost concentrates by class; accuracy is shown as plain context, not a ranking.";
+      " class. This shows WHERE resource cost concentrates by class, and accuracy is shown as plain context, not a ranking.";
   }
 
   // ==== Chapter 4 — analytical expansion (read-only) ====
@@ -3149,8 +3149,8 @@
       if (!vendorsSeen.some(function (q) { return q.name === v.name; })) vendorsSeen.push(v);
       var right = cx > W - 130;   // keep labels inside the plot near the right edge
       s += '<circle class="dot' + (fr ? " front" : "") + '" cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="6" style="fill:' + v.color + '"' +
-        ' data-tip="' + esc(p.model) + '" data-tip-sub="' + esc(v.name + (fr ? " · on the Pareto front" : "")) + '"' +
-        ' data-tip-val="' + esc((+p.accuracy_pct).toFixed(1) + "% accuracy · " + tickFmt(+p[xKey]) + " " + xLabel.split(",")[0]) + '" data-tip-c="' + v.color + '"></circle>';
+        ' data-tip="' + esc(p.model) + '" data-tip-sub="' + esc(v.name + (fr ? ", on the Pareto front" : "")) + '"' +
+        ' data-tip-val="' + esc((+p.accuracy_pct).toFixed(1) + "% accuracy, " + tickFmt(+p[xKey]) + " " + xLabel.split(",")[0]) + '" data-tip-c="' + v.color + '"></circle>';
       // front points: label under the dot so it never sits on the dotted line
       if (fr) s += '<text class="ptlabel" x="' + cx.toFixed(1) + '" y="' + (cy + 21).toFixed(1) + '" text-anchor="middle">' + esc(shortModel(p.model)) + '</text>';
       else s += '<text class="ptlabel" x="' + (right ? cx - 10 : cx + 10).toFixed(1) + '" y="' + (cy + 4).toFixed(1) + '"' + (right ? ' text-anchor="end"' : "") + '>' + esc(shortModel(p.model)) + '</text>';
@@ -3174,8 +3174,8 @@
     var lat = pts.filter(function (p) { return p.pareto_latency; }).map(function (p) { return shortModel(p.model); });
     var tok = pts.filter(function (p) { return p.pareto_tokens; }).map(function (p) { return shortModel(p.model); });
     document.getElementById("pareto-note").textContent =
-      "Non-dominated (Pareto-optimal) — accuracy vs latency: " + (lat.join(", ") || "—") +
-      "  ·  accuracy vs tokens: " + (tok.join(", ") || "—") +
+      "Non-dominated (Pareto-optimal) for accuracy vs latency: " + (lat.join(", ") || "none") +
+      ". For accuracy vs tokens: " + (tok.join(", ") || "none") +
       ". Dark-ringed dots joined by the dotted line mark the front (higher accuracy, lower cost).";
   }
 
@@ -3257,7 +3257,7 @@
           "<td>" + (r.mean_tokens != null ? Math.round(r.mean_tokens).toLocaleString() : "—") + "</td></tr>";
       }).join("") + "</tbody>";
     document.getElementById("mcost-note").textContent =
-      "RESOURCE cost only — how much latency/tokens a model spends when its prediction is right vs wrong. Not an analysis of why models misclassify, and not a detection ranking.";
+      "RESOURCE cost only, meaning how much latency and how many tokens a model spends when its prediction is right vs wrong. Not an analysis of why models misclassify, and not a detection ranking.";
   }
 
   function renderAdvanced() {
@@ -3278,7 +3278,7 @@
   }
   function printReport(html) {
     var w = window.open("", "_blank");
-    if (!w) { alert("Pop-up blocked — allow pop-ups to print the report."); return; }
+    if (!w) { alert("Pop-up blocked. Allow pop-ups to print the report."); return; }
     w.document.open(); w.document.write(html); w.document.close(); w.focus();
     setTimeout(function () { try { w.print(); } catch (e) {} }, 350);
   }
@@ -3295,7 +3295,7 @@
       "exp-print": guard(function () { printReport(REPORT.reportHtml(state.data, currentTitle())); }),
       "exp-brief": guard(function () {
         printReport(REPORT.decisionBrief(state.data, liveRanked(), state.weights,
-          currentTitle() + " — decision brief"));
+          currentTitle() + ", decision brief"));
       })
     };
     Object.keys(map).forEach(function (id) {
@@ -3416,26 +3416,26 @@
   // the code actually computes: this measures RESOURCE EFFICIENCY (accuracy is one
   // factor); it never ranks detection quality, remediates, or alerts.
   var HELP_TEXT = {
-    "hc-composite": "The overall efficiency score (SAW composite) for each model, shown ×100. It blends accuracy, speed, memory and token use into one number. <b>Higher is better</b>; the tallest bar is the top-ranked model.",
-    "hc-accuracy": "How often each model's final verdict matched the true label, across all scenarios. <b>Higher is better.</b> <span class=\"g\">These are zero-shot open-source models on a hard task, so accuracy is modest — that's an honest measured finding, not a failure.</span>",
+    "hc-composite": "The overall efficiency score (SAW composite) for each model, shown ×100. It blends accuracy, speed, memory and token use into one number. <b>Higher is better</b>, and the tallest bar is the top-ranked model.",
+    "hc-accuracy": "How often each model's final verdict matched the true label, across all scenarios. <b>Higher is better.</b> <span class=\"g\">These are zero-shot open-source models on a hard task, so accuracy is modest. That is an honest measured finding, not a failure.</span>",
     "hc-latency": "Average wall-clock time to process one scenario through all four agents. <b>Lower is better.</b> <span class=\"g\">Differences here usually drive the ranking more than memory does.</span>",
-    "saw": "Ranks the models by one overall score that combines accuracy, speed (latency), memory (VRAM) and token usage. <b>Higher is better.</b> Use the sliders below to change how much each factor matters — the table re-ranks instantly. <span class=\"g\">It measures resource efficiency, not which model is the 'best' threat detector.</span>",
+    "saw": "Ranks the models by one overall score that combines accuracy, speed (latency), memory (VRAM) and token usage. <b>Higher is better.</b> Use the sliders below to change how much each factor matters, and the table re-ranks instantly. <span class=\"g\">It measures resource efficiency, not which model is the 'best' threat detector.</span>",
     "sens-live": "Drag a slider to change how much each factor counts, then watch the ranking above update live. Ask questions like 'if I cared more about speed, would the order change?'. <span class=\"g\">Weights are automatically re-normalised to sum to 1.</span>",
-    "vram-finding": "A plain-language note about memory use in this run. On this hardware every model sits far below the memory target, so VRAM doesn't separate them — the ranking is driven mainly by accuracy, latency and tokens.",
-    "peragent": "<b>What:</b> where time and working memory go across the 4 pipeline steps (Perceive → Reason → Decide → Act), per model. <b>How to read:</b> a taller bar means that step costs more. <b>Look for:</b> the step that dominates — that is the bottleneck to target if you want to cut cost. <span class=\"g\">In the real run, Reason dominates latency and Decide dominates working memory for every model.</span>",
-    "perclass": "<b>What:</b> average latency, memory and tokens broken down by attack class (Port Scanning, Benign, …). <b>How to read:</b> pick a model and a metric; a taller bar means that class costs more to process. <b>Look for:</b> classes that are unusually expensive. <span class=\"g\">This is a cost breakdown only — not a judgement of how well each class is detected.</span>",
-    "sensitivity": "<b>What:</b> the ranking recomputed under several fixed weightings (equal, accuracy-heavy, efficiency-heavy). <b>How to read:</b> each column is one weighting — follow a model across them. <b>Look for:</b> whether the top model stays on top; if it does, the ranking is robust to how you weight the factors.",
-    "statistics": "<b>What:</b> a test (Kruskal-Wallis) of whether the models' per-scenario latency/memory really differ or could just be chance. <b>How to read:</b> a small p-value (p &lt; 0.05) means the differences are real. <b>Look for:</b> which metrics are significant; the Dunn table then shows which specific model pairs differ.",
-    "accuracy": "<b>What:</b> how often each model's final verdict matched the true label, plus a confusion matrix of true vs predicted. <b>How to read:</b> higher accuracy is better; in the matrix the diagonal is correct calls and off-diagonal cells are mix-ups. <b>Look for:</b> which classes a model confuses. <span class=\"g\">Low accuracy here is an honest measured result for zero-shot models on this task.</span>",
-    "pareto": "<b>What:</b> accuracy plotted against a resource cost (latency or tokens). <b>How to read:</b> up = more accurate, left = cheaper; the dashed line connects the best trade-offs. <b>Look for:</b> models on the line — nothing beats them on both at once; dots behind the line are outperformed by a model on it.",
-    "cov": "<b>What:</b> how consistent each model's speed is from scenario to scenario. <b>How to read:</b> lower = steadier, more predictable timing (good for reliable response); higher means the model is sometimes much slower than usual. <b>Look for:</b> the steadiest model. <span class=\"g\">The formula is std ÷ mean of end-to-end latency.</span>",
-    "prefill": "<b>What:</b> each response's time split into prefill (time to the first token, TTFT) and decode (writing the rest). <b>How to read:</b> compare the two bars per model. <b>Look for:</b> whether time goes mostly into reading the prompt or generating the answer — the two are optimised differently.",
-    "throughput": "<b>What:</b> how fast each model writes its answer once generating — output tokens per second. <b>How to read:</b> higher = quicker to finish a response. <b>Look for:</b> the fastest generator. <span class=\"g\">Raw generation speed, independent of how long the answer ends up being.</span>",
-    "misclass": "<b>What:</b> the resource cost (latency, tokens) when a model is right vs when it's wrong. <b>How to read:</b> compare the right-bar and wrong-bar per model. <b>Look for:</b> whether wrong answers cost more. <span class=\"g\">A cost comparison only — not a measure of detection quality.</span>",
-    "modelctx": "Live reference facts about each model, pulled from the Hugging Face Hub — size, downloads, likes, license and last update. <b>This is context only</b>, not part of the score and never used to re-rank models. <span class=\"g\">If the Hub is unreachable it simply shows as unavailable; the rest of the dashboard is unaffected.</span>",
-    "ds-rec": "A plain-language reading of the current ranking: which model is the most resource-efficient choice under the weights you've set. It updates live as you move the sliders. <b>Honesty note:</b> every model is in the Critical tier (accuracy below target), so this is a <b>starting point, not a deployment sign-off</b>.",
-    "ds-filter": "Enter the limits your use case can tolerate (max latency / VRAM / tokens, min accuracy). Each model is checked against its <b>already-measured</b> values and marked PASS or FAIL, with the failing constraint named. <span class=\"g\">It filters existing data only — it never launches a new run, and a limit on a dimension this analysis didn't measure is simply ignored.</span>",
-    "ds-optim": "Points to the pipeline step where resource cost concentrates and suggests how to reduce it — cap that step's token budget or use a lighter model for that step. <span class=\"g\">Strictly a resource-cost suggestion; it is not advice about accuracy or detection quality.</span>"
+    "vram-finding": "A plain-language note about memory use in this run. On this hardware every model sits far below the memory target, so VRAM doesn't separate them. The ranking is driven mainly by accuracy, latency and tokens.",
+    "peragent": "This shows where time and working memory go across the 4 pipeline steps (Perceive → Reason → Decide → Act), per model. A taller bar means that step costs more. Look for the step that dominates, because that is the bottleneck to target if you want to cut cost. <span class=\"g\">In the real run, Reason dominates latency and Decide dominates working memory for every model.</span>",
+    "perclass": "This shows average latency, memory and tokens broken down by attack class (Port Scanning, Benign, …). Pick a model and a metric. A taller bar means that class costs more to process, so look for classes that are unusually expensive. <span class=\"g\">This is a cost breakdown only, not a judgement of how well each class is detected.</span>",
+    "sensitivity": "This shows the ranking recomputed under several fixed weightings (equal, accuracy-heavy, efficiency-heavy). Each column is one weighting, so follow a model across them. If the top model stays on top, the ranking is robust to how you weight the factors.",
+    "statistics": "This is a test (Kruskal-Wallis) of whether the models' per-scenario latency and memory really differ or could just be chance. A small p-value (p &lt; 0.05) means the differences are real. Look for which metrics are significant, and the Dunn table then shows which specific model pairs differ.",
+    "accuracy": "This shows how often each model's final verdict matched the true label, plus a confusion matrix of true vs predicted. Higher accuracy is better. In the matrix the diagonal is correct calls and off-diagonal cells are mix-ups, so look for which classes a model confuses. <span class=\"g\">Low accuracy here is an honest measured result for zero-shot models on this task.</span>",
+    "pareto": "This plots accuracy against a resource cost (latency or tokens). Up is more accurate and left is cheaper, and the dashed line connects the best trade-offs. Nothing beats the models on the line on both at once, and dots behind the line are outperformed by a model on it.",
+    "cov": "This shows how consistent each model's speed is from scenario to scenario. Lower means steadier, more predictable timing, which is good for reliable response. Higher means the model is sometimes much slower than usual. <span class=\"g\">The formula is std ÷ mean of end-to-end latency.</span>",
+    "prefill": "This splits each response's time into prefill (time to the first token, TTFT) and decode (writing the rest). Compare the two bars per model to see whether time goes mostly into reading the prompt or generating the answer, since the two are optimised differently.",
+    "throughput": "This shows how fast each model writes its answer once generating, in output tokens per second. Higher means quicker to finish a response. <span class=\"g\">It is raw generation speed, independent of how long the answer ends up being.</span>",
+    "misclass": "This shows the resource cost (latency, tokens) when a model is right and when it's wrong. Compare the right bar and the wrong bar per model to see whether wrong answers cost more. <span class=\"g\">It is a cost comparison only, not a measure of detection quality.</span>",
+    "modelctx": "Live reference facts about each model from the Hugging Face Hub, such as size, downloads, likes, license and last update. <b>This is context only</b>, not part of the score and never used to re-rank models. <span class=\"g\">If the Hub is unreachable it simply shows as unavailable, and the rest of the dashboard is unaffected.</span>",
+    "ds-rec": "A plain-language reading of the current ranking, naming the most resource-efficient model under the weights you've set. It updates live as you move the sliders. <b>Honesty note.</b> Every model is in the Critical tier (accuracy below target), so this is a <b>starting point, not a deployment sign-off</b>.",
+    "ds-filter": "Enter the limits your use case can tolerate (max latency, VRAM or tokens, min accuracy). Each model is checked against its <b>already-measured</b> values and marked PASS or FAIL, with the failing constraint named. <span class=\"g\">It filters existing data only. It never launches a new run, and a limit on a dimension this analysis didn't measure is simply ignored.</span>",
+    "ds-optim": "Points to the pipeline step where resource cost concentrates and suggests how to reduce it, by capping that step's token budget or using a lighter model for that step. <span class=\"g\">This is strictly a resource-cost suggestion and not advice about accuracy or detection quality.</span>"
   };
 
   function closeHelp() {
@@ -3517,7 +3517,7 @@
         render(Object.keys(ms).map(function (k) { return Object.assign({ model: k }, ms[k]); }));
         loaded = true;
         if (note) note.textContent = "Source: Hugging Face Hub, fetched when this session finished (" +
-          (ctx.status || "unavailable") + (ctx.reason ? ": " + ctx.reason : "") + "). Context only — not part of any score.";
+          (ctx.status || "unavailable") + (ctx.reason ? ": " + ctx.reason : "") + "). This is context only and not part of any score.";
         return;
       }
       if (!live()) {
@@ -3529,7 +3529,7 @@
       }).then(function (d) {
         render(d.models || []);
         loaded = true;
-        if (note) note.textContent = "Source: Hugging Face Hub (live, cached). Context only — not part of the ranking.";
+        if (note) note.textContent = "Source: Hugging Face Hub (live, cached). This is context only and not part of the ranking.";
       }).catch(function () {
         if (note) note.textContent = "Reference metadata unavailable (Hugging Face Hub unreachable). The rest of the dashboard is unaffected.";
         loaded = true;
@@ -3567,7 +3567,7 @@
     }
     if (kind !== "sample" && prov && prov.non_validated) {
       b.className = "banner unvalidated";
-      b.innerHTML = "<b>⚠ USER / CUSTOM RUN — not the validated baseline</b>" +
+      b.innerHTML = "<b>⚠ USER / CUSTOM RUN, not the validated baseline</b>" +
         '<span class="src">' + esc(sourceLabel) + "</span>" +
         "<span>Exploratory resource numbers from a custom config. These do <b>not</b> " +
         "change the locked study's SAW ranking or statistics.</span>";
@@ -3654,7 +3654,7 @@
       load(validate(JSON.parse(raw)), "sample", "bundled sample_analysis.json");
     } catch (err) {
       document.getElementById("banner").innerHTML =
-        "<b>Could not parse bundled sample:</b> " + esc(err.message) + " — load an analysis.json manually.";
+        "<b>Could not parse bundled sample:</b> " + esc(err.message) + ". Load an analysis.json manually.";
     }
   }
   // ---- Phase 45: full analysis view of ONE benchmark session (?session=<job id>) ----
@@ -3662,14 +3662,14 @@
     var s = d.session || {}, env = d.environment || {}, s3 = d.recommendation_stage3 || null;
     var el = document.getElementById("session-panel");
     var models = (d.per_model || []).map(function (m) { return m.model; });
-    var gpu = env.provider === "real" ? "Real GPU: " + (env.gpu_name || "unknown") : "DEMO (mock) — no GPU, not a model measurement";
+    var gpu = env.provider === "real" ? "Real GPU: " + (env.gpu_name || "unknown") : "DEMO (mock), no GPU, not a model measurement";
     var api = "/api/jobs/" + encodeURIComponent(jobId);
     el.innerHTML = "<h2>Session analysis (non-validated)</h2>" +
       "<div class='kvs'><span><b>Sample size:</b> " + esc(s.n_flows) + " flows × " + models.length + " model" + (models.length === 1 ? "" : "s") +
       "</span><span><b>Models:</b> " + esc(models.join(" vs ")) + "</span><span><b>Input:</b> " + esc(String(s.source_type || "").toUpperCase()) +
-      " · " + esc(s.accuracy_available ? "labelled → accuracy + efficiency (" + s.class_scheme + ")" : "unlabelled → efficiency only") +
+      ", " + esc(s.accuracy_available ? "labelled → accuracy + efficiency (" + s.class_scheme + ")" : "unlabelled → efficiency only") +
       "</span><span><b>Measured on:</b> " + esc(gpu) + "</span><span><b>Job:</b> <span class='mono'>" + esc(jobId) + "</span></span></div>" +
-      (s3 ? "<h3 style='margin:12px 0 4px;font-size:14px'>Recommendation — stage 3</h3><p style='margin:0;font-size:13px'><b>Measured verdict:</b> " +
+      (s3 ? "<h3 style='margin:12px 0 4px;font-size:14px'>Recommendation, stage 3</h3><p style='margin:0;font-size:13px'><b>Measured verdict:</b> " +
         esc((s3.verdict || {}).text || "—") + "</p>" + ((s3.notes || []).length ? "<ul class='s3' id='session-stage3'>" +
         s3.notes.map(function (n) { return "<li><code>" + esc(n.rule) + "</code> " + esc(n.note) + " <span class='note'>(" + esc((n.sources || []).join(", ")) + ")</span></li>"; }).join("") + "</ul>"
         : "<p class='note' id='session-stage3'>No context rule fired (Hugging Face metadata " + esc(s3.metadata_status || "unavailable") + ").</p>") : "") +
@@ -3680,10 +3680,10 @@
     el.hidden = false;
     document.getElementById("ov-title").textContent = "Session analysis (non-validated)";
     document.getElementById("ov-intro").textContent = "This session's models, ranked by the same SAW composite and views as the " +
-      "Validation baseline — on " + s.n_flows + " flows of your data. Small samples: differences may not be meaningful.";
+      "Validation baseline, on " + s.n_flows + " flows of your data. With small samples, differences may not be meaningful.";
     var sub = document.getElementById("hc-acc-sub");
-    if (sub) sub.textContent = "Accuracy across " + s.n_flows + " flows · Higher is better";
-    document.title = "AgentMeter — Session analysis (non-validated)";
+    if (sub) sub.textContent = "Accuracy across " + s.n_flows + " flows, higher is better";
+    document.title = "Session analysis (non-validated) | AgentMeter";
   }
   // Phase 47: no inline event handlers (the page runs under a strict CSP on Pages)
   document.addEventListener("click", function (ev) {
@@ -3830,14 +3830,14 @@
       // the reference labels is a validity check (app: Output Reliability), never a scored criterion here.
       document.body.classList.add("no-accuracy");
       if (d.session && d.session.accuracy_available) { document.body.classList.add("eff-view"); d = efficiencyView(d); }
-      load(validate(d), "session", "job " + SESSION_ID + " · " + ((d.session && d.session.run_dir) || "").split("/").slice(-1)[0]);
+      load(validate(d), "session", "job " + SESSION_ID + ", " + ((d.session && d.session.run_dir) || "").split("/").slice(-1)[0]);
       renderSessionPanel(d, SESSION_ID);
       MODELCTX.load();
       if (SOLO) soloShow(SOLO);
     }).catch(function (e) {
       var b = document.getElementById("banner");
       b.className = "banner unvalidated";
-      b.innerHTML = "<b>Session analysis unavailable</b><span>" + esc(e.message) + "</span><span><a href='/app.html#/sessions'>Sessions</a> · <a href='/baseline'>Validation baseline</a></span>";
+      b.innerHTML = "<b>Session analysis unavailable</b><span>" + esc(e.message) + "</span><span><a href='/app.html#/sessions'>Sessions</a>, <a href='/baseline'>Validation baseline</a></span>";
     });
     return;
   }

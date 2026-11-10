@@ -88,7 +88,7 @@ def test_key_findings_restate_stored_numbers():
     assert f["tail"].startswith("Slowest 5% of flows: model-a takes 2.5× its median time")
     assert "25% of all tokens for model-b" in f["overhead"]
     assert f["cost"].startswith("Cheapest to run: model-a at $0.0200 per 1,000 flows ($0.0500 for model-b)")
-    assert f["valid"] == "Output validity: model-b gave a usable answer for 95.0% of flows (2 without one) — see Output Reliability."
+    assert f["valid"] == "Output validity. model-b gave a usable answer for 95.0% of flows (2 without one). See Output Reliability."
     assert "accuracy" not in f and not any("ccura" in t for t in f.values())
 
 
@@ -100,10 +100,10 @@ def test_key_findings_merge_a_shared_slowest_step_and_report_ties():
     s["cost_energy"] = {"per_model": [{"model": A, "cost_per_1k_flows_usd": None, "cost_reason": "mock run"}]}
     out = call("keyFindings", s)
     agents = [x["text"] for x in out if x["key"] == "agent"]
-    assert agents == ["Where the time goes: the reason step is the slowest for every model (50% of each flow for model-a, 70% of each flow for model-b)."]
+    assert agents == ["Where the time goes. The reason step is the slowest for every model (50% of each flow for model-a, 70% of each flow for model-b)."]
     f = {x["key"]: x["text"] for x in out}
     assert f["gap"] == "No efficiency metric separates the models beyond the tie range."
-    assert f["valid"] == "Output validity: every model gave a usable answer for every flow."
+    assert f["valid"] == "Output validity. Every model gave a usable answer for every flow."
     assert f["cost"] == "Cost and energy were not measured in this run: mock run."
 
 
@@ -137,7 +137,7 @@ def test_weight_stability_finds_the_crossing():
     assert call("stabilitySentence", lat) == "model-a stays first while this weight is between 0.34 and 1.00 (stored 0.42)."
     vram = next(r for r in st["rows"] if r["criterion"] == "vram")
     assert vram["no_data"] is True
-    assert call("stabilitySentence", vram) == "No readings for this criterion in the run: its weight changes nothing."
+    assert call("stabilitySentence", vram) == "This run has no readings for this criterion, so its weight changes nothing."
 
 
 def test_weight_stability_ties_point_ties_and_unlabelled():
@@ -601,7 +601,7 @@ def test_section_answers_restate_stored_numbers_in_plain_words():
     assert out["What does it cost per 1,000 flows?"] == "Mistral 7B is cheapest at $0.12 per 1,000 flows; Qwen2.5 7B costs $0.20."
     assert out["How energy-efficient is each model?"] == "Mistral 7B does the most work per unit of energy: 2,000 flows per kWh."
     assert out["Which model is faster, and by how much?"] == "Mistral 7B is 33% faster per flow than Qwen2.5 7B."
-    assert out["Can these results be trusted?"].startswith("With care: the GPU was not in a normal state while Qwen2.5 7B ran")
+    assert out["Can these results be trusted?"].startswith("With care. The GPU was not in a normal state while Qwen2.5 7B ran")
     assert "1 of 1 model pairs differ by more than chance" in out["Are the accuracy differences real?"]
     assert "How many flows can one GPU handle?" in out and "43,200 flows a day with Mistral 7B" in out["How many flows can one GPU handle?"]
     for text in out.values():                 # plain copy: everyday names, no em dashes
@@ -613,7 +613,7 @@ def test_section_answers_say_not_measured_and_demo_plainly():
     s["session"]["provider"] = s["environment"]["provider"] = "mock"
     s["memory"] = {"per_model": [{"model": REAL_A, "total_peak_mb": None, "reason": "mock/CPU run: no GPU memory to measure"}]}
     out = call("sectionAnswers", s)
-    assert out["Can these results be trusted?"].startswith("Not as measurements: this is a demo run")
+    assert out["Can these results be trusted?"].startswith("Not as measurements. This is a demo run")
     assert out["How much GPU memory does it need?"] == "Not measured in this run (mock/CPU run: no GPU memory to measure)."
     assert "How many flows can one GPU handle?" not in out          # simulated times: no capacity claim
 

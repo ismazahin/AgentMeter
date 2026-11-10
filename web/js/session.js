@@ -19,7 +19,7 @@ function loadSessions() {
     var rows = r.data.sessions || [];
     var any = st || it || qs || FLT_TAG;
     box.innerHTML = rows.length ? sessionsTable(rows, "sessions-table", true)
-      : '<div class="empty"><p>' + (any ? "No sessions match these filters." : "No sessions yet — start one with New benchmark.") + '</p>' +
+      : '<div class="empty"><p>' + (any ? "No sessions match these filters." : "No sessions yet. Start one with New benchmark.") + '</p>' +
         (any ? "" : '<a class="btn primary" href="#/new">New benchmark</a>') + '</div>';
     box.querySelectorAll("[data-tag]").forEach(function (b) { b.addEventListener("click", function () { FLT_TAG = b.getAttribute("data-tag"); loadSessions(); }); });
     wireRowActions(box, rows);
@@ -67,7 +67,7 @@ function wireRowActions(box, rows) {
   box.querySelectorAll("[data-del]").forEach(function (b) { b.addEventListener("click", function () {
     var id = b.getAttribute("data-del"), s = byId[id];
     confirmAction({ title: "Delete session " + (s.title ? "\u201C" + s.title + "\u201D" : (s.models || []).map(short).join(" vs ")) + "?", danger: true, ok: "Delete session",
-      body: "Session " + id + " is deleted for everyone: its results, PDF and stored prepared-set copy. This cannot be undone." }).then(function (yes) {
+      body: "Session " + id + " is deleted for everyone, with its results, PDF and stored prepared-set copy. This cannot be undone." }).then(function (yes) {
     if (!yes) return;
     var mb = menuBtn(b); mb.disabled = true;
     api("/api/sessions/" + enc(id), { method: "DELETE" }).then(function (r) {
@@ -200,9 +200,9 @@ function loadSessionCP(id, tab) {
       w.hidden = false;
       w.innerHTML = '<div class="card" id="watch-card"><div class="row" style="margin-top:0;justify-content:space-between"><h2>' +
         (r.data.status === "Running" ? "Running on the GPU" : "Session " + esc(r.data.status).toLowerCase()) + '</h2>' + statusChip(r.data.status) + '</div>' +
-        '<p class="muted small">' + (r.data.models || []).map(function (m) { return esc(m) + extraTag(m); }).join("  vs  ") + (r.data.owner ? " · started by " + esc(r.data.owner) : "") + '</p>' +
-        (ONLINE ? "" : '<div class="notice warn" id="watch-offline">GPU offline — live progress and Resume need the GPU backend. Stored sessions stay browsable.</div>') +
-        (r.data.status === "Stopped" ? '<p class="muted small">Stopped before it finished — not scored.</p>' +
+        '<p class="muted small">' + (r.data.models || []).map(function (m) { return esc(m) + extraTag(m); }).join("  vs  ") + (r.data.owner ? ", started by " + esc(r.data.owner) : "") + '</p>' +
+        (ONLINE ? "" : '<div class="notice warn" id="watch-offline">The GPU is offline. Live progress and Resume need the GPU backend, and stored sessions stay browsable.</div>') +
+        (r.data.status === "Stopped" ? '<p class="muted small">Stopped before it finished, so it is not scored.</p>' +
           (r.data.run_name ? '<div class="actions"><a class="btn" id="watch-again" href="#/new/models?set=' + enc(r.data.run_name) + '">Benchmark these flows again</a></div>' : "") : "") + '</div>';
       if (ONLINE && (r.data.status === "Failed" || r.data.status === "Interrupted")) fromBackend();
     });
@@ -416,7 +416,7 @@ function renderSession(res, job) {
   var vs = (res.per_model || []).map(function (m) { return nick(m.model); }).join(" vs ");
   $("h-session").textContent = job.title || vs || job.job_id;      // a session the owner named shows its name
   $("h-session").title = (res.per_model || []).map(function (m) { return m.model; }).join(" vs ");   // the full names on hover
-  document.title = $("h-session").textContent + " · AgentMeter";
+  document.title = $("h-session").textContent + " | AgentMeter";
   $("session-chips").innerHTML = '<span class="chip ' + (real ? "ok" : "warn") + '">' + (real ? "GPU: " + esc(env.gpu_name || "unknown") : "Demo (no GPU)") + '</span>' +
     '<span class="chip">' + fmtNum(s.n_flows) + ' flows</span><span class="chip">' + esc((s.source_type || "").toUpperCase()) + '</span>' +
     '<span class="chip">' + (s.accuracy_available ? "labelled" : "no reference labels") + '</span>' +
@@ -467,7 +467,7 @@ function pdfPath(job) {
 // SAW weights: the ones the stored scores used, and (view only) a user's preset
 function weightsText(w) {
   return ["latency", "vram", "tokens"].filter(function (k) { return w && w[k] != null; })
-    .map(function (k) { return k + " " + Number(w[k]).toFixed(2); }).join(" · ");
+    .map(function (k) { return k + " " + Number(w[k]).toFixed(2); }).join(", ");
 }
 function presetRank(res, preset) {
   var p8 = res.phase8 || {}, w = Object.assign({}, preset.weights);
@@ -483,11 +483,11 @@ function presetRank(res, preset) {
 function weightsCard(res) {
   var p8 = res.phase8 || {}, presets = (SETTINGS && SETTINGS.weight_presets) || [], ew = (res.phase8_efficiency_only || {}).weights || p8.weights;
   return '<div class="card" id="svc-weights-card"><h2>SAW weights</h2><p class="small" id="svc-weights-used"><b>The score uses:</b> ' +
-    esc(weightsText(ew) || "not recorded") + ' <span class="muted">(efficiency only: latency, VRAM and tokens; agreement with reference labels is a validity check under Output Reliability, not a criterion)</span></p>' +
-    (presets.length ? '<div class="row"><div class="field"><label for="svc-preset">Re-rank with one of your presets (view only)</label><select id="svc-preset"><option value="">— stored weights —</option>' +
+    esc(weightsText(ew) || "not recorded") + ' <span class="muted">(efficiency only, meaning latency, VRAM and tokens. Agreement with reference labels is a validity check under Output Reliability, not a criterion)</span></p>' +
+    (presets.length ? '<div class="row"><div class="field"><label for="svc-preset">Re-rank with one of your presets (view only)</label><select id="svc-preset"><option value="">Stored weights</option>' +
       presets.map(function (p, i) { return '<option value="' + i + '">' + esc(p.name) + '</option>'; }).join("") + '</select></div></div><div id="svc-preset-view"></div>'
       : '<p class="muted small">Add weight presets in Settings to re-rank here (view only).</p>') +
-    '<p class="muted small">A preset never changes a stored score, rank or verdict; this view states which weights it uses.</p></div>';
+    '<p class="muted small">A preset never changes a stored score, rank or verdict, and this view states which weights it uses.</p></div>';
 }
 function wirePresets(res) {
   var sel = $("svc-preset");
@@ -510,9 +510,9 @@ function headline(rel, pm) {
   if (!rel) return short((pm[0] || {}).model) + ": single-model run";
   var ev = rel.efficiency_verdict || {}, a = short(rel.models[0]), b = short(rel.models[1]), n = rel.models.length;
   if (n > 2) return ev.verdict === "more_efficient" ? short(ev.model) + " is the most efficient of " + n + " models"
-    : ev.verdict === "mixed" ? "Mixed result: no model beats all " + (n - 1) + " others" : "All " + n + " models tie on efficiency";
+    : ev.verdict === "mixed" ? "Mixed result, no model beats all " + (n - 1) + " others" : "All " + n + " models tie on efficiency";
   if (ev.verdict === "more_efficient") return short(ev.model) + " is more efficient than " + (ev.model === rel.models[0] ? b : a);
-  if (ev.verdict === "mixed") return "Mixed result: each model wins somewhere";
+  if (ev.verdict === "mixed") return "Mixed result, each model wins somewhere";
   return a + " and " + b + " are tied on efficiency";
 }
 var TILE = { mean_latency_s: ["Latency", "faster"], mean_peak_vram_mb: ["VRAM", "less"], mean_tokens_per_flow: ["Tokens", "fewer"] };
@@ -576,13 +576,13 @@ function overviewTab(res) {
   var vr = {}; ((res.output_reliability || {}).per_model || []).forEach(function (r) { vr[r.model] = r; });
   var real = env.provider === "real";
   h.push('<div class="card" id="svc-verdict-card"><h2 class="headline" id="svc-headline">' + esc(headline(rel, pm)) + '</h2>' + tiles(res) +
-    '<p id="svc-env" class="small" style="margin:6px 0 0">' + (real ? '<span class="chip ok">Real GPU · ' + esc(gpuShort(env.gpu_name) || "unknown") + '</span>'
-      : '<span class="chip warn">Demo (mock): not a model measurement</span>') + (lab ? "" : ' <span class="chip">Efficiency only</span>') + '</p>' +
+    '<p id="svc-env" class="small" style="margin:6px 0 0">' + (real ? '<span class="chip ok">Real GPU, ' + esc(gpuShort(env.gpu_name) || "unknown") + '</span>'
+      : '<span class="chip warn">Demo (mock), not a model measurement</span>') + (lab ? "" : ' <span class="chip">Efficiency only</span>') + '</p>' +
     '<details class="info" id="svc-full-verdict"><summary>Show full verdict</summary><p class="verdict" id="svc-verdict">' +
-      esc(rel ? rel.verdict : "Single-model run — no head-to-head comparison.") + '</p></details>' +
+      esc(rel ? rel.verdict : "Single-model run, so there is no head-to-head comparison.") + '</p></details>' +
     '<details class="info" id="svc-measured"><summary>ⓘ How this was measured</summary><p class="small muted">' +
-      (real ? 'GPU ' + esc(env.gpu_name || "unknown") + ' · NVIDIA driver ' + esc(env.driver_version || "—") + ' · CUDA ' + esc(env.cuda_runtime_version || "—") + ' · 4-bit NF4' + (env.engine === "vllm" ? ', vLLM engine (continuous batching; per-agent working VRAM and time-to-first-token are not measured with it)' : env.engine ? ", " + esc(env.engine) + " engine" : "") + ', one model at a time.'
-        : 'MOCK provider: a deterministic heuristic, not a language model. It shows the flow; the numbers are not model measurements.') + '</p>' +
+      (real ? 'GPU ' + esc(env.gpu_name || "unknown") + ', NVIDIA driver ' + esc(env.driver_version || "—") + ', CUDA ' + esc(env.cuda_runtime_version || "—") + ', 4-bit NF4' + (env.engine === "vllm" ? ', vLLM engine (continuous batching, so per-agent working VRAM and time-to-first-token are not measured with it)' : env.engine ? ", " + esc(env.engine) + " engine" : "") + ', one model at a time.'
+        : 'MOCK provider. It is a fixed heuristic, not a language model. It shows the flow, and the numbers are not model measurements.') + '</p>' +
       (rel && cmp ? '<p class="small muted" id="svc-absolute"><b>Absolute SAW</b> (against fixed L4-study targets): ' + esc(cmp.statement) + '</p>' : "") + '</details></div>');
   h.push(gpuHealthCard(res), findingsCard(res), scorecardCard(res), '<div id="svc-changed-host"></div>', profileCard(res));
   var tip = function (t) { return '<span class="info-i" tabindex="0" title="' + esc(t) + '" aria-label="' + esc(t) + '">i</span>'; };
@@ -597,10 +597,10 @@ function overviewTab(res) {
       '<td class="num">' + esc(sawE(m).composite_100) + ' <span class="muted">' + esc(sawE(m).tier) + '</span></td></tr>';
   }).join("");
   h.push('<div class="card"><h2>Per model</h2><p class="muted small" id="lim-note" hidden style="margin-top:0">Coloured against your limits: <span class="over-limit">over</span> or <span class="in-limit">within</span> (set them under Recommendations → Does a model fit your limits?).</p><div class="table-wrap"><table id="svc-models-table"><thead><tr><th>Model</th><th class="num">Latency / flow</th><th class="num">p95</th><th class="num">Tokens / flow</th>' +
-    '<th class="num">Working VRAM' + tip("Excludes the model weights: the memory the agent calls add") + '</th><th class="num">Total peak VRAM' + tip("Model weights + working memory") + '</th>' +
+    '<th class="num">Working VRAM' + tip("The memory the agent calls add, without the model weights") + '</th><th class="num">Total peak VRAM' + tip("Model weights + working memory") + '</th>' +
     '<th class="num">Cost / 1k flows</th><th class="num">Energy / flow</th>' +
     '<th class="num">Valid answers' + tip("Share of flows with a usable answer (see Output Reliability)") + '</th><th class="num">SAW (efficiency)</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
-    '<p class="muted small">The SAW score uses latency, VRAM and tokens only.' + tip("AgentMeter measures how efficiently LLMs run the SOC workload; the reference labels only check that the output is valid.") + '</p></div>');
+    '<p class="muted small">The SAW score uses latency, VRAM and tokens only.' + tip("AgentMeter measures how efficiently LLMs run the SOC workload. The reference labels only check that the output is valid.") + '</p></div>');
   var items = caveatItems((rel ? rel.caveats : s.caveats) || []);
   h.push('<div class="card" id="svc-caveats-card"><h2>Good to know</h2><div class="gtk" id="svc-caveats">' +
     items.map(function (x, i) { return '<button type="button" data-cav="' + i + '" aria-expanded="false" aria-controls="svc-cav-detail">' + esc(x.label) + '</button>'; }).join("") +
@@ -624,7 +624,7 @@ function findingsCard(res) {
   if (!f.length) return "";
   return '<div class="card" id="svc-findings"><h2>Key findings</h2><ul class="findings">' +
     f.map(function (x) { return '<li data-finding="' + esc(x.key) + '">' + esc(x.text) + '</li>'; }).join("") +
-    '</ul><p class="muted small">Each line restates one stored number of this session; nothing is re-measured.</p></div>';
+    '</ul><p class="muted small">Each line restates one stored number of this session, and nothing is measured again.</p></div>';
 }
 function profileCard(res) {
   if (!window.INSIGHTS) return "";
@@ -634,7 +634,7 @@ function profileCard(res) {
     return '<div class="prof-row" data-crit="' + k + '"><span class="lbl">' + CRIT_LABEL[k] + (pr.missing[k] ? '<small>no readings</small>' : "") + '</span><div class="prof-bars">' +
       pr.rows.map(function (r, i) {
         var v = r.scores[k], na = pr.missing[k] || v == null;
-        var txt = short(r.model) + " · " + CRIT_LABEL[k] + ": " + (na ? "not measured" : v.toFixed(2) + " of 1.00 (target)");
+        var txt = short(r.model) + ", " + CRIT_LABEL[k] + ": " + (na ? "not measured" : v.toFixed(2) + " of 1.00 (target)");
         return '<div class="ibar' + (na ? " na" : "") + '" tabindex="0" data-hover="' + esc(txt) + '" aria-label="' + esc(txt) + '"><span class="track"><span class="fill" style="--c:' + modelColor(r.model) + ';width:' + (na ? 0 : Math.min(100, 100 * v)) + '%"></span><span class="tgt" style="left:100%"></span></span><span class="val">' + (na ? "n/a" : v.toFixed(2)) + '</span></div>';
       }).join("") + '</div></div>';
   }).join("");
@@ -649,7 +649,7 @@ function profileCard(res) {
 function stabilityCard(res) {
   if (!window.INSIGHTS || !res.phase8) return "";
   var st = INSIGHTS.weightStability(res);
-  if (st.models.length < 2) return '<div class="card" id="svc-stability"><h2>How far can the weights move?</h2><p class="muted">Single-model run: there is no ranking to change.</p></div>';
+  if (st.models.length < 2) return '<div class="card" id="svc-stability"><h2>How far can the weights move?</h2><p class="muted">Single-model run, so there is no ranking to change.</p></div>';
   var r2 = function (v) { return v.toFixed(2); };
   var rows = st.rows.map(function (row) {
     var segs = row.segments.map(function (sg) {
@@ -668,7 +668,7 @@ function stabilityCard(res) {
     '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-stability-table"><thead><tr><th>Criterion</th><th class="num">Stored weight</th><th>First at stored weight</th><th>Stays first for weights</th></tr></thead><tbody>' +
     st.rows.map(function (row) {
       return '<tr><td>' + CRIT_LABEL[row.criterion] + '</td><td class="num">' + r2(row.stored) + '</td><td class="mono">' + esc(row.leader ? short(row.leader) : "tie") + '</td><td class="num">' +
-        (row.no_data ? "any (no readings)" : row.stable ? r2(row.stable[0]) + " – " + r2(row.stable[1]) : "—") + '</td></tr>';
+        (row.no_data ? "any (no readings)" : row.stable ? r2(row.stable[0]) + " to " + r2(row.stable[1]) : "—") + '</td></tr>';
     }).join("") + '</tbody></table></div></details></div>';
 }
 // ---------- Analysis expansion, phase 1: scorecard, what changed, frontier, rank stability ----------
@@ -728,7 +728,7 @@ function frontierCard(res) {
   if (!window.INSIGHTS) return "";
   var fr = INSIGHTS.efficiencyFrontier(res);
   if (fr.points.length < 2) return '<div class="card" id="rank-frontier"><h2>Efficiency frontier</h2><p class="muted small">Needs two or more models with readings.</p></div>';
-  return '<div class="card" id="rank-frontier"><h2>Efficiency frontier</h2><p class="muted small" style="margin-top:0">Each dot is a model: lower-left is better on both. A model on the frontier is not beaten on both at once; the others are.</p>' +
+  return '<div class="card" id="rank-frontier"><h2>Efficiency frontier</h2><p class="muted small" style="margin-top:0">Each dot is a model, and lower-left is better on both. A model on the frontier is not beaten on both at once, and the others are.</p>' +
     '<div class="row" style="margin-top:0"><div class="field"><label for="frontier-y">Compare latency with</label><select id="frontier-y">' +
     fr.available.map(function (k) { return '<option value="' + k + '"' + (k === fr.y ? " selected" : "") + '>' + esc({ memory: "GPU memory", tokens: "Tokens per flow", cost: "Cost per 1,000 flows" }[k]) + '</option>'; }).join("") +
     '</select></div></div><div id="frontier-plot"></div></div>';
@@ -750,12 +750,12 @@ function drawFrontier(res) {
     '<text class="ax" transform="translate(14 ' + ((H - B + T) / 2) + ') rotate(-90)" text-anchor="middle">' + esc(fr.y_label) + '</text>' +
     (front.length > 1 ? '<path class="front" d="' + step + '"/>' : "") +
     labelled(fr.points, X, Y, W - 4).map(function (p) {
-      var t = short(p.model) + ": " + fmtTime(p.x) + ", " + fmtUnit(yu, p.y) + (p.frontier ? " — on the frontier" : " — beaten on both by " + p.dominated_by.map(short).join(", "));
+      var t = short(p.model) + ": " + fmtTime(p.x) + ", " + fmtUnit(yu, p.y) + (p.frontier ? ", on the frontier" : ", beaten on both by " + p.dominated_by.map(short).join(", "));
       return '<g tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"><circle cx="' + X(p.x) + '" cy="' + Y(p.y) + '" r="7" style="fill:' + modelColor(p.model) + '"' + (p.frontier ? "" : ' class="beaten"') + '/>' +
         (p.lx != null ? '<text class="lbl" x="' + p.lx + '" y="' + p.ly + '">' + esc(short(p.model)) + '</text>' : "") + '</g>';
     }).join("") + '</svg>' +
     '<div class="table-wrap"><table id="rank-frontier-table"><thead><tr><th>Model</th><th class="num">Latency / flow</th><th class="num">' + esc(fr.y_label) + '</th><th>On the frontier</th></tr></thead><tbody>' +
-    fr.points.map(function (p) { return '<tr><td class="mono">' + esc(short(p.model)) + '</td><td class="num">' + fmtTime(p.x) + '</td><td class="num">' + fmtUnit(yu, p.y) + '</td><td>' + (p.frontier ? "yes" : "no — beaten by " + esc(p.dominated_by.map(short).join(", "))) + '</td></tr>'; }).join("") +
+    fr.points.map(function (p) { return '<tr><td class="mono">' + esc(short(p.model)) + '</td><td class="num">' + fmtTime(p.x) + '</td><td class="num">' + fmtUnit(yu, p.y) + '</td><td>' + (p.frontier ? "yes" : "no, beaten by " + esc(p.dominated_by.map(short).join(", "))) + '</td></tr>'; }).join("") +
     '</tbody></table></div>';
 }
 // a direct label above-right of its dot, only where it collides with no other label or dot
@@ -783,10 +783,10 @@ function rankStabilityCard(res) {
   if (rs.skipped) return '<div class="card" id="rank-boot"><h2>How sure is the ranking?</h2><p class="muted small">' + esc(rs.skipped) + '.</p></div>';
   var pm = rs.per_model.slice().sort(function (a, b) { return b.p_first - a.p_first; });
   var pl = function (v) { return v == null ? '<span class="muted">no readings</span>' : fmtPct(v); };
-  return '<div class="card" id="rank-boot"><h2>How sure is the ranking?</h2><p class="muted small" style="margin-top:0">The flows were resampled ' + rs.n_boot + ' times; each time the efficiency score was recomputed. How often each model comes first' +
-    (rs.share_top_tied > 0.2 ? ', and how often the top was a tie (' + fmtPct(rs.share_top_tied) + ')' : "") + ':</p><div class="hbars" id="rank-boot-bars">' +
+  return '<div class="card" id="rank-boot"><h2>How sure is the ranking?</h2><p class="muted small" style="margin-top:0">The flows were resampled ' + rs.n_boot + ' times, and each time the efficiency score was recomputed. The bars show how often each model comes first' +
+    (rs.share_top_tied > 0.2 ? ', and how often the top was a tie (' + fmtPct(rs.share_top_tied) + ')' : "") + '.</p><div class="hbars" id="rank-boot-bars">' +
     pm.map(function (m) {
-      var t = short(m.model) + ": first in " + fmtPct(m.p_first) + " of resamples; rank " + m.rank_p5 + "–" + m.rank_p95 + " in 90% of them";
+      var t = short(m.model) + ": first in " + fmtPct(m.p_first) + " of resamples, rank " + m.rank_p5 + " to " + m.rank_p95 + " in 90% of them";
       return '<div class="hbar"><span class="lbl">' + esc(short(m.model)) + '</span><span class="track" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"><span class="fill" style="display:block;width:' + (100 * m.p_first).toFixed(1) +
         '%;background:' + modelColor(m.model) + '"></span></span><span class="val">' + fmtPct(m.p_first) + '</span></div>';
     }).join("") + '</div><div class="table-wrap" style="margin-top:10px"><table id="rank-boot-table"><thead><tr><th>Model</th><th class="num">First</th><th class="num">Mean rank</th><th class="num">Rank (90% of resamples)</th>' +
@@ -800,7 +800,7 @@ function capacityCard(res) {
   if (!window.INSIGHTS || !(res.latency_trend || {}).per_model) return '<div class="card"><p class="muted">This session predates the per-flow latency record.</p></div>';
   var means = (res.per_model || []).map(function (m) { return (((m.efficiency || {}).end_to_end) || {}).mean_latency_s; }).filter(function (x) { return x; });
   var def = means.length ? Math.max(1, Math.round(0.6 * 60 / Math.max.apply(null, means))) : 60;     // ~60% of the slowest model's capacity
-  return '<form class="card" id="cap-card" novalidate><h2>Can it keep up?</h2><p class="muted small" style="margin-top:0">Enter how many flows arrive per minute. One GPU answers one flow at a time (as measured); the simulation shows whether a queue builds up and how long flows wait before their answer.</p>' +
+  return '<form class="card" id="cap-card" novalidate><h2>Can it keep up?</h2><p class="muted small" style="margin-top:0">Enter how many flows arrive per minute. One GPU answers one flow at a time (as measured). The simulation shows whether a queue builds up and how long flows wait before their answer.</p>' +
     '<div class="row" style="margin-top:0"><div class="field"><label for="cap-rate">Flows arriving per minute</label><input id="cap-rate" type="number" min="0.1" step="any" value="' + def + '"></div></div>' +
     '<div id="cap-out"></div></form>';
 }
@@ -874,7 +874,7 @@ function scalingCard(res) {
       return m.input_scaling.points.map(function (p) { return '<circle class="pt" cx="' + X(p[0]) + '" cy="' + Y(p[1]) + '" r="3" style="fill:' + c + '"/>'; }).join("") +
         '<line class="fit" x1="' + X(x0) + '" y1="' + Y(s.intercept_s + s.slope_s_per_1k_tokens * x0 / 1000) + '" x2="' + X(x1) + '" y2="' + Y(s.intercept_s + s.slope_s_per_1k_tokens * x1 / 1000) + '" style="stroke:' + c + '"/>';
     }).join("") + '</svg>';
-  return '<div class="card" id="scaling-card"><h2>Prompt size and latency</h2><p class="muted small" style="margin-top:0">Each dot is a flow; the line is the best straight fit. Its slope says how much time 1,000 more input tokens add, which shows what longer feature lists or chattier hand-offs would cost.</p>' +
+  return '<div class="card" id="scaling-card"><h2>Prompt size and latency</h2><p class="muted small" style="margin-top:0">Each dot is a flow, and the line is the best straight fit. Its slope says how much time 1,000 more input tokens add, which shows what longer feature lists or chattier hand-offs would cost.</p>' +
     legendHtml(ms.map(function (m) { return m.model; })) + svg +
     '<div class="table-wrap"><table id="scaling-table"><thead><tr><th>Model</th><th class="num">+ time per 1,000 input tokens</th><th class="num">Fit (r)</th><th class="num">Input tokens per flow</th></tr></thead><tbody>' +
     ms.map(function (m) { var s = m.input_scaling; return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + (s.slope_s_per_1k_tokens < 0 ? "−" + fmtTime(-s.slope_s_per_1k_tokens) : "+" + fmtTime(s.slope_s_per_1k_tokens)) + '</td><td class="num">' + fmtNum(s.r, 2) + '</td><td class="num">' + fmtNum(s.min_tokens) + '–' + fmtNum(s.max_tokens) + '</td></tr>'; }).join("") +
@@ -884,12 +884,12 @@ function scalingCard(res) {
 function removeAgentCard(res) {
   if (!window.INSIGHTS || !res.agents) return "";
   var ra = INSIGHTS.removeAgent(res);
-  return '<div class="card" id="agents-remove"><h2>What if one agent were removed?</h2><p class="muted small" style="margin-top:0">An estimate from this session\'s measurements: removing an agent saves its own call and the hand-off tokens later agents re-read. It says nothing about whether the answers stay as useful: re-run the pipeline without it (Build my own) to measure that.</p>' +
+  return '<div class="card" id="agents-remove"><h2>What if one agent were removed?</h2><p class="muted small" style="margin-top:0">This is an estimate from this session\'s measurements. Removing an agent saves its own call and the hand-off tokens later agents read again. It says nothing about whether the answers stay as useful, so run the pipeline again without it (Build my own) to measure that.</p>' +
     ra.per_model.map(function (m) {
       return '<h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + ' <span class="muted small">' + fmtTime(m.flow_s) + ' per flow</span></h3>' +
         '<div class="table-wrap"><table class="remove-table"><thead><tr><th>Remove</th><th class="num">Time saved / flow</th><th class="num">Share of flow time</th><th class="num">Tokens saved / flow</th><th>Who loses its answer</th></tr></thead><tbody>' +
         m.agents.map(function (a) {
-          if (!a.removable) return '<tr><td><span class="legend"><span style="--c:' + agColor(a.agent) + '">' + esc(agName(a.agent)) + '</span></span></td><td colspan="4" class="muted">gives the pipeline\'s answer (label agent): cannot be removed</td></tr>';
+          if (!a.removable) return '<tr><td><span class="legend"><span style="--c:' + agColor(a.agent) + '">' + esc(agName(a.agent)) + '</span></span></td><td colspan="4" class="muted">gives the pipeline\'s answer (label agent), so it cannot be removed</td></tr>';
           return '<tr><td><span class="legend"><span style="--c:' + agColor(a.agent) + '">' + esc(agName(a.agent)) + '</span></span></td><td class="num">' + fmtTime(a.saves_s) + (a.prefill_estimated ? ' <span class="muted small">(incl. est. re-reading)</span>' : "") +
             '</td><td class="num">' + fmtPct(a.saves_share) + '</td><td class="num">' + fmtNum(a.saves_tokens) + '</td><td>' + (a.readers.length ? esc(a.readers.map(agName).join(", ")) : '<span class="muted">nobody</span>') + '</td></tr>';
         }).join("") + '</tbody></table></div>';
@@ -899,13 +899,13 @@ var ADVICE = { raise: ["raise it", "warn"], lower: ["can be lower", ""], fits: [
 function budgetCard(res) {
   if (!window.INSIGHTS || !res.agents) return "";
   var bt = INSIGHTS.budgetTuning(res);
-  return '<div class="card" id="agents-budget"><h2>Token budgets</h2><p class="muted small" style="margin-top:0">Each agent may write up to its output-token budget. An agent that often hits it gets cut off (raise it); one that never comes near it can have a tighter budget, which bounds its worst-case time without changing its usual answers.</p>' +
-    '<div class="table-wrap"><table id="agents-budget-table"><thead><tr><th>Model</th><th>Agent</th><th class="num">Budget</th><th class="num">Hits it</th><th class="num">Writes (median · p95 · max)</th><th>Advice</th></tr></thead><tbody>' +
+  return '<div class="card" id="agents-budget"><h2>Token budgets</h2><p class="muted small" style="margin-top:0">Each agent may write up to its output-token budget. An agent that often hits it gets cut off, so raise it. One that never comes near it can have a tighter budget, which bounds its worst-case time without changing its usual answers.</p>' +
+    '<div class="table-wrap"><table id="agents-budget-table"><thead><tr><th>Model</th><th>Agent</th><th class="num">Budget</th><th class="num">Hits it</th><th class="num">Writes (median, p95, max)</th><th>Advice</th></tr></thead><tbody>' +
     bt.map(function (m) {
       return m.agents.map(function (a) {
         var ad = ADVICE[a.advice];
         return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td><span class="legend"><span style="--c:' + agColor(a.agent) + '">' + esc(agName(a.agent)) + '</span></span></td><td class="num">' + (a.budget == null ? "—" : fmtNum(a.budget)) +
-          '</td><td class="num">' + (a.hit_rate == null ? "—" : fmtPct(a.hit_rate)) + '</td><td class="num">' + (a.max == null ? '<span class="muted">not recorded</span>' : fmtNum(a.p50) + ' · ' + fmtNum(a.p95) + ' · ' + fmtNum(a.max)) +
+          '</td><td class="num">' + (a.hit_rate == null ? "—" : fmtPct(a.hit_rate)) + '</td><td class="num">' + (a.max == null ? '<span class="muted">not recorded</span>' : fmtNum(a.p50) + ', ' + fmtNum(a.p95) + ', ' + fmtNum(a.max)) +
           '</td><td><span class="chip ' + ad[1] + '">' + ad[0] + '</span>' + (a.suggest ? ' <span class="small">→ ' + fmtNum(a.suggest) + ' tokens</span>' : "") + '</td></tr>';
       }).join("");
     }).join("") + '</tbody></table></div></div>';
@@ -918,10 +918,10 @@ function compositionCard(res) {
   var legend = '<div class="ilegend">' + PART_COLORS.map(function (p) { return '<span><i style="--c:' + p[2] + '"></i>' + esc(p[1]) + '</span>'; }).join("") + '</div>';
   var mx = Math.max.apply(null, pc.per_model.map(function (m) { return Math.max.apply(null, m.agents.map(function (a) { return a.input_tokens; })); })) || 1;
   var groups = pc.per_model.map(function (m) {
-    return '<div class="cat-group"><h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + ' <span class="muted small">' + fmtNum(m.per_flow.input_tokens) + ' input tokens per flow · cacheable ' + fmtPct(m.per_flow.cacheable_share) + '</span></h3>' +
+    return '<div class="cat-group"><h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + ' <span class="muted small">' + fmtNum(m.per_flow.input_tokens) + ' input tokens per flow, cacheable ' + fmtPct(m.per_flow.cacheable_share) + '</span></h3>' +
       m.agents.map(function (a) {
         var bar = PART_COLORS.map(function (p) {
-          var v = a[p[0]] || 0, t = agName(a.agent) + " · " + p[1] + ": " + fmtNum(v) + " tokens";
+          var v = a[p[0]] || 0, t = agName(a.agent) + ", " + p[1] + ": " + fmtNum(v) + " tokens";
           return v ? '<span tabindex="0" style="flex:' + v.toFixed(2) + ' 1 0;--c:' + p[2] + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span>' : "";
         }).join("");
         return '<div class="cat-row"><span class="lbl">' + esc(agName(a.agent)) + '</span><div class="cat-track"><div class="cat-bar" style="width:' + (100 * a.input_tokens / mx).toFixed(1) + '%">' + bar + '</div></div><span class="val">' + fmtNum(a.input_tokens) + '</span></div>';
@@ -958,7 +958,7 @@ function wirePipelineCompare(job) {
 function energyEffCard(res) {
   if (!window.INSIGHTS || !res.cost_energy) return "";
   var e = INSIGHTS.energyEfficiency(res);
-  return '<div class="card" id="cost-energy-eff"><h2>Energy efficiency</h2><p class="muted small" style="margin-top:0">Work done per unit of energy: higher is better. Measured from the GPU board power during each model\'s flows.</p>' +
+  return '<div class="card" id="cost-energy-eff"><h2>Energy efficiency</h2><p class="muted small" style="margin-top:0">Work done per unit of energy, where higher is better. Measured from the GPU board power during each model\'s flows.</p>' +
     '<div class="table-wrap"><table id="cost-energy-eff-table"><thead><tr><th>Model</th><th class="num">Energy / flow</th><th class="num">Flows per kWh</th><th class="num">Tokens per Wh</th></tr></thead><tbody>' +
     e.models.map(function (m) {
       return m.wh_per_flow == null ? '<tr><td class="mono">' + esc(short(m.model)) + '</td><td colspan="3" class="muted">' + esc(m.reason) + '</td></tr>'
@@ -970,7 +970,7 @@ function loadOffers() { try { var x = JSON.parse(localStorage.getItem(OFFERS_KEY
 function priceCard(res) {
   if (!window.INSIGHTS) return "";
   return '<form class="card" id="cost-prices" novalidate><h2>Where is it cheapest to run?</h2><p class="muted small" style="margin-top:0">The measured time per flow priced at other hourly rates for the <b>same GPU model</b>' +
-    ((res.environment || {}).gpu_name ? " (" + esc(gpuShort(res.environment.gpu_name)) + ")" : "") + '. Enter the current prices you are quoted (cloud, rental, your own cluster); they are kept in this browser only. A different GPU model would change the time, so compare like for like.</p>' +
+    ((res.environment || {}).gpu_name ? " (" + esc(gpuShort(res.environment.gpu_name)) + ")" : "") + '. Enter the current prices you are quoted (cloud, rental, your own cluster). They are kept in this browser only. A different GPU model would change the time, so compare like for like.</p>' +
     '<div id="price-rows"></div><div class="row"><button type="button" class="btn small-btn" id="price-add">Add a price</button></div><div id="price-out" style="margin-top:12px"></div></form>';
 }
 function wirePrices(res) {
@@ -1015,7 +1015,7 @@ function idleCard(res) {
 var PICK_LABELS = [["speed", "Fastest per flow"], ["tail", "Shortest slow tail (p95)"], ["cost", "Cheapest to run"], ["memory", "Smallest GPU memory"], ["tokens", "Fewest tokens"], ["validity", "Most valid answers"]];
 function pickerCard(res) {
   if (!window.INSIGHTS || (res.per_model || []).length < 2) return "";
-  return '<form class="card" id="rec-picker" novalidate><h2>Best model for my priority</h2><p class="muted small" style="margin-top:0">Choose what matters most; optionally require a share of valid answers. The pick restates this session\'s measurements.</p>' +
+  return '<form class="card" id="rec-picker" novalidate><h2>Best model for my priority</h2><p class="muted small" style="margin-top:0">Choose what matters most, and optionally require a share of valid answers. The pick restates this session\'s measurements.</p>' +
     '<div class="row" style="margin-top:0"><div class="field"><label for="pick-priority">My priority</label><select id="pick-priority">' + PICK_LABELS.map(function (p) { return '<option value="' + p[0] + '">' + esc(p[1]) + '</option>'; }).join("") + '</select></div>' +
     '<div class="field"><label for="pick-valid">At least this share of valid answers <span class="hint">(%, optional)</span></label><input id="pick-valid" type="number" min="0" max="100" step="1" placeholder="e.g. 95"></div></div>' +
     '<p class="rsec-a" id="pick-out" aria-live="polite"></p></form>';
@@ -1041,7 +1041,7 @@ function wirePicker(res) {
 // detection score — nothing here enters a score, rank or verdict.
 function reliabilityCard(res) {
   var r = res.output_reliability;
-  if (!r) return '<div class="card" id="rel-card"><h2>Valid answers</h2><p class="muted small">This session predates the output-reliability check; the per-agent failures below still apply.</p></div>';
+  if (!r) return '<div class="card" id="rel-card"><h2>Valid answers</h2><p class="muted small">This session predates the output-reliability check. The per-agent failures below still apply.</p></div>';
   var pm = r.per_model.slice().sort(function (a, b) { return (MODEL_SLOT[INSIGHTS.bare(a.model)] || 0) - (MODEL_SLOT[INSIGHTS.bare(b.model)] || 0); });
   var cnt = function (k, m) { return m[k] ? '<b>' + fmtNum(m[k]) + '</b>' : '<span class="muted">0</span>'; };
   var bars = pm.map(function (m) {
@@ -1053,8 +1053,8 @@ function reliabilityCard(res) {
     var c = m.verdict_consistency;
     return !r.verdict_agent ? '<span class="muted">no verdict agent</span>' : !c ? '<span class="muted">not recorded</span>' : fmtPct(c.rate) + ' <span class="muted small">(' + c.agree + '/' + c.checked + ')</span>';
   };
-  return '<div class="card" id="rel-card"><h2>Valid answers</h2><p class="muted small" style="margin-top:0">Each flow should end with one usable answer: a label from the allowed list from the <b>' + esc(agName(r.label_agent)) +
-    '</b> agent, and no agent returning nothing. This checks that the output can be used downstream; it is not a detection score and enters no score or ranking.</p>' +
+  return '<div class="card" id="rel-card"><h2>Valid answers</h2><p class="muted small" style="margin-top:0">Each flow should end with one usable answer, which is a label from the allowed list from the <b>' + esc(agName(r.label_agent)) +
+    '</b> agent, and no agent returning nothing. This checks that the output can be used downstream. It is not a detection score and enters no score or ranking.</p>' +
     '<div class="hbars" id="rel-bars">' + bars + '</div>' +
     '<div class="table-wrap" style="margin-top:12px"><table id="rel-table"><thead><tr><th>Model</th><th class="num">Valid answers</th><th class="num">Not a label</th><th class="num">Empty answer</th><th class="num">Hit token budget</th><th>' +
       (r.verdict_agent ? esc(agName(r.verdict_agent)) + ' agrees with ' + esc(agName(r.label_agent)) : "Verdict consistency") + '</th>' + (r.labelled ? '<th class="num">Reference-label check</th>' : "") + '</tr></thead><tbody>' +
@@ -1063,10 +1063,10 @@ function reliabilityCard(res) {
         '</td><td class="num">' + cnt("truncated", m) + '</td><td>' + cons(m) + '</td>' + (r.labelled ? '<td class="num">' + (m.reference_agreement ? fmtPct(m.reference_agreement.rate) : "—") + '</td>' : "") + '</tr>';
     }).join("") + '</tbody></table></div>' +
     '<details class="info"><summary>What each column means</summary><ul class="small list">' +
-      '<li><b>Valid answers</b> — ' + esc(r.definitions.valid) + '.</li>' +
-      '<li><b>Hit token budget</b> — ' + esc(r.definitions.truncated) + '. The answer can still be valid.</li>' +
-      '<li><b>Agreement</b> — ' + esc(r.definitions.verdict_consistency) + '.</li>' +
-      (r.labelled ? '<li><b>Reference-label check</b> — ' + esc(r.definitions.reference_agreement) + '. A fast pipeline that answers at random would not be a fair efficiency result; this number guards against that.</li>' : "") +
+      '<li><b>Valid answers.</b> ' + esc(r.definitions.valid) + '.</li>' +
+      '<li><b>Hit token budget.</b> ' + esc(r.definitions.truncated) + '. The answer can still be valid.</li>' +
+      '<li><b>Agreement.</b> ' + esc(r.definitions.verdict_consistency) + '.</li>' +
+      (r.labelled ? '<li><b>Reference-label check.</b> ' + esc(r.definitions.reference_agreement) + '. A fast pipeline that answers at random would not be a fair efficiency result, and this number guards against that.</li>' : "") +
     '</ul></details></div>';
 }
 // The IDS -> LLM pipeline: the IDS detects, the LLM agents triage only its alerts (agentmeter/ids).
@@ -1075,15 +1075,15 @@ function idsCard(res) {
   if (!d) return "";
   var m = d.model || {}, i = d.ids || {}, lab = d.labelled;
   var frac = function (n, rate) { return n == null ? '<span class="muted">—</span>' : fmtNum(n) + ' <span class="muted small">(' + fmtPct(rate) + ')</span>'; };
-  var per1k = function (p) { return (p.time_s == null ? "—" : fmtTime(p.time_s)) + (p.cost_usd != null ? ' · ' + fmtUsd(p.cost_usd) : "") + (p.energy_wh != null ? ' · ' + fmtWh(p.energy_wh) : ""); };
+  var per1k = function (p) { return (p.time_s == null ? "—" : fmtTime(p.time_s)) + (p.cost_usd != null ? ', ' + fmtUsd(p.cost_usd) : "") + (p.energy_wh != null ? ', ' + fmtWh(p.energy_wh) : ""); };
   var head = '<p class="muted small" style="margin-top:0">' + esc(d.notes.roles) + '</p>' +
-    '<p class="small">' + (m.demo ? '<span class="chip warn">Demo IDS</span> ' : "") + 'IDS <span class="mono">' + esc(m.version || m.name || "—") + '</span> · threshold <b>' + fmtNum(d.threshold, 3) + '</b> <span class="muted">(' + esc(d.threshold_source || "") + ')</span> · ' +
-      '<b>' + fmtNum(d.n_alerts) + '</b> of ' + fmtNum(d.n_flows_in) + ' flows flagged → <b>' + fmtPct(d.llm_calls_saved_share) + '</b> of LLM calls saved · scoring ' + fmtTime(d.scoring_s_per_flow) + ' per flow</p>' +
-    (d.training_overlap ? '<p class="notice warn small">' + fmtNum(d.training_overlap) + ' selected flow(s) equal flows the IDS was trained on: its detection numbers are optimistic. ' + esc(d.notes.overlap) + '</p>' : "");
+    '<p class="small">' + (m.demo ? '<span class="chip warn">Demo IDS</span> ' : "") + 'IDS <span class="mono">' + esc(m.version || m.name || "—") + '</span>, threshold <b>' + fmtNum(d.threshold, 3) + '</b> <span class="muted">(' + esc(d.threshold_source || "") + ')</span>. ' +
+      '<b>' + fmtNum(d.n_alerts) + '</b> of ' + fmtNum(d.n_flows_in) + ' flows flagged, so <b>' + fmtPct(d.llm_calls_saved_share) + '</b> of LLM calls were saved. Scoring takes ' + fmtTime(d.scoring_s_per_flow) + ' per flow</p>' +
+    (d.training_overlap ? '<p class="notice warn small">' + fmtNum(d.training_overlap) + ' selected flow(s) equal flows the IDS was trained on, so its detection numbers are optimistic. ' + esc(d.notes.overlap) + '</p>' : "");
   var det = lab ? '<div class="table-wrap"><table id="ids-detect-table"><thead><tr><th>IDS</th><th class="num">Recall</th><th class="num">Precision</th><th class="num">False-positive rate</th><th class="num">Attacks missed</th><th class="num">False alarms</th></tr></thead><tbody>' +
       '<tr><td>Detection</td><td class="num">' + fmtPct(i.recall) + '</td><td class="num">' + fmtPct(i.precision) + '</td><td class="num">' + fmtPct(i.false_positive_rate) + '</td><td class="num">' + fmtNum(i.fn) + ' of ' + fmtNum(i.attacks) + '</td><td class="num">' + fmtNum(i.fp) + ' of ' + fmtNum(i.benign) + '</td></tr></tbody></table></div>' +
-      '<p class="small muted">Recall by attack class: ' + Object.keys(i.recall_by_class || {}).map(function (c) { return esc(c) + ' ' + fmtPct(i.recall_by_class[c].recall); }).join(" · ") + '</p>'
-    : '<p class="small muted">No labels: the IDS\'s recall and false alarms cannot be measured; only how many flows it flagged.</p>';
+      '<p class="small muted">Recall by attack class is ' + Object.keys(i.recall_by_class || {}).map(function (c) { return esc(c) + ' ' + fmtPct(i.recall_by_class[c].recall); }).join(", ") + '</p>'
+    : '<p class="small muted">There are no labels, so the IDS\'s recall and false alarms cannot be measured, only how many flows it flagged.</p>';
   var rows = d.per_model.map(function (r) {
     return '<tr><td class="mono">' + esc(short(r.model)) + '</td><td class="num">' + fmtNum(r.alerts) + '</td>' +
       (lab ? '<td class="num">' + frac(r.false_alarms_dismissed, r.false_alarms_dismissed_rate) + ' <span class="muted small">of ' + fmtNum(r.false_alarms) + '</span></td><td class="num">' + frac(r.attacks_dismissed_by_llm, r.attacks_dismissed_by_llm_rate) +
@@ -1094,10 +1094,10 @@ function idsCard(res) {
     (lab ? '<th class="num">False alarms dismissed</th><th class="num">Attacks it dismissed</th><th class="num">Missed end to end</th><th class="num">Analyst queue</th>' : "") +
     '<th class="num">Per 1,000 incoming flows</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
   var curve = d.ids_curve.length > 1 ? '<details class="info"><summary>Higher thresholds (τ curve)</summary><div class="table-wrap"><table id="ids-curve-table"><thead><tr><th class="num">Threshold</th>' +
-      (lab ? '<th class="num">IDS recall</th>' : "") + '<th class="num">Flagged</th>' + d.per_model.map(function (r) { return '<th class="num">' + esc(short(r.model)) + (lab ? ': missed · ' : ": ") + 'time / 1,000</th>'; }).join("") + '</tr></thead><tbody>' +
+      (lab ? '<th class="num">IDS recall</th>' : "") + '<th class="num">Flagged</th>' + d.per_model.map(function (r) { return '<th class="num">' + esc(short(r.model)) + (lab ? ' missed and ' : " ") + 'time / 1,000</th>'; }).join("") + '</tr></thead><tbody>' +
       d.ids_curve.map(function (c, k) {
         return '<tr><td class="num">' + fmtNum(c.threshold, 2) + '</td>' + (lab ? '<td class="num">' + fmtPct(c.recall) + '</td>' : "") + '<td class="num">' + fmtPct(c.flagged_share) + '</td>' +
-          d.per_model.map(function (r) { var t = r.tau_curve[k] || {}; return '<td class="num">' + (lab ? fmtPct(t.missed_total_rate) + ' · ' : "") + (t.per_1k_incoming && t.per_1k_incoming.time_s != null ? fmtTime(t.per_1k_incoming.time_s) : "—") + '</td>'; }).join("") + '</tr>';
+          d.per_model.map(function (r) { var t = r.tau_curve[k] || {}; return '<td class="num">' + (lab ? fmtPct(t.missed_total_rate) + ', ' : "") + (t.per_1k_incoming && t.per_1k_incoming.time_s != null ? fmtTime(t.per_1k_incoming.time_s) : "—") + '</td>'; }).join("") + '</tr>';
       }).join("") + '</tbody></table></div><p class="small muted">' + esc(d.notes.tau_curve) + '</p></details>' : "";
   return '<div class="card" id="rel-ids"><h2>IDS → LLM triage</h2>' + head + det + tab + curve +
     '<details class="info"><summary>Definitions</summary><ul class="small list"><li>' + esc(d.notes.per_1k) + '</li><li>' + esc(d.notes.missed) + '</li><li>' + esc(d.notes.false_alarms) + '</li></ul></details></div>';
@@ -1139,14 +1139,14 @@ function triageCard(res) {
   var sv = t.severity || {};
   var policy = Object.keys(t.policy).map(function (c) {
     var s = sv[c];
-    return '<li>' + esc(c) + ' → <b>' + esc(t.policy[c]) + '</b>' + (s ? ' · severity <b>' + esc(s.level) + '</b> <span class="muted">(' + esc(s.classtype) + ', priority ' + s.priority + ')</span>' : "") + '</li>';
+    return '<li>' + esc(c) + ' → <b>' + esc(t.policy[c]) + '</b>' + (s ? ', severity <b>' + esc(s.level) + '</b> <span class="muted">(' + esc(s.classtype) + ', priority ' + s.priority + ')</span>' : "") + '</li>';
   }).join("");
-  var gl = t.gate ? '<p class="small">Triage gate — recommended only if missed attacks ≤ ' + fmtPct(t.gate.max_missed_attack_rate) + ', false escalations ≤ ' + fmtPct(t.gate.max_false_escalation_rate) +
+  var gl = t.gate ? '<p class="small">Triage gate. A model is recommended only if missed attacks ≤ ' + fmtPct(t.gate.max_missed_attack_rate) + ', false escalations ≤ ' + fmtPct(t.gate.max_false_escalation_rate) +
     ' and valid answers ≥ ' + fmtPct(t.gate.min_valid_rate) + '. <span class="muted">Basis: ' + esc(t.gate.basis) + '.</span></p>' : "";
-  return '<div class="card" id="rel-triage"><h2>Triage</h2><p class="muted small" style="margin-top:0">What an analyst would have to do with each model\'s answers: escalate now, investigate, or dismiss. ' +
-      'The priority comes from the policy table below, not from the model. Context for the efficiency results: it does not change the score or the ranking.</p>' +
+  return '<div class="card" id="rel-triage"><h2>Triage</h2><p class="muted small" style="margin-top:0">What an analyst would have to do with each model\'s answers, which is escalate now, investigate or dismiss. ' +
+      'The priority comes from the policy table below, not from the model. This is context for the efficiency results and does not change the score or the ranking.</p>' +
     '<div class="table-wrap"><table id="triage-table"><thead><tr>' + head + '</tr></thead><tbody>' + rows + '</tbody></table></div>' + gl +
-    (t.labelled ? "" : '<p class="small muted">This input has no labels, so only the queue is shown: missed attacks and false escalations need the true class.</p>') +
+    (t.labelled ? "" : '<p class="small muted">This input has no labels, so only the queue is shown. Missed attacks and false escalations need the true class.</p>') +
     '<details class="info"><summary>Policy and definitions</summary><ul class="small list">' + policy +
       '<li>Any other class, or an answer that could not be read → <b>' + esc(t.fallback) + '</b></li></ul><ul class="small list">' +
       '<li>' + esc(t.notes.missed) + '</li><li>' + esc(t.notes.false_escalation) + '</li><li>' + esc(t.notes.cost) + '</li><li>' + esc(t.notes.flows) + '</li>' +
@@ -1167,12 +1167,12 @@ function accuracyStatsCard(res) {
       '</td><td class="num">' + fmtNum(p.only_a_right) + ' / ' + fmtNum(p.only_b_right) + '</td><td class="num">' + fmtNum(p.p_holm, 3) + '</td><td>' +
       (p.differ ? '<span class="chip ok">' + esc(p.verdict) + '</span>' : '<span class="chip">' + esc(p.verdict) + '</span>') + '</td></tr>';
   }).join("");
-  return '<div class="card" id="rel-accuracy-stats"><h2>Are the accuracy differences real?</h2><p class="muted small" style="margin-top:0">Accuracy on these flows with its 95% range: ' +
-      'with more flows the range narrows. Two models only differ beyond chance when the test says so. Context only: it does not change the score or the ranking.</p>' +
+  return '<div class="card" id="rel-accuracy-stats"><h2>Are the accuracy differences real?</h2><p class="muted small" style="margin-top:0">Accuracy on these flows with its 95% range. ' +
+      'With more flows the range narrows. Two models only differ beyond chance when the test says so. This is context only and does not change the score or the ranking.</p>' +
     '<div class="table-wrap"><table id="acc-ci-table"><thead><tr><th>Model</th><th class="num">Accuracy</th><th class="num">95% range</th><th style="min-width:180px">0% ─────── 100%</th></tr></thead><tbody>' +
     st.per_model.map(function (m) {
       return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtPct(m.accuracy) + ' <span class="muted small">(' + m.correct + '/' + m.n + ')</span></td><td class="num">' +
-        fmtPct(m.ci95[0]) + ' – ' + fmtPct(m.ci95[1]) + '</td><td>' + bar(m) + '</td></tr>';
+        fmtPct(m.ci95[0]) + ' to ' + fmtPct(m.ci95[1]) + '</td><td>' + bar(m) + '</td></tr>';
     }).join("") + '</tbody></table></div>' +
     (pairs ? '<h3>Model against model</h3><div class="table-wrap"><table id="acc-pairs-table"><thead><tr><th>Pair</th><th class="num">Difference</th><th class="num">Only A right / only B right</th><th class="num">p (Holm)</th><th>Verdict</th></tr></thead><tbody>' + pairs + '</tbody></table></div>' : "") +
     (st.note ? '<p class="notice small">' + esc(st.note) + '</p>' : "") +
@@ -1194,7 +1194,7 @@ function confusionCard(res) {
         var tot = preds.reduce(function (a, p) { return a + (cm[t][p] || 0); }, 0) || 1;
         return '<tr><th class="small">' + esc(t) + '</th>' + preds.map(function (p) {
           var v = cm[t][p] || 0, share = v / tot;
-          return '<td class="num cm-cell' + (p === t ? " cm-diag" : v ? " cm-off" : "") + '" style="--share:' + (60 * share).toFixed(0) + '%" title="' + esc(t) + ' answered as ' + esc(p) + ': ' + v + ' (' + fmtPct(share) + ' of ' + esc(t) + ')">' + (v || '<span class="muted">·</span>') + '</td>';
+          return '<td class="num cm-cell' + (p === t ? " cm-diag" : v ? " cm-off" : "") + '" style="--share:' + (60 * share).toFixed(0) + '%" title="' + esc(t) + ' answered as ' + esc(p) + ', ' + v + ' times (' + fmtPct(share) + ' of ' + esc(t) + ')">' + (v || '<span class="muted">·</span>') + '</td>';
         }).join("") + '</tr>';
       }).join("") + '</tbody></table></div>';
     return '<div class="cm-model"><h3 class="mono">' + esc(short(pm.model)) + '</h3>' + html +
@@ -1202,7 +1202,7 @@ function confusionCard(res) {
                     : '<p class="small muted">No confusions on these flows.</p>') + '</div>';
   };
   return '<div class="card" id="rel-confusion"><h2>Which classes each model mixes up</h2><p class="muted small" style="margin-top:0">Rows are the true class, columns the answer. ' +
-    'The diagonal is right; every other filled cell is a mistake, darker when it happens more often.</p><div class="cm-grid">' + pms.map(grid).join("") + '</div></div>';
+    'The diagonal is right. Every other filled cell is a mistake, darker when it happens more often.</p><div class="cm-grid">' + pms.map(grid).join("") + '</div></div>';
 }
 // Output Reliability: the triage results re-projected to a realistic SOC traffic mix
 var SOC = { share: 0.99 };
@@ -1216,7 +1216,7 @@ function socCard(res) {
       '<input type="range" id="soc-share" min="0.5" max="0.999" step="0.001" value="' + SOC.share + '" style="flex:1 1 220px"><b id="soc-share-v" class="num">' + fmtPct(SOC.share) + '</b></div>' +
     '<div id="soc-body">' + socTable(res) + '</div>' +
     '<p class="small muted">Measured on this session: ' + esc(t.per_model.map(function (m) { return short(m.model) + " " + m.n_attacks + " attacks / " + m.n_benign + " benign"; }).join(", ")) +
-    '. A projection: it assumes each model treats attacks and benign flows the same way in the new mix.</p></div>';
+    '. This projection assumes each model treats attacks and benign flows the same way in the new mix.</p></div>';
 }
 function socTable(res) {
   var rows = (res.triage.per_model || []).map(function (m) { return INSIGHTS.socProjection(m, SOC.share, 10000); }).filter(Boolean);
@@ -1263,9 +1263,9 @@ function consistencyCard(res) {
     }).join("") + '</tbody></table></div>' +
     (rep ? "" : '<p class="small muted">“Same answer when repeated” needs the <b>repeat check</b> option when you start a benchmark (it answers the first 10 flows a second time).</p>') +
     '<details class="info"><summary>What each column means</summary><ul class="small list">' +
-      '<li><b>Reply is just a label</b> — ' + esc(r.definitions.format) + '. Extra text costs tokens and needs cleaning before an analyst tool can use it.</li>' +
-      '<li><b>Same answer when repeated</b> — ' + esc(r.definitions.answer_stability) + '.</li>' +
-      '<li><b>Technique</b> — ' + esc(r.definitions.mitre) + '. “—” when there is no verdict agent or its text was not recorded.</li></ul></details></div>';
+      '<li><b>Reply is just a label.</b> ' + esc(r.definitions.format) + '. Extra text costs tokens and needs cleaning before an analyst tool can use it.</li>' +
+      '<li><b>Same answer when repeated.</b> ' + esc(r.definitions.answer_stability) + '.</li>' +
+      '<li><b>Technique.</b> ' + esc(r.definitions.mitre) + '. It is empty when there is no verdict agent or its text was not recorded.</li></ul></details></div>';
 }
 // per agent: where the pipeline's answers go wrong (from the per-agent breakdown)
 function failureCard(res) {
@@ -1280,7 +1280,7 @@ function failureCard(res) {
         '</td><td class="num">' + (f.unparseable_label == null ? '<span class="muted">—</span>' : fmtNum(f.unparseable_label)) + '</td><td class="num">' + fmtPct(a.failure_rate) + '</td></tr>');
     });
   });
-  return '<div class="card" id="rel-failures"><h2>Where answers fail</h2><p class="muted small" style="margin-top:0">Per agent: empty answers, answers stopped at the agent\'s output-token budget, and label replies that match no allowed label. A high rate points at a prompt or budget to fix before trusting the timings.</p>' +
+  return '<div class="card" id="rel-failures"><h2>Where answers fail</h2><p class="muted small" style="margin-top:0">For each agent, this shows empty answers, answers stopped at the agent\'s output-token budget, and label replies that match no allowed label. A high rate points at a prompt or budget to fix before trusting the timings.</p>' +
     '<div class="table-wrap"><table id="rel-failures-table"><thead><tr><th>Model</th><th>Agent</th><th class="num">Empty</th><th class="num">At token budget</th><th class="num">Not a label</th><th class="num">Failure rate</th></tr></thead><tbody>' +
     rows.join("") + '</tbody></table></div></div>';
 }
@@ -1298,7 +1298,7 @@ function wireOverview(res) {
 }
 function h2hCard(res) {
   var rel = res.relative_comparison, pm = res.per_model, names = pm.map(function (m) { return m.model; });
-  if (!rel) return '<div class="card"><h2>Head-to-head</h2><p class="muted">Single-model run: there is no second model to compare with.</p></div>';
+  if (!rel) return '<div class="card"><h2>Head-to-head</h2><p class="muted">Single-model run, so there is no second model to compare with.</p></div>';
   var multi = names.length > 2;
   var rr = rel.metrics.filter(function (m) { return m.metric !== "accuracy"; }).map(function (m) {
     var f = m.metric === "mean_latency_s" ? fmtTime : m.metric === "mean_peak_vram_mb" ? fmtMB : function (v) { return fmtNum(v); };
@@ -1311,11 +1311,11 @@ function h2hCard(res) {
     '<div class="table-wrap"><table id="svc-pairs-table"><thead><tr><th>Pair</th><th>Result</th></tr></thead><tbody>' +
     rel.pairs.map(function (p) {
       var ev = p.efficiency_verdict;
-      return '<tr><td>' + esc(short(p.models[0]) + " vs " + short(p.models[1])) + '</td><td>' + esc(ev.verdict === "more_efficient" ? short(ev.model) + " is more efficient" : ev.verdict === "mixed" ? "mixed: each wins a metric" : "tie") + '</td></tr>';
+      return '<tr><td>' + esc(short(p.models[0]) + " vs " + short(p.models[1])) + '</td><td>' + esc(ev.verdict === "more_efficient" ? short(ev.model) + " is more efficient" : ev.verdict === "mixed" ? "mixed, each wins a metric" : "tie") + '</td></tr>';
     }).join("") + '</tbody></table></div>' +
-    '<ol class="small" id="svc-pair-ranking">' + rel.ranking.map(function (r) { return '<li><b>' + esc(short(r.model)) + '</b> — ' + r.pair_wins + ' pair win' + (r.pair_wins === 1 ? "" : "s") + ', ' + r.pair_losses + ' loss' + (r.pair_losses === 1 ? "" : "es") + '</li>'; }).join("") + '</ol>';
-  return '<div class="card"><h2>' + (multi ? "All " + names.length + " models" : "Head-to-head") + '</h2><p class="muted small">Fair comparison: same flows, same GPU.' +
-    '<span class="info-i" tabindex="0" title="Ties: within ' + (rel.thresholds.efficiency_tie_rel * 100) + '% (latency and VRAM also need p < ' + rel.thresholds.significance_alpha +
+    '<ol class="small" id="svc-pair-ranking">' + rel.ranking.map(function (r) { return '<li><b>' + esc(short(r.model)) + '</b>, ' + r.pair_wins + ' pair win' + (r.pair_wins === 1 ? "" : "s") + ', ' + r.pair_losses + ' loss' + (r.pair_losses === 1 ? "" : "es") + '</li>'; }).join("") + '</ol>';
+  return '<div class="card"><h2>' + (multi ? "All " + names.length + " models" : "Head-to-head") + '</h2><p class="muted small">Fair comparison, with the same flows and the same GPU.' +
+    '<span class="info-i" tabindex="0" title="Ties are within ' + (rel.thresholds.efficiency_tie_rel * 100) + '% (latency and VRAM also need p < ' + rel.thresholds.significance_alpha +
     ').">i</span></p>' +
     '<div class="table-wrap"><table id="svc-relative-table"><thead><tr><th>Metric</th>' + names.map(function (n) { return '<th class="num">' + esc(short(n)) + '</th>'; }).join("") + '<th>' + (multi ? "Best" : "Result") + '</th></tr></thead><tbody>' + rr + '</tbody></table></div>' + pairs + '</div>';
 }
@@ -1354,8 +1354,8 @@ function costCard(res) {
   if (!cen) return '<div class="card"><p class="muted">This session predates the cost and energy measurements.</p></div>';
   var pr = cen.price || {}, es = cen.energy_sampling || {};
   return '<div class="card" id="svc-cost-card"><h2>Cost and energy</h2><dl class="kv small">' +
-    '<dt>GPU price</dt><dd>' + (pr.usd_per_hour != null ? "$" + pr.usd_per_hour.toFixed(3) + "/h · " + esc(pr.source) + " · fetched " + esc(fmtDate(pr.fetched_at)) : esc(pr.reason || "not applicable (no GPU)")) + '</dd>' +
-    '<dt>Power sampling</dt><dd>' + (es.method ? esc(es.method) + " every " + esc(es.interval_s) + " s · " + fmtNum(es.n_samples) + " samples" : "not sampled (no GPU)") + '</dd></dl>' +
+    '<dt>GPU price</dt><dd>' + (pr.usd_per_hour != null ? "$" + pr.usd_per_hour.toFixed(3) + "/h, " + esc(pr.source) + ", fetched " + esc(fmtDate(pr.fetched_at)) : esc(pr.reason || "not applicable (no GPU)")) + '</dd>' +
+    '<dt>Power sampling</dt><dd>' + (es.method ? esc(es.method) + " every " + esc(es.interval_s) + " s, " + fmtNum(es.n_samples) + " samples" : "not sampled (no GPU)") + '</dd></dl>' +
     '<div class="table-wrap" style="margin-top:10px"><table id="svc-cost-table"><thead><tr><th>Model</th><th class="num">Cost / 1,000 flows</th><th class="num">Energy / flow<br><span class="small">(whole board)</span></th><th class="num">Energy / flow<br><span class="small">(net of idle)</span></th><th class="num">Energy / 1,000 flows</th><th class="num">Mean GPU power</th><th class="num">Idle power</th></tr></thead><tbody>' +
     (cen.per_model || []).map(function (r) {
       return '<tr><td class="mono">' + esc(r.model) + '</td><td class="num">' + (r.cost_per_1k_flows_usd != null ? fmtUsd(r.cost_per_1k_flows_usd) : '<span class="muted">' + esc(r.cost_status) + '</span>') +
@@ -1489,11 +1489,11 @@ function trendCard(res) {
       label: "Latency per flow over the run for " + short(m.model), threshold: p95 ? { y: p95, label: "your p95 limit " + fmtTime(p95) } : null,
       series: [{ name: "flows", kind: "dots", color: modelColor(m.model), points: m.points.map(function (p) { return [p.flow, p.latency_s]; }) },
                { name: "rolling median", kind: "line", color: "var(--text)", points: m.points.map(function (p) { return [p.flow, p.median_s]; }) }],
-      rows: m.points.map(function (p) { return { x: p.flow, text: short(m.model) + " · flow " + p.flow + ": " + fmtTime(p.latency_s) + " (rolling median " + fmtTime(p.median_s) + ")" }; }) });
+      rows: m.points.map(function (p) { return { x: p.flow, text: short(m.model) + ", flow " + p.flow + ": " + fmtTime(p.latency_s) + " (rolling median " + fmtTime(p.median_s) + ")" }; }) });
     return '<div class="trend-panel" data-model="' + esc(m.model) + '"><div class="histo-head"><span class="mono small"><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '</span>' + chip + '</div>' + chart +
-      '<p class="small trend-note">' + esc(d.note || "") + (m.thinned ? ' <span class="muted">(' + fmtNum(m.n) + ' flows; chart thinned, the test uses every flow)</span>' : "") + '</p></div>';
+      '<p class="small trend-note">' + esc(d.note || "") + (m.thinned ? ' <span class="muted">(' + fmtNum(m.n) + ' flows. The chart is thinned, but the test uses every flow)</span>' : "") + '</p></div>';
   }).join("");
-  return '<div class="card" id="stats-trend"><h2>Latency over the run</h2><p class="muted small" style="margin-top:0">Each dot is one flow in the order it ran; the line is the rolling median over ' + (tr.models[0] ? tr.models[0].window : 3) + ' flows. A slow-down over the run points to heat, memory build-up or contention, not the model alone.</p>' +
+  return '<div class="card" id="stats-trend"><h2>Latency over the run</h2><p class="muted small" style="margin-top:0">Each dot is one flow in the order it ran, and the line is the rolling median over ' + (tr.models[0] ? tr.models[0].window : 3) + ' flows. A slow-down over the run points to heat, memory build-up or contention, not the model alone.</p>' +
     '<div class="ilegend"><span><i style="--c:var(--muted-2)"></i>one flow</span><span><i style="--c:var(--text);height:2px"></i>rolling median</span></div>' + panels +
     '<details class="info"><summary>Method</summary><p class="muted small">' + esc(tr.method || "") + '</p></details></div>';
 }
@@ -1522,9 +1522,9 @@ function gpuTimelineCard(res) {
       var near = null;
       g.points.forEach(function (p) { if (!near || Math.abs(p.t - x) < Math.abs(near.t - x)) near = p; });
       var run = INSIGHTS.runningAt(mk, x, LANE_MIN_W / (LANE_W - LANE_L - LANE_R) * (x1 - x0)), inw = g.windows.filter(function (w) { return x >= w.from_s && x <= w.to_s; })[0], idle = g.idle.filter(function (w) { return x >= w.from_s && x <= w.to_s; })[0];
-      return fmtNum(x, 1) + " s" + (run ? " · " + short(run.model) + " · flow " + run.flow + (run.agent ? " · " + agName(run.agent) + " agent" : " · between agent calls") :
-        inw ? " · " + short(inw.model) + " (between flows)" : idle ? " · idle baseline (" + short(idle.model) + ")" : "") +
-        (near ? " — " + fmtNum(near.power_w, 0) + " W" + (near.util_pct != null ? " · " + fmtNum(near.util_pct, 0) + "% busy" : "") + (near.mem_mb != null ? " · " + fmtMB(near.mem_mb) : "") : "");
+      return fmtNum(x, 1) + " s" + (run ? ", " + short(run.model) + ", flow " + run.flow + (run.agent ? ", " + agName(run.agent) + " agent" : ", between agent calls") :
+        inw ? ", " + short(inw.model) + " (between flows)" : idle ? ", idle baseline (" + short(idle.model) + ")" : "") +
+        (near ? ". " + fmtNum(near.power_w, 0) + " W" + (near.util_pct != null ? ", " + fmtNum(near.util_pct, 0) + "% busy" : "") + (near.mem_mb != null ? ", " + fmtMB(near.mem_mb) : "") : "");
     },
     zoom: function (a, b) { GPUZ = a == null ? null : { from: a, to: b }; rerenderGpuTimeline(); }
   };
@@ -1539,12 +1539,12 @@ function gpuTimelineCard(res) {
     '<div class="legend small" id="gpu-lane-legend">' + mk.agents.map(function (a) { return '<span style="--c:' + agColor(a) + '">' + esc(agName(a)) + '</span>'; }).join("") + '</div>' : "";
   var zoomBtns = '<div class="row gpu-zoom" role="group" aria-label="Zoom the GPU charts">' +
     (GPUZ ? '<button type="button" class="btn small-btn" data-gpu-zoom="reset">Show the whole run</button><span class="muted small">Showing ' + fmtNum(x0, 1) + '–' + fmtNum(x1, 1) + ' s</span>' :
-      '<span class="muted small">Drag across any chart to zoom them all; double-click to zoom out.</span>') +
+      '<span class="muted small">Drag across any chart to zoom them all, and double-click to zoom out.</span>') +
     g.windows.map(function (w, i) { return '<button type="button" class="btn small-btn" data-gpu-zoom="' + i + '">Zoom to ' + esc(short(w.model)) + '</button>'; }).join("") + '</div>';
   return '<div class="card" id="gpu-timeline"><h2>GPU over the run</h2>' +
-    (g.synthetic ? '<div class="notice warn" id="gpu-synthetic">Synthetic test readings — not a measurement (test mode).</div>' : "") +
-    '<p class="muted small" style="margin-top:0">Sampled every ' + esc(g.interval_s) + ' s (' + esc(g.method) + ', ' + fmtNum(g.n_samples) + ' samples) from outside the measured process. Shaded in the model\'s colour: its measured window; grey: its idle baseline (sampled just before it loads). Hover any chart to read every chart at that moment, with the flow and agent that were running.' +
-    infoI(mk.method + (marks.length ? " Thin vertical lines: where each flow started." : mk.flows.length ? " Flow-start lines appear when you zoom in to " + MARKS_MAX + " flows or fewer." : "")) + '</p>' +
+    (g.synthetic ? '<div class="notice warn" id="gpu-synthetic">Synthetic test readings, not a measurement (test mode).</div>' : "") +
+    '<p class="muted small" style="margin-top:0">Sampled every ' + esc(g.interval_s) + ' s (' + esc(g.method) + ', ' + fmtNum(g.n_samples) + ' samples) from outside the measured process. The model\'s colour shades its measured window, and grey shades its idle baseline, sampled just before it loads. Hover any chart to read every chart at that moment, with the flow and agent that were running.' +
+    infoI(mk.method + (marks.length ? " Thin vertical lines mark where each flow started." : mk.flows.length ? " Flow-start lines appear when you zoom in to " + MARKS_MAX + " flows or fewer." : "")) + '</p>' +
     legendHtml(g.windows.map(function (w) { return w.model; })) + zoomBtns +
     '<h3 class="lc-h">Board power (W)</h3>' + chart("gpu-power", "power_w", g.power_max, function (v) { return fmtNum(v, 0) + " W"; }, "GPU board power over the session", true) +
     (g.has_util ? '<h3 class="lc-h">GPU utilisation (%)</h3>' + chart("gpu-util", "util_pct", 100, function (v) { return fmtNum(v, 0) + "%"; }, "GPU utilisation over the session") : "") +
@@ -1584,7 +1584,7 @@ function addExports(root) {
       '<span class="muted small">Download</span>' + (hasT ? '<button type="button" class="btn small-btn" data-exp="csv">CSV</button>' : "") +
       (hasL ? '<button type="button" class="btn small-btn" data-exp="chartcsv">Chart data (CSV)</button>' : "") +
       (hasT ? '<button type="button" class="btn small-btn" data-exp="latex" title="A LaTeX table (booktabs) with this card\'s title as its caption">LaTeX</button>' : "") +
-      (hasS ? '<button type="button" class="btn small-btn" data-exp="png" title="A picture with a caption">PNG</button><button type="button" class="btn small-btn" data-exp="svg" title="A vector figure with a caption: sharp at any size, for a thesis or paper">SVG</button>' : "");
+      (hasS ? '<button type="button" class="btn small-btn" data-exp="png" title="A picture with a caption">PNG</button><button type="button" class="btn small-btn" data-exp="svg" title="A vector figure with a caption, sharp at any size, for a thesis or paper">SVG</button>' : "");
     c.appendChild(bar);
   });
 }
@@ -1658,7 +1658,7 @@ function latexTable(t, caption) {
   var n = Math.max.apply(null, rows.map(function (r) { return r.length; }));
   var head = rows[0], body = rows.slice(1);
   var label = "tab:" + caption.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30);
-  return "% AgentMeter export, " + new Date().toISOString().slice(0, 10) + " — needs \\usepackage{booktabs}\n" +
+  return "% AgentMeter export, " + new Date().toISOString().slice(0, 10) + ". Needs \\usepackage{booktabs}\n" +
     "\\begin{table}[htbp]\n  \\centering\n  \\caption{" + esc2(caption) + "}\n  \\label{" + label + "}\n  \\begin{tabular}{l" + "r".repeat(Math.max(0, n - 1)) + "}\n    \\toprule\n" +
     "    " + head.join(" & ") + " \\\\\n    \\midrule\n" + body.map(function (r) { return "    " + r.join(" & ") + " \\\\"; }).join("\n") +
     "\n    \\bottomrule\n  \\end{tabular}\n\\end{table}\n";
@@ -1712,7 +1712,7 @@ function inspectCard(card, btn) {
   var box = document.createElement("div");
   box.className = "inspect";
   box.innerHTML = '<p class="muted small">' + fmtNum(body.length) + ' data points behind the chart' + (card.querySelectorAll(".lc[id]").length > 1 ? "s" : "") + ' of this card' +
-    (body.length > MAX ? ' (the first ' + MAX + ' shown; Chart data (CSV) has them all)' : "") + '. x is the chart\'s horizontal value (seconds, flow number, ...).</p>' +
+    (body.length > MAX ? ' (the first ' + MAX + ' are shown, and Chart data (CSV) has them all)' : "") + '. x is the chart\'s horizontal value (seconds, flow number, ...).</p>' +
     '<div class="table-wrap"><table class="inspect-table"><thead><tr>' + rows[0].map(function (h) { return '<th>' + esc(h) + '</th>'; }).join("") + '</tr></thead><tbody>' +
     body.slice(0, MAX).map(function (r) { return '<tr><td class="small">' + esc(r[0]) + '</td><td class="mono small">' + esc(r[1]) + '</td><td class="num">' + esc(r[2]) + '</td><td class="num">' + esc(r[3]) + '</td></tr>'; }).join("") + '</tbody></table></div>';
   card.insertBefore(box, card.querySelector(":scope > .exp-bar"));
@@ -1727,7 +1727,7 @@ function loadFlows() {
   var path = CP && job.stored ? "/api/sessions/" + enc(id) + "/files/flows.json" : "/api/jobs/" + enc(id) + "/flows";
   api(path).then(function (r) {
     if (SESSION.id !== id || !$("flows-status")) return;
-    if (!r.ok) { $("flows-status").textContent = r.status === 404 ? "This session has no per-flow record: it was run before the flow explorer existed." : "Could not load the flows: " + ((r.data || {}).error || "error"); return; }
+    if (!r.ok) { $("flows-status").textContent = r.status === 404 ? "This session has no per-flow record, because it was run before the flow explorer existed." : "Could not load the flows: " + ((r.data || {}).error || "error"); return; }
     FLOWS.data = r.data; drawFlows();
   });
 }
@@ -1748,8 +1748,8 @@ function drawFlows() {
   FLOWS.page = Math.min(FLOWS.page, pages - 1);
   var labelled = d.labelled !== false && d.flows.some(function (f) { return f.truth; });
   $("flows-status").innerHTML = esc(d.flows.length + " flows × " + d.models.length + " model" + (d.models.length > 1 ? "s" : "") + ". ") +
-    (d.has_text ? "Open a flow to read each agent's answer (up to " + fmtNum(d.text_chars) + " characters each)." : "<b>Agent answers were not recorded for this run</b> — times and tokens only.");
-  var mark = function (pm) { return !pm ? "—" : (pm.correct === true ? '<span class="chip ok">✓ ' : pm.correct === false ? '<span class="chip bad">✗ ' : '<span class="chip">') + esc(pm.predicted || "—") + '</span>' + (pm.priority ? ' <span class="muted small">' + esc(pm.priority) + (pm.severity ? " · " + esc(pm.severity) : "") + '</span>' : ""); };
+    (d.has_text ? "Open a flow to read each agent's answer (up to " + fmtNum(d.text_chars) + " characters each)." : "<b>Agent answers were not recorded for this run.</b> Only times and tokens are shown.");
+  var mark = function (pm) { return !pm ? "—" : (pm.correct === true ? '<span class="chip ok">✓ ' : pm.correct === false ? '<span class="chip bad">✗ ' : '<span class="chip">') + esc(pm.predicted || "—") + '</span>' + (pm.priority ? ' <span class="muted small">' + esc(pm.priority) + (pm.severity ? ", " + esc(pm.severity) : "") + '</span>' : ""); };
   var triaged = d.flows.some(function (f) { return d.models.some(function (m) { return f.per_model[m] && f.per_model[m].priority; }); });
   $("flows-body").innerHTML = '<div class="row" style="margin-top:0"><div class="field"><label for="flows-filter">Show</label><select id="flows-filter">' +
     [["all", "All flows"], ["wrong", "Wrong answer (any model)"], ["missed", "Attack dismissed (any model)"], ["escalate", "Escalated (any model)"], ["disagree", "Models disagree"], ["slow", "10 slowest"]]

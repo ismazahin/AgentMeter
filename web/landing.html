@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#F4F2EC">
 <title>AgentMeter</title>
-<meta name="description" content="AgentMeter measures how efficiently open-source LLMs run a four-agent workflow: latency, GPU memory, tokens, cost and energy, compared head to head.">
+<meta name="description" content="AgentMeter measures how efficiently open-source LLMs run a four-agent workflow. It compares latency, GPU memory, tokens, cost and energy head to head.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect x=%270%27 y=%2712%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%274%27 y=%278%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%278%27 y=%274%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%2712%27 y=%270%27 width=%274%27 height=%274%27 fill=%27%23C65C34%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -251,7 +251,7 @@
           </tbody>
         </table>
       </div>
-      <p class="fine">20 flows on an NVIDIA RTX 3090, both models at 4-bit NF4. The latency gap is not significant (Kruskal–Wallis p = 0.168), so AgentMeter calls it a tie. An exploratory run: a small sample, shown with its caveats.</p>
+      <p class="fine">20 flows on an NVIDIA RTX 3090, both models at 4-bit NF4. The latency gap is not significant (Kruskal–Wallis p = 0.168), so AgentMeter calls it a tie. This was an exploratory run with a small sample, shown with its caveats.</p>
     </div>
   </section>
 
@@ -263,7 +263,7 @@
       </div>
       <ul class="fair">
         <li><h3>Same quantization</h3><p>Every model loads at the same 4-bit NF4, verified on the GPU before it can be picked.</p></li>
-        <li><h3>Ties are called ties</h3><p>A difference only wins when the statistics support it; otherwise the verdict says the models are tied.</p></li>
+        <li><h3>Ties are called ties</h3><p>A difference only wins when the statistics support it. Otherwise the verdict says the models are tied.</p></li>
         <li><h3>One transparent score</h3><p>Models are ranked with Simple Additive Weighting. You can change the weights and see how the order moves.</p></li>
         <li><h3>Demo results are labelled</h3><p>Without a GPU, AgentMeter runs a simulation and marks every number as not a real measurement.</p></li>
       </ul>
@@ -281,7 +281,7 @@
 
 <footer>
   <div class="wrap">
-    <span>AgentMeter measures how efficiently LLMs run: speed, memory, tokens, cost, energy. The flows are its workload; it isn't a threat detector.</span>
+    <span>AgentMeter measures how efficiently LLMs run. It looks at speed, memory, tokens, cost and energy. The flows are only its workload, and it isn't a threat detector.</span>
     <a href="./#/login">Log in</a>
   </div>
 </footer>

@@ -11,7 +11,7 @@ function renderSetModels(chosen) {
   chosen.forEach(function (m) { if (models.indexOf(m) < 0) models.push(m); });
   $("set-models").innerHTML = models.length ? models.map(function (m, i) {
     return '<label class="model"><input type="checkbox" value="' + esc(m) + '" id="set-model-' + i + '"' + (chosen.indexOf(m) >= 0 ? " checked" : "") + '><span class="mono">' + esc(m) + '</span>' + extraTag(m) + '</label>';
-  }).join("") : '<p class="muted small">The model list comes from the GPU backend — it is offline now.</p>';
+  }).join("") : '<p class="muted small">The model list comes from the GPU backend, which is offline now.</p>';
   var sync = function () {
     var on = $("set-models").querySelectorAll("input:checked").length;
     $("set-models").querySelectorAll("input").forEach(function (x) { x.disabled = !x.checked && on >= ((CONFIG && CONFIG.max_models) || 4); });
@@ -27,8 +27,8 @@ function loadSettings() {
   var t = (SETTINGS && SETTINGS.theme) || themePref();
   ($("set-theme-" + t) || $("set-theme-system")).checked = true;
   var h = HEALTH || {};
-  $("set-backend").innerHTML = '<dt>Address</dt><dd class="mono">' + esc(API || (CP ? "— (GPU offline)" : location.origin)) + '</dd><dt>Mode</dt><dd>' +
-    (!ONLINE ? "offline" : h.provider === "real" ? "Real GPU: " + esc((h.gpu || {}).name || "unknown") : "Demo (mock) — no GPU") + '</dd>' +
+  $("set-backend").innerHTML = '<dt>Address</dt><dd class="mono">' + esc(API || (CP ? "none (GPU offline)" : location.origin)) + '</dd><dt>Mode</dt><dd>' +
+    (!ONLINE ? "offline" : h.provider === "real" ? "Real GPU: " + esc((h.gpu || {}).name || "unknown") : "Demo (mock), no GPU") + '</dd>' +
     (CP ? '<dt>Control plane</dt><dd class="mono">' + esc(CP) + '</dd><dt>Access</dt><dd>logged in as ' + esc(AUTH.user.username) + ' (' + esc(AUTH.user.role) + ')</dd>'
         : '<dt>Access</dt><dd>' + (h.auth_required ? "run tokens from a control plane" : "open (local development)") + '</dd>');
   $("set-backend-note").hidden = !!CP;
@@ -87,7 +87,7 @@ $("set-tg-test").addEventListener("click", function () {
   saveSettings({ telegram_chat_id: $("set-tg").value.trim() }).then(function (r) {
     if (!r.ok) { $("set-tg-status").textContent = r.data.error; return; }
     api("/api/settings/telegram-test", { method: "POST" }).then(function (t) {
-      $("set-tg-status").textContent = t.ok ? (t.data.ok ? "Sent — check Telegram." : "Telegram refused the message (check the chat ID).") : t.data.error;
+      $("set-tg-status").textContent = t.ok ? (t.data.ok ? "Sent. Check Telegram." : "Telegram refused the message (check the chat ID).") : t.data.error;
     });
   });
 });
@@ -118,14 +118,14 @@ function loadAdminModels() {
 }
 function renderAdminModels(state, cat) {
   var real = cat && cat.mode === "real";
-  $("adm-models-mode").textContent = !cat ? "GPU offline" : real ? "real GPU: verification required" : "demo: no verification";
+  $("adm-models-mode").textContent = !cat ? "GPU offline" : real ? "real GPU, verification required" : "demo, no verification";
   var rows = (cat ? cat.extra.slice() : []), cfg = state.models || {};
   (state.added || []).forEach(function (a) {             // added since the GPU's last heartbeat: listed now
     if (!rows.some(function (x) { return x.id === a.id; })) rows.push({ id: a.id, source: "admin", pending: !!cat });
   });
-  if (!cat) $("adm-models-status").textContent = "GPU offline: suitability and Verify need the GPU. You can still enable or disable models.";
+  if (!cat) $("adm-models-status").textContent = "The GPU is offline. Suitability and Verify need the GPU. You can still enable or disable models.";
   var study = (cat && cat.study) || ((CONFIG && CONFIG.canonical_models) || STUDY_MODELS).map(function (m) { return { id: m }; });
-  var studyHtml = '<p class="small muted">Study models (validated baseline): no verification needed. They are downloaded the first time a benchmark uses them; tick to download one when a rental starts instead.</p>' +
+  var studyHtml = '<p class="small muted">Study models are the validated baseline and need no verification. They are downloaded the first time a benchmark uses them. Tick one to download it when a rental starts instead.</p>' +
     '<table id="adm-study-table"><thead><tr><th>Study model</th><th>On this server</th><th>Download at start-up</th></tr></thead><tbody>' +
     study.map(function (x) {
       var dl = (cfg[x.id] || {}).download_at_start != null ? cfg[x.id].download_at_start : !!x.download_at_start;
@@ -146,14 +146,14 @@ function renderAdminModels(state, cat) {
         (x.reasons || []).filter(function (r) { return r.rule !== "gated"; }).map(function (r) {
           return '<br><span class="small' + (r.outcome === "info" ? " muted" : "") + '">' + (r.outcome === "info" ? "ℹ " : "") + esc(r.note) + '</span>'; }).join("");
       var busy = !!VERIFYING[x.id];
-      var ver = (v.status === "ok" ? '<span class="chip ok">✓ verified</span><br><span class="small muted">' + esc(fmtDate(v.at || "")) + (v.gpu ? " · " + esc(v.gpu) : "") +
-                  (v.weights_mb != null ? " · weights " + fmtMB(v.weights_mb) : "") + (v.share_4bit != null ? " · " + fmtNum(v.share_4bit * 100, 1) + " % 4-bit" : "") + (v.transformers ? " · transformers " + esc(v.transformers) : "") + '</span>'
+      var ver = (v.status === "ok" ? '<span class="chip ok">✓ verified</span><br><span class="small muted">' + esc(fmtDate(v.at || "")) + (v.gpu ? ", " + esc(v.gpu) : "") +
+                  (v.weights_mb != null ? ", weights " + fmtMB(v.weights_mb) : "") + (v.share_4bit != null ? ", " + fmtNum(v.share_4bit * 100, 1) + " % 4-bit" : "") + (v.transformers ? ", transformers " + esc(v.transformers) : "") + '</span>'
                 : v.status === "failed" ? '<span class="chip bad">✕ failed</span><br><span class="small muted">' + esc(v.error || "") + '</span>'
                 : '<span class="muted small">not verified</span>') +
         (real ? '<br><button type="button" class="btn small-btn" data-verify="' + esc(x.id) + '"' + (busy || x.suitable === false ? " disabled" : "") + '>' + (busy ? "Verifying…" : v.status === "ok" ? "Verify again" : "Verify") + '</button>' : "");
       var offered = x.pending ? '<span class="small muted">the GPU picks it up within a minute</span>' : x.available == null ? '<span class="muted">—</span>' : x.available ? '<span class="chip ok">offered</span>' : '<span class="small muted">' + esc(x.unavailable_reason || "no") + '</span>';
       return '<tr data-model="' + esc(x.id) + '"><td class="mono">' + esc(x.id) + (x.source === "admin" ? ' <span class="chip">added</span>' : "") +
-        (x.params_b != null ? '<br><span class="small muted">' + fmtNum(x.params_b, 1) + ' B · ~' + fmtNum(x.vram_4bit_gb, 1) + ' GB at 4-bit</span>' : "") +
+        (x.params_b != null ? '<br><span class="small muted">' + fmtNum(x.params_b, 1) + ' B, about ' + fmtNum(x.vram_4bit_gb, 1) + ' GB at 4-bit</span>' : "") +
         (x.type ? '<br><span class="small muted">' + esc(x.type) + '</span>' : "") + '</td><td>' + suit + '</td><td>' + ver + '</td><td>' + offered +
         '</td><td><input type="checkbox" data-enable="' + esc(x.id) + '" aria-label="Enable ' + esc(x.id) + '"' + (enabled ? " checked" : "") + '></td>' +
         '<td><input type="checkbox" data-dlstart="' + esc(x.id) + '" aria-label="Download ' + esc(x.id) + ' at start-up"' + (dl ? " checked" : "") + '></td>' +
@@ -163,7 +163,7 @@ function renderAdminModels(state, cat) {
   box.querySelectorAll("[data-enable]").forEach(function (i) { i.addEventListener("change", function () { saveModel(i.dataset.enable, { enabled: i.checked }); }); });
   box.querySelectorAll("[data-dlstart]").forEach(function (i) { i.addEventListener("change", function () { saveModel(i.dataset.dlstart, { download_at_start: i.checked }); }); });
   box.querySelectorAll("[data-remove]").forEach(function (b) { b.addEventListener("click", function () {
-    confirmAction({ title: "Remove " + b.dataset.remove + "?", body: "It leaves the model list; you can add it again later.", ok: "Remove model", danger: true }).then(function (yes) {
+    confirmAction({ title: "Remove " + b.dataset.remove + "?", body: "It leaves the model list. You can add it again later.", ok: "Remove model", danger: true }).then(function (yes) {
       if (yes) putModels({ remove: [b.dataset.remove] }, "Removed.");
     });
   }); });
@@ -185,7 +185,7 @@ function verifyModel(id) {
   api("/api/models/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: id }) }).then(function (r) {
     if (!r.ok) { showError($("adm-models-error"), r.data); return; }
     VERIFYING[id] = r.data.job_id;
-    $("adm-models-status").textContent = "Verifying " + id + " on the GPU (downloads it first if needed; queued behind any running benchmark)…";
+    $("adm-models-status").textContent = "Verifying " + id + " on the GPU. It downloads first if needed and waits behind any running benchmark…";
     loadAdminModels();
     (function poll() {
       api("/api/jobs/" + enc(r.data.job_id)).then(function (j) {
@@ -198,7 +198,7 @@ function verifyModel(id) {
         }
         delete VERIFYING[id];
         var v = d && d.verification;
-        $("adm-models-status").textContent = v && v.status === "ok" ? id + " verified: it loads and generates in 4-bit NF4." : id + ": verification failed" + (v && v.error ? " — " + v.error : d && d.error ? " — " + d.error : "") + ".";
+        $("adm-models-status").textContent = v && v.status === "ok" ? id + " is verified. It loads and generates in 4-bit NF4." : id + " failed verification" + (v && v.error ? ". " + v.error : d && d.error ? ". " + d.error : "") + ".";
         CATALOG = null;
         setTimeout(loadAdminModels, 1500);     // the control plane has the result after its next delivery
       });
@@ -218,12 +218,12 @@ $("adm-model-add").addEventListener("submit", function (ev) {
 function loadAdminHealth() {
   var host = $("adm-health");
   if (!host) return;
-  if (CP && !ONLINE) { host.innerHTML = '<h2>Problems in the last 24 hours</h2><p class="muted" style="margin-bottom:0">The GPU server is offline: its logs are on it and can be read when it is back.</p>'; return; }
+  if (CP && !ONLINE) { host.innerHTML = '<h2>Problems in the last 24 hours</h2><p class="muted" style="margin-bottom:0">The GPU server is offline. Its logs are on it and can be read when it is back.</p>'; return; }
   api("/api/logs/recent?hours=24").then(function (r) {
     if (!r.ok) { host.innerHTML = '<h2>Problems in the last 24 hours</h2><p class="notice error small">' + esc(r.data.error || "Could not read the server's problems.") + '</p>'; return; }
     var d = r.data, c = d.counts, ok = !c.errors && !c.failed_jobs;
     host.innerHTML = '<div class="row" style="margin-top:0;justify-content:space-between"><h2>Problems in the last 24 hours</h2><span class="chip ' + (ok ? (c.warnings ? "" : "ok") : "bad") + '" id="adm-health-chip">' +
-      (ok && !c.warnings ? "all clear" : c.errors + " error" + (c.errors === 1 ? "" : "s") + " · " + c.warnings + " warning" + (c.warnings === 1 ? "" : "s") + " · " + c.failed_jobs + " failed run" + (c.failed_jobs === 1 ? "" : "s")) + '</span></div>' +
+      (ok && !c.warnings ? "all clear" : c.errors + " error" + (c.errors === 1 ? "" : "s") + ", " + c.warnings + " warning" + (c.warnings === 1 ? "" : "s") + ", " + c.failed_jobs + " failed run" + (c.failed_jobs === 1 ? "" : "s")) + '</span></div>' +
       '<p class="muted small" style="margin-top:0">From the GPU server, kept in its memory since it started (a restart clears them). Newest first.</p>' +
       (d.failed_jobs.length ? '<h3>Failed runs</h3><div class="table-wrap"><table id="adm-failed-table"><thead><tr><th>Run</th><th>What</th><th>When</th><th>Why</th></tr></thead><tbody>' +
         d.failed_jobs.map(function (j) {
@@ -319,7 +319,7 @@ function loadAdminIds() {
     var h = m.holdout || {};
     $("adm-ids-now").innerHTML = '<dt>Stored</dt><dd><span class="chip ok">' + esc(m.version || m.name) + '</span>' + (m.demo ? ' <span class="chip warn">demo</span>' : "") + '</dd>' +
       '<dt>Threshold</dt><dd>' + fmtNum(m.threshold, 4) + ' <span class="muted">(' + esc(m.threshold_rule || "") + ')</span></dd>' +
-      '<dt>Hold-out</dt><dd>recall ' + fmtPct(h.recall) + ' · precision ' + fmtPct(h.precision) + ' · false-positive rate ' + fmtPct(h.false_positive_rate) + ' <span class="muted">(' + fmtNum(h.n) + ' flows)</span></dd>' +
+      '<dt>Hold-out</dt><dd>recall ' + fmtPct(h.recall) + ', precision ' + fmtPct(h.precision) + ', false-positive rate ' + fmtPct(h.false_positive_rate) + ' <span class="muted">(' + fmtNum(h.n) + ' flows)</span></dd>' +
       '<dt>scikit-learn</dt><dd class="mono">' + esc(m.sklearn || "—") + '</dd>' +
       '<dt>Uploaded</dt><dd>' + esc(m.committed_at || "—") + ' by ' + esc(m.committed_by || "—") + '</dd>';
   });
@@ -332,7 +332,7 @@ $("adm-ids-form").addEventListener("submit", function (ev) {
   files.forEach(function (f) { byName[f.name] = f; });
   var bad = files.filter(function (f) { return IDS_NAMES.indexOf(f.name) < 0; });
   if (bad.length || !byName["ids_rf.joblib"] || !byName["ids_rf.json"]) {
-    showError(err, { error: "Choose ids_rf.joblib and ids_rf.json (and ids_rf.hashes.npy) from models\\ids\\" + (bad.length ? " — not expected: " + bad.map(function (f) { return f.name; }).join(", ") : "") });
+    showError(err, { error: "Choose ids_rf.joblib and ids_rf.json (and ids_rf.hashes.npy) from models\\ids\\" + (bad.length ? ". Not expected " + bad.map(function (f) { return f.name; }).join(", ") : "") });
     return;
   }
   $("adm-ids-go").disabled = true;
@@ -352,7 +352,7 @@ $("adm-ids-form").addEventListener("submit", function (ev) {
   step(0).then(function (r) {
     $("adm-ids-go").disabled = false;
     if (!r || !r.ok) { st.textContent = ""; showError(err, (r || {}).data || { error: "Upload failed." }); return; }
-    st.textContent = "Stored. A GPU rented from now on downloads it at start-up; a GPU that is already running keeps the model it started with.";
+    st.textContent = "Stored. A GPU rented from now on downloads it at start-up. A GPU that is already running keeps the model it started with.";
     $("adm-ids-files").value = ""; loadAdminIds();
   }).catch(function (e) { $("adm-ids-go").disabled = false; showError(err, { error: "Upload failed: " + e.message }); });
 });
@@ -393,7 +393,7 @@ $("adm-limits").addEventListener("submit", function (ev) {
   api("/api/admin/limits", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
     sessions_per_hour: +$("lim-sph").value, max_queued_sessions: +$("lim-mq").value, max_upload_mb: +$("lim-mb").value,
     idle_minutes: +$("lim-idle").value, session_idle_minutes: +$("lim-sess-idle").value, keep_identification_columns_in_r2: $("lim-ident").checked }) }).then(function (r) {
-    if (!r.ok) showError($("lim-error"), r.data); else $("lim-saved").textContent = "Saved — the GPU backend picks them up at its next heartbeat (within a minute).";
+    if (!r.ok) showError($("lim-error"), r.data); else $("lim-saved").textContent = "Saved. The GPU backend picks them up at its next heartbeat, within a minute.";
   });
 });
 
@@ -460,8 +460,8 @@ $("cp-menu").addEventListener("keydown", function (ev) {
   else if (ev.key === "ArrowUp") { ev.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
 });
 $("cp-menu").addEventListener("click", function (ev) { if (ev.target.closest("a")) closeMenu(); });
-var ROLE_TEXT = { admin: "Admin: manages accounts, credentials and system limits, and can delete any session.",
-                  user: "User: runs benchmarks and manages your own sessions." };
+var ROLE_TEXT = { admin: "An admin manages accounts, credentials and system limits, and can delete any session.",
+                  user: "A user runs benchmarks and manages their own sessions." };
 function fillProfileMenu() {
   var u = AUTH.user, admin = isAdmin();
   $("cp-profile").hidden = false; $("nav-settings-icon").hidden = true;
@@ -487,7 +487,7 @@ function loadProfile() {
     $("prof-account").innerHTML = '<dt>Username</dt><dd class="mono" id="prof-username">' + esc(u.username) + '</dd>' +
       '<dt>Role</dt><dd id="prof-role"><span class="role-chip' + (admin ? " admin" : "") + '">' + (admin ? "Admin" : "User") + '</span> <span class="muted small">' + esc(ROLE_TEXT[u.role] || "") + '</span></dd>' +
       '<dt>Account created</dt><dd>' + esc(fmtDate(u.created_at)) + '</dd>' +
-      '<dt>This login</dt><dd>' + esc(fmtDate(s.logged_in_at)) + ' · ' + (s.remember ? "remembered on this device" : "until the browser closes" +
+      '<dt>This login</dt><dd>' + esc(fmtDate(s.logged_in_at)) + ', ' + (s.remember ? "remembered on this device" : "until the browser closes" +
         (s.idle_minutes ? ", or " + s.idle_minutes + " min without activity" : "")) + '</dd>' +
       '<dt>Previous login</dt><dd>' + esc(r.data.previous_login_at ? fmtDate(r.data.previous_login_at) : "—") + '</dd>';
   });

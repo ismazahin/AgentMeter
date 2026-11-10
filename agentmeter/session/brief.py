@@ -58,13 +58,13 @@ def recommendation(data: dict, ranked: Optional[list[dict]] = None,
     if all_critical and eff_only:
         caveat = (f"All {len(rows)} models fall in the Critical tier on resource efficiency (below the "
                   "study's latency, memory and token targets), so none meets them as-is"
-                  + (f"; {top} is the best resource-efficient starting point." if top else "."))
+                  + (f". {top} is the best resource-efficient starting point." if top else "."))
     elif all_critical:
         caveat = (f"All {len(rows)} models fall in the Critical tier (accuracy below the "
                   f"{_js_num(acc_target)}% target), so none is recommended for zero-shot deployment as-is"
-                  + (f"; {top} is the best resource-efficient starting point." if top else "."))
+                  + (f". {top} is the best resource-efficient starting point." if top else "."))
     else:
-        caveat = ("This is decision support, not a deployment sign-off — check each model's tier "
+        caveat = ("This is decision support, not a deployment sign-off. Check each model's tier "
                   + ("against your own latency, memory and budget limits before deploying." if eff_only
                      else "and the accuracy target before deploying."))
     return {"headline": headline, "caveat": caveat, "top": top,
@@ -86,8 +86,8 @@ def optimisation_hint(data: dict, model: Optional[str] = None) -> dict[str, Any]
     if va:
         where.append(f'"{va}" dominates working memory')
     text = ("Resource cost concentrates in the pipeline"
-            + (": " + " and ".join(where) if where else "") + ". "
+            + (", where " + " and ".join(where) if where else "") + ". "
             "To cut resource cost, cap that step's token budget (lower its max_new_tokens) or run a "
-            "lighter model for that one step — this reduces latency, memory and token use only; "
+            "lighter model for that one step. This reduces latency, memory and token use only, and "
             "it does not change the model's verdicts.")
     return {"text": text, "latency_agent": la, "vram_agent": va}

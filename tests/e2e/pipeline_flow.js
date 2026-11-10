@@ -57,7 +57,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log(/verdict agent must come after/.test(await p.textContent('#pl-check')) && await p.isDisabled('#svc-run'), 'a verdict before the label is refused');
     await p.click('#pl-list .pl-item[data-i="2"] [data-pl="down"]');
     // Report (reads only the agent before it, no features) now comes before Escalation: no input
-    log(/Report: it has no input/.test(await p.textContent('#pl-check')) && await p.isDisabled('#svc-run'), 'an agent whose only input moved after it is refused');
+    log(/Report has no input/.test(await p.textContent('#pl-check')) && await p.isDisabled('#svc-run'), 'an agent whose only input moved after it is refused');
     await p.check('#pl-list .pl-item[data-i="3"] [data-read="2"]');
     const chain = (await p.textContent('#pl-check')).replace(/\s+/g, ' ');
     log(/Perceive → Reason → Classify → Report → Escalation/.test(chain), 'reordering works: ' + chain);

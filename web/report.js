@@ -156,10 +156,10 @@
     if (sens.top_stable && sens.stable_top_model)
       findings.push("Top-ranked model <b>" + _htmlEsc(sens.stable_top_model) +
         "</b> is stable across all weight sets.");
-    else if (sm.top) findings.push("Top-ranked model (default weights): <b>" + _htmlEsc(sm.top) + "</b>.");
+    else if (sm.top) findings.push("Top-ranked model with the default weights is <b>" + _htmlEsc(sm.top) + "</b>.");
     if (notes.vram_finding) findings.push(_htmlEsc(notes.vram_finding));
     var sigMetrics = Object.keys(stats).filter(function (k) { return stats[k] && stats[k].significant; });
-    if (sigMetrics.length) findings.push("Kruskal-Wallis: model differences are statistically significant for " +
+    if (sigMetrics.length) findings.push("By Kruskal-Wallis, model differences are statistically significant for " +
       sigMetrics.map(function (m) { return _htmlEsc(m); }).join(" and ") + ".");
 
     var sawTable = "<table><thead><tr><th>#</th><th>Model</th><th>Accuracy</th><th>Latency</th>" +
@@ -198,9 +198,9 @@
       "ul{margin:6px 0 0;padding-left:20px;} li{margin:3px 0;} .foot{color:#8a8f98;font-size:12px;margin-top:28px;}" +
       "@media print{body{margin:0;} a{display:none;}}" +
       "</style></head><body>" +
-      "<h1>AgentMeter — " + _htmlEsc(title || "Resource-efficiency report") + "</h1>" +
+      "<h1>" + _htmlEsc(title || "Resource-efficiency report") + " (AgentMeter)</h1>" +
       "<p class='muted'>Run(s): " + _htmlEsc((sm.run_ids || []).join(", ") || "—") +
-      " · generated " + new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC</p>" +
+      ", generated " + new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC</p>" +
       "<h2>Key findings</h2><ul>" + (findings.length ? findings.map(function (f) { return "<li>" + f + "</li>"; }).join("") :
         "<li class='muted'>—</li>") + "</ul>" +
       "<h2>SAW ranking (resource-efficiency composite)</h2>" + sawTable +
@@ -270,13 +270,13 @@
     if (allCritical && effOnly) {
       caveat = "All " + rows.length + " models fall in the Critical tier on resource efficiency (below the " +
         "study's latency, memory and token targets), so none meets them as-is" +
-        (topModel ? ("; " + topModel + " is the best resource-efficient starting point.") : ".");
+        (topModel ? (". " + topModel + " is the best resource-efficient starting point.") : ".");
     } else if (allCritical) {
       caveat = "All " + rows.length + " models fall in the Critical tier (accuracy below the " +
         accTarget + "% target), so none is recommended for zero-shot deployment as-is" +
-        (topModel ? ("; " + topModel + " is the best resource-efficient starting point.") : ".");
+        (topModel ? (". " + topModel + " is the best resource-efficient starting point.") : ".");
     } else {
-      caveat = "This is decision support, not a deployment sign-off — check each model's tier " +
+      caveat = "This is decision support, not a deployment sign-off. Check each model's tier " +
         (effOnly ? "against your own latency, memory and budget limits before deploying." : "and the accuracy target before deploying.");
     }
     return { headline: headline, caveat: caveat, top: topModel,
@@ -323,9 +323,9 @@
     if (la) where.push('the "' + la + '" step dominates latency');
     if (va) where.push('"' + va + '" dominates working memory');
     var text = "Resource cost concentrates in the pipeline" +
-      (where.length ? ": " + where.join(" and ") : "") + ". " +
+      (where.length ? ", where " + where.join(" and ") : "") + ". " +
       "To cut resource cost, cap that step's token budget (lower its max_new_tokens) or run a " +
-      "lighter model for that one step — this reduces latency, memory and token use only; " +
+      "lighter model for that one step. This reduces latency, memory and token use only, and " +
       "it does not change the model's verdicts.";
     return { text: text, latency_agent: la, vram_agent: va };
   }
@@ -355,9 +355,9 @@
 
     var findings = [];
     findings.push("Models evaluated: " + _htmlEsc(order.join(", ")) + ".");
-    if (rec.allCritical) findings.push("Accuracy reality: every model is in the <b>Critical</b> tier, " +
-      "below the " + rec.accTarget + "% accuracy target &mdash; <b>none is deployment-ready as-is</b>.");
-    if (hint.latency_agent || hint.vram_agent) findings.push("Where cost concentrates: " +
+    if (rec.allCritical) findings.push("Every model is in the <b>Critical</b> tier, " +
+      "below the " + rec.accTarget + "% accuracy target, so <b>none is deployment-ready as-is</b>.");
+    if (hint.latency_agent || hint.vram_agent) findings.push("Where cost concentrates. " +
       _htmlEsc(hint.text));
     if (notes.vram_finding) findings.push(_htmlEsc(notes.vram_finding));
 
@@ -373,9 +373,9 @@
       "ul{margin:6px 0 0;padding-left:20px;} li{margin:4px 0;} .foot{color:#8a8f98;font-size:12px;margin-top:26px;}" +
       "@media print{body{margin:0;} a{display:none;}}" +
       "</style></head><body>" +
-      "<h1>AgentMeter &mdash; " + _htmlEsc(title || "Decision brief") + "</h1>" +
+      "<h1>" + _htmlEsc(title || "Decision brief") + " (AgentMeter)</h1>" +
       "<p class='muted'>Run(s): " + _htmlEsc((sm.run_ids || []).join(", ") || "&mdash;") +
-      " &middot; generated " + new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC</p>" +
+      ", generated " + new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC</p>" +
       "<h2>Recommendation</h2><div class='rec'><div class='head'>" + _htmlEsc(rec.headline) + "</div>" +
       "<div class='caveat'>" + _htmlEsc(rec.caveat) + "</div></div>" +
       "<h2>Ranking (resource-efficiency composite)</h2>" +
@@ -383,7 +383,7 @@
       "<th>Tokens</th><th>Composite</th><th>Tier</th></tr></thead><tbody>" + rankRows + "</tbody></table>" +
       "<h2>Key findings</h2><ul>" + findings.map(function (f) { return "<li>" + f + "</li>"; }).join("") + "</ul>" +
       "<p class='foot'>Resource-efficiency measurement (latency, VRAM, tokens) + SAW composite, " +
-      "read-only over analysis.json. Decision support only &mdash; not a detection-quality ranking " +
+      "read-only over analysis.json. This is decision support only, not a detection-quality ranking " +
       "and not a deployment sign-off.</p></body></html>";
   }
 

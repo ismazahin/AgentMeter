@@ -22,12 +22,12 @@ function renderPlanner() {
   var rows = INSIGHTS.projectCost(PLAN.sessions, { flows: n, gpu: $("pl-gpu").value || null });
   if (!rows.length) {
     $("pl-body").innerHTML = '<p class="muted" id="pl-none">No model has been benchmarked on a GPU yet, so there is nothing to project from. ' +
-      'Run a benchmark (it needs the GPU server); its measured time per flow then shows up here.</p>';
+      'Run a benchmark on the GPU server and its measured time per flow will show up here.</p>';
     return;
   }
   var h = function (x) { return x == null ? "—" : x < 1 ? fmtNum(x * 60, 1) + " min" : fmtNum(x, 1) + " h"; };
   $("pl-body").innerHTML = '<p class="small muted" style="margin-top:0">' + fmtNum(n) + ' alerts a day. One GPU triages them one after another, as measured; ' +
-    '"One GPU?" says whether the day\'s alerts take less than 24 hours on one GPU. A projection: the same GPU, settings and similar flows as the benchmark it comes from.</p>' +
+    '"One GPU?" says whether the day\'s alerts take less than 24 hours on one GPU. It is a projection that assumes the same GPU, the same settings and similar flows as the benchmark it comes from.</p>' +
     '<div class="table-wrap"><table id="pl-table"><thead><tr><th>Model</th><th>GPU</th><th class="num">Time per alert</th><th class="num">GPU time per day</th>' +
     '<th class="num">Cost per day</th><th class="num">Energy per day</th><th>One GPU?</th></tr></thead><tbody>' +
     rows.map(function (x) {
@@ -38,7 +38,7 @@ function renderPlanner() {
         '</td><td class="num">' + (x.energy_wh == null ? "—" : fmtNum(x.energy_wh / 1000, 2) + " kWh") + '</td><td>' +
         (x.fits_in_a_day ? '<span class="chip ok">yes</span>' : '<span class="chip warn">needs ' + Math.ceil(x.gpu_hours / 24) + ' GPUs</span>') + '</td></tr>';
     }).join("") + '</tbody></table></div>' +
-    '<p class="small muted">Cost needs a GPU price (the session records it on a rented GPU, or <code>pricing.gpu_usd_per_hour</code>); energy needs power readings from a real GPU. "—" means the benchmark did not record it.</p>';
+    '<p class="small muted">Cost needs a GPU price, which the session records on a rented GPU or reads from <code>pricing.gpu_usd_per_hour</code>. Energy needs power readings from a real GPU. An empty cell means the benchmark did not record it.</p>';
 }
 // a session time (20261105_100000 or ISO) as its day, 2026-11-05
 function plDay(s) { var m = /^(\d{4})(\d{2})(\d{2})_/.exec(String(s || "")); return m ? m[1] + "-" + m[2] + "-" + m[3] : String(s || "—").slice(0, 10); }

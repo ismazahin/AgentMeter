@@ -5,15 +5,15 @@
 // ---------- boot: config.json -> /health -> online | offline ----------
 function badge(h) {
   var b = $("svc-backend-badge");
-  if (!h) { b.className = "chip-gpu off"; b.textContent = "GPU offline · viewing"; b.title = "No GPU server connected: pages show stored results; new runs wait until it is back."; return; }
+  if (!h) { b.className = "chip-gpu off"; b.textContent = "GPU offline, viewing only"; b.title = "No GPU server is connected. Pages show stored results, and new runs wait until it is back."; return; }
   if (h.provider === "real") {
     var g = h.gpu || {};
     b.className = "chip-gpu real";
     b.textContent = "Real GPU: " + (g.name || "unknown");
   } else { b.className = "chip-gpu demo"; b.textContent = "Demo mode (no GPU)"; }
   b.title = (h.provider === "real" ? "Runs use real models on this GPU" + ((h.gpu || {}).vram_total_mb ? " (" + fmtNum(h.gpu.vram_total_mb / 1024) + " GB)" : "")
-                                   : "DEMO (mock): runs use a deterministic heuristic, not a language model") +
-    (h.queue ? " · queue: " + (h.queue.running ? "1 running" : "idle") + ", " + (h.queue.queued || 0) + " queued" : "");
+                                   : "DEMO (mock). Runs use a fixed heuristic, not a language model") +
+    (h.queue ? ". Queue " + (h.queue.running ? "1 running" : "idle") + ", " + (h.queue.queued || 0) + " waiting" : "");
 }
 function runModeLine() {
   var h = HEALTH || {};
@@ -74,7 +74,7 @@ function apiVersionCheck(h) {
   var box = $("svc-api-old");
   box.hidden = !old;
   if (old) box.innerHTML = '<b>The GPU backend is older than this website</b> (its API ' + esc((h && h.api_version) || "1.0") + '; this site needs ' + MIN_BACKEND.join(".") +
-    '). Pull the latest code on the GPU server and restart it; until then GPU &amp; Queue and the newest features may not work.';
+    '). Pull the latest code on the GPU server and restart it. Until then GPU &amp; Queue and the newest features may not work.';
 }
 function checkBackend() { return health().then(function (h) { if (h) goOnline(h); else goOffline(); }); }
 // control plane: where is the GPU backend, and is it up? (it registers + heartbeats itself)

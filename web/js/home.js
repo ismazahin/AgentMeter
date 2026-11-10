@@ -7,7 +7,7 @@ function homeHeadline(row, models) {
   var w = row.more_efficient;
   if (models.length < 2) return short(models[0] || "") + ": single-model run";
   if (w && w !== "tie" && w !== "—" && w !== "mixed") return short(w) + " is more efficient";
-  return w === "mixed" ? "Mixed result: each model wins somewhere" : "Tied on efficiency";
+  return w === "mixed" ? "Mixed result, each model wins somewhere" : "Tied on efficiency";
 }
 // first-visit guides: shown until "Got it" (per browser; nothing breaks without storage)
 function guideSeen(k) { try { return localStorage.getItem("agentmeter.guide." + k) === "1"; } catch (e) { return false; } }
@@ -15,7 +15,7 @@ function guideHide(k) { try { localStorage.setItem("agentmeter.guide." + k, "1")
 $("home-guide-hide").addEventListener("click", function () { guideHide("home"); });
 $("help-guides-reset").addEventListener("click", function () {
   ["home", "session"].forEach(function (k) { try { localStorage.removeItem("agentmeter.guide." + k); } catch (e) { /* nothing stored */ } });
-  $("help-guides-done").textContent = "Done: the tips show again on Home and on a session.";
+  $("help-guides-done").textContent = "Done. The tips show again on Home and on a session.";
 });
 // in-page links of the guide scroll instead of changing the route
 $("view-help").addEventListener("click", function (e) {
@@ -39,13 +39,13 @@ function loadHome() {
     $("home-latest").hidden = false;
     $("home-latest").innerHTML =
       '<div class="row" style="margin-top:0;justify-content:space-between"><div><h2>Latest session</h2><p class="muted small" style="margin:2px 0 0">' +
-      esc(last.input_type || "") + ' · ' + fmtNum(last.n_flows) + ' flows · ' + esc(last.gpu) + ' · ' + esc(fmtDate(last.finished_at)) + '</p></div>' +
+      esc(last.input_type || "") + ', ' + fmtNum(last.n_flows) + ' flows, ' + esc(last.gpu) + ', ' + esc(fmtDate(last.finished_at)) + '</p></div>' +
       '<a class="btn" href="#/session/' + enc(last.session_id) + '" id="home-open-latest">Open session</a></div>' +
       '<p class="headline" id="home-headline">' + esc(homeHeadline(last, models)) + '</p>' +
       (last.verdict ? '<details class="info"><summary>Show full verdict</summary><p class="verdict" id="home-verdict">' + esc(last.verdict.text) + '</p></details>' : "") +
       '<div class="grid two">' +
       hbars("Mean latency per flow (lower is better)", models.map(function (m) { return { label: short(m), v: last.metrics[m].mean_latency_s }; }), fmtTime) +
-      hbars("Mean working VRAM (excludes model weights; lower is better)", models.map(function (m) {
+      hbars("Mean working VRAM without model weights (lower is better)", models.map(function (m) {
         var t = last.metrics[m].total_peak_mb;
         return { label: short(m), v: last.metrics[m].mean_peak_vram_mb, extra: t != null ? "total peak " + fmtMB(t) : null }; }), fmtMB,
             last.demo ? "not measured (demo)" : "not measured") + '</div>';
@@ -88,7 +88,7 @@ function allSessions(fresh) {
       if (scrolls && !w.hasAttribute("tabindex")) {
         w.setAttribute("tabindex", "0"); w.setAttribute("role", "region");
         var h = w.closest(".card") && w.closest(".card").querySelector("h2, h3");
-        w.setAttribute("aria-label", (h ? h.textContent.trim() + " — " : "") + "table, scrolls sideways");
+        w.setAttribute("aria-label", (h ? h.textContent.trim() + ", " : "") + "table, scrolls sideways");
       } else if (!scrolls && w.getAttribute("role") === "region") { w.removeAttribute("tabindex"); w.removeAttribute("role"); w.removeAttribute("aria-label"); }
     });
   }
@@ -104,7 +104,7 @@ function skel(lines, card) {
 // ---------- search everything (Ctrl+K): pages, sessions, data sets, models ----------
 var GS = { items: [], shown: [], sel: 0, last: null };
 var GS_PAGES = [["Home", "#/", "start latest"], ["New benchmark", "#/new", "run upload prepare csv pcap"], ["Sessions", "#/sessions", "runs list history"],
-  ["Data sets", "#/new?src=reuse", "prepared sets flows fingerprint analyses analyse traffic"], ["Cost planner", "#/planner", "cost price per day alerts gpu hours energy"], ["Leaderboard — by setup", "#/leaderboard", "rank ranking"], ["Leaderboard — Compare models", "#/compare", "compare models side by side"],
+  ["Data sets", "#/new?src=reuse", "prepared sets flows fingerprint analyses analyse traffic"], ["Cost planner", "#/planner", "cost price per day alerts gpu hours energy"], ["Leaderboard by setup", "#/leaderboard", "rank ranking"], ["Leaderboard, compare models", "#/compare", "compare models side by side"],
   ["Repeatability", "#/trends", "trends history stable moved"], ["GPU & Queue", "#/gpu", "queue running waiting gpu now"], ["Settings", "#/settings", "theme telegram alerts limits"],
   ["How to use", "#/help", "help guide"], ["Methodology", "#/help", "saw formula statistics how measured"], ["Profile", "#/profile", "password devices"], ["Admin", "#/admin", "users audit log problems limits models"]];
 function gsBuild() {
@@ -114,7 +114,7 @@ function gsBuild() {
     var rows = r.ok ? r.data.sessions || [] : [], sets = {}, models = {};
     rows.forEach(function (s) {
       var ms = (s.models || []).map(short).join(", ");
-      items.push({ kind: "Session", label: ms || shortId(s.session_id), sub: [s.status, s.run_name ? s.run_name.split("/").pop() : null, fmtDate(s.finished_at || s.created_at)].filter(Boolean).join(" · "),
+      items.push({ kind: "Session", label: ms || shortId(s.session_id), sub: [s.status, s.run_name ? s.run_name.split("/").pop() : null, fmtDate(s.finished_at || s.created_at)].filter(Boolean).join(", "),
                    href: "#/session/" + enc(s.session_id), rank: 2,
                    hay: [s.session_id, (s.models || []).join(" "), s.run_name, s.notes, (s.tags || []).join(" "), s.owner || s.owner_username, s.gpu, s.status].join(" ").toLowerCase() });
       if (s.run_name && !sets[s.run_name]) sets[s.run_name] = 1;
@@ -124,7 +124,7 @@ function gsBuild() {
       items.push({ kind: "Data set", label: n.split("/").pop(), sub: n.split("/")[0] === "pcap_runs" ? "PCAP" : "CSV", href: "#/datasets", hay: n.toLowerCase(), rank: 1, ds: n });
     });
     Object.keys(models).forEach(function (m) {
-      items.push({ kind: "Model", label: short(m), sub: models[m] + " session" + (models[m] === 1 ? "" : "s") + " — show them", href: "#/sessions", hay: m.toLowerCase(), rank: 1, model: m });
+      items.push({ kind: "Model", label: short(m), sub: models[m] + " session" + (models[m] === 1 ? "" : "s") + ", show them", href: "#/sessions", hay: m.toLowerCase(), rank: 1, model: m });
     });
     return items;
   });

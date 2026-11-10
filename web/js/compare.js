@@ -7,8 +7,8 @@
 // only those are offered. The merged view shows every run side by side (stored values).
 var CMP = { rows: [], data: null, tab: "overview", setups: [], key: null, given: [], want: [], pick: {}, old: null };
 function sessionLabel(s) {
-  return (s.models || []).map(short).join(" vs ") + " · " + (s.input_type || "") + " · " + fmtNum(s.n_flows) + " flows · " +
-    (s.gpu || "") + " · " + fmtDate(s.finished_at || s.created_at);
+  return (s.models || []).map(short).join(" vs ") + ", " + (s.input_type || "") + ", " + fmtNum(s.n_flows) + " flows, " +
+    (s.gpu || "") + ", " + fmtDate(s.finished_at || s.created_at);
 }
 // ---- variables (as on an observability dashboard): one Model and one Pipeline filter, shared
 // by Compare and Trends; "All" shows everything. Kept in this browser.
@@ -45,7 +45,7 @@ function cmpRow(id) { return CMP.rows.filter(function (s) { return s.session_id 
 function cmpSetup() { return (CMP.setups || []).filter(function (g) { return g.key === CMP.key; })[0] || null; }
 function setupName(g) {
   var st = g.setup;
-  return (g.name || "prepared set " + String(st.prepared_set_sha256).slice(0, 8)) + " · " + (st.input_type || "") + " · " + fmtNum(st.n_flows) + " flows · " + (st.gpu || "GPU") + " · " + g.pipeline;
+  return (g.name || "prepared set " + String(st.prepared_set_sha256).slice(0, 8)) + ", " + (st.input_type || "") + ", " + fmtNum(st.n_flows) + " flows, " + (st.gpu || "GPU") + ", " + g.pipeline;
 }
 function repLink(model, key) { return "#/trends?model=" + enc(model) + "&setup=" + enc(key); }
 function loadCompare(q) {
@@ -125,13 +125,13 @@ function renderSetup() {
   } else {
     var want = CMP.want.filter(function (m) { return g.models.some(function (x) { return x.model === m; }); });
     if (!want.length) want = g.models.map(function (x) { return x.model; });              // every model, by default
-    box.innerHTML = '<fieldset style="border:0;padding:0;margin:12px 0 0"><legend class="small" style="font-weight:600"><span class="step-n">2</span> Models measured on this setup (' + g.models.length + ') — tick 2 or more</legend>' +
+    box.innerHTML = '<fieldset style="border:0;padding:0;margin:12px 0 0"><legend class="small" style="font-weight:600"><span class="step-n">2</span> Models measured on this setup (' + g.models.length + '). Tick 2 or more.</legend>' +
       '<div class="row" style="margin:4px 0 8px;gap:8px"><button type="button" class="btn small-btn" id="cmp-all">Select all</button><button type="button" class="btn small-btn" id="cmp-clear">Clear</button></div>' +
       '<div class="models" id="cmp-list">' + g.models.map(function (m) {
         var on = want.indexOf(m.model) >= 0;
         return '<label class="model"><input type="checkbox" value="' + esc(m.model) + '"' + (on ? " checked" : "") + '><span><b>' + esc(short(m.model)) + '</b>' + extraTag(m.model) +
-          '<br><span class="muted small">' + (m.runs.length === 1 ? "1 run · " + esc(fmtDate(m.runs[0].at)) : m.runs.length + ' runs · latest ' + esc(fmtDate(m.runs[0].at)) +
-            ' · <a href="' + repLink(m.model, g.key) + '" data-rep-link>how they vary</a>') + '</span></span></label>';
+          '<br><span class="muted small">' + (m.runs.length === 1 ? "1 run, " + esc(fmtDate(m.runs[0].at)) : m.runs.length + ' runs, latest ' + esc(fmtDate(m.runs[0].at)) +
+            ', <a href="' + repLink(m.model, g.key) + '" data-rep-link>how they vary</a>') + '</span></span></label>';
       }).join("") + '</div></fieldset>' +
       '<p class="small muted" id="cmp-pick-note" style="margin:6px 0 0">Each model is one row, from its latest run on this setup. Whether a model gives the same result every time is on <a href="#/trends">Repeatability</a>.</p>';
     var sync = function () {
@@ -145,12 +145,12 @@ function renderSetup() {
     sync();
   }
   var ex = INSIGHTS.excludedFrom(g, CMP.rows);
-  $("cmp-excluded").innerHTML = !ex.length ? "" : '<details class="card info" id="cmp-excluded-card"><summary>Not on this setup (' + ex.length + ' session' + (ex.length === 1 ? "" : "s") + ') — left out of Compare</summary>' +
+  $("cmp-excluded").innerHTML = !ex.length ? "" : '<details class="card info" id="cmp-excluded-card"><summary>Not on this setup (' + ex.length + ' session' + (ex.length === 1 ? "" : "s") + ') left out of Compare</summary>' +
     '<div class="table-wrap"><table id="cmp-excluded-table"><thead><tr><th>Session</th><th>Models</th><th>Data set</th><th>GPU</th><th>Why it is left out</th></tr></thead><tbody>' +
     ex.slice(0, 100).map(function (x) {
       var s = x.session;
       return '<tr><td><a class="mono" href="#/session/' + enc(s.session_id) + '">' + esc(shortId(s.session_id)) + '</a></td><td class="small">' + esc((s.models || []).map(short).join(", ")) +
-        '</td><td class="small">' + esc((s.run_name || "—") + " · " + fmtNum(s.n_flows) + " flows") + '</td><td class="small">' + esc(s.gpu || "—") + '</td><td>' + esc(x.reasons.join("; ")) + '</td></tr>';
+        '</td><td class="small">' + esc((s.run_name || "—") + ", " + fmtNum(s.n_flows) + " flows") + '</td><td class="small">' + esc(s.gpu || "—") + '</td><td>' + esc(x.reasons.join(". ")) + '</td></tr>';
     }).join("") + '</tbody></table></div>' + (ex.length > 100 ? '<p class="small muted">The first 100 are listed.</p>' : "") + '</details>';
 }
 // the session that stands for each model: the latest one the link names, else its latest run
@@ -178,7 +178,7 @@ function runPicked() {
     }
     ids.push(other.session_id);
   }
-  if (ids.length > 20) { showError($("cmp-error"), { error: "These models come from " + ids.length + " sessions; up to 20 sessions can be merged at once. Untick a few models." }); return; }
+  if (ids.length > 20) { showError($("cmp-error"), { error: "These models come from " + ids.length + " sessions, and up to 20 sessions can be merged at once. Untick a few models." }); return; }
   runMerged(ids, pick);
 }
 $("cmp-form").addEventListener("submit", function (ev) {
@@ -214,7 +214,7 @@ function cmpCols() {
     var latest = function (k) { var row = d.rows.filter(function (x) { return x.metric === k; })[0]; return row ? row.values[i] : null; };
     var all = CMP.basis === "all" && n > 1;
     cols.push({ head: short(run.model), model: run.model, runs: n, session: run.session,
-                sub: all ? "mean of " + n + " runs" : fmtDate(run.created_at).slice(0, 16) + (n > 1 ? " · latest of " + n + " runs" : ""),
+                sub: all ? "mean of " + n + " runs" : fmtDate(run.created_at).slice(0, 16) + (n > 1 ? ", latest of " + n + " runs" : ""),
                 stats: function (k) { return INSIGHTS.runStats(cmpRunValues(run.model, k)); },
                 val: all ? function (k) { var st = INSIGHTS.runStats(cmpRunValues(run.model, k)); return st.n ? st.mean : latest(k); } : latest });
   });
@@ -274,7 +274,7 @@ function cmpPlain() {
   if (tok && !tok.tie) bits.push("<b>" + esc(tok.best.c.head) + "</b> uses the fewest tokens");
   if (saw && !saw.tie) bits.push("the best balance (SAW score) is <b>" + esc(saw.best.c.head) + "</b>'s");
   if (!bits.length) return '<p class="tab-summary" id="cmp-plain">These models are level on every measure shown here.</p>';
-  return '<p class="tab-summary" id="cmp-plain">In short: ' + bits.join("; ") + "." + (CMP.basis === "all" ? " (Means over every run.)" : cols.some(function (c) { return c.runs > 1; }) ? " (Latest runs; switch to Every run to see whether the gaps hold.)" : "") + '</p>';
+  return '<p class="tab-summary" id="cmp-plain">In short, ' + bits.map(function (b, i) { return i ? b.charAt(0).toUpperCase() + b.slice(1) : b; }).join(". ") + "." + (CMP.basis === "all" ? " These are means over every run." : cols.some(function (c) { return c.runs > 1; }) ? " These are the latest runs. Switch to Every run to see whether the gaps hold." : "") + '</p>';
 }
 function cmpDiffCard() {
   var row = cmpDef(CMP.bar || "mean_latency_s"), f = cmpFmt(row), byModel = {};
@@ -282,7 +282,7 @@ function cmpDiffCard() {
   var r = INSIGHTS.compareRuns(byModel, row.lower_is_better);
   if (r.rows.length < 2) return "";
   var best = short(r.best);
-  return '<div class="card" id="cmp-diff-card"><h2>Are the differences real? — ' + esc(row.label) + '</h2><p class="muted small" style="margin-top:0">Over every run on this setup, against the best model (' + esc(best) + ').' + infoI(r.rule) + '</p>' +
+  return '<div class="card" id="cmp-diff-card"><h2>Are the differences in ' + esc(row.label) + ' real?</h2><p class="muted small" style="margin-top:0">Over every run on this setup, against the best model (' + esc(best) + ').' + infoI(r.rule) + '</p>' +
     '<div class="table-wrap"><table id="cmp-diff-table"><thead><tr><th>Model</th><th class="num">Mean ± 95% CI</th><th class="num">Runs</th><th class="num">vs ' + esc(best) + '</th><th class="num">p</th><th>Verdict</th></tr></thead><tbody>' +
     r.rows.map(function (x) {
       var chip = x.verdict === "best" ? '<span class="chip ok">best</span>' : x.verdict === "real difference" ? '<span class="chip warn">real difference</span>' : x.verdict === "within noise" ? '<span class="chip">within noise</span>' : '<span class="chip">too few runs</span>';
@@ -300,11 +300,11 @@ function cmpRanking() {
   var order = cols.slice().sort(function (a, b) { return saw(b) - saw(a) || lat(a) - lat(b) || a.head.localeCompare(b.head); });   // a tie on SAW: the faster first
   var best = {};
   defs.forEach(function (x) { var vals = order.map(function (c) { return c.val(x[0][0]); }); best[x[0][0]] = bestIdx(vals, x[1].lower_is_better); });
-  return '<div class="card"><h2>Ranking (' + cols.length + ' models)</h2><p class="muted small" style="margin-top:0">Ordered by the SAW score (efficiency), then by latency on a tie; the best value in each column is marked.</p>' +
+  return '<div class="card"><h2>Ranking (' + cols.length + ' models)</h2><p class="muted small" style="margin-top:0">Ordered by the SAW score (efficiency), then by latency on a tie. The best value in each column is marked.</p>' +
     '<div class="table-wrap"><table id="cmp-rank-table"><thead><tr><th class="num">#</th><th>Model</th>' + defs.map(function (x) { return '<th class="num">' + esc(x[0][1]) + '</th>'; }).join("") + '</tr></thead><tbody>' +
     order.map(function (c, i) {
       return '<tr><td class="num">' + (saw(c) === -Infinity ? "—" : i + 1) + '</td><td><b>' + esc(c.head) + '</b>' + extraTag(c.model) + '<br><span class="small muted"><a href="#/session/' + enc(c.session) + '" title="' + esc(c.session) + '">' +
-        esc(shortId(c.session)) + '</a>' + (c.runs > 1 ? (CMP.basis === "all" ? ' · mean of ' + c.runs + ' runs' : ' · latest of ' + c.runs + ' runs') : "") + '</span></td>' + defs.map(function (x) {
+        esc(shortId(c.session)) + '</a>' + (c.runs > 1 ? (CMP.basis === "all" ? ', mean of ' + c.runs + ' runs' : ', latest of ' + c.runs + ' runs') : "") + '</span></td>' + defs.map(function (x) {
           var v = c.val(x[0][0]), st = CMP.basis === "all" && c.runs > 1 ? c.stats(x[0][0]) : null;
           return '<td class="num' + (best[x[0][0]].indexOf(i) >= 0 ? " best" : "") + '">' + (v == null ? '<span class="muted">—</span>' : cmpFmt(x[1])(v) +
             (st && st.ci != null ? '<br><span class="small muted">± ' + cmpFmt(x[1])(st.ci) + '</span>' : "")) + '</td>';
@@ -338,9 +338,9 @@ function renderMerged() {
     body = '<div class="card">' + cmpTable("cmp-" + CMP.tab + "-table", CMP_GROUPS[CMP.tab]) + '</div>';
   }
   $("cmp-result").innerHTML =
-    '<div class="validity ok" id="cmp-validity" role="status"><strong>Like-for-like comparison</strong> · ' + cols.length + ' models · same flows (' +
-      esc(String(st.input_type || "").toUpperCase()) + ', ' + fmtNum(st.n_flows) + ' flows, set <span class="mono">' + esc(String(st.prepared_set_sha256).slice(0, 12)) + '</span>), same GPU (' + esc(st.gpu) + '), same settings · only the model differs' +
-      infoI("Every model answered the same flows on the same GPU with the same settings, so the differences are the models'. Each model is one entry, from its latest run on this setup. Values are the stored ones; the best is marked.") + '</div>' +
+    '<div class="validity ok" id="cmp-validity" role="status"><strong>Like-for-like comparison.</strong> ' + cols.length + ' models, same flows (' +
+      esc(String(st.input_type || "").toUpperCase()) + ', ' + fmtNum(st.n_flows) + ' flows, set <span class="mono">' + esc(String(st.prepared_set_sha256).slice(0, 12)) + '</span>), same GPU (' + esc(st.gpu) + '), same settings. Only the model differs.' +
+      infoI("Every model answered the same flows on the same GPU with the same settings, so the differences are the models'. Each model is one entry, from its latest run on this setup. Values are the stored ones, and the best is marked.") + '</div>' +
     (cols.some(function (c) { return c.runs > 1; }) ? '<div class="seg-opts" id="cmp-basis" role="radiogroup" aria-label="Which runs" style="margin:0 0 12px">' +
       '<label><input type="radio" name="cmp-basis" value="latest"' + (CMP.basis !== "all" ? " checked" : "") + '> Latest run of each model</label>' +
       '<label><input type="radio" name="cmp-basis" value="all"' + (CMP.basis === "all" ? " checked" : "") + '> Every run (mean ± 95% CI)</label></div>' : "") +
@@ -348,7 +348,7 @@ function renderMerged() {
       return '<a role="tab" href="#" data-ctab="' + t[0] + '" id="ctab-' + t[0] + '" aria-selected="' + (t[0] === CMP.tab) + '">' + esc(t[1]) + '</a>';
     }).join("") + '</div>' + body +
     '<details class="info"><summary>All metrics</summary>' + cmpTable("cmp-table", d.rows.map(function (x) { return x.metric; })) + '</details>' +
-    '<p class="muted small">View only: stored scores never change.</p>';
+    '<p class="muted small">View only. Stored scores never change.</p>';
   $("cmp-result").querySelectorAll("[data-ctab]").forEach(function (a) { a.addEventListener("click", function (ev) { ev.preventDefault(); CMP.tab = a.getAttribute("data-ctab"); renderMerged(); }); });
   if ($("cmp-bar-metric")) $("cmp-bar-metric").addEventListener("change", function () { CMP.bar = this.value; renderMerged(); });
   $("cmp-result").querySelectorAll('input[name="cmp-basis"]').forEach(function (x) { x.addEventListener("change", function () { CMP.basis = x.value; renderMerged(); }); });
@@ -429,9 +429,9 @@ function renderDatasets() {
     $("ds-body").innerHTML = '<div class="card empty" id="ds-empty"><h2>No data sets yet</h2><p>Upload a CSV or PCAP file on <a href="#/new">New benchmark</a>: it is prepared into a set of flows that every model then answers.</p></div>';
     return;
   }
-  $("ds-body").innerHTML = (off ? '<p class="notice small" id="ds-offline">The GPU server is offline: sets that have been benchmarked are listed; sets prepared but not yet benchmarked appear when it is back.</p>' : "") +
+  $("ds-body").innerHTML = (off ? '<p class="notice small" id="ds-offline">The GPU server is offline. Sets that have been benchmarked are listed, and sets prepared but not yet benchmarked appear when it is back.</p>' : "") +
     '<div class="card"><p class="muted small" style="margin-top:0">' + rows.length + ' of ' + live.length + ' set' + (live.length === 1 ? "" : "s") +
-    '. The fingerprint is the hash of the prepared flows: two sessions with the same fingerprint answered exactly the same flows.</p>' +
+    '. The fingerprint is the hash of the prepared flows. Two sessions with the same fingerprint answered exactly the same flows.</p>' +
     '<div class="table-wrap"><table id="ds-table"><thead><tr><th>Data set</th><th class="num">Flows</th><th>Fingerprint</th><th class="num">Sessions</th><th class="num">Models</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
     rows.map(function (g) {
       var open = DS.open === g.key, info = dsInfo(g), can = dsCanEdit(g), k = esc(g.key);
@@ -467,13 +467,13 @@ function dsDetail(g, r) {
     : '<div class="grid2"><div><h3>What is in it</h3><ul class="lk-list small">' +
         '<li>Source file: <b>' + esc((sum.source || {}).filename || sum.source_file || g.source || "—") + '</b></li>' +
         '<li>Rows read: <b>' + (sum.rows_total == null ? "—" : fmtNum(sum.rows_total)) + '</b>, flows kept: <b>' + (sum.rows_selected == null ? fmtNum(g.n_flows) : fmtNum(sum.rows_selected)) + '</b></li>' +
-        '<li>Labels: <b>' + (sum.accuracy_available ? "yes — the output check can compare with them" : "no — efficiency only") + '</b></li>' +
+        '<li>Labels: <b>' + (sum.accuracy_available ? "yes, so the output check can compare with them" : "no, so efficiency only") + '</b></li>' +
         (g.prepared_at ? '<li>Prepared: ' + esc(fmtDate(g.prepared_at)) + '</li>' : "") +
         (g.sha ? '<li>Fingerprint: <span class="mono">' + esc(g.sha) + '</span></li>' : "") + '</ul></div>' +
       '<div><h3>Flow mix</h3>' + (classes.length ? '<div class="hbars" id="ds-mix">' + classes.map(function (k) {
         return '<div class="hbar"><span class="hb-l">' + esc(k) + '</span><span class="hb-t"><span class="hb-f" style="width:' + (100 * cc[k] / tot).toFixed(1) + '%"></span></span><span class="hb-v num" title="' + (inFile[k] == null ? "" : fmtNum(inFile[k]) + ' in the file') + '">' + fmtNum(cc[k]) + '</span></div>';
       }).join("") + '</div><p class="small muted" style="margin:6px 0 0">Flows kept per class' + (Object.keys(inFile).length ? ' (hover a number for how many the file had)' : "") + '.</p>'
-        : '<p class="muted small">No class labels in this set (PCAP traffic has none): every model answers the same flows, measured for efficiency.</p>') + '</div></div>' +
+        : '<p class="muted small">This set has no class labels, since PCAP traffic has none. Every model answers the same flows, measured for efficiency.</p>') + '</div></div>' +
       (files ? '<p class="small" id="ds-files" style="margin-bottom:0">Download: ' + files + '</p>' : "");
   var used = g.sessions.length ? '<h3>Used by</h3><div class="table-wrap"><table class="ds-used"><thead><tr><th>Session</th><th>Models</th><th>GPU</th><th>Finished</th></tr></thead><tbody>' +
     g.sessions.slice(0, 50).map(function (s) {
@@ -583,8 +583,8 @@ function renderGpu(r) {
   var off = !r || !r.ok, d = off ? null : r.data;
   if (off) {
     var why = !r ? "The GPU server is not connected right now." : (r.data && r.data.error) || "The GPU server did not answer.";
-    $("gq-status").innerHTML = '<div class="validity bad" id="gq-state" role="status"><strong>GPU offline</strong> · ' + esc(why) +
-      ' Sessions, data sets and results stay available; new benchmarks can start when it is back.</div>';
+    $("gq-status").innerHTML = '<div class="validity bad" id="gq-state" role="status"><strong>GPU offline.</strong> ' + esc(why) +
+      ' Sessions, data sets and results stay available, and new benchmarks can start when it is back.</div>';
     $("gq-gpu").innerHTML = ""; $("gq-running").innerHTML = ""; $("gq-queued").innerHTML = ""; $("gq-recent").innerHTML = "";
     renderPrepWhere(null);
     return;
@@ -592,9 +592,9 @@ function renderGpu(r) {
   GQ.last = d;
   if (d.gpu) { GQ.hist.push(d.gpu); if (GQ.hist.length > 60) GQ.hist.shift(); }
   var busy = d.running.length > 0;
-  $("gq-status").innerHTML = '<div class="validity ' + (busy ? "" : "ok") + '" id="gq-state" role="status"><strong>' + (busy ? "Busy" : "Free") + '</strong> · ' +
-    (busy ? "running " + esc(KIND_LABEL[d.running[0].kind] || d.running[0].kind).toLowerCase() : "nothing running") + ' · ' + d.queued.length + ' waiting' +
-    (d.provider === "mock" ? ' · <span class="small">demo mode (no GPU)</span>' : "") + '</div>';
+  $("gq-status").innerHTML = '<div class="validity ' + (busy ? "" : "ok") + '" id="gq-state" role="status"><strong>' + (busy ? "Busy." : "Free.") + '</strong> ' +
+    (busy ? "running " + esc(KIND_LABEL[d.running[0].kind] || d.running[0].kind).toLowerCase() : "nothing running") + ', ' + d.queued.length + ' waiting' +
+    (d.provider === "mock" ? ', <span class="small">demo mode (no GPU)</span>' : "") + '</div>';
   var dev = d.device || {}, g = d.gpu, h = GQ.hist;
   var cell = function (label, val, sp) { return '<div class="tel-metric"><span class="small muted">' + label + '</span><b>' + val + '</b>' + (sp || "") + '</div>'; };
   $("gq-gpu").innerHTML = '<div class="card" id="gq-gpu-card"><h2>GPU now' + (g && g.name || dev.name ? ' <span class="small muted">' + esc((g && g.name) || dev.name) + '</span>' : "") + '</h2>' +
@@ -603,19 +603,19 @@ function renderGpu(r) {
       cell("Memory", fmtNum(g.mem_used_mb / 1024, 1) + " / " + fmtNum(g.mem_total_mb / 1024, 1) + " GB", gqSpark(h.map(function (x) { return x.mem_used_mb; }), g.mem_total_mb, "var(--series-2)")) +
       cell("Power", g.power_w == null ? "—" : fmtNum(g.power_w) + " W", gqSpark(h.map(function (x) { return x.power_w; }), null, "var(--accent)")) +
       cell("Temperature", g.temp_c == null ? "—" : fmtNum(g.temp_c) + " °C") + '</div>'
-      : '<p class="muted" id="gq-nogpu">' + (d.gpu_reason === "demo mode: no GPU" ? "Demo mode: this server has no GPU, so there are no live readings (nothing is simulated)." : "No GPU reading on this server (no NVIDIA driver found).") + '</p>') +
+      : '<p class="muted" id="gq-nogpu">' + (d.gpu_reason === "demo mode: no GPU" ? "Demo mode. This server has no GPU, so there are no live readings, and nothing is simulated." : "No GPU reading on this server (no NVIDIA driver found).") + '</p>') +
     '<p class="small muted" style="margin-bottom:0">' + [dev.vram_total_mb ? fmtNum(dev.vram_total_mb / 1024, 1) + " GB VRAM" : null, dev.driver_version ? "driver " + dev.driver_version : null,
-      dev.cuda ? "CUDA " + dev.cuda : null, d.engine ? "engine " + d.engine : null, "4-bit NF4 models"].filter(Boolean).map(esc).join(" · ") +
-    '. Live readings only; a session\'s own GPU record is on its Cost &amp; Energy tab.</p></div>';
+      dev.cuda ? "CUDA " + dev.cuda : null, d.engine ? "engine " + d.engine : null, "4-bit NF4 models"].filter(Boolean).map(esc).join(", ") +
+    '. These are live readings only. A session\'s own GPU record is on its Cost &amp; Energy tab.</p></div>';
   renderPrepWhere(d);
   $("gq-running").innerHTML = '<div class="card" id="gq-running-card"><h2>Running now</h2>' + (d.running.length ? d.running.map(function (j) {
     var p = j.progress || {}, pct = p.percent == null ? null : +p.percent, el = secs(j.started_at), left = pct && pct > 2 && el != null ? el * (100 - pct) / pct : null;
     return '<div class="gq-job"><p style="margin:0 0 6px"><b>' + esc(KIND_LABEL[j.kind] || j.kind) + '</b>' + (j.models && j.models.length ? ': ' + esc(j.models.map(short).join(", ")) : "") +
-      (j.schedule_id ? ' <span class="chip">scheduled</span>' : "") + '<br><span class="small muted">' + esc([(j.prepared || j.run_name || "").split("/").pop(), j.owner ? "by " + j.owner : null, "started " + fmtDate(j.started_at)].filter(Boolean).join(" · ")) + '</span></p>' +
+      (j.schedule_id ? ' <span class="chip">scheduled</span>' : "") + '<br><span class="small muted">' + esc([(j.prepared || j.run_name || "").split("/").pop(), j.owner ? "by " + j.owner : null, "started " + fmtDate(j.started_at)].filter(Boolean).join(", ")) + '</span></p>' +
       (j.kind === "prepare" ? '<p class="small" style="margin:0">' + esc(j.message || "Preparing…") + '</p>'
-        : '<div class="bar"><span style="width:' + (pct || 0).toFixed(1) + '%"></span></div><p class="small" style="margin:6px 0 0">' + (pct == null ? "" : fmtNum(pct, 0) + "% · ") +
-          (p.total ? fmtNum(p.completed) + " of " + fmtNum(p.total) + " flow answers" : esc(p.phase || "")) + (p.current_model ? " · now " + esc(short(p.current_model)) : "") +
-          ' · running ' + gqDur(el) + (left != null ? ' · about ' + gqDur(left) + ' left' : "") + ' · <a href="#/new/run/' + enc(j.job_id) + '">Watch live</a></p>') + '</div>';
+        : '<div class="bar"><span style="width:' + (pct || 0).toFixed(1) + '%"></span></div><p class="small" style="margin:6px 0 0">' + (pct == null ? "" : fmtNum(pct, 0) + "%, ") +
+          (p.total ? fmtNum(p.completed) + " of " + fmtNum(p.total) + " flow answers" : esc(p.phase || "")) + (p.current_model ? ", now " + esc(short(p.current_model)) : "") +
+          ', running ' + gqDur(el) + (left != null ? ', about ' + gqDur(left) + ' left' : "") + '. <a href="#/new/run/' + enc(j.job_id) + '">Watch live</a></p>') + '</div>';
   }).join("") : '<p class="muted" id="gq-idle" style="margin-bottom:0">Nothing is running. A new benchmark starts at once.</p>') + '</div>';
   $("gq-queued").innerHTML = '<div class="card" id="gq-queued-card"><h2>Waiting (' + d.queued.length + ')</h2>' + (d.queued.length ?
     '<div class="table-wrap"><table id="gq-queue-table"><thead><tr><th class="num">#</th><th>What</th><th>Models</th><th>Data set</th><th>Owner</th><th>Queued</th></tr></thead><tbody>' +
@@ -646,7 +646,7 @@ function renderUpcoming(r) {
   if (!host) return;
   var next = r && r.ok ? (r.data.schedules || []).filter(function (x) { return x.active; }).sort(function (a, b) { return String(a.next_at).localeCompare(String(b.next_at)); }) : [];
   host.innerHTML = '<div class="card" id="gq-upcoming-card"><h2>Coming up</h2>' + (next.length ? '<ul class="lk-list small">' + next.slice(0, 5).map(function (x) {
-    return '<li>' + esc(fmtDate(x.next_at)) + ' — repeat of <a class="mono" href="#/session/' + enc(x.source_job_id) + '">' + esc(shortId(x.source_job_id)) + '</a> (' + esc((x.models || []).map(short).join(", ")) + '), run ' + (x.runs_done + 1) + ' of ' + x.runs_total + '</li>';
+    return '<li>' + esc(fmtDate(x.next_at)) + ', repeat of <a class="mono" href="#/session/' + enc(x.source_job_id) + '">' + esc(shortId(x.source_job_id)) + '</a> (' + esc((x.models || []).map(short).join(", ")) + '), run ' + (x.runs_done + 1) + ' of ' + x.runs_total + '</li>';
   }).join("") + '</ul>' : '<p class="muted" style="margin-bottom:0">No scheduled re-runs.</p>') +
     '<p class="small muted" style="margin-bottom:0">Schedules are started from a session\'s Overview and managed on <a href="#/trends">Repeatability</a>.</p></div>';
 }
@@ -675,7 +675,7 @@ function loadPerSetup() {
     var gs = r.data.groups || [];
     if (!gs.length) { $("lb-groups").innerHTML = '<div class="card empty"><p>No finished sessions yet.</p><a class="btn primary" href="#/new">New benchmark</a></div>'; return; }
     $("lb-groups").innerHTML = '<p class="muted small">' + (r.data.higher_is_better ? "Higher is better." : "Lower is better.") + ' Sessions on one setup are combined.' + infoI(r.data.rule) + '</p>' + gs.map(function (g, gi) {
-      return '<div class="card lb-group"><div class="row" style="margin-top:0;justify-content:space-between"><h2>' + esc(g.gpu) + ' · ' + esc(g.input_type || "") + ' · ' + fmtNum(g.n_flows_per_session) + ' flows</h2>' +
+      return '<div class="card lb-group"><div class="row" style="margin-top:0;justify-content:space-between"><h2>' + esc(g.gpu) + ', ' + esc(g.input_type || "") + ', ' + fmtNum(g.n_flows_per_session) + ' flows</h2>' +
         '<span class="chips"><span class="chip mono" title="Prepared-set hash">set ' + esc(String(g.prepared_set_sha256).slice(0, 12)) + '</span><span class="chip">' + g.n_sessions + ' session' + (g.n_sessions === 1 ? "" : "s") + '</span>' +
         (g.demo ? '<span class="chip warn">demo</span>' : "") + '</span></div>' +
         '<div class="table-wrap" style="margin-top:10px"><table class="lb-table" id="lb-table-' + gi + '"><thead><tr><th class="num">Rank</th><th>Model</th><th class="num">Sessions</th><th class="num">Flows</th>' +
@@ -703,7 +703,7 @@ function loadOverall() {
     }
     var top = rows.filter(function (x) { return x.wins === rows[0].wins && x.win_rate === rows[0].win_rate && x.rivals_beaten === rows[0].rivals_beaten; });
     $("lb-overall").innerHTML =
-      '<div class="card" id="lb-overall-head"><p style="margin:0">Most often #1 by ' + esc(LB_BY[by]) + ': <b>' + top.map(function (x) { return esc(x.model); }).join(", ") + '</b> — ' +
+      '<div class="card" id="lb-overall-head"><p style="margin:0">Most often #1 by ' + esc(LB_BY[by]) + ' is <b>' + top.map(function (x) { return esc(x.model); }).join(", ") + '</b>, with ' +
         rows[0].wins + ' of ' + rows[0].setups + ' setup' + (rows[0].setups === 1 ? "" : "s") + '.' + infoI(d.rule) + '</p>' +
         '<p class="muted small" style="margin-bottom:0">Counted over ' + d.n_setups + ' setup' + (d.n_setups === 1 ? "" : "s") + ' with 2+ models' +
         (d.n_setups_single_model ? ' (' + d.n_setups_single_model + ' with one model skipped)' : "") + '.' +

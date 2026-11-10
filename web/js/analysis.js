@@ -45,11 +45,11 @@ function renderTrends() {
     ser.innerHTML = ""; met.innerHTML = ""; $("tr-controls").hidden = true;
     var demoHidden = !$("tr-demo").checked && TR.data.some(function (s) { return s.status === "Demo"; });
     $("tr-summary").innerHTML = '<div class="card empty" id="tr-empty"><h2>No repeated runs yet</h2>' +
-      (demoHidden ? '<p class="small muted">Demo sessions are hidden — tick <i>Include demo sessions</i> to see them.</p>' : "") +
+      (demoHidden ? '<p class="small muted">Demo sessions are hidden. Tick <i>Include demo sessions</i> to see them.</p>' : "") +
       '<ol class="rep-steps" style="text-align:left">' +
       '<li><b>Run a benchmark.</b> <a href="#/new">New benchmark</a></li>' +
-      '<li><b>Run it again on the same setup</b> — open the finished session and use <i>Repeat on a schedule</i> on its Overview, or start the same flows with the same model again.</li>' +
-      '<li><b>Come back after 3 or more runs</b> — each model then gets a verdict: Stable, Varies or Moved.</li></ol></div>';
+      '<li><b>Run it again on the same setup.</b> Open the finished session and use <i>Repeat on a schedule</i> on its Overview, or start the same flows with the same model again.</li>' +
+      '<li><b>Come back after 3 or more runs.</b> Each model then gets a verdict of Stable, Varies or Moved.</li></ol></div>';
     $("tr-body").innerHTML = ""; $("tr-drifts").innerHTML = "";
     return;
   }
@@ -60,7 +60,7 @@ function renderTrends() {
   var cnt = { stable: 0, varies: 0, moved: 0, few: 0 };
   rows.forEach(function (x) { cnt[x.status]++; });
   var mv = rows.filter(function (x) { return x.status === "moved"; });
-  var plain = 'In short: of ' + rows.length + ' model' + (rows.length === 1 ? "" : "s") + ' on ' + (rows.length === 1 ? "its setup" : "their setups") + ', ' +
+  var plain = 'In short, of ' + rows.length + ' model' + (rows.length === 1 ? "" : "s") + ' on ' + (rows.length === 1 ? "its setup" : "their setups") + ', ' +
     [cnt.stable ? cnt.stable + " " + (cnt.stable === 1 ? "is" : "are") + " stable" : null, cnt.varies ? cnt.varies + " var" + (cnt.varies === 1 ? "ies" : "y") : null,
      cnt.moved ? cnt.moved + " moved" : null, cnt.few ? cnt.few + " " + (cnt.few === 1 ? "has" : "have") + " too few runs for a verdict" : null].filter(Boolean).join(", ") + "." +
     (mv.length ? " Check " + mv.slice(0, 3).map(function (x) { return short(x.model) + (x.moved[0] ? " (" + x.moved[0].metric_label.toLowerCase() + " " + (x.moved[0].change > 0 ? "+" : "") + fmtNum(100 * x.moved[0].change, 0) + "%)" : ""); }).join(", ") + " first." :
@@ -72,7 +72,7 @@ function renderTrends() {
     rows.map(function (x) {
       var st = x.setup;
       return '<tr data-tr-row="' + esc(x.series) + '" tabindex="0" aria-selected="' + (x.series === TR.series) + '"><td><b>' + esc(short(x.model)) + '</b></td><td class="small">' +
-        esc((st.gpu || "GPU") + " · " + (st.input_type || "") + " " + (st.n_flows == null ? "" : st.n_flows + " flows") + " · set " + String(st.prepared_set_sha256).slice(0, 8)) +
+        esc((st.gpu || "GPU") + ", " + (st.input_type || "") + " " + (st.n_flows == null ? "" : st.n_flows + " flows") + ", set " + String(st.prepared_set_sha256).slice(0, 8)) +
         '</td><td class="num">' + x.runs + '</td><td>' + repBadge(x) + (x.moved.length ? ' <span class="small muted">' + esc(x.moved[0].metric_label.toLowerCase()) + ' ' + (x.moved[0].change > 0 ? "+" : "") + fmtNum(100 * x.moved[0].change, 0) + '%</span>' : "") +
         (x.changed.length || (x.last_health && x.last_health.status === "check") ? '<br><span class="small rep-why" data-rep-why>' +
           [x.changed.length ? "changed in the latest run: " + x.changed.map(INSIGHTS.changeText).join(", ") : null,
@@ -92,17 +92,17 @@ function renderTrends() {
         esc(fmtUnit(d.unit, d.baseline)) + ' → ' + esc(fmtUnit(d.unit, d.latest)) + ' (' + (d.change > 0 ? "+" : "") + fmtNum(100 * d.change, 0) + '% over ' + (d.n - 1) + ' earlier runs) ' +
         '<button type="button" class="btn small-btn" data-tr-open="' + esc(d.series) + '" data-tr-metric="' + esc(d.metric) + '">Show</button></li>';
     }).join("") + '</ul>'
-      : '<p class="muted" style="margin-bottom:0">No series moved beyond its usual spread' + (t.series.some(function (x) { return x.points.length >= 3; }) ? "." : " — a judgement needs at least three runs of the same model on the same setup.") + infoI(t.rule) + '</p>') + '</div>';
+      : '<p class="muted" style="margin-bottom:0">No series moved beyond its usual spread' + (t.series.some(function (x) { return x.points.length >= 3; }) ? "." : ". A judgement needs at least three runs of the same model on the same setup.") + infoI(t.rule) + '</p>') + '</div>';
   addExports($("view-trends"));
   if (t.skipped) $("tr-drifts").innerHTML += '<p class="muted small">' + t.skipped + ' finished session' + (t.skipped === 1 ? " has" : "s have") + ' no recorded setup (older sessions) and ' + (t.skipped === 1 ? "is" : "are") + ' left out.</p>';
 }
 function historyCard(s, ts, t) {
   var pts = ts.points.filter(function (p) { return p.v != null; });
   var head = '<div class="card" id="tr-chart-card"><h2>' + esc(ts.label) + ' — ' + esc(short(s.model)) + '</h2><p class="muted small" style="margin-top:0">' +
-    esc((s.setup.gpu || "GPU") + " · " + (s.setup.input_type || "") + " · " + (s.setup.n_flows == null ? "" : s.setup.n_flows + " flows") + " · prepared set " + String(s.setup.prepared_set_sha256).slice(0, 12) +
-        " · settings " + String(s.setup.settings_fingerprint).slice(0, 8)) + ' · ' + (ts.lower_is_better ? "lower is better" : "higher is better") + '</p>';
+    esc((s.setup.gpu || "GPU") + ", " + (s.setup.input_type || "") + ", " + (s.setup.n_flows == null ? "" : s.setup.n_flows + " flows") + ", prepared set " + String(s.setup.prepared_set_sha256).slice(0, 12) +
+        ", settings " + String(s.setup.settings_fingerprint).slice(0, 8)) + ', ' + (ts.lower_is_better ? "lower is better" : "higher is better") + '</p>';
   if (!pts.length) return head + '<p class="muted" id="tr-none">Not measured in these runs (e.g. demo runs have no GPU energy or price).</p></div>';
-  var d = ts.drift, verdict = !d.enough ? '<p class="small" id="tr-verdict">' + pts.length + ' run' + (pts.length === 1 ? "" : "s") + ' so far: a judgement needs at least ' + t.min_points + '.</p>'
+  var d = ts.drift, verdict = !d.enough ? '<p class="small" id="tr-verdict">' + pts.length + ' run' + (pts.length === 1 ? "" : "s") + ' so far. A judgement needs at least ' + t.min_points + '.</p>'
     : '<p class="small" id="tr-verdict">Latest run ' + esc(fmtUnit(ts.unit, d.latest)) + ' vs ' + esc(fmtUnit(ts.unit, d.baseline)) + ' (median of the ' + (d.n - 1) + ' earlier runs): ' +
       (d.change > 0 ? "+" : "") + fmtNum(100 * d.change, 1) + '%. ' + (d.flagged ? '<b>' + (d.worse ? "Worse" : "Better") + ' than the usual spread (±' + fmtNum(100 * d.band, 0) + '%).</b>' : 'Within the usual spread (±' + fmtNum(100 * d.band, 0) + '%).') + '</p>';
   return head + verdict + '<div id="tr-plot">' + trendSvg(ts, pts, d) + '</div>' +
@@ -111,7 +111,7 @@ function historyCard(s, ts, t) {
       return '<tr><td>' + esc(fmtDate(p.at)) + '</td><td><a class="mono" href="#/session/' + enc(p.session_id) + '">' + esc(shortId(p.session_id)) + '</a>' + (p.scheduled ? ' <span class="chip">scheduled</span>' : "") +
         '</td><td class="num">' + esc(fmtUnit(ts.unit, p.v)) + '</td><td class="num">' + (p.delta == null ? "—" : (p.delta > 0 ? "+" : "") + fmtNum(100 * p.delta, 1) + "%") +
         '</td><td class="small">' + ([p.changed.length ? p.changed.map(INSIGHTS.changeText).join(", ") : null,
-          p.health && p.health.status === "check" ? "GPU not normal: " + (p.health.reasons || []).slice(0, 2).join("; ") : null].filter(Boolean).map(esc).join("<br>") || '<span class="muted">—</span>') + '</td></tr>';
+          p.health && p.health.status === "check" ? "GPU not normal. " + (p.health.reasons || []).slice(0, 2).join(". ") : null].filter(Boolean).map(esc).join("<br>") || '<span class="muted">—</span>') + '</td></tr>';
     }).join("") + '</tbody></table></div></div>';
 }
 function trendSvg(ts, pts, d) {
@@ -135,7 +135,7 @@ function loadSchedules() {
   var host = $("tr-schedules");
   backendFetch("/api/schedules").then(function (r) {
     if (!r.ok) {
-      host.innerHTML = '<h2>Scheduled re-runs</h2><p class="muted" style="margin-bottom:0">' + esc(r.data.code === "backend_offline" || r.status === 0 ? "The GPU backend is offline: schedules run there, so they cannot be listed now." : (r.data.error || "Could not load the schedules.")) + '</p>';
+      host.innerHTML = '<h2>Scheduled re-runs</h2><p class="muted" style="margin-bottom:0">' + esc(r.data.code === "backend_offline" || r.status === 0 ? "The GPU backend is offline. Schedules run there, so they cannot be listed now." : (r.data.error || "Could not load the schedules.")) + '</p>';
       return;
     }
     TR.sched = r.data.schedules || [];
@@ -193,7 +193,7 @@ function wireRepLine(job) {
     });
     if (!rows.length) return;
     host.innerHTML = '<h2 style="margin-bottom:6px">Repeatability</h2><ul class="lk-list" id="svc-rep-list">' + rows.map(function (x) {
-      var what = x.runs < 3 ? x.runs + " run" + (x.runs === 1 ? "" : "s") + " on this setup — a verdict needs 3" :
+      var what = x.runs < 3 ? x.runs + " run" + (x.runs === 1 ? "" : "s") + " on this setup, and a verdict needs 3" :
         x.runs + " runs, " + (x.status === "stable" ? "stable ✓" : x.status === "moved" ? "moved ⚠" : "varies") + (x.latency_spread == null ? "" : " (latency ±" + fmtNum(100 * x.latency_spread, 1) + "%)");
       return '<li><b>' + esc(short(x.model)) + '</b>: <a href="' + repLink(x.model, key) + '">' + esc(what) + '</a></li>';
     }).join("") + '</ul>' + (rows.every(function (x) { return x.runs < 3; }) ? '<p class="small muted" style="margin:6px 0 0">Run this setup again (or repeat it on a schedule below) to check that the results hold.</p>' : "");
@@ -204,7 +204,7 @@ function wireRepLine(job) {
 function scheduleCard(job) {
   var st = String(job.status || "").toLowerCase();
   if (!(st === "done" || st === "demo") || !canEditNotes(job)) return "";
-  return '<form class="card" id="svc-schedule" novalidate><h2>Repeat on a schedule</h2><p class="muted small" style="margin-top:0">Runs this session again on this GPU — the same flows, models and settings — so <a href="#/trends">Repeatability</a> can show whether the numbers hold over time. Each run is an ordinary session in the queue; a run waits while the previous one is still going.</p>' +
+  return '<form class="card" id="svc-schedule" novalidate><h2>Repeat on a schedule</h2><p class="muted small" style="margin-top:0">Runs this session again on this GPU with the same flows, models and settings, so <a href="#/trends">Repeatability</a> can show whether the numbers hold over time. Each run is an ordinary session in the queue, and a run waits while the previous one is still going.</p>' +
     '<div class="row" style="gap:16px;flex-wrap:wrap;align-items:flex-end"><div class="field" style="margin:0"><label for="sch-every">How often</label><select id="sch-every">' +
     SCHED_EVERY.map(function (e) { return '<option value="' + e[0] + '"' + (e[0] === 24 ? " selected" : "") + '>' + esc(e[1]) + '</option>'; }).join("") + '</select></div>' +
     '<div class="field" style="margin:0"><label for="sch-runs">Number of runs <span class="hint">(1–30)</span></label><input type="number" id="sch-runs" min="1" max="30" step="1" value="7" inputmode="numeric"></div>' +
@@ -219,7 +219,7 @@ function wireSchedule(job) {
       if (!r.ok || !$("sch-list")) return;
       var mine = (r.data.schedules || []).filter(function (x) { return x.source_job_id === job.job_id && x.active; });
       $("sch-list").innerHTML = mine.map(function (x) {
-        return '<div class="row" style="margin:4px 0;gap:8px;align-items:center" data-sch="' + esc(x.schedule_id) + '"><span class="chip ok">active</span> ' + esc(everyLabel(x.every_hours)) + ', ' + x.runs_done + ' of ' + x.runs_total + ' runs done; next ' + esc(fmtDate(x.next_at)) +
+        return '<div class="row" style="margin:4px 0;gap:8px;align-items:center" data-sch="' + esc(x.schedule_id) + '"><span class="chip ok">active</span> ' + esc(everyLabel(x.every_hours)) + ', ' + x.runs_done + ' of ' + x.runs_total + ' runs done, next ' + esc(fmtDate(x.next_at)) +
           (x.waiting ? ' (' + esc(x.waiting) + ')' : "") + ' <button type="button" class="btn small-btn danger-lite" data-sch-cancel="' + esc(x.schedule_id) + '">Cancel</button></div>';
       }).join("");
     });
@@ -233,7 +233,7 @@ function wireSchedule(job) {
     ev.preventDefault();
     $("sch-error").hidden = true;
     var runs = +$("sch-runs").value;
-    if (!(runs >= 1 && runs <= 30 && Math.floor(runs) === runs)) { showError($("sch-error"), { error: "Number of runs: a whole number from 1 to 30." }); return; }
+    if (!(runs >= 1 && runs <= 30 && Math.floor(runs) === runs)) { showError($("sch-error"), { error: "The number of runs must be a whole number from 1 to 30." }); return; }
     $("sch-save").disabled = true;
     backendFetch("/api/schedules", { method: "POST", headers: { "Content-Type": "application/json" },
                                      body: JSON.stringify({ job_id: job.job_id, every_hours: +$("sch-every").value, runs: runs }) }).then(function (r) {
@@ -250,7 +250,7 @@ function notesCard(job) {
   var view = (tags.length ? '<div class="tag-row">' + tags.map(function (t) { return '<span class="chip tag-chip">' + esc(t) + '</span>'; }).join("") + '</div>' : "") +
     (job.notes ? '<p class="notes-text">' + esc(job.notes) + '</p>' : "");
   if (!edit) return '<div class="card" id="svc-notes"><h2>Notes and tags</h2>' + (view || '<p class="muted small">No notes.</p>') + '<p class="muted small">Only the session\'s owner or an admin can edit them.</p></div>';
-  return '<form class="card" id="svc-notes" novalidate><h2>Notes and tags</h2><p class="muted small" style="margin-top:0">Your own labels for this session — e.g. what you were testing. Searchable under Sessions; they never change a result.</p>' +
+  return '<form class="card" id="svc-notes" novalidate><h2>Notes and tags</h2><p class="muted small" style="margin-top:0">Your own labels for this session, such as what you were testing. You can search them under Sessions, and they never change a result.</p>' +
     '<div class="field"><label for="svc-notes-text">Notes</label><textarea id="svc-notes-text" rows="3" maxlength="2000" placeholder="e.g. rerun after the tokenizer fix">' + esc(job.notes || "") + '</textarea></div>' +
     '<div class="field"><label for="svc-notes-tags">Tags <span class="hint">(comma-separated, up to 10)</span></label><input type="text" id="svc-notes-tags" class="wide" value="' + esc(tags.join(", ")) + '" placeholder="thesis ch4, baseline" autocomplete="off"></div>' +
     '<div class="actions"><button type="submit" class="btn" id="svc-notes-save">Save notes and tags</button><span class="small muted" id="svc-notes-saved" role="status"></span></div>' +
@@ -281,15 +281,15 @@ function sampleSizeCard(res) {
   var lead = ss.single
     ? esc("With " + ss.models[0].n + " flows, this model's mean latency is known to within ±" + fmtTime(ss.ci_half_s) + " (±" + pct(ss.ci_rel) + ", 95%).")
     : "With " + ss.models[0].n + " and " + ss.models[1].n + " flows and this spread, latency differences smaller than about <b>" + esc(fmtTime(ss.mde_s)) +
-      " (" + pct(ss.mde_rel) + ")</b> cannot be told apart reliably. This session's gap is " + esc(fmtTime(ss.gap_s)) + " (" + pct(ss.gap_rel) + "): " +
-      (ss.gap_detectable ? "large enough to detect." : "<b>smaller than that</b> — more flows would be needed to be sure.");
+      " (" + pct(ss.mde_rel) + ")</b> cannot be told apart reliably. This session's gap is " + esc(fmtTime(ss.gap_s)) + " (" + pct(ss.gap_rel) + "), which is " +
+      (ss.gap_detectable ? "large enough to detect." : "<b>smaller than that</b>, so more flows would be needed to be sure.");
   return '<div class="card" id="svc-samplesize"><h2>How many flows do you need?</h2><p class="small" style="margin-top:0" id="svc-samplesize-lead">' + lead + '</p>' +
     '<div class="table-wrap"><table id="svc-samplesize-table"><thead><tr><th>' + (ss.single ? "Pin the mean latency to within" : "To detect a latency difference of") + '</th><th class="num">Flows per model</th><th>This session</th></tr></thead><tbody>' +
     ss.needed.map(function (r) {
       var have = Math.min.apply(null, ss.models.map(function (m) { return m.n; }));
       return '<tr><td>' + fmtNum(100 * r.target) + '%</td><td class="num">' + fmtNum(r.flows) + '</td><td>' + (have >= r.flows ? '<span class="chip ok">enough (' + have + ')</span>' : '<span class="chip">' + have + ' (' + fmtNum(r.flows - have) + ' more needed)</span>') + '</td></tr>';
     }).join("") + '</tbody></table></div>' +
-    '<p class="muted small">Normal approximation from each model\'s per-flow latency spread (two-sided 5% significance, 80% power' + (ss.single ? ", 95% interval" : "") + '). A planning guide, not a guarantee: the tests above use the measured flows.</p></div>';
+    '<p class="muted small">Normal approximation from each model\'s per-flow latency spread (two-sided 5% significance, 80% power' + (ss.single ? ", 95% interval" : "") + '). This is a planning guide, not a guarantee. The tests above use the measured flows.</p></div>';
 }
 // Performance -> Statistics: repeatability across sessions on the same flows, GPU and settings
 var REP_FMT = { s: fmtTime, tokens: function (v) { return fmtNum(v, 1); }, MB: fmtMB, Wh: fmtWh, share: fmtPct, points: function (v) { return fmtNum(v, 1); } };
@@ -297,7 +297,7 @@ function wireRepeat(res, job) {
   var host = $("svc-repeat-host"), id = job.job_id;
   if (!host || !window.INSIGHTS) return;
   var again = '<a class="btn" href="#/new/models?set=' + enc(job.run_name || "") + (CP && job.stored ? "&from=" + enc(id) : "") + '">Benchmark these flows again</a>';
-  var head = '<h2>Repeatability across runs</h2><p class="muted small" style="margin-top:0">The same models on the same flows, GPU and settings in other sessions: how much do the numbers move from run to run?</p>';
+  var head = '<h2>Repeatability across runs</h2><p class="muted small" style="margin-top:0">The same models on the same flows, GPU and settings in other sessions. How much do the numbers move from run to run?</p>';
   sameSetup(id).then(function (d) {
     if (SESSION.id !== id) return;
     var r = { ok: d.ok, data: { error: d.error } };
@@ -323,18 +323,18 @@ function repeatCard(rp, head, again, id) {
     var dots = per.map(function (x) {
       var lane = per.length > 1 ? (MODEL_SLOT[x.model] ? 7 : -7) : 0;
       return x.d.values.map(function (v) {
-        var t = short(x.model) + " · " + per[0].d.label + ": " + f(v.value) + (v.current ? " (this session)" : " (" + shortId(v.session) + ")");
+        var t = short(x.model) + ", " + per[0].d.label + ": " + f(v.value) + (v.current ? " (this session)" : " (" + shortId(v.session) + ")");
         return '<span class="dot' + (v.current ? " cur" : "") + '" tabindex="0" style="left:' + (100 * (v.value - a) / (b - a)) + '%;margin-top:' + (lane - 6) + 'px;--c:' + modelColor(x.model) + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span>';
       }).join("");
     }).join("");
-    var spread = per.map(function (x) { return esc(short(x.model)) + ": " + (x.d.cov == null ? "one run" : "±" + fmtPct(x.d.cov) + " run to run"); }).join(" · ");
-    return '<div class="dot-row rep-row" data-metric="' + k + '"><span class="lbl">' + esc(per[0].d.label) + '<small>' + esc(f(a)) + ' – ' + esc(f(b)) + '</small></span><div><div class="dot-track">' + dots + '</div><p class="small muted rep-spread">' + spread + '</p></div></div>';
+    var spread = per.map(function (x) { return esc(short(x.model)) + ": " + (x.d.cov == null ? "one run" : "±" + fmtPct(x.d.cov) + " run to run"); }).join(", ");
+    return '<div class="dot-row rep-row" data-metric="' + k + '"><span class="lbl">' + esc(per[0].d.label) + '<small>' + esc(f(a)) + ' to ' + esc(f(b)) + '</small></span><div><div class="dot-track">' + dots + '</div><p class="small muted rep-spread">' + spread + '</p></div></div>';
   }).join("");
-  return '<div class="card" id="svc-repeat">' + head + '<p class="small">' + rp.n_sessions + ' sessions on this setup. Ringed dot: this session. "±" is the coefficient of variation (standard deviation ÷ mean) across runs.</p>' +
+  return '<div class="card" id="svc-repeat">' + head + '<p class="small">' + rp.n_sessions + ' sessions on this setup. The ringed dot is this session. "±" is the coefficient of variation (standard deviation ÷ mean) across runs.</p>' +
     lead + legendHtml(rp.models.map(function (m) { return m.model; })) + '<div class="dots">' + rows + '</div>' +
-    '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-repeat-table"><thead><tr><th>Model</th><th>Metric</th><th class="num">Runs</th><th class="num">Mean</th><th class="num">SD</th><th class="num">CoV</th><th class="num">Min – max</th></tr></thead><tbody>' +
+    '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-repeat-table"><thead><tr><th>Model</th><th>Metric</th><th class="num">Runs</th><th class="num">Mean</th><th class="num">SD</th><th class="num">CoV</th><th class="num">Min to max</th></tr></thead><tbody>' +
     rp.models.map(function (m) { return m.metrics.map(function (d) { var f = REP_FMT[d.unit] || function (v) { return fmtNum(v, 2); };
-      return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(d.label) + '</td><td class="num">' + d.n + '</td><td class="num">' + f(d.mean) + '</td><td class="num">' + (d.sd == null ? "—" : f(d.sd)) + '</td><td class="num">' + (d.cov == null ? "—" : fmtPct(d.cov)) + '</td><td class="num">' + f(d.min) + ' – ' + f(d.max) + '</td></tr>'; }).join(""); }).join("") +
+      return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(d.label) + '</td><td class="num">' + d.n + '</td><td class="num">' + f(d.mean) + '</td><td class="num">' + (d.sd == null ? "—" : f(d.sd)) + '</td><td class="num">' + (d.cov == null ? "—" : fmtPct(d.cov)) + '</td><td class="num">' + f(d.min) + ' to ' + f(d.max) + '</td></tr>'; }).join(""); }).join("") +
     '</tbody></table></div></details><div class="actions"><a class="btn" href="#/compare?a=' + enc(id) + '">Open in Compare</a>' + again + '</div></div>';
 }
 // Performance -> GPU & Throughput: throughput and p95 latency with 1, 2, 4 flows in flight (opt-in step)
@@ -345,10 +345,10 @@ function loadCard(res) {
   if (!ls.measured) return '<div class="card" id="load-card">' + head + '<p class="muted">Not measured in this session: ' + esc(ls.reason) + '. Tick "Also measure load scaling" when you start a benchmark.</p></div>';
   var pos = function (c) { return ls.levels.indexOf(c); }, xFmt = function (v) { var c = ls.levels[Math.round(v)]; return c == null ? "" : c + " at once"; };
   var rows = ls.levels.map(function (c) {
-    return { x: pos(c), text: c + " in flight — " + ls.models.map(function (m) {
+    return { x: pos(c), text: c + " in flight. " + ls.models.map(function (m) {
       var l = m.levels.filter(function (x) { return x.concurrency === c; })[0];
       return short(m.model) + ": " + (!l ? "not run" : l.error ? "failed" : fmtNum(l.throughput_flows_per_s, 2) + " flows/s, p95 " + fmtTime(l.p95_latency_s));
-    }).join(" · ") };
+    }).join(", ") };
   });
   var series = function (key) {
     return [].concat.apply([], ls.models.map(function (m) {
@@ -373,7 +373,7 @@ function loadCard(res) {
 function projectionCard(res) {
   if (!window.INSIGHTS || !(res.per_model || []).length) return "";
   var pr = ((res.cost_energy || {}).price || {}).usd_per_hour;
-  return '<form class="card" id="proj-card" novalidate><h2>Project to your workload</h2><p class="muted small" style="margin-top:0">Scales this session\'s measured time, cost and energy per flow to a daily volume — flows one at a time on one GPU, as measured. An estimate, not a quote.</p>' +
+  return '<form class="card" id="proj-card" novalidate><h2>Project to your workload</h2><p class="muted small" style="margin-top:0">Scales this session\'s measured time, cost and energy per flow to a daily volume, with flows one at a time on one GPU as measured. It is an estimate, not a quote.</p>' +
     '<div class="row"><div class="field"><label for="proj-flows">Flows per day</label><input type="number" id="proj-flows" min="0" step="1000" value="10000"></div>' +
     '<div class="field"><label for="proj-price">GPU price <span class="hint">(USD per hour)</span></label><input type="number" id="proj-price" min="0" step="0.01" placeholder="' + (pr != null ? "stored: " + pr : "e.g. 0.35") + '"></div>' +
     '<div class="field"><label for="proj-grid">Grid carbon intensity <span class="hint">(g CO₂ per kWh)</span></label><input type="number" id="proj-grid" min="0" step="10" value="475"></div></div>' +
@@ -386,20 +386,20 @@ function wireProjection(res) {
     var pv = $("proj-price").value, gv = $("proj-grid").value;
     var pj = INSIGHTS.workloadProjection(res, { flows_per_day: $("proj-flows").value, usd_per_hour: pv === "" ? null : pv, grid_g_per_kwh: gv === "" ? null : gv });
     var maxU = Math.max.apply(null, pj.models.map(function (m) { return m.utilisation || 0; }).concat([1]));
-    $("proj-out").innerHTML = (pj.real ? "" : '<div class="notice warn" role="note">Demo (mock) run: the per-flow time is not a model measurement, so these figures only show the method.</div>') +
+    $("proj-out").innerHTML = (pj.real ? "" : '<div class="notice warn" role="note">Demo (mock) run. The per-flow time is not a model measurement, so these figures only show the method.</div>') +
       '<div class="proj-load">' + pj.models.map(function (m) {
         var t = short(m.model) + ": " + fmtNum(m.gpu_hours_per_day, 2) + " GPU-hours a day = " + (m.utilisation == null ? "—" : fmtPct(m.utilisation)) + " of one GPU's day";
         return '<div class="cat-row"><span class="lbl">' + esc(short(m.model)) + '<small>' + (m.gpus_needed == null ? "—" : m.gpus_needed + " GPU" + (m.gpus_needed > 1 ? "s" : "")) + ' needed</small></span><div class="cat-track"><div class="proj-bar" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '" style="width:' + Math.min(100, 100 * (m.utilisation || 0) / maxU) + '%;--c:' + modelColor(m.model) + '"></div>' +
           (maxU > 1 ? '<span class="proj-one" style="left:' + (100 / maxU) + '%" title="one GPU\'s full day"></span>' : "") + '</div><span class="val">' + (m.utilisation == null ? "—" : fmtPct(m.utilisation)) + '</span></div>';
-      }).join("") + '</div><p class="muted small">Bar: share of one GPU\'s 24 hours this volume takes' + (maxU > 1 ? "; the line marks one full GPU" : "") + '.</p>' +
+      }).join("") + '</div><p class="muted small">Each bar is the share of one GPU\'s 24 hours this volume takes' + (maxU > 1 ? ", and the line marks one full GPU" : "") + '.</p>' +
       '<div class="table-wrap"><table id="proj-table"><thead><tr><th>Model</th><th class="num">GPU-hours / day</th><th class="num">Max flows / GPU / day</th><th class="num">GPUs needed</th><th class="num">Cost / day</th><th class="num">Cost / 30 days</th><th class="num">Energy / day</th><th class="num">CO₂ / day</th></tr></thead><tbody>' +
       pj.models.map(function (m) {
         return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtNum(m.gpu_hours_per_day, 2) + '</td><td class="num">' + fmtNum(m.capacity_per_gpu_day) + '</td><td class="num">' + (m.gpus_needed == null ? "—" : m.gpus_needed) +
           '</td><td class="num">' + (m.cost_per_day == null ? '<span class="muted">enter a GPU price</span>' : "$" + fmtNum(m.cost_per_day, 2)) + '</td><td class="num">' + (m.cost_per_month == null ? "—" : "$" + fmtNum(m.cost_per_month, 2)) +
           '</td><td class="num">' + (m.kwh_per_day == null ? '<span class="muted">not measured</span>' : fmtNum(m.kwh_per_day, 2) + " kWh") +
           '</td><td class="num">' + (m.co2_kg_per_day == null ? '<span class="muted">' + (m.kwh_per_day == null ? "needs measured energy" : "enter a grid value") + '</span>' : fmtNum(m.co2_kg_per_day, 2) + " kg") + '</td></tr>';
-      }).join("") + '</tbody></table></div><p class="muted small">Price: ' + (pj.price_source === "yours" ? "your figure, $" + pj.usd_per_hour + "/h" : pj.price_source === "stored" ? "the session\'s stored GPU price, $" + pj.usd_per_hour + "/h" : "none — enter one above") +
-      '. Energy uses the measured Wh per 1,000 flows (whole board); CO₂ = energy × grid carbon intensity (default 475 g/kWh, about the world average — use your grid\'s value).</p>';
+      }).join("") + '</tbody></table></div><p class="muted small">Price: ' + (pj.price_source === "yours" ? "your figure, $" + pj.usd_per_hour + "/h" : pj.price_source === "stored" ? "the session\'s stored GPU price, $" + pj.usd_per_hour + "/h" : "none, so enter one above") +
+      '. Energy uses the measured Wh per 1,000 flows for the whole board. CO₂ is energy × grid carbon intensity. The default is 475 g/kWh, about the world average, so use your grid\'s value.</p>';
   }
   f.addEventListener("input", draw);
   f.addEventListener("submit", function (ev) { ev.preventDefault(); });
@@ -410,7 +410,7 @@ function correctCard(res) {
   var rows = window.INSIGHTS && INSIGHTS.costPerValid(res);
   if (!rows || !rows.length) return "";
   var mx = Math.max.apply(null, rows.map(function (r) { return r.gpu_s_per_valid || 0; })) || 1;
-  return '<div class="card" id="cost-valid"><h2>Cost per valid answer</h2><p class="muted small" style="margin-top:0">A flow that ends without a usable answer still costs GPU time. GPU time per valid answer = time per flow ÷ share of valid answers (lower is better; see Output Reliability).</p>' +
+  return '<div class="card" id="cost-valid"><h2>Cost per valid answer</h2><p class="muted small" style="margin-top:0">A flow that ends without a usable answer still costs GPU time. GPU time per valid answer = time per flow ÷ share of valid answers. Lower is better, and Output Reliability has more.</p>' +
     rows.map(function (r) {
       var t = short(r.model) + ": " + (r.gpu_s_per_valid == null ? "no valid answers" : fmtTime(r.gpu_s_per_valid) + " of GPU time per valid answer (" + fmtNum(r.flows_per_valid, 2) + " flows per valid one)");
       return '<div class="cat-row"><span class="lbl">' + esc(short(r.model)) + '<small>valid ' + fmtPct(r.valid_rate) + '</small></span><div class="cat-track"><div class="proj-bar" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '" style="width:' +
@@ -455,7 +455,7 @@ function latencyCard(res) {
         '</td><td class="small">' + esc((r.warmup || {}).note || "—") + '</td></tr>';
     }).join("") + '</tbody></table></div>' +
     '<details class="info"><summary>How to read this</summary><p class="muted small">Histogram bins span ' + fmtTime(ld.bin_edges_s[0]) + ' to ' + fmtTime(ld.bin_edges_s[ld.bin_edges_s.length - 1]) +
-    ' (shared across models). ' + esc(ld.warmup_rule) + '. The headline mean keeps every flow; "without the first flows" is the steady state, after model loading and cache warm-up — when the two differ a lot, run more flows so the warm-up weighs less.</p></details></div>';
+    ' (shared across models). ' + esc(ld.warmup_rule) + '. The headline mean keeps every flow; "without the first flows" is the steady state, after model loading and cache warm-up. When the two differ a lot, run more flows so the warm-up weighs less.</p></details></div>';
 }
 function effectsCard(res) {
   var ef = res.effect_sizes;
@@ -491,13 +491,13 @@ function histogramChart(res) {
     return '<div class="histo-panel" data-model="' + esc(m.model) + '"><div class="histo-head"><span class="mono small"><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '</span>' +
       '<span class="small muted">' + m.marks.map(function (k) { return '<span class="pk pk-' + k.key + '">' + k.key + ' ' + fmtTime(k.value) + '</span>'; }).join(" ") + '</span></div>' +
       '<div class="histo-plot">' + m.bins.map(function (b) {
-        var t = short(m.model) + " · " + fmtTime(b.from) + "–" + fmtTime(b.to) + ": " + b.count + " flow" + (b.count === 1 ? "" : "s");
+        var t = short(m.model) + ", " + fmtTime(b.from) + " to " + fmtTime(b.to) + ": " + b.count + " flow" + (b.count === 1 ? "" : "s");
         return '<span class="hb" tabindex="0" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"><i style="height:' + (100 * b.count / h.ymax) + '%;--c:' + modelColor(m.model) + '"></i></span>';
       }).join("") + m.marks.map(function (k) {
         return k.pos == null ? "" : '<span class="pm" style="left:' + (100 * k.pos) + '%;border-left-style:' + PCT_STYLE[k.key] + '" aria-hidden="true"></span>';
       }).join("") + '</div></div>';
   }).join("") + '<div class="histo-axis"><span>' + fmtTime(e[0]) + '</span><span>' + fmtTime(mid) + '</span><span>' + fmtTime(e[e.length - 1]) + '</span></div>' +
-    '<p class="muted small">Bars: flows per latency bin (same bins and scale for every model). Lines: <span class="pk pk-p50">p50</span> solid, <span class="pk pk-p95">p95</span> dashed, <span class="pk pk-p99">p99</span> dotted.</p></div>';
+    '<p class="muted small">Bars show flows per latency bin, with the same bins and scale for every model. Lines show <span class="pk pk-p50">p50</span> solid, <span class="pk pk-p95">p95</span> dashed, <span class="pk pk-p99">p99</span> dotted.</p></div>';
 }
 // effect sizes: Cliff's delta on one unitless axis; each metric's CI on its own axis (units differ)
 var EF_UNIT = { latency_s: fmtTime, peak_vram_mb: function (v) { return fmtNum(v, 1) + " MB"; }, tokens_per_flow: function (v) { return fmtNum(v, 1) + " tokens"; } };
@@ -519,8 +519,8 @@ function effectChart(res) {
       '<span class="ci" style="left:' + 100 * r.pos.low + '%;width:' + Math.max(0.5, 100 * (r.pos.high - r.pos.low)) + '%"></span><span class="dot" tabindex="0" style="left:' + 100 * r.pos.diff + '%" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span></div>' +
       '<span class="small">' + (r.excludes_zero ? "real difference" : '<span class="muted">could be 0</span>') + '</span></div>';
   }).join("");
-  return '<div class="ef" id="stats-effect-chart"><h3>How big is the difference?</h3><p class="muted small">Cliff\'s delta: −1 = every ' + esc(a) + ' value is lower than every ' + esc(b) + ' value, +1 = every one is higher, 0 = no difference. The shaded band is "negligible" (|δ| &lt; 0.147).</p>' +
-    '<div class="ef-axis"><span></span><div><span>−1 · ' + esc(a) + ' lower</span><span>0</span><span>' + esc(a) + ' higher · +1</span></div><span></span></div>' + drows +
+  return '<div class="ef" id="stats-effect-chart"><h3>How big is the difference?</h3><p class="muted small">Cliff\'s delta. −1 = every ' + esc(a) + ' value is lower than every ' + esc(b) + ' value, +1 = every one is higher, 0 = no difference. The shaded band is "negligible" (|δ| &lt; 0.147).</p>' +
+    '<div class="ef-axis"><span></span><div><span>−1, ' + esc(a) + ' lower</span><span>0</span><span>' + esc(a) + ' higher, +1</span></div><span></span></div>' + drows +
     '<h3>Is it more than noise?</h3><p class="muted small">Mean of ' + esc(a) + ' minus ' + esc(b) + ' (dot) with its 95% bootstrap interval (bar). If the bar crosses the zero line, the difference could be zero. Each row has its own scale (the units differ).</p>' + crows + '</div>';
 }
 // The analysis page (charts, SAW ranking, robustness, …) embedded ONCE per session; each view
@@ -597,11 +597,11 @@ function agentsTab(res) {
           '</td><td style="min-width:150px"><div class="hbar" style="grid-template-columns:1fr auto"><span class="track"><span class="fill" style="display:block;width:' + (100 * (a.latency_share || 0)) +
           '%;background:' + agColor(a.agent) + '"></span></span><span class="val">' + fmtPct(a.latency_share) + '</span></div></td><td class="num">' + fmtNum(a.mean_input_tokens) +
           '</td><td class="num">' + fmtNum(a.mean_output_tokens) + '</td><td class="num">' + fmtPct(a.token_share) + '</td><td class="num">' + fmtMB(a.mean_peak_vram_mb) +
-          '</td><td class="small">' + esc(fl.join(" · ")) + ' <span class="muted">(rate ' + fmtPct(a.failure_rate) + ')</span></td></tr>';
+          '</td><td class="small">' + esc(fl.join(", ")) + ' <span class="muted">(rate ' + fmtPct(a.failure_rate) + ')</span></td></tr>';
       }).join("") + '</tbody></table></div>' +
       '<p class="small" id="agents-overhead-' + mi + '"><b>Agentic overhead (estimate):</b> ' + fmtNum(o.handoff_tokens_per_flow) + ' hand-off tokens per flow = <b>' + fmtPct(o.handoff_share_of_total) +
-      '</b> of all tokens (' + fmtPct(o.handoff_share_of_input) + ' of input); task input ' + fmtNum(o.task_input_tokens_per_flow) + ', output ' + fmtNum(o.output_tokens_per_flow) + ' tokens per flow.<br>' +
-      '<span class="muted">Method: the output tokens of earlier agents that each later prompt re-sends, counted from the recorded output-token numbers — an estimate, not a tokenizer count of the prompts.</span></p></div>');
+      '</b> of all tokens (' + fmtPct(o.handoff_share_of_input) + ' of input). Task input ' + fmtNum(o.task_input_tokens_per_flow) + ', output ' + fmtNum(o.output_tokens_per_flow) + ' tokens per flow.<br>' +
+      '<span class="muted">Method. This counts the output tokens of earlier agents that each later prompt sends again, from the recorded output-token numbers. It is an estimate, not a tokenizer count of the prompts.</span></p></div>');
   });
   var flows = Object.keys((ag.per_model[0] || {}).timeline || {});
   h.push('<div class="card" id="agents-timeline-card"><h2>Pipeline timeline for one flow</h2><div class="row" style="margin-top:0"><div class="field"><label for="agents-flow">Flow</label><select id="agents-flow">' +
@@ -636,13 +636,13 @@ function handoffCard(res) {
     var nodes = m.nodes.map(function (n, i) {
       var t = agName(n.agent) + ": " + fmtTime(n.latency_s) + " per flow (" + fmtPct(n.share) + " of flow time), " + fmtNum(n.in_tokens) + " tokens in, " + fmtNum(n.out_tokens) + " out";
       return '<g class="node" data-hover="' + esc(t) + '"><rect x="' + X(i) + '" y="' + Y + '" width="' + W + '" height="' + H + '" rx="6"/><rect x="' + X(i) + '" y="' + Y + '" width="5" height="' + H + '" rx="2" style="fill:' + agColor(n.agent) + '"/>' +
-        '<text x="' + (X(i) + 16) + '" y="' + (Y + 24) + '" class="nt">' + esc(agName(n.agent).length > 14 ? agName(n.agent).slice(0, 13) + "…" : agName(n.agent)) + '</text><text x="' + (X(i) + 16) + '" y="' + (Y + 44) + '" class="ns">' + esc(fmtTime(n.latency_s) + " · " + fmtPct(n.share)) + '</text></g>';
+        '<text x="' + (X(i) + 16) + '" y="' + (Y + 24) + '" class="nt">' + esc(agName(n.agent).length > 14 ? agName(n.agent).slice(0, 13) + "…" : agName(n.agent)) + '</text><text x="' + (X(i) + 16) + '" y="' + (Y + 44) + '" class="ns">' + esc(fmtTime(n.latency_s) + ", " + fmtPct(n.share)) + '</text></g>';
     }).join("");
     return '<div class="ho" data-model="' + esc(m.model) + '"><h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + ' <span class="muted small">' + fmtNum(m.resent_tokens, 1) + ' tokens re-sent per flow</span></h3>' +
       '<div class="ho-scroll"><svg viewBox="0 0 ' + (20 + (g.agents.length - 1) * 200 + W) + ' 168" style="min-width:' + Math.max(0, (g.agents.length - 4) * 150) + 'px" role="img" aria-label="' + esc("Hand-offs for " + short(m.model) + ": " + m.edges.map(function (e) { return agName(e.from) + " to " + agName(e.to); }).join(", ")) + '">' +
       '<defs><marker id="ho-arrow-' + mi + '" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="10" markerHeight="10" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="ah"/></marker></defs>' + edges + nodes + '</svg></div></div>';
   }).join("");
-  return '<div class="card" id="agents-handoffs"><h2>Hand-offs between agents</h2><p class="muted small" style="margin-top:0">Each arrow is one step\'s answer re-sent inside a later step\'s prompt; its label and thickness are the tokens it carries per flow (the sender\'s mean output). This is where the agentic overhead comes from.</p>' + diagrams +
+  return '<div class="card" id="agents-handoffs"><h2>Hand-offs between agents</h2><p class="muted small" style="margin-top:0">Each arrow is one step\'s answer sent again inside a later step\'s prompt. Its label and thickness are the tokens it carries per flow, which is the sender\'s mean output. This is where the agentic overhead comes from.</p>' + diagrams +
     '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="agents-handoff-table"><thead><tr><th>Model</th><th>From</th><th>To</th><th class="num">Tokens re-sent / flow</th></tr></thead><tbody>' +
     g.per_model.map(function (m) { return m.edges.map(function (e) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(agName(e.from)) + '</td><td>' + esc(agName(e.to)) + '</td><td class="num">' + fmtNum(e.tokens, 1) + '</td></tr>'; }).join(""); }).join("") +
     '</tbody></table></div></details></div>';
@@ -657,7 +657,7 @@ function classAgentCard(res) {
     return '<div class="cat-group" data-model="' + esc(m.model) + '"><h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '</h3>' + m.rows.map(function (r) {
       return '<div class="cat-row"><span class="lbl">' + esc(r.cls) + (r.n != null ? '<small>' + r.n + ' flows</small>' : "") + '</span><div class="cat-track"><div class="cat-bar" style="width:' + (c.max_total ? 100 * r.total / c.max_total : 0) + '%">' +
         r.parts.map(function (p) {
-          var t = short(m.model) + " · " + r.cls + " · " + agName(p.agent) + ": " + fmtTime(p.s) + " (" + fmtPct(p.share) + ")";
+          var t = short(m.model) + ", " + r.cls + ", " + agName(p.agent) + ": " + fmtTime(p.s) + " (" + fmtPct(p.share) + ")";
           return p.s ? '<span tabindex="0" style="flex:' + (100 * p.share).toFixed(3) + ' 1 0;--c:' + agColor(p.agent) + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"></span>' : "";
         }).join("") + '</div></div><span class="val">' + fmtTime(r.total) + '</span></div>';
     }).join("") + '</div>';
@@ -732,7 +732,7 @@ function recLimitsTab(res) {
   var rel = res.relative_comparison, dh = res.decision_helper, h = [];
   var hint = window.REPORT ? window.REPORT.optimisationHint(res, ((res.per_model || [])[0] || {}).db_label) : { text: "" };
   // the verdict: its first sentence as the answer, the rest as a plain explanation
-  var vtext = INSIGHTS.plainText(rel ? rel.verdict : (res.comparison || {}).statement || "Single-model run: there is no head-to-head comparison.",
+  var vtext = INSIGHTS.plainText(rel ? rel.verdict : (res.comparison || {}).statement || "Single-model run, so there is no head-to-head comparison.",
                                  (res.per_model || []).map(function (m) { return m.model; }));
   var vcut = vtext.search(/\.\s/), vhead = vcut > 0 ? vtext.slice(0, vcut + 1) : vtext, vrest = vcut > 0 ? vtext.slice(vcut + 2) : "";
   // one wording of the verdict: the Overview headline, with a link to the full verdict there
@@ -764,22 +764,22 @@ function fitCard(res) {
     group = p.group;
     return head + '<tr data-profile="' + p.id + '"><td>' + esc(p.label) + '</td>' + fit.models.map(function (m) {
       var c = m.cells[i], k = FIT_MARK[c.result];
-      var t = short(m.model) + " · " + p.label + ": " + k[1] + (c.value != null ? " (" + fmtV(p, c.value) + ")" : " — " + c.reason);
+      var t = short(m.model) + ", " + p.label + ": " + k[1] + (c.value != null ? " (" + fmtV(p, c.value) + ")" : ", " + c.reason);
       return '<td class="fit-cell"><span class="chip ' + k[2] + '" tabindex="0" data-result="' + c.result + '" data-hover="' + esc(t) + '" aria-label="' + esc(t) + '"><b aria-hidden="true">' + k[0] + '</b> ' + k[1] + '</span>' +
         (c.value != null ? '<span class="muted small fit-v">' + esc(fmtV(p, c.value)) + '</span>' : "") + '</td>';
     }).join("") + '</tr>';
   }).join("");
-  return '<div class="card" id="fit-card"><h2>Deployment fit at a glance</h2><p class="muted small" style="margin-top:0">Each model against common deployment profiles, using this session\'s measured numbers (total peak VRAM, p95 / mean time per flow, flows one GPU can do in a day, cost per 1,000 flows). Fixed thresholds; set your own below.</p>' +
+  return '<div class="card" id="fit-card"><h2>Deployment fit at a glance</h2><p class="muted small" style="margin-top:0">Each model against common deployment profiles, using this session\'s measured numbers (total peak VRAM, p95 / mean time per flow, flows one GPU can do in a day, cost per 1,000 flows). These are fixed thresholds, and you can set your own below.</p>' +
     '<div class="table-wrap"><table id="fit-table"><thead><tr><th>Profile</th>' + fit.models.map(function (m) { return '<th><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + '<br><span class="muted small">' + m.passes + ' of ' + fit.profiles.length + ' fit</span></th>'; }).join("") + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
-    '<p class="muted small">"no data": not measured in this run (e.g. no GPU memory or price on a CPU/mock run). A fit is not a sign-off: the run\'s flows, GPU and settings apply.</p></div>';
+    '<p class="muted small">"no data" means it was not measured in this run, for example no GPU memory or price on a CPU or mock run. A fit is not a sign-off, because the run\'s flows, GPU and settings apply.</p></div>';
 }
 function recContextTab(res) {
   var s3 = res.recommendation_stage3, h = [], rel = res.relative_comparison;
   if (!s3) return '<div class="card"><p class="muted">This session predates the model-context rules.</p></div>';
   if (s3) {
     var notes = (s3.notes || []).map(function (n) {
-      return '<li><span class="chip mono">' + esc(n.rule) + '</span> ' + esc(n.note) + ' <span class="muted small">— source: ' + esc((n.sources || []).join(", ")) +
-        (n.fetched_at ? ' · <a href="' + esc(n.source_url) + '" target="_blank" rel="noopener">Hugging Face</a>, fetched ' + esc(n.fetched_at) : "") + '</span></li>';
+      return '<li><span class="chip mono">' + esc(n.rule) + '</span> ' + esc(n.note) + ' <span class="muted small">(source ' + esc((n.sources || []).join(", ")) +
+        (n.fetched_at ? ', <a href="' + esc(n.source_url) + '" target="_blank" rel="noopener">Hugging Face</a>, fetched ' + esc(n.fetched_at) : "") + ')</span></li>';
     }).join("");
     var rows = (s3.rules || []).map(function (r) {
       return '<tr><td class="mono">' + esc(r.rule) + '</td><td class="mono">' + esc(short(r.model)) + '</td><td class="mono small">' + esc(r.condition) + '</td><td>' + esc(r.result) +
@@ -788,7 +788,7 @@ function recContextTab(res) {
     h.push('<div class="card" id="svc-stage3"><h2>Model context</h2><p><b>Measured verdict:</b> ' + esc(rel && typeof headline === "function" ? headline(rel, res.per_model || []) + "." : (s3.verdict || {}).text || "—") +
       ' <a href="#/session/' + enc(SESSION.id || "") + '/overview">See it on Overview</a>. The notes below add context and never change it.</p>' +
       (notes ? '<ul class="list" id="svc-stage3-notes">' + notes + '</ul>' : '<p class="muted" id="svc-stage3-notes">No context rule fired' +
-        (s3.metadata_status === "ok" ? "" : " — Hugging Face metadata " + esc(s3.metadata_status) + ", so the metadata rules had no data") + '.</p>') +
+        (s3.metadata_status === "ok" ? "" : ". The Hugging Face metadata was " + esc(s3.metadata_status) + ", so the metadata rules had no data") + '.</p>') +
       '<p class="muted small">' + esc(s3.framing || "") + ' Rule set: <span class="mono">' + esc(s3.rulebase || "") + '</span>.</p>' +
       '<details><summary>Rules evaluated (' + (s3.rules || []).length + ', ' + (s3.fired || []).length + ' fired)</summary><div class="table-wrap"><table id="svc-stage3-rules"><thead><tr><th>Rule</th><th>Model</th><th>Condition</th><th>Result</th><th>Source</th><th>Fetched at</th></tr></thead><tbody>' +
       rows + '</tbody></table></div></details></div>');
@@ -836,7 +836,7 @@ function downloadsTab(res, job) {
     '<h3 style="margin-top:16px">Reproducibility package</h3><p class="muted small" style="margin-top:0">One .zip with everything needed to check or repeat this session: the results, the exact settings and pipeline, ' +
     'the GPU, driver and library versions, the prepared flows with their fingerprint, the PDF and a README saying how to run it again.</p>' +
     '<div class="actions"><button type="button" class="btn" id="svc-dl-repro">Download reproducibility package (.zip)</button><span class="small muted" id="svc-repro-status" aria-live="polite"></span></div></div>' +
-    '<div class="card"><h2>Prepared set</h2><p class="muted small">The exact flows this session measured — download them to keep them, or reuse them in a new benchmark.</p>' +
+    '<div class="card"><h2>Prepared set</h2><p class="muted small">The exact flows this session measured. Download them to keep them, or reuse them in a new benchmark.</p>' +
     '<p class="mono small">' + esc(job.run_name || "") + '</p><div class="actions" id="svc-downloads"></div>' +
     '<div class="actions"><a class="btn" id="svc-again" href="#/new/models?set=' + enc(job.run_name || "") + (CP && job.stored ? "&from=" + enc(job.job_id) : "") + '">Benchmark these flows again</a></div></div>' +
     (CP && job.can_delete ? '<div class="card"><h2>Delete this session</h2><p class="muted small">Removes the stored session (results, PDF, prepared-set copy) for everyone. ' +
@@ -881,23 +881,23 @@ function reproPackage(res, job, btn) {
                 quantization: "4-bit NF4", settings: ident.settings || null };
     var again = location.origin + location.pathname + "#/new/models?set=" + enc(job.run_name || "") + "&models=" + (run.models || []).map(enc).join(",") + "&again=" + enc(id);
     var readme = "# AgentMeter reproducibility package\n\nSession: " + id + "\nCreated: " + new Date().toISOString() + "\n\n" +
-      "AgentMeter measures how efficiently open-source LLMs (4-bit NF4) run a fixed multi-agent analysis of network flows: latency, GPU memory, tokens, cost and energy.\n\n" +
+      "AgentMeter measures how efficiently open-source LLMs (4-bit NF4) run a fixed multi-agent analysis of network flows. It measures latency, GPU memory, tokens, cost and energy.\n\n" +
       "## What is in this package\n\n" +
-      "- `session_results.json` — every stored result of the session (scores, per-model metrics, statistics, analyses).\n" +
-      "- `run.json` — what was run: models, prepared set, pipeline, options and the settings that make up the setup.\n" +
-      "- `identity.json` — the setup fingerprint (prepared-set hash, GPU, settings fingerprint) and the environment (GPU, driver, CUDA, library versions).\n" +
-      (got.some(function (f) { return /^prepared_set\//.test(f.name); }) ? "- `prepared_set/` — the exact flows the models answered (`features.csv`, `labels.csv` when labelled, `manifest.json` with the hash).\n" : "- (the prepared set's files could not be fetched when this package was made)\n") +
-      (got.some(function (f) { return f.name === "report.pdf"; }) ? "- `report.pdf` — the session report.\n" : "") +
+      "- `session_results.json` holds every stored result of the session (scores, per-model metrics, statistics, analyses).\n" +
+      "- `run.json` records what was run, meaning the models, prepared set, pipeline, options and the settings that make up the setup.\n" +
+      "- `identity.json` holds the setup fingerprint (prepared-set hash, GPU, settings fingerprint) and the environment (GPU, driver, CUDA, library versions).\n" +
+      (got.some(function (f) { return /^prepared_set\//.test(f.name); }) ? "- `prepared_set/` holds the exact flows the models answered (`features.csv`, `labels.csv` when labelled, `manifest.json` with the hash).\n" : "- (the prepared set's files could not be fetched when this package was made)\n") +
+      (got.some(function (f) { return f.name === "report.pdf"; }) ? "- `report.pdf` is the session report.\n" : "") +
       "\n## The setup (what must match to compare)\n\n" +
       "- Prepared set (flows) SHA-256: `" + (ident.prepared_set_sha256 || "unknown") + "` (hash version " + (ident.prepared_set_hash_version || "?") + ")\n" +
       "- GPU: " + (ident.gpu_label || env.gpu_name || "unknown") + "\n" +
       "- Settings fingerprint: `" + (ident.settings_fingerprint || "unknown") + "`\n" +
-      "- Driver / CUDA: " + (env.driver_version || "—") + " / " + (env.cuda_runtime_version || "—") + "; torch " + (env.torch || "—") + ", transformers " + (env.transformers || "—") + ", bitsandbytes " + (env.bitsandbytes || "—") + "\n" +
+      "- Driver / CUDA: " + (env.driver_version || "—") + " / " + (env.cuda_runtime_version || "—") + ", torch " + (env.torch || "—") + ", transformers " + (env.transformers || "—") + ", bitsandbytes " + (env.bitsandbytes || "—") + "\n" +
       "\n## How to run it again\n\n" +
       "1. Open AgentMeter and use **Run again** on the session page, or open: " + again + "\n" +
-      "   (if the prepared set is not on the GPU server, import `prepared_set/` under New benchmark › Reuse a prepared set; its hash stays the same).\n" +
-      "2. Use the same GPU type: results are only comparable on the same prepared set, GPU and settings.\n" +
-      "3. The new session appears on Repeatability next to this one; a change beyond the usual spread is flagged.\n";
+      "   (if the prepared set is not on the GPU server, import `prepared_set/` under New benchmark › Reuse a prepared set, and its hash stays the same).\n" +
+      "2. Use the same GPU type. Results are only comparable on the same prepared set, GPU and settings.\n" +
+      "3. The new session appears on Repeatability next to this one, and a change beyond the usual spread is flagged.\n";
     var files = [{ name: "README.md", data: readme }, { name: "run.json", data: JSON.stringify(run, null, 2) },
                  { name: "identity.json", data: JSON.stringify({ session_identity: ident, environment: env }, null, 2) },
                  { name: "session_results.json", data: JSON.stringify(res, null, 2) }].concat(got);

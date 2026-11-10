@@ -73,10 +73,10 @@ $("svc-upload-form").addEventListener("submit", function (ev) {
     fd.append("url", url);
   } else {
     var file = $("svc-file").files[0];
-    if (!file) { showError(err, { error: "Choose a .csv, .pcap or .pcapng file first — or use Import from a link." }); return; }
+    if (!file) { showError(err, { error: "Choose a .csv, .pcap or .pcapng file first, or use Import from a link." }); return; }
     if (lim && file.size > lim.max_upload_bytes) {   // checked here too, so a huge file is never sent
-      showError(err, { error: "File too large to upload: the limit is " + lim.max_upload_label + " (this file is " +
-        fmtSize(file.size) + "). Use Import from a link instead — the server downloads files up to " +
+      showError(err, { error: "This file is too large to upload. The limit is " + lim.max_upload_label + " (this file is " +
+        fmtSize(file.size) + "). Use Import from a link instead. The server downloads files up to " +
         lim.max_url_download_label + " from a direct https link.", code: "too_large" });
       return;
     }
@@ -233,7 +233,7 @@ function watchCloud(job, ui) {
       if (j.status !== "done") { CLOUD_POLL = setTimeout(tick, 1500); return; }
       if (!ONLINE) {                                  // GPU off: the set is stored; its analysis page has it
         remember(null); ui.end();
-        ui.line("Prepared " + String(j.set_name).split("/").pop() + ". The GPU server is offline, so it is kept for later: open it on Analyse traffic.", "tel-done");
+        ui.line("Prepared " + String(j.set_name).split("/").pop() + ". The GPU server is offline, so it is kept for later. Open it on Analyse traffic.", "tel-done");
         location.hash = "#/new/prep/" + enc(j.job_id);
         return;
       }
@@ -283,7 +283,7 @@ drop.addEventListener("drop", function (ev) {
 });
 function loadRecentSets() {
   if (CP && !ONLINE) {        // sets on the GPU server's own disk: none to list while it is off
-    $("svc-recent-sets").textContent = "GPU offline: sets prepared on the GPU server are listed here while it runs. Saved sets above stay available.";
+    $("svc-recent-sets").textContent = "The GPU is offline. Sets prepared on the GPU server are listed here while it runs, and saved sets above stay available.";
     return;
   }
   Promise.all([api("/api/jobs?limit=50"), datasetMeta()]).then(function (rs) {
@@ -312,7 +312,7 @@ function loadStoredSets() {
       if (!ok || seen[key]) return false;
       seen[key] = 1; return true;
     });
-    $("svc-stored-sets").innerHTML = !r.ok ? esc(r.data.error) : !sets.length ? "No stored prepared sets yet — they appear here after a session finishes." :
+    $("svc-stored-sets").innerHTML = !r.ok ? esc(r.data.error) : !sets.length ? "No stored prepared sets yet. They appear here after a session finishes." :
       '<div class="table-wrap"><table id="svc-stored-table"><thead><tr><th>Prepared set</th><th>Input</th><th class="num">Flows</th><th>From session</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
       sets.slice(0, 20).map(function (s) {
         return '<tr><td class="mono">' + esc(s.run_name || "—") + '<br><span class="muted small" title="Prepared-set hash">set ' + esc(String(s.prepared_set_sha256 || "").slice(0, 12)) + '</span></td><td>' +
@@ -333,11 +333,11 @@ function loadStoredSets() {
 }
 // the backend still has the set -> use it; otherwise re-import the session's stored copy
 function useStoredSet(sessionId, set) {
-  if (CP && !ONLINE) return Promise.resolve({ ok: false, data: { error: "GPU offline: a saved set can be used once the GPU backend runs (benchmarks need it anyway).", code: "backend_offline" } });
+  if (CP && !ONLINE) return Promise.resolve({ ok: false, data: { error: "The GPU is offline. A saved set can be used once the GPU backend runs, which benchmarks need anyway.", code: "backend_offline" } });
   var have = set ? api("/api/prepared/" + setPath(set)) : Promise.resolve({ ok: false });
   return have.then(function (h) {
     if (h.ok) return { ok: true, set: set };
-    if (!ONLINE) return { ok: false, data: { error: "GPU offline: a stored set can be restored once the GPU backend runs.", code: "backend_offline" } };
+    if (!ONLINE) return { ok: false, data: { error: "The GPU is offline. A stored set can be restored once the GPU backend runs.", code: "backend_offline" } };
     return restoreStoredSet(sessionId);
   });
 }
@@ -425,12 +425,12 @@ function pollPrepare(id, token) {
       if (j.status === "done" && j.prepared) { WIZ.set = j.prepared; dataReady(j.prepared); return; }
       if (j.status === "failed" || j.status === "interrupted") {
         setDataState("failed", "Data preparation " + j.status + ".");
-        showError($("wiz-data-error"), { error: (j.error || j.message) + " — go back to step 1 to fix the input.", code: j.error_code || j.status });
+        showError($("wiz-data-error"), { error: (j.error || j.message) + ". Go back to step 1 to fix the input.", code: j.error_code || j.status });
         return;
       }
       var pct = pp.phase === "downloading" && pp.total ? Math.round(100 * pp.bytes / pp.total) : null;
-      setDataState("preparing", (j.status === "queued" ? "Queued — " + (j.queue_position ? j.queue_position + " job(s) ahead" : "starting next") :
-        (PHASES[pp.phase] || pp.phase || "Preparing") + (pct != null ? " · " + pct + "%" : "")) +
+      setDataState("preparing", (j.status === "queued" ? "Queued, " + (j.queue_position ? j.queue_position + " job(s) ahead" : "starting next") :
+        (PHASES[pp.phase] || pp.phase || "Preparing") + (pct != null ? ", " + pct + "%" : "")) +
         " (" + (j.run_name || "your file") + "). You can pick the models now.", pct);
       setTimeout(tick, 1000);
     });
@@ -449,7 +449,7 @@ function dataReady(set) {
     }
     if (!r.ok) { setDataState("failed", ""); showError($("wiz-data-error"), r.data); return; }
     WIZ.summary = r.data;
-    setDataState("ready", fmtNum(r.data.rows_selected) + " flows ready · prepared set " + r.data.prepared_set);
+    setDataState("ready", fmtNum(r.data.rows_selected) + " flows ready, prepared set " + r.data.prepared_set);
     renderSummary(r.data);
     renderSettings();
   });
@@ -488,13 +488,13 @@ function renderSummary(s) {
       '</td><td class="num">' + (r.kind === "constraint" ? "—" : fmtNum(r.admitted)) + '</td></tr>';
   }).join("");
   $("svc-summary").innerHTML = '<div id="svc-summary-card"><div class="chips">' + modeChip(s.accuracy_available) +
-    '<span class="chip">' + esc((s.source_type || "").toUpperCase()) + '</span><span class="chip"' + (fm.note ? ' title="' + esc(fm.note) + '"' : "") + '>Features: ' + esc(fm.status || "—") + (fm.format_name ? " · " + esc(fm.format_name) : "") + '</span>' +
-    (s.class_scheme ? '<span class="chip">' + esc(s.class_scheme.name) + '</span>' : "") + (big.capped ? '<span class="chip warn">large input · sampled</span>' : "") + '</div>' +
+    '<span class="chip">' + esc((s.source_type || "").toUpperCase()) + '</span><span class="chip"' + (fm.note ? ' title="' + esc(fm.note) + '"' : "") + '>Features: ' + esc(fm.status || "—") + (fm.format_name ? ", " + esc(fm.format_name) : "") + '</span>' +
+    (s.class_scheme ? '<span class="chip">' + esc(s.class_scheme.name) + '</span>' : "") + (big.capped ? '<span class="chip warn">large input, sampled</span>' : "") + '</div>' +
     (big.capped ? '<div class="notice warn" id="svc-large-input" role="status">' + esc(big.message) + '</div>' : "") +
     (samp.description ? '<p id="svc-sampling" class="small"><b>Sampling:</b> ' + esc(samp.description) + '.</p>' : "") +
     '<details><summary>Data summary</summary><div class="grid two" style="margin-top:10px"><dl class="kv" id="svc-counts">' +
     counts.map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("") + '</dl><div>' +
-    (csv && s.accuracy_available ? distTable(s) : '<p class="muted small">No reference labels — the run measures efficiency; answers are still checked for validity.</p>') + '</div></div></details>' +
+    (csv && s.accuracy_available ? distTable(s) : '<p class="muted small">There are no reference labels, so the run measures efficiency. Answers are still checked for validity.</p>') + '</div></div></details>' +
     '<details><summary>Flow-selection rules (' + (s.rules_fired || []).length + ' fired)</summary><div class="table-wrap"><table id="svc-rules-table"><thead><tr><th>Rule</th><th>Type</th><th>Result</th><th class="num">Flows admitted</th></tr></thead><tbody>' +
     rules + '</tbody></table></div></details>' +
     '<div class="actions" id="wiz-downloads"><span class="small muted" style="align-self:center">Prepared set <span class="mono" id="svc-set-id-value">' + esc(s.prepared_set) + '</span>:</span>' +
@@ -592,7 +592,7 @@ function renderStudyNotes(cat) {
     if (!inp || inp.parentNode.querySelector(".study-note")) return;
     var note = document.createElement("span");
     note.className = "small muted study-note";
-    note.textContent = x.on_disk ? " · on this server ✓" : " · first use downloads " +
+    note.textContent = x.on_disk ? ", on this server ✓" : ", first use downloads " +
       (x.download_gb != null ? "~" + fmtNum(x.download_gb, 1) + " GB (~" + fmtNum(Math.max(1, x.download_min), 0) + " min)" : "the model");
     inp.parentNode.appendChild(note);
   });
@@ -607,16 +607,16 @@ function extraCard(x, i, real) {
   var locked = false;
   var line1 = [x.params_b != null ? fmtNum(x.params_b, 1) + " B params" : null,
                x.vram_4bit_gb != null ? "~" + fmtNum(x.vram_4bit_gb, 1) + " GB VRAM at 4-bit" : null,
-               x.fits_gpu === true ? "✓ fits this GPU" : null].filter(Boolean).join(" · ");
+               x.fits_gpu === true ? "✓ fits this GPU" : null].filter(Boolean).join(", ");
   var line2 = (x.original_format === "original weights" ? "original weights → 4-bit NF4" : "4-bit NF4") +
-              (x.license ? " · " + x.license : "") + (x.downloads != null ? " · " + fmtNum(x.downloads) + " downloads" : "");
+              (x.license ? ", " + x.license : "") + (x.downloads != null ? ", " + fmtNum(x.downloads) + " downloads" : "");
   var line3 = x.on_disk ? "On this server ✓" : x.download_gb != null ? "First use downloads ~" + fmtNum(x.download_gb, 1) + " GB (~" + fmtNum(Math.max(1, x.download_min), 0) + " min)" : "";
   // offered models are suitability "ok": what remains to show are notices (licence; the download is line3)
   var notes = (x.reasons || []).filter(function (r) { return r.outcome === "info" && r.rule !== "large_download" && r.rule !== "gated"; });
   var lic = x.licence_verification ? '<span class="small"><span class="chip warn">licence verification required</span> ' +
     (real && x.verification && x.verification.status === "ok"
-      ? "Gated on Hugging Face: the licence has been accepted for this server (the admin's 4-bit verification downloaded it)."
-      : "Gated on Hugging Face: the licence must be accepted with the server's Hugging Face account before it can be used.") + '</span>' : "";
+      ? "Gated on Hugging Face. The licence has been accepted for this server, since the admin's 4-bit verification downloaded it."
+      : "Gated on Hugging Face. The licence must be accepted with the server's Hugging Face account before it can be used.") + '</span>' : "";
   return '<label class="model card-model' + (locked ? " locked" : "") + '"><input type="checkbox" name="model" value="' + esc(x.id) + '" id="svc-extra-' + i + '"' +
     (locked ? ' data-locked="1" disabled' : "") + '><span class="mm"><span class="mono">' + esc(x.id) + '</span>' +
     (line1 ? '<span class="small">' + esc(line1) + '</span>' : "") + '<span class="small muted">' + esc(line2) + '</span>' +
@@ -660,8 +660,8 @@ function syncRun() {
   var plBad = typeof PL !== "undefined" && PL.custom && plProblems().length > 0;
   $("svc-run").disabled = n < 1 || n > max || failed || off || plBad;
   $("svc-run").textContent = off ? "GPU offline" : WIZ.set || failed ? "Run benchmark" : "Run when data is ready";
-  $("svc-model-hint").textContent = n >= max ? "Maximum of " + max + " models selected — deselect one to change."
-    : n === 1 ? "1 model selected — add another to compare, or run it alone." : n > 1 ? n + " models selected — up to " + max + "; each runs on its own, one after another." : "Select 1 to " + max + " models.";
+  $("svc-model-hint").textContent = n >= max ? "Maximum of " + max + " models selected. Deselect one to change."
+    : n === 1 ? "1 model selected. Add another to compare, or run it alone." : n > 1 ? n + " models selected, up to " + max + ". Each runs on its own, one after another." : "Select 1 to " + max + " models.";
 }
 // picked models (study or extra) that are not on this server yet: downloaded before the benchmark starts
 function downloadLine() {
@@ -669,7 +669,7 @@ function downloadLine() {
   var need = (CATALOG.study || []).concat(CATALOG.extra || []).filter(function (x) { return picked().indexOf(x.id) >= 0 && !x.on_disk; });
   if (!need.length) return [];
   var gb = need.reduce(function (a, x) { return a + (x.download_gb || 0); }, 0), min = need.reduce(function (a, x) { return a + (x.download_min || 0); }, 0);
-  return [["First run", "downloads ~" + fmtNum(gb, 1) + " GB (~" + fmtNum(Math.max(1, min), 0) + " min) before the benchmark starts; later runs on this rental reuse it. Download time is not measured."]];
+  return [["First run", "downloads ~" + fmtNum(gb, 1) + " GB (~" + fmtNum(Math.max(1, min), 0) + " min) before the benchmark starts. Later runs on this rental reuse it. Download time is not measured."]];
 }
 // time and cost before Run, from earlier sessions of the same models on this GPU (INSIGHTS.runEstimate)
 function fmtDur(sec) {
@@ -687,12 +687,12 @@ function estimateLine() {
   if (!e.complete) return [["Estimate", "no earlier session of " + e.unknown.map(short).join(" or ") + " " + where + " yet, so no estimate"]];
   var src = Math.max.apply(null, e.models.map(function (m) { return m.sessions; }));
   var own = PL.custom && !plIsDefault();
-  var out = [["Estimate", (own ? "for the default pipeline (yours will differ): " : "") + "about " + fmtDur(e.seconds) + " of model time" + (e.cost_usd != null ? ", about $" + fmtNum(e.cost_usd, 2) : "") +
-    " (from earlier sessions " + where + "; model loading and first-use downloads come on top)" + (src < 2 ? " — one earlier session only" : "")]];
+  var out = [["Estimate", (own ? "for the default pipeline (yours will differ), " : "") + "about " + fmtDur(e.seconds) + " of model time" + (e.cost_usd != null ? ", about $" + fmtNum(e.cost_usd, 2) : "") +
+    " (from earlier sessions " + where + ", plus model loading and first-use downloads)" + (src < 2 ? ", from one earlier session only" : "")]];
   var fg = models.length > 1 && INSIGHTS.flowGuidance ? INSIGHTS.flowGuidance(WIZ.history, { models: models, n_flows: n, demo: !real, gpu: real && HEALTH.gpu ? HEALTH.gpu.name : null }) : null;
   if (fg) out.push(["Precision", "with " + fmtNum(n) + " flows, a latency difference of about " + fmtNum(100 * fg.detectable, 0) + "% or more between these models can be told apart" +
-    (fg.detectable > 0.10 ? "; for 10% use about " + fmtNum(fg.flows_for_10) + " flows" : "") + (fg.detectable > 0.05 ? (fg.detectable > 0.10 ? ", for 5% about " : "; for 5% use about ") + fmtNum(fg.flows_for_5) : "") +
-    " (from the latency spread of earlier runs; 5% significance, 80% power)"]);
+    (fg.detectable > 0.10 ? ". For 10% use about " + fmtNum(fg.flows_for_10) + " flows" : "") + (fg.detectable > 0.05 ? (fg.detectable > 0.10 ? ", for 5% about " : ". For 5% use about ") + fmtNum(fg.flows_for_5) : "") +
+    " (from the latency spread of earlier runs, at 5% significance and 80% power)"]);
   return out;
 }
 function loadHistory() {
@@ -702,7 +702,7 @@ function loadHistory() {
 function renderSettings() {
   var s = WIZ.summary;
   $("wiz-settings").innerHTML = [
-    ["Provider", HEALTH && HEALTH.provider === "real" ? "Real GPU · 4-bit NF4" + (HEALTH.engine === "vllm" ? " · vLLM engine" : "") : "Demo (no GPU)"],
+    ["Provider", HEALTH && HEALTH.provider === "real" ? "Real GPU, 4-bit NF4" + (HEALTH.engine === "vllm" ? ", vLLM engine" : "") : "Demo (no GPU)"],
     ["Flows", s ? fmtNum(s.rows_selected) : "from step 1 (" + ($("svc-max-flows").value || 50) + " max)"],
     ["Evaluation", s ? (s.accuracy_available ? "efficiency, with a reference-label validity check" : "efficiency (no reference labels)") : "known when the data is ready"],
     ["Agents", PL.custom && !plIsDefault() ? plChain() + " (your own pipeline, " + PL.agents.length + " agents)" : "Perceive → Reason → Decide → Act (default)"]
@@ -714,11 +714,11 @@ var PL_DEFAULT = ["perceive", "reason", "decide", "act"];
 var PL_BUILTIN = {
   perceive: { kind: "text", reads: [], about: "Summarises the raw flow features in a few sentences." },
   reason: { kind: "text", reads: ["perceive"], about: "Reasons about which threat behaviours the flow fits." },
-  decide: { kind: "label", reads: ["reason", "perceive"], about: "Picks exactly one attack class: the pipeline's answer." },
-  act: { kind: "verdict", reads: ["reason"], about: "Writes the verdict: the class, its MITRE technique and one line why." }
+  decide: { kind: "label", reads: ["reason", "perceive"], about: "Picks exactly one attack class, which is the pipeline's answer." },
+  act: { kind: "verdict", reads: ["reason"], about: "Writes the verdict with the class, its MITRE technique and one line on why." }
 };
 var PL_BUDGET = { text: 192, label: 16, verdict: 160 };
-var PL_KIND_LABEL = { text: "text", label: "label: the answer", verdict: "verdict" };
+var PL_KIND_LABEL = { text: "text", label: "label (the answer)", verdict: "verdict" };
 var PL_TEMPLATES = [
   ["verify", { title: "Verify", kind: "text", features: true, tokens: 160,
     instructions: "Check the earlier reasoning against the flow features. Point out any mistake or contradiction in one or two sentences, or say that it holds." }],
@@ -753,19 +753,19 @@ function plProblems() {
     var n = plName(a), t = plTitle(a);
     if (!a.builtin) {
       if (!PL_NAME.test(n || "") || PL_RESERVED.indexOf(n) >= 0) p.push("Agent " + (i + 1) + ": the name must be 2 to 24 lowercase letters, digits or _, starting with a letter.");
-      else if (PL_DEFAULT.indexOf(n) >= 0) p.push("Agent " + (i + 1) + ": “" + n + "” is a built-in agent's name; pick another.");
+      else if (PL_DEFAULT.indexOf(n) >= 0) p.push("Agent " + (i + 1) + " is named “" + n + "”, which is a built-in agent's name. Pick another.");
       if (!(a.title || "").trim() || a.title.length > 40) p.push(t + ": give it a title (up to 40 characters).");
       var len = (a.instructions || "").trim().length;
-      if (len < 10 || len > 1500) p.push(t + ": write its instructions (10 to 1,500 characters).");
+      if (len < 10 || len > 1500) p.push(t + " needs instructions of 10 to 1,500 characters.");
       var before = ag.slice(0, i).map(plName), reads = (a.reads || []).filter(function (r) { return before.indexOf(r) >= 0; });
-      if (!a.features && !reads.length) p.push(t + ": it has no input — tick the flow features or an earlier agent.");
-      if (!(a.tokens >= 8 && a.tokens <= 1024 && Math.round(a.tokens) === a.tokens)) p.push(t + ": max output tokens must be a whole number from 8 to 1,024.");
+      if (!a.features && !reads.length) p.push(t + " has no input. Tick the flow features or an earlier agent.");
+      if (!(a.tokens >= 8 && a.tokens <= 1024 && Math.round(a.tokens) === a.tokens)) p.push(t + " needs max output tokens as a whole number from 8 to 1,024.");
     }
     if (names.indexOf(n) >= 0) p.push("Two agents are called “" + n + "”.");
     names.push(n);
   });
   var kinds = ag.map(plKind), nl = kinds.filter(function (k) { return k === "label"; }).length;
-  if (nl !== 1) first.push(nl ? "Only one agent can give the answer (a label agent): there are " + nl + "." : "Add an agent that gives the answer: Decide, Classify, or your own label agent.");
+  if (nl !== 1) first.push(nl ? "Only one agent can give the answer (a label agent), but there are " + nl + "." : "Add an agent that gives the answer, such as Decide, Classify or your own label agent.");
   if (kinds.filter(function (k) { return k === "verdict"; }).length > 1) first.push("Only one verdict agent.");
   if (kinds.indexOf("verdict") >= 0 && kinds.indexOf("label") >= 0 && kinds.indexOf("verdict") < kinds.indexOf("label")) first.push("The verdict agent must come after the label agent.");
   return first.concat(p);
@@ -820,7 +820,7 @@ function plLabels() {
 function plStatus() {
   var p = PL.custom ? plProblems() : [];
   $("pl-check").innerHTML = !PL.custom ? "" : p.length ? '<span class="chip bad">Fix before running</span> ' + esc(p[0]) + (p.length > 1 ? ' <span class="muted">(+' + (p.length - 1) + ' more)</span>' : "")
-    : '<span class="chip ok">Ready</span> ' + esc(plChain()) + (plIsDefault() ? " — the default pipeline." : ".");
+    : '<span class="chip ok">Ready</span> ' + esc(plChain()) + (plIsDefault() ? ", the default pipeline." : ".");
   $("pl-add").disabled = PL.agents.length >= PL_MAX;
   plSave();
   syncRun();
@@ -901,9 +901,9 @@ function idsOptionSync() {
   if (!ids) { cb.checked = false; box.hidden = true; cb.parentNode.title = "This GPU server has no IDS model (scripts/train_ids.py)."; return; }
   cb.parentNode.title = "";
   var h = ids.holdout || {};
-  $("svc-ids-note").innerHTML = (ids.demo ? '<span class="chip warn">Demo IDS</span> trained on the 300 bundled flows — for trying the flow only. ' : "") +
+  $("svc-ids-note").innerHTML = (ids.demo ? '<span class="chip warn">Demo IDS</span> trained on the 300 bundled flows, for trying the flow only. ' : "") +
     'IDS <span class="mono">' + esc(ids.version || ids.name) + '</span>, threshold ' + fmtNum(ids.threshold, 3) +
-    ' (' + esc(ids.threshold_rule || "") + '). On its hold-out flows: recall ' + fmtPct(h.recall) + ', false-positive rate ' + fmtPct(h.false_positive_rate) + '.';
+    ' (' + esc(ids.threshold_rule || "") + '). On its hold-out flows it has recall ' + fmtPct(h.recall) + ', false-positive rate ' + fmtPct(h.false_positive_rate) + '.';
   box.hidden = !cb.checked;
 }
 $("svc-ids").addEventListener("change", function () { $("svc-ids-box").hidden = !this.checked; });
@@ -961,7 +961,7 @@ setInterval(function () {
           return;
         }
       } catch (e) { /* fall back to the page */ }
-      toast('<b>' + esc(title) + '</b> ' + esc(what) + ' · <a href="' + (ok ? "#/session/" : "#/new/run/") + enc(w.id) + '">' + (ok ? "Open the results" : "See what happened") + '</a>');
+      toast('<b>' + esc(title) + '</b> ' + esc(what) + '. <a href="' + (ok ? "#/session/" : "#/new/run/") + enc(w.id) + '">' + (ok ? "Open the results" : "See what happened") + '</a>');
     });
   });
 }, 15000);
@@ -971,13 +971,13 @@ function renderProgress(j, target) {
   var p = j.progress || {}, prep = j.prepare, st = target.status, bar = target.bar;
   var label = { queued: "Queued", running: "Running", done: "Done", failed: "Failed", interrupted: "Failed", stopped: "Stopped" }[j.status] || j.status;
   st.textContent = label; st.className = "status " + (label === "Queued" ? "Running" : label);
-  target.models.textContent = (j.models || []).join("  vs  ") + (j.run_name ? " · " + j.run_name : "");
+  target.models.textContent = (j.models || []).join("  vs  ") + (j.run_name ? ", " + j.run_name : "");
   var pct = 0, text, phase;
   if (prep && prep.status !== "done") {
     phase = "Preparing your data";
     var pp = prep.progress || {};
-    text = (PHASES[pp.phase] || pp.phase || prep.status) + (pp.phase === "downloading" && pp.total ? " · " + Math.round(100 * pp.bytes / pp.total) + "%" : "") +
-      " — the benchmark starts as soon as the data is ready.";
+    text = (PHASES[pp.phase] || pp.phase || prep.status) + (pp.phase === "downloading" && pp.total ? ", " + Math.round(100 * pp.bytes / pp.total) + "%" : "") +
+      ". The benchmark starts as soon as the data is ready.";
     bar.classList.add("indet");
   } else {
     phase = j.status === "done" ? "Benchmark finished" : j.status === "queued" ? "Waiting for the GPU" : "Benchmarking";
@@ -986,19 +986,19 @@ function renderProgress(j, target) {
     if (downloading) {
       phase = "Downloading model";
       pct = dl.total_bytes ? Math.min(100, Math.round(100 * dl.done_bytes / dl.total_bytes)) : 0;
-      text = "Downloading " + short(dl.model) + (dl.count > 1 ? " (" + dl.index + " of " + dl.count + ")" : "") + " — " +
+      text = "Downloading " + short(dl.model) + (dl.count > 1 ? " (" + dl.index + " of " + dl.count + ")" : "") + ", " +
         fmtNum((dl.done_bytes || 0) / 1073741824, 1) + (dl.total_bytes ? " / " + fmtNum(dl.total_bytes / 1073741824, 1) : "") + " GB" +
-        (dl.total_bytes ? " · " + pct + "%" : "") + ". First use on this server; the benchmark starts when it finishes (not measured).";
+        (dl.total_bytes ? ", " + pct + "%" : "") + ". This is the first use on this server. The benchmark starts when it finishes, and the download is not measured.";
       bar.classList.toggle("indet", !dl.total_bytes);
     }
     if (downloading) { /* text and bar set above */ }
-    else if (j.status === "queued") text = "Queued — " + (j.queue_position ? j.queue_position + " job(s) ahead" : "starting next") + ". One benchmark runs at a time." +
+    else if (j.status === "queued") text = "Queued, " + (j.queue_position ? j.queue_position + " job(s) ahead" : "starting next") + ". One benchmark runs at a time." +
       (!CP ? "" : SETTINGS && SETTINGS.telegram_chat_id && SETTINGS.notify_on && SETTINGS.notify_on !== "none"
-        ? " You'll get a Telegram message when it finishes — you can close this page."
+        ? " You'll get a Telegram message when it finishes, so you can close this page."
         : " To get a Telegram message when it finishes, set your Telegram chat in Settings.");
-    else if (j.status === "running") text = (p.completed || 0) + " / " + (p.total || 0) + " flows · " + pct + "% · now running " + (p.current_model || "…");
-    else if (j.status === "done") text = (p.completed || 0) + " / " + (p.total || 0) + " flows · done";
-    else if (j.status === "stopped") text = "Stopped" + (j.stopped_by ? " by " + j.stopped_by : "") + " after " + (p.completed || 0) + " / " + (p.total || 0) + " flows — not scored.";
+    else if (j.status === "running") text = (p.completed || 0) + " / " + (p.total || 0) + " flows, " + pct + "%, now running " + (p.current_model || "…");
+    else if (j.status === "done") text = (p.completed || 0) + " / " + (p.total || 0) + " flows, done";
+    else if (j.status === "stopped") text = "Stopped" + (j.stopped_by ? " by " + j.stopped_by : "") + " after " + (p.completed || 0) + " / " + (p.total || 0) + " flows, not scored.";
     else text = (p.completed || 0) + " / " + (p.total || 0) + " flows completed before it stopped.";
     if (!downloading) bar.classList.toggle("indet", j.status === "running" && !p.completed);
   }
@@ -1049,7 +1049,7 @@ function startTelemetry(host, id) {
   function renderSteps() {
     q("tel-steps").innerHTML = TEL_STEPS.map(function (x, i) {
       var cls = st.fail && i === st.step ? "bad" : i < st.step || st.step === 6 ? "done" : i === st.step ? "now" : "";
-      var sub = i === 3 || i === 4 ? (st.model ? '<span class="small muted">' + esc(short(st.model)) + (st.of ? " · " + st.of : "") + '</span>' : "") : "";
+      var sub = i === 3 || i === 4 ? (st.model ? '<span class="small muted">' + esc(short(st.model)) + (st.of ? ", " + st.of : "") + '</span>' : "") : "";
       return '<li class="' + cls + '"' + (cls === "now" ? ' aria-current="step"' : "") + '><span class="dot" aria-hidden="true"></span><span>' + esc(x[1]) + sub + '</span></li>';
     }).join("");
   }
@@ -1057,7 +1057,7 @@ function startTelemetry(host, id) {
     var box = q("tel-gpu"), g = r.gpu;
     if (!g) {
       box.innerHTML = '<h3>GPU now</h3><p class="muted small" style="margin:0">' + (r.gpu_reason === "demo mode: no GPU"
-        ? "Demo mode: this run has no GPU, so there are no live GPU readings (nothing is simulated)."
+        ? "Demo mode. This run has no GPU, so there are no live GPU readings, and nothing is simulated."
         : r.gpu_reason === "finished" ? "The run has finished." : "No live GPU reading from the backend.") + '</p>';
       return;
     }
@@ -1074,21 +1074,21 @@ function startTelemetry(host, id) {
     if (st.dl && st.step === 2) {
       var d = st.dl, pct = d.total_bytes ? Math.min(100, 100 * d.done_bytes / d.total_bytes) : null;
       box.innerHTML = '<h3>Downloading from Hugging Face</h3><p class="small" style="margin:0 0 6px">' + esc(short(d.model)) + ': ' + fmtNum((d.done_bytes || 0) / 1073741824, 2) + (d.total_bytes ? " / " + fmtNum(d.total_bytes / 1073741824, 2) : "") + ' GB' +
-        (d.mb_per_s ? ' · ' + fmtNum(d.mb_per_s) + ' MB/s' : "") + '</p><div class="bar' + (pct == null ? " indet" : "") + '"><span style="width:' + (pct || 0) + '%"></span></div>';
+        (d.mb_per_s ? ', ' + fmtNum(d.mb_per_s) + ' MB/s' : "") + '</p><div class="bar' + (pct == null ? " indet" : "") + '"><span style="width:' + (pct || 0) + '%"></span></div>';
       return;
     }
     var f = st.lastFlow;
-    if (!f) { box.innerHTML = '<h3>Pipeline</h3><p class="muted small" style="margin:0">Each flow passes through the agents one after another; the latest flow appears here.</p>'; return; }
+    if (!f) { box.innerHTML = '<h3>Pipeline</h3><p class="muted small" style="margin:0">Each flow passes through the agents one after another. The latest flow appears here.</p>'; return; }
     var mine = st.flows.filter(function (x) { return x.model === f.model; }).slice(-10);
     var secs = mine.reduce(function (a, x) { return a + (x.total_s || 0); }, 0);
     var outTok = mine.reduce(function (a, x) { return a + (x.agents || []).reduce(function (b, y) { return b + (y.out || 0); }, 0); }, 0);
     var max = Math.max.apply(null, (f.agents || []).map(function (a) { return a.s || 0; })) || 1;
-    box.innerHTML = '<h3>Latest flow <span class="small muted">' + esc(short(f.model)) + ' · ' + esc(f.scenario) + ' · ' + f.n + ' of ' + f.of + '</span></h3>' +
+    box.innerHTML = '<h3>Latest flow <span class="small muted">' + esc(short(f.model)) + ', ' + esc(f.scenario) + ', ' + f.n + ' of ' + f.of + '</span></h3>' +
       '<div class="tel-agents">' + (f.agents || []).map(function (a) {
         return '<div class="tel-agent"><span class="small">' + esc(agName(a.agent)) + '</span><span class="track" aria-hidden="true"><span class="fill" style="width:' + Math.max(2, 100 * (a.s || 0) / max) + '%;background:' + agColor(a.agent) + '"></span></span>' +
-          '<span class="small mono">' + fmtTime(a.s) + ' · ' + fmtNum((a.in || 0) + (a.out || 0)) + ' tok</span></div>';
+          '<span class="small mono">' + fmtTime(a.s) + ', ' + fmtNum((a.in || 0) + (a.out || 0)) + ' tok</span></div>';
       }).join("") + '</div><p class="small muted" style="margin:6px 0 0">Last ' + mine.length + ' flow' + (mine.length === 1 ? "" : "s") + ' of this model: ' +
-      fmtTime(secs / (mine.length || 1)) + ' per flow' + (secs > 0 ? ' · ' + fmtNum(outTok / secs, 1) + ' output tokens/s' : "") + '.</p>';
+      fmtTime(secs / (mine.length || 1)) + ' per flow' + (secs > 0 ? ', ' + fmtNum(outTok / secs, 1) + ' output tokens/s' : "") + '.</p>';
   }
   function renderLog(fresh) {
     var log = q("tel-log"), stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 8;

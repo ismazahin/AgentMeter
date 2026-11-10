@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#102A5C">
 <title>AgentMeter</title>
-<meta name="description" content="AgentMeter benchmarks how efficiently open-source LLMs run a four-agent network triage pipeline: latency, GPU memory, tokens, cost and energy, per agent and per flow.">
+<meta name="description" content="AgentMeter benchmarks how efficiently open-source LLMs run a four-agent network triage pipeline. It measures latency, GPU memory, tokens, cost and energy for each agent and each flow.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Crect x=%270%27 y=%2712%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%274%27 y=%278%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%278%27 y=%274%27 width=%274%27 height=%274%27 fill=%27%239AA3AE%27/%3E%3Crect x=%2712%27 y=%270%27 width=%274%27 height=%274%27 fill=%27%23C65C34%27/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -427,7 +427,7 @@
         </div>
         <figcaption class="artifact-foot" id="gantt-cap">
           <span>Mean latency per flow<br><strong id="hero-lat">10.80 s</strong></span>
-          <span class="tag" title="Real RTX 3090 session, 20 flows. An exploratory run, not the locked study.">RTX 3090 · 20 flows · exploratory</span>
+          <span class="tag" title="Real RTX 3090 session, 20 flows. An exploratory run, not the locked study.">RTX 3090, 20 flows, exploratory</span>
         </figcaption>
       </figure>
     </div>
@@ -456,7 +456,7 @@
         <div>
           <h2>One fixed pipeline, four agents, every flow.</h2>
         </div>
-        <p class="lead">The pipeline triages network flows. It is only the workload: what AgentMeter studies is how much each model spends running it, broken down per agent.</p>
+        <p class="lead">The pipeline triages network flows. It is only the workload. What AgentMeter studies is how much each model spends running it, broken down per agent.</p>
       </div>
       <div class="pipe rv" id="pipe">
         <div class="rail" aria-hidden="true"><i></i><b></b></div>
@@ -477,7 +477,7 @@
         </div>
         <div class="stage" style="--c:var(--ag-4)">
           <span class="num">04</span><h3>Act</h3>
-          <p>Writes the verdict: class, MITRE ATT&amp;CK technique and justification.</p>
+          <p>Writes the verdict with the class, the MITRE ATT&amp;CK technique and a justification.</p>
           <div class="share"><div class="share-bar"><i class="grow" style="--w:29.7%;--d:.55s"></i></div><div class="share-lbl"><span>time share</span><b>30%</b></div></div>
         </div>
       </div>
@@ -493,7 +493,7 @@
           <p class="eyebrow">How it works</p>
           <h2>Upload traffic, pick two models, press Run.</h2>
         </div>
-        <p class="lead">A three-step wizard. The GPU is rented per run and downloads any model it doesn't have yet; you can stop a run at any time.</p>
+        <p class="lead">A three-step wizard. The GPU is rented per run and downloads any model it doesn't have yet. You can stop a run at any time.</p>
       </div>
       <div class="steps">
         <div class="step rv">
@@ -519,11 +519,11 @@
           <div class="frag" aria-hidden="true">
             <div class="run-h">Running Qwen2.5-7B <span>14 / 20 flows</span></div>
             <div class="prog"><i class="grow" style="--d:.3s"></i></div>
-            <div class="run-sub">NVIDIA GeForce RTX 3090 · 4-bit NF4</div>
+            <div class="run-sub">NVIDIA GeForce RTX 3090, 4-bit NF4</div>
           </div>
           <span class="num">Step 3</span>
           <h3>Run</h3>
-          <p>Live progress per flow. When it finishes you land on the session: verdict, ranking, per-agent costs and exports.</p>
+          <p>Live progress per flow. When it finishes you land on the session with the verdict, the ranking, the cost of each agent and the exports.</p>
         </div>
       </div>
     </div>
@@ -556,14 +556,14 @@
           </div>
         </li>
         <li>
-          <div class="m"><b>Latency</b><span>mean per flow · tie, p = 0.168</span></div>
+          <div class="m"><b>Latency</b><span>mean per flow, tie (p = 0.168)</span></div>
           <div class="pair">
             <div class="row"><i class="b grow" style="--w:100%;--c:var(--series-1)"></i><span class="v">10.80 s</span></div>
             <div class="row"><i class="b grow" style="--w:91.6%;--c:var(--series-2);--d:.1s"></i><span class="v">9.89 s</span></div>
           </div>
         </li>
         <li>
-          <div class="m"><b>Tokens</b><span>per flow · tie</span></div>
+          <div class="m"><b>Tokens</b><span>per flow, tie</span></div>
           <div class="pair">
             <div class="row"><i class="b grow" style="--w:100%;--c:var(--series-1)"></i><span class="v">3,401</span></div>
             <div class="row"><i class="b grow" style="--w:98.8%;--c:var(--series-2);--d:.1s"></i><span class="v">3,359</span></div>
@@ -653,7 +653,7 @@
 
 <footer>
   <div class="wrap foot-in">
-    <p>AgentMeter measures how efficiently LLMs run: speed, memory, tokens, cost, energy. Accuracy is context only; it isn't a threat detector.</p>
+    <p>AgentMeter measures how efficiently LLMs run. It looks at speed, memory, tokens, cost and energy. Accuracy is only context, and it isn't a threat detector.</p>
     <nav aria-label="Footer">
       <a href="docs/index.html">API docs</a>
       <a href="app#/login">Log in</a>

@@ -134,9 +134,9 @@ async function grab(p, click) {
     log(true, 'Ctrl+K reaches pages by name');
     await p.keyboard.press('Control+k'); await p.keyboard.press('Escape');
     log(await p.isHidden('#gs'), 'Esc closes the search');
-    log(/In short:/.test(await p.textContent('#tr-plain')), 'Repeatability: a plain-language summary first');
+    log(/In short,/.test(await p.textContent('#tr-plain')), 'Repeatability: a plain-language summary first');
     await p.goto(BASE + '/app.html#/compare?a=' + j1); await p.waitForSelector('#cmp-list input'); await p.click('#cmp-go'); await p.waitForSelector('#cmp-plain');
-    log(/In short:/.test(await p.textContent('#cmp-plain')), 'Compare: a plain-language summary of the result');
+    log(/In short,/.test(await p.textContent('#cmp-plain')), 'Compare: a plain-language summary of the result');
 
     // Methodology
     await p.goto(BASE + '/app.html#/help'); await p.waitForSelector('#help-method');

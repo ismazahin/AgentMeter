@@ -626,3 +626,10 @@ def test_plain_text_translates_drift_notes_and_full_names():
     t = call("plainText", "Stable over the run: no significant trend (Spearman rho -0.24, p = 0.25; last/first quarter medians 0.91x). "
              "mock:" + REAL_A + " — ok", [REAL_A])
     assert t == "Stable over the run: no trend beyond chance (p = 0.25; last quarter 0.91× the first). Mistral 7B: ok"
+
+
+def test_scorecard_answer_names_every_leader():
+    s = _report_session()
+    s["per_model"].append({"model": "microsoft/Phi-3-mini-4k-instruct", "efficiency": {"end_to_end": {"mean_latency_s": 2.05, "p95_latency_s": 3.05, "mean_tokens_per_flow": 800}}})
+    out = call("sectionAnswers", s)["How do the models compare, criterion by criterion?"]
+    assert out == "Mistral 7B is best (or within 5% of it) on 5 of 6 measured criteria; Phi-3 mini on 3."

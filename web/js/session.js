@@ -1018,7 +1018,7 @@ function pickerCard(res) {
   return '<form class="card" id="rec-picker" novalidate><h2>Best model for my priority</h2><p class="muted small" style="margin-top:0">Choose what matters most; optionally require a share of valid answers. The pick restates this session\'s measurements.</p>' +
     '<div class="row" style="margin-top:0"><div class="field"><label for="pick-priority">My priority</label><select id="pick-priority">' + PICK_LABELS.map(function (p) { return '<option value="' + p[0] + '">' + esc(p[1]) + '</option>'; }).join("") + '</select></div>' +
     '<div class="field"><label for="pick-valid">At least this share of valid answers <span class="hint">(%, optional)</span></label><input id="pick-valid" type="number" min="0" max="100" step="1" placeholder="e.g. 95"></div></div>' +
-    '<p class="verdict" id="pick-out" aria-live="polite"></p></form>';
+    '<p class="rsec-a" id="pick-out" aria-live="polite"></p></form>';
 }
 function wirePicker(res) {
   var sel = $("pick-priority");
@@ -1026,12 +1026,12 @@ function wirePicker(res) {
   function draw() {
     var v = $("pick-valid").value, r = INSIGHTS.recommend(res, sel.value, v === "" ? null : +v / 100);
     $("pick-out").innerHTML = !r.best ? "No model meets that" + (r.min_valid != null ? " share of valid answers (" + fmtPct(r.min_valid) + ")" : "") + "."
-      : r.tie ? 'Tie: <b>' + esc(short(r.best.model)) + '</b> and <b>' + esc(short(r.runner_up.model)) + '</b> are within 5% here (' + esc(fmtUnit(r.unit, r.best.value)) + ' and ' + esc(fmtUnit(r.unit, r.runner_up.value)) +
+      : r.tie ? 'Tie: <b>' + esc(nick(r.best.model)) + '</b> and <b>' + esc(nick(r.runner_up.model)) + '</b> are within 5% here (' + esc(fmtUnit(r.unit, r.best.value)) + ' and ' + esc(fmtUnit(r.unit, r.runner_up.value)) +
           '). Pick by your next priority.'
-      : '<b>' + esc(short(r.best.model)) + '</b> ' + esc(r.label) + ': ' + esc(fmtUnit(r.unit, r.best.value)) +
-        (r.runner_up ? ' — ' + (r.unit === "share" ? fmtNum(r.margin * 100, 1) + " points" : fmtNum(r.margin * 100, 0) + "%") + ' ahead of ' + esc(short(r.runner_up.model)) + ' (' + esc(fmtUnit(r.unit, r.runner_up.value)) + ')' : "") + '.' +
-        (r.excluded.length ? ' <span class="muted">Left out for too few valid answers: ' + esc(r.excluded.map(short).join(", ")) + '.</span>' : "") +
-        (r.no_data.length ? ' <span class="muted">No data for: ' + esc(r.no_data.map(short).join(", ")) + '.</span>' : "");
+      : '<b>' + esc(nick(r.best.model)) + '</b> ' + esc(r.label) + ': ' + esc(fmtUnit(r.unit, r.best.value)) +
+        (r.runner_up ? ', ' + (r.unit === "share" ? fmtNum(r.margin * 100, 1) + " points" : fmtNum(r.margin * 100, 0) + "%") + ' ahead of ' + esc(nick(r.runner_up.model)) + ' (' + esc(fmtUnit(r.unit, r.runner_up.value)) + ')' : "") + '.' +
+        (r.excluded.length ? ' <span class="muted">Left out for too few valid answers: ' + esc(r.excluded.map(nick).join(", ")) + '.</span>' : "") +
+        (r.no_data.length ? ' <span class="muted">No data for: ' + esc(r.no_data.map(nick).join(", ")) + '.</span>' : "");
   }
   sel.addEventListener("change", draw); $("pick-valid").addEventListener("input", draw);
   $("rec-picker").addEventListener("submit", function (ev) { ev.preventDefault(); });

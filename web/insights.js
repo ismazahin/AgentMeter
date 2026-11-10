@@ -853,10 +853,12 @@
       var wins = sc.models.map(function (m) {
         return { model: m, n: dims.filter(function (d) { return d.cells.some(function (c) { return c.model === m && c.grade === "best"; }); }).length };
       }).sort(function (a, b) { return b.n - a.n; });
-      out["How do the models compare, criterion by criterion?"] = wins[0].n === dims.length && wins[1] && wins[1].n === dims.length
-        ? "Every model is within 5% of the best on all " + dims.length + " measured criteria."
-        : nick(wins[0].model) + " is best (or within 5% of it) on " + wins[0].n + " of " + dims.length + " measured criteria" +
-          (wins[1] ? "; " + nick(wins[1].model) + " on " + wins[1].n : "") + ".";
+      var lead = wins.filter(function (w) { return w.n === wins[0].n; }), next = wins.filter(function (w) { return w.n < wins[0].n; })[0];
+      out["How do the models compare, criterion by criterion?"] = lead.length === wins.length
+        ? "Every model is best (or within 5% of it) on " + (wins[0].n === dims.length ? "all " + dims.length : wins[0].n + " of " + dims.length) + " measured criteria."
+        : names(lead.map(function (w) { return w.model; })) + (lead.length > 1 ? " are" : " is") + " best (or within 5% of it) on " +
+          (wins[0].n === dims.length ? "all " + dims.length : wins[0].n + " of " + dims.length) + " measured criteria" +
+          (next ? "; " + nick(next.model) + " on " + next.n : "") + ".";
     }
     var cp = criteriaProfile(res);
     if (cp.rows.length) {

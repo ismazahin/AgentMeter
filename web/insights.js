@@ -793,8 +793,14 @@
     t = t.replace(/\s*\((?:Kruskal-Wallis|Mann-Whitney|Welch'?s? t-test|t-test)\s*p\s*=\s*([\d.eE-]+)\s*(?:>=|<|>|<=)\s*0?\.05\)/g, " (p = $1)")
          .replace(/\bnot statistically significant\b/g, "could be chance")
          .replace(/\bstatistically significant\b/g, "larger than chance")
+         .replace(/Spearman rho -?[\d.]+,\s*/g, "")
+         .replace(/\bno significant trend\b/g, "no trend beyond chance")
+         .replace(/last\/first quarter medians ([\d.]+)x/g, "last quarter $1\u00d7 the first")
+         .replace(/latency follows a rank trend over the run/g, "latency drifts a little over the run")
          .replace(/\s+\u2014\s+/g, ": ").replace(/\u2014/g, ", ");
-    (models || []).map(function (m) { return [short(m), nick(m)]; }).filter(function (x) { return x[0] !== x[1]; })
+    var pairs = [];
+    (models || []).forEach(function (m) { var n = nick(m); pairs.push(["mock:" + bare(m), n], [bare(m), n], [short(m), n]); });
+    pairs.filter(function (x) { return x[0] !== x[1]; })
       .sort(function (a, b) { return b[0].length - a[0].length; })
       .forEach(function (x) { t = t.split(x[0]).join(x[1]); });
     return t;
@@ -820,7 +826,265 @@
             pct((slow[0].drift.ratio || 1) - 1, 0) + " longer than the first. Check the GPU temperature (Cost & Energy)."
         : fast.map(function (m) { return nick(m.model); }).join(" and ") + " sped up after the first flows: a warm-up, not a problem.";
     }
+    try { reportAnswers(res, out); } catch (e) { /* a malformed block: its sections keep their own introduction */ }
     return out;
+  }
+
+  // ---- one plain answer line per report section (restates stored numbers; never a score) ----
+  function andList(xs) { return xs.length < 2 ? xs.join("") : xs.slice(0, -1).join(", ") + " and " + xs[xs.length - 1]; }
+  function names(ms) { return andList(ms.map(function (m) { return nick(m); })); }
+  function int(v) { return Math.round(v).toLocaleString("en-US"); }
+  function usd(v) { return v == null ? "—" : "$" + (v < 0.01 ? v.toFixed(4) : v < 10 ? v.toFixed(2) : int(v)); }
+  function ftime(v) { v = Math.abs(v); return v > 0 && v < 0.0001 ? (v * 1e6).toFixed(1) + " µs" : time(v); }
+  function gb(mb) { return mb >= 1024 ? (mb / 1024).toFixed(1) + " GB" : int(mb) + " MB"; }
+  function minBy(xs, f) { var b = null; xs.forEach(function (x) { var v = f(x); if (v != null && (b == null || v < f(b))) b = x; }); return b; }
+  function maxBy(xs, f) { return minBy(xs, function (x) { var v = f(x); return v == null ? null : -v; }); }
+  var CRIT_WORD = { accuracy: "accuracy", latency: "speed", vram: "GPU memory", tokens: "tokens" };
+
+  function reportAnswers(res, out) {
+    var pm = res.per_model || [], many = pm.length > 1, rel = res.relative_comparison || null;
+    var orl = ((res.output_reliability || {}).per_model) || [];
+    var demo = (res.session || {}).provider === "mock" || (res.environment || {}).provider === "mock";
+    var e2e = function (m) { return ((m.efficiency || {}).end_to_end) || {}; };
+
+    // Overview
+    var sc = scorecard(res), dims = sc.dims.filter(function (d) { return d.cells.some(function (c) { return c.grade !== "no_data"; }); });
+    if (many && dims.length) {
+      var wins = sc.models.map(function (m) {
+        return { model: m, n: dims.filter(function (d) { return d.cells.some(function (c) { return c.model === m && c.grade === "best"; }); }).length };
+      }).sort(function (a, b) { return b.n - a.n; });
+      out["How do the models compare, criterion by criterion?"] = wins[0].n === dims.length && wins[1] && wins[1].n === dims.length
+        ? "Every model is within 5% of the best on all " + dims.length + " measured criteria."
+        : nick(wins[0].model) + " is best (or within 5% of it) on " + wins[0].n + " of " + dims.length + " measured criteria" +
+          (wins[1] ? "; " + nick(wins[1].model) + " on " + wins[1].n : "") + ".";
+    }
+    var cp = criteriaProfile(res);
+    if (cp.rows.length) {
+      var meet = cp.criteria.filter(function (k) { return !cp.missing[k]; }).map(function (k) {
+        var n = cp.rows.filter(function (r) { return r.scores[k] != null && r.scores[k] >= 0.999; }).length;
+        return CRIT_WORD[k] + ": " + (n === cp.rows.length ? (n > 1 ? "all " + n : "yes") : n ? n + " of " + cp.rows.length : "none");
+      });
+      if (meet.length) out["How does each model score on each criterion?"] = "Models that meet the study target, per criterion: " + meet.join("; ") + ".";
+    }
+    var gh = res.gpu_health || {}, nFlows = num((res.session || {}).n_flows);
+    var small = nFlows != null && nFlows < 50 ? " With " + nFlows + " flows, small differences could still be chance." : "";
+    if (demo) out["Can these results be trusted?"] = "Not as measurements: this is a demo run with no GPU, so the numbers are simulated.";
+    else if (gh.available && gh.status === "check") {
+      var bad = (gh.per_model || []).filter(function (m) { return m.status === "check"; }).map(function (m) { return m.model; });
+      out["Can these results be trusted?"] = "With care: the GPU was not in a normal state while " + names(bad) + " ran, so " + (bad.length > 1 ? "their" : "its") + " timings may reflect the GPU." + small;
+    } else if (gh.available) out["Can these results be trusted?"] = "Yes: the GPU ran normally for every model, and every model saw the same flows." + small;
+    else out["Can these results be trusted?"] = "Every model saw the same flows on the same GPU; the GPU's state was not recorded, so a slowdown on its side cannot be ruled out." + small;
+
+    // Ranking
+    var w = ((res.phase8_efficiency_only || {}).weights) || null;
+    if (w) {
+      var ws = Object.keys(w).filter(function (k) { return num(w[k]); }).sort(function (a, b) { return w[b] - w[a]; });
+      if (ws.length) out["How much does each criterion count?"] = (CRIT_WORD[ws[0]] || ws[0]).replace(/^./, function (c) { return c.toUpperCase(); }) + " counts most (" + pct(w[ws[0]], 0) + ")" +
+        (ws.length > 1 ? ", then " + andList(ws.slice(1).map(function (k) { return (CRIT_WORD[k] || k) + " (" + pct(w[k], 0) + ")"; })) : "") + ".";
+    }
+    var rs = res.rank_stability;
+    if (rs && (rs.per_model || []).length > 1) {
+      var top = (rs.per_model || []).slice().sort(function (a, b) { return (b.p_first || 0) - (a.p_first || 0); });
+      var nb = rs.n_boot ? int(rs.n_boot) + " " : "";
+      out["How sure is the ranking?"] = (top[0].p_first || 0) >= 0.95 ? "Very sure: " + nick(top[0].model) + " comes first in " + pct(top[0].p_first, 0) + " of " + nb + "reshuffles of the flows."
+        : (top[0].p_first || 0) >= 0.5 ? "Fairly: " + nick(top[0].model) + " comes first in " + pct(top[0].p_first, 0) + " of " + nb + "reshuffles of the flows; " + nick(top[1].model) + " in " + pct(top[1].p_first, 0) + "."
+        : "Not sure: no model comes first in most reshuffles of the flows (" + nick(top[0].model) + " leads in " + pct(top[0].p_first, 0) + ").";
+    }
+    var st = weightStability(res), live = st.rows.filter(function (r) { return !r.no_data; });
+    if (st.models.length > 1 && live.length) {
+      var flips = live.filter(function (r) { return r.changes; });
+      out["How far can the weights move?"] = !flips.length ? "Any distance: no single weight, moved anywhere from 0 to 1, changes who comes first."
+        : "Only " + andList(flips.map(function (r) { return CRIT_WORD[r.criterion]; })) + " can change who comes first, and only if " + (flips.length > 1 ? "those weights move" : "that weight moves") + " a long way from the stored value.";
+      var near = flips.filter(function (r) { return r.stable && (r.stored - r.stable[0] < 0.1 || r.stable[1] - r.stored < 0.1); });
+      if (near.length) out["How far can the weights move?"] = "Not far: a small change to the " + CRIT_WORD[near[0].criterion] + " weight already changes who comes first.";
+    }
+    var fr = efficiencyFrontier(res);
+    if (fr.points.length > 1) {
+      var on = fr.points.filter(function (p) { return p.frontier; }).map(function (p) { return p.model; });
+      out["Which models are never beaten on two costs at once?"] = on.length === fr.points.length ? "All of them: each model is better than the others on speed or on " + fr.y_label.toLowerCase().replace(/\s*\(.*\)$/, "") + "."
+        : names(on) + (on.length > 1 ? " are" : " is") + " never beaten on both speed and " + fr.y_label.toLowerCase().replace(/\s*\(.*\)$/, "") + "; every other model is.";
+    }
+
+    // Output reliability
+    if (orl.length) {
+      var lowv = minBy(orl, function (m) { return num(m.valid_rate); });
+      if (lowv) out["Did every flow get a usable answer?"] = orl.every(function (m) { return m.valid_rate === 1; }) ? (many ? "Yes: every model" : "Yes: the model") + " gave a usable answer for every flow."
+        : "Not always: " + nick(lowv.model) + " gave a usable answer for " + pct(lowv.valid_rate, 0) + " of flows" + (many ? ", the lowest" : "") + ". The rest came back empty, cut off or with an unknown label.";
+      var cons = orl.filter(function (m) { return m.verdict_consistency && m.verdict_consistency.checked; });
+      if (cons.length) {
+        var lc = minBy(cons, function (m) { return num(m.verdict_consistency.rate); }), vc = lc && lc.verdict_consistency;
+        if (vc) out["Do the explanations match the verdict?"] = vc.rate === 1 ? (many ? "Yes: every model's" : "Yes: every") + " explanation names the class that was chosen."
+          : "Mostly: " + (many ? "at worst, " : "") + nick(lc.model) + "'s explanation names a different class in " + vc.disagree + " of " + vc.checked + " flows.";
+      }
+      var fails = orl.map(function (m) { return { model: m.model, n: (m.empty || 0) + (m.truncated || 0) + (m.unparseable || 0), t: m.truncated || 0 }; });
+      var wf = maxBy(fails, function (f) { return f.n; });
+      out["Where do answers fail?"] = !wf || !wf.n ? "Nowhere: no empty answers, no answers cut off at the token budget, no unknown labels."
+        : nick(wf.model) + " fails most: " + wf.n + " answer" + (wf.n === 1 ? "" : "s") + " empty, cut off or unreadable" + (wf.t ? " (" + wf.t + " hit the token budget)" : "") + ".";
+      var fm = orl.filter(function (m) { return m.format && m.format.checked; });
+      if (fm.length) {
+        var lf = minBy(fm, function (m) { return num(m.format.exact_rate); }) || fm[0], mi = orl.filter(function (m) { return m.mitre && m.mitre.checked; });
+        var mitreOk = mi.length && mi.every(function (m) { return m.mitre.consistent_rate === 1; });
+        if (num(lf.format.exact_rate) != null) out["Are the answers consistent?"] = (lf.format.exact_rate === 1 ? "The label came back exactly as asked every time" : "The label needed tidying before it matched in " + pct(1 - lf.format.exact_rate, 0) + " of flows" + (many ? " (" + nick(lf.model) + ", the most)" : "")) +
+          (mi.length ? (mitreOk ? "; the same label always got the same ATT&CK technique." : "; the ATT&CK technique for a label sometimes changed.") : ".");
+      }
+    }
+    var ids = res.ids;
+    if (ids && num(ids.n_flows_in)) out["How did the IDS and the LLM split the work?"] = "The IDS cleared " + int(ids.n_flows_in - (ids.n_alerts || 0)) + " of " + int(ids.n_flows_in) +
+      " flows on its own and sent " + int(ids.n_alerts || 0) + " to the LLM, saving " + pct(ids.llm_calls_saved_share, 0) + " of LLM calls.";
+    var as = res.accuracy_stats;
+    if (as && as.labelled && (as.per_model || []).length) {
+      var ba = maxBy(as.per_model, function (m) { return num(m.accuracy); }) || { model: as.per_model[0].model, accuracy: null }, real = (as.pairs || []).filter(function (p) { return p.differ; });
+      var ci = ba.ci95 ? " (likely between " + pct(ba.ci95[0], 0) + " and " + pct(ba.ci95[1], 0) + ")" : "";
+      if (ba.accuracy != null) out["Are the accuracy differences real?"] = !many ? nick(ba.model) + " is right on " + pct(ba.accuracy, 0) + " of flows" + ci + "."
+        : real.length ? nick(ba.model) + " is most accurate at " + pct(ba.accuracy, 0) + ci + "; " + real.length + " of " + as.pairs.length + " model pairs differ by more than chance."
+        : nick(ba.model) + " scores highest at " + pct(ba.accuracy, 0) + ci + ", but no difference between models is beyond chance on these flows.";
+    }
+    var cf = (res.phase7 || {}).confusion;
+    if (cf && Object.keys(cf).length) {
+      var mix = {};
+      Object.keys(cf).forEach(function (m) { Object.keys(cf[m]).forEach(function (t) { Object.keys(cf[m][t]).forEach(function (p) {
+        if (p !== t && cf[m][t][p]) mix[t + "\u0000" + p] = (mix[t + "\u0000" + p] || 0) + cf[m][t][p]; }); }); });
+      var mk = Object.keys(mix).sort(function (a, b) { return mix[b] - mix[a]; })[0];
+      if (mk) { var tp = mk.split("\u0000"); out["Which classes does each model mix up?"] = "The most common mistake: " + tp[0] + " flows answered as " + tp[1] + " (" + mix[mk] + " times" + (Object.keys(cf).length > 1 ? " across the models" : "") + ")."; }
+      else out["Which classes does each model mix up?"] = "None: every answer matched its flow's class.";
+    }
+    var tri = ((res.triage || {}).per_model || []).filter(function (m) { return num(m.n_attacks); });
+    if (tri.length) {
+      var bm = minBy(tri, function (m) { return num(m.missed_attack_rate); }) || tri[0];
+      var gated = tri.filter(function (m) { return m.gate; }), passed = gated.filter(function (m) { return m.gate.passed === true; });
+      out["What would an analyst have to do?"] = (many ? nick(bm.model) + " misses the fewest attacks: " : "It misses ") + bm.missed_attacks + " of " + bm.n_attacks + " would be dismissed." +
+        (gated.length ? " " + (passed.length ? names(passed.map(function (m) { return m.model; })) + (passed.length > 1 ? " pass" : " passes") : (gated.length > 1 ? "No model passes" : "It does not pass")) + " the triage gate." : "");
+      var soc = tri.map(function (m) { return socProjection(m, 0.99, 10000); }).filter(Boolean);
+      if (soc.length) {
+        var sq = minBy(soc, function (r) { return r.analyst_queue; });
+        if (sq) out["What would this look like in a real SOC?"] = "Out of 10,000 flows with 1% attacks, " + nick(sq.model) + " would put the fewest in front of an analyst: about " + int(sq.analyst_queue) +
+          ", with about " + int(sq.missed_attacks) + " of the 100 attacks missed.";
+      }
+    }
+
+    // Performance
+    var lat = rel && (rel.metrics || []).filter(function (m) { return m.metric === "mean_latency_s"; })[0];
+    if (lat && lat.available) out["Which model is faster, and by how much?"] = lat.winner === "tie" ? "Neither: no model is clearly faster per flow" + (/significant/.test(lat.note || "") ? "; the small gap could be chance." : " (" + (lat.note || "within the tie range") + ").")
+      : nick(lat.winner) + " is " + Math.round(lat.pct_better) + "% faster per flow than " + nick(lat.runner_up || rel.models.filter(function (m) { return m !== lat.winner; })[0]) + ".";
+    var caps = pm.map(function (m) { return { model: m.model, mean: num(e2e(m).mean_latency_s) }; }).filter(function (x) { return x.mean; });
+    if (caps.length && !demo) {
+      var cf1 = minBy(caps, function (x) { return x.mean; }), cs1 = maxBy(caps, function (x) { return x.mean; });
+      out["How many flows can one GPU handle?"] = "One flow at a time, about " + int(86400 / cf1.mean) + " flows a day with " + nick(cf1.model) +
+        (many && cs1 !== cf1 ? " and " + int(86400 / cs1.mean) + " with " + nick(cs1.model) : "") + ". Try your own arrival rate below.";
+    }
+    var cs = ((res.cold_start || {}).per_model || []).filter(function (m) { return num(m.first_flow_ratio); });
+    if (cs.length) {
+      var slowFirst = maxBy(cs, function (m) { return m.first_flow_ratio; }), load = maxBy(cs, function (m) { return num(m.load_s); });
+      if (slowFirst) out["How much does the first flow cost?"] = (load && num(load.load_s) >= 1 ? "Loading took up to " + time(load.load_s) + " (" + nick(load.model) + "). " : "") +
+        (slowFirst.first_flow_ratio >= 1.5 ? "The first flow was " + slowFirst.first_flow_ratio.toFixed(1) + "× slower than the rest for " + nick(slowFirst.model) + ", so warm the model up before real traffic."
+          : "The first flow was about as fast as the rest.");
+    }
+    var dr = ((res.drivers || {}).per_model || []);
+    if (dr.length) {
+      var tally = {};
+      dr.forEach(function (m) {
+        var f = (m.features || []).filter(function (x) { return x.p_latency != null && x.p_latency < 0.05; })
+          .sort(function (a, b) { return Math.abs(b.rho_latency) - Math.abs(a.rho_latency); })[0];
+        if (f) { var k = f.feature + (f.rho_latency > 0 ? "\u0001+" : "\u0001-"); tally[k] = (tally[k] || 0) + 1; }
+      });
+      var tk = Object.keys(tally).sort(function (a, b) { return tally[b] - tally[a]; })[0];
+      if (tk) { var fp = tk.split("\u0001"); out["Which flows are slow, and why?"] = "Flows with " + (fp[1] === "+" ? "a higher" : "a lower") + " " + fp[0] + " tend to take longer" + (dr.length > 1 ? " (the strongest link for " + tally[tk] + " of " + dr.length + " models)" : "") + ". A link, not proof of cause."; }
+      else out["Which flows are slow, and why?"] = "No flow feature goes with a longer answer time beyond chance: slow flows look like the rest.";
+      var sl = dr.filter(function (m) { return m.input_scaling && num(m.input_scaling.slope_s_per_1k_tokens) != null; });
+      if (sl.length) {
+        var ss = maxBy(sl, function (m) { return m.input_scaling.slope_s_per_1k_tokens; }) || sl[0], s1 = ss.input_scaling.slope_s_per_1k_tokens;
+        out["Do bigger prompts make it slower?"] = s1 <= 0 ? "No: longer prompts did not take longer on these flows." : "Slightly: 1,000 more input tokens add about " + time(s1) + " per flow" + (many ? " for " + nick(ss.model) + ", the most sensitive" : "") + ".";
+      }
+    }
+    var mem = ((res.memory || {}).per_model || []).filter(function (m) { return num(m.total_peak_mb); });
+    if (mem.length) {
+      var ml = minBy(mem, function (m) { return m.total_peak_mb; }), mh = maxBy(mem, function (m) { return m.total_peak_mb; });
+      out["How much GPU memory does it need?"] = nick(ml.model) + (many && mh !== ml ? " needs the least: " + gb(ml.total_peak_mb) + " at its peak; " + nick(mh.model) + " the most: " + gb(mh.total_peak_mb) + "." : " needs " + gb(ml.total_peak_mb) + " at its peak.");
+    } else if (((res.memory || {}).per_model || []).length) out["How much GPU memory does it need?"] = "Not measured in this run (" + (((res.memory.per_model[0] || {}).reason) || "no GPU memory readings") + ").";
+    var es = effectSizes(res), el = es && es.rows.filter(function (r) { return r.metric === "latency_s" && r.available; })[0];
+    if (el) {
+      var fa = el.diff > 0 ? es.model_b : es.model_a, sa = el.diff > 0 ? es.model_a : es.model_b;
+      out["Is the difference real?"] = !el.excludes_zero ? "Not clearly: " + nick(es.model_a) + " and " + nick(es.model_b) + " differ by " + ftime(el.diff) + " per flow, which could be chance."
+        : nick(fa) + " is faster than " + nick(sa) + " by about " + ftime(el.diff) + " per flow, a " + el.magnitude + " difference that is not chance.";
+    }
+    var ssz = sampleSize(res);
+    if (ssz && !ssz.single) {
+      var n5 = (ssz.needed.filter(function (x) { return x.target === 0.05; })[0] || {}).flows;
+      out["How many flows are needed to tell models apart?"] = (ssz.gap_detectable ? "Enough here: the two fastest models differ by " + pct(ssz.gap_rel, 0) + ", more than the " + pct(ssz.mde_rel, 0) + " these flows can detect."
+        : "More than this run: the two fastest models differ by " + pct(ssz.gap_rel, 0) + ", below the " + pct(ssz.mde_rel, 0) + " these flows can detect.") +
+        (n5 ? " Telling apart a 5% gap takes about " + int(n5) + " flows per model." : "");
+    }
+
+    // Agent analysis
+    var pa = ((res.per_agent || {}).table) || [], byM = {};
+    pa.forEach(function (r) { var k = bare(r.model); (byM[k] = byM[k] || []).push(r); });
+    Object.keys(byM).forEach(function (k) {
+      var rows = byM[k], tot = rows.reduce(function (s, r) { return s + (num(r.mean_wall_s) || 0); }, 0), d = maxBy(rows, function (r) { return num(r.mean_wall_s); });
+      if (d && tot) out["@agent:" + k] = "The " + d.agent_name + " step takes the most time: " + pct(d.mean_wall_s / tot, 0) + " of each flow (" + time(d.mean_wall_s) + ").";
+    });
+    var hg = handoffGraph(res);
+    if (hg && hg.per_model.length) {
+      var hx = maxBy(hg.per_model, function (m) { return m.resent_tokens; }), hn = minBy(hg.per_model, function (m) { return m.resent_tokens; });
+      if (hx && hn) out["What do agents pass to each other?"] = "Each flow re-sends about " + int(hx.resent_tokens) + " tokens of earlier answers to later agents" +
+        (many && Math.round(hn.resent_tokens) !== Math.round(hx.resent_tokens) ? " with " + nick(hx.model) + " (" + int(hn.resent_tokens) + " with " + nick(hn.model) + ")" : "") + ".";
+    }
+    var pc = ((res.prompt_composition || {}).per_model || []);
+    if (pc.length) {
+      var t = { input: 0, feat: 0, sys: 0, ho: 0 };
+      pc.forEach(function (m) { (m.agents || []).forEach(function (a) { t.input += a.input_tokens || 0; t.feat += a.feature_tokens || 0; t.sys += a.system_tokens || 0; t.ho += a.handoff_tokens || 0; }); });
+      if (t.input) out["What are the prompts made of?"] = "Mostly the flow itself: its features are " + pct(t.feat / t.input, 0) + " of every prompt, the agents' instructions " + pct(t.sys / t.input, 0) +
+        " and earlier answers " + pct(t.ho / t.input, 0) + ".";
+    }
+    var ra = removeAgent(res);
+    if (ra.per_model.length) {
+      var bestCut = null;
+      // its own call's share of the flow: the part of the estimate that is measured, not modelled
+      var own = {}; (((res.agents || {}).per_model) || []).forEach(function (m) { (m.agents || []).forEach(function (a) { own[bare(m.model) + "|" + a.agent] = num(a.latency_share); }); });
+      ra.per_model.forEach(function (m) { m.agents.forEach(function (a) {
+        var sh = own[m.model + "|" + a.agent] != null ? own[m.model + "|" + a.agent] : (m.flow_s ? (a.saves_s || 0) / m.flow_s : null);
+        if (a.removable && sh != null && sh <= 1 && (!bestCut || sh > bestCut.saves_share)) bestCut = { model: m.model, agent: a.agent, saves_share: sh }; }); });
+      if (bestCut) out["What if one agent were removed?"] = "Removing the " + bestCut.agent + " agent would save the most: at least " + pct(bestCut.saves_share, 0) + " of each flow" +
+        (many ? " (" + nick(bestCut.model) + ")" : "") + ". The " + ra.label_agent + " agent gives the answer, so it cannot go.";
+    }
+    var bt = budgetTuning(res), adv = { raise: [], lower: [] };
+    bt.forEach(function (m) { m.agents.forEach(function (a) { if (adv[a.advice]) adv[a.advice].push(a.agent); }); });
+    var uniq = function (xs) { return xs.filter(function (x, i) { return xs.indexOf(x) === i; }); };
+    if (bt.length) out["Are the token budgets right?"] = adv.raise.length ? "Raise the budget for " + andList(uniq(adv.raise)) + ": answers there get cut off." + (adv.lower.length ? " " + andList(uniq(adv.lower)) + " could have a smaller one." : "")
+      : adv.lower.length ? "They are generous: " + andList(uniq(adv.lower)) + " never use half of theirs, so a smaller budget would do." : "Yes: no answer is cut off and no budget is far too big.";
+
+    // Cost & energy
+    var ce = ((res.cost_energy || {}).per_model || []), cm = ce.filter(function (r) { return num(r.cost_per_1k_flows_usd) != null; });
+    if (cm.length) {
+      var cc = minBy(cm, function (r) { return r.cost_per_1k_flows_usd; }), cx = maxBy(cm, function (r) { return r.cost_per_1k_flows_usd; });
+      out["What does it cost per 1,000 flows?"] = nick(cc.model) + (many && cx !== cc ? " is cheapest at " + usd(cc.cost_per_1k_flows_usd) + " per 1,000 flows; " + nick(cx.model) + " costs " + usd(cx.cost_per_1k_flows_usd) + "." : " costs " + usd(cc.cost_per_1k_flows_usd) + " per 1,000 flows.");
+    } else if (ce.length) out["What does it cost per 1,000 flows?"] = "Not measured in this run (" + (ce[0].cost_reason || ce[0].cost_status || "no price") + ").";
+    var ee = energyEfficiency(res);
+    if (ee.measured) {
+      var eb = maxBy(ee.models, function (r) { return r.flows_per_kwh; });
+      if (eb) out["How energy-efficient is each model?"] = nick(eb.model) + (many ? " does the most work per unit of energy: " : " handles ") + int(eb.flows_per_kwh) + " flows per kWh.";
+    } else if (ee.models.length) out["How energy-efficient is each model?"] = "Not measured in this run (" + (ee.models[0].reason || "no GPU power readings") + ").";
+    var ic = idleCost(res);
+    if (ic.measured && ic.models.length) {
+      var iw = maxBy(ic.models, function (m) { return m.low_util_share; });
+      if (iw) out["How much does an idle GPU cost?"] = iw.low_util_share != null && iw.low_util_share >= 0.1 ? "The GPU sat nearly idle for " + pct(iw.low_util_share, 0) + " of " + nick(iw.model) + "'s run: time paid for but not used."
+        : "Very little: the GPU was busy for almost all of every model's run.";
+    }
+    var cpv = costPerValid(res);
+    if (cpv && cpv.length) {
+      var lowValid = minBy(cpv, function (r) { return r.valid_rate; });
+      if (lowValid) out["What does each usable answer cost?"] = lowValid.valid_rate === 1 ? "The same as a flow: every flow ended with a usable answer."
+        : lowValid.flows_per_valid ? nick(lowValid.model) + " needs " + lowValid.flows_per_valid.toFixed(2) + " flows per usable answer, so each one costs " + pct(lowValid.flows_per_valid - 1, 0) + " more than a flow." : null;
+    }
+
+    // Recommendations
+    var df = deploymentFit(res), dm = df.models.filter(function (m) { return m.cells.some(function (c) { return c.result !== "no_data"; }); });
+    if (dm.length) {
+      var dbest = maxBy(dm, function (m) { return m.passes; }), checked = dbest.cells.filter(function (c) { return c.result !== "no_data"; }).length;
+      var allSame = dm.every(function (m) { return m.passes === dbest.passes; });
+      out["Which deployment setups does each model fit?"] = allSame ? (dbest.passes === checked ? "Every model fits all " : "Every model fits " + dbest.passes + " of the ") + checked + " setups that could be checked."
+        : nick(dbest.model) + " fits the most: " + dbest.passes + " of the " + checked + " setups that could be checked.";
+    }
+    Object.keys(out).forEach(function (k) { if (out[k] == null) delete out[k]; else out[k] = String(out[k]).replace(/\s+—\s+/g, ": "); });
   }
 
   // The takeaway at the top of each session tab: the answer in one short sentence (h), what it means (s),

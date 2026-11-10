@@ -648,6 +648,10 @@
   body.solo .app { min-height: 0 !important; }
   body.solo .panel > h2 .hint, body.solo .panel h2 > .hint { display: none !important; }      /* explained by its ? help */
   body.solo .panel > h2, body.solo .hcard h3 { font-family: var(--sans); font-weight: 650; font-size: 19px; letter-spacing: 0; }
+  /* inside a session report: the same section look as the app (no box, a hairline above, serif question) */
+  html.embed:has(body.solo), body.solo, body.solo .app, body.solo .main { background: transparent !important; }
+  body.solo .panel[data-part] { background: transparent; border: 0; border-top: 1px solid var(--line); border-radius: 0; box-shadow: none; padding: 28px 0 0; margin: 28px 0 0; }
+  body.solo .panel[data-part] > h2 { font-family: var(--serif); font-weight: 400; font-size: 23px; line-height: 1.25; }
   body.solo .panel, body.solo .highlights { margin-left: 0; margin-right: 0; }
   body.solo .highlights { margin-bottom: 16px; }
   html.embed body { --sans: "Inter", "Aptos", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -2376,6 +2380,7 @@
 
 <script src="saw.js"></script>
 <script src="report.js"></script>
+<script src="insights.js"></script>
 <script>
 (function () {
   "use strict";
@@ -3713,6 +3718,38 @@
     });
   }
   var SOLO = null;
+  // inside a session report: questions as headings and everyday model names, like the app's sections
+  var PART_Q = { cov: "How predictable is each model?", prefill: "Where does the time go inside one call?",
+                 throughput: "How many tokens per second?", perclass: "Which attack classes are slower?" };
+  function soloHeadings() {
+    Object.keys(PART_Q).forEach(function (k) {
+      Array.prototype.forEach.call(document.querySelectorAll('[data-part="' + k + '"] > h2'), function (h) {
+        var t = null;
+        Array.prototype.forEach.call(h.childNodes, function (n) { if (!t && n.nodeType === 3 && n.nodeValue.trim()) t = n; });
+        if (t && t.nodeValue.trim() !== PART_Q[k]) t.nodeValue = PART_Q[k] + " ";
+      });
+    });
+  }
+  function soloNames() {
+    if (!window.INSIGHTS || !state.data) return;
+    var I = window.INSIGHTS, d = state.data, pairs = {};
+    ((d.per_model || []).map(function (m) { return m.model; }).concat(((d.phase8 || {}).normalised || []).map(function (m) { return m.model; }))).forEach(function (m) {
+      if (!m) return;
+      var b = I.bare(m), sh = I.short(m), n = I.nick(m);
+      [m, "mock:" + b, b, sh, sh.replace(/-(Instruct|instruct|chat|it)(-v[\d.]+)?$/, "").replace(/-instruct$/i, "")].forEach(function (v) { if (v && v !== n) pairs[v] = n; });
+    });
+    var keys = Object.keys(pairs).sort(function (a, b) { return b.length - a.length; });
+    if (!keys.length) return;
+    var w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null), n, list = [];
+    while ((n = w.nextNode())) if (n.parentNode.closest(".part-on")) list.push(n);
+    list.forEach(function (t) {
+      var v = t.nodeValue;
+      keys.forEach(function (k) { if (v.indexOf(k) >= 0) v = v.split(k).join(pairs[k]); });
+      if (v !== t.nodeValue) t.nodeValue = v;
+    });
+  }
+  var _soloTidy = null;
+  function soloTidy() { clearTimeout(_soloTidy); _soloTidy = setTimeout(function () { soloHeadings(); soloNames(); }, 40); }
   function soloShow(parts) {
     SOLO = parts;
     document.body.classList.add("solo");
@@ -3740,6 +3777,8 @@
     var q = new URLSearchParams(location.search);
     if (!document.documentElement.classList.contains("embed") || q.get("solo") !== "1") return;
     soloShow(validParts((q.get("parts") || "").split(",")));
+    // charts render after the results arrive and again on resize: tidy whatever was drawn
+    new MutationObserver(soloTidy).observe(document.body, { childList: true, subtree: true });
     // the app switches tabs by message (no reload): only which sections to show crosses frames
     window.addEventListener("message", function (ev) {
       if (ev.source !== window.parent || !ev.data || ev.data.type !== "agentmeter-embed-show") return;

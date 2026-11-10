@@ -735,7 +735,10 @@ function recLimitsTab(res) {
   var vtext = INSIGHTS.plainText(rel ? rel.verdict : (res.comparison || {}).statement || "Single-model run: there is no head-to-head comparison.",
                                  (res.per_model || []).map(function (m) { return m.model; }));
   var vcut = vtext.search(/\.\s/), vhead = vcut > 0 ? vtext.slice(0, vcut + 1) : vtext, vrest = vcut > 0 ? vtext.slice(vcut + 2) : "";
-  h.push('<div class="card"><h2>Measured verdict</h2><p class="verdict">' + esc(vhead) + '</p>' + (vrest ? '<p class="verdict-why">' + esc(vrest) + '</p>' : "") +
+  // one wording of the verdict: the Overview headline, with a link to the full verdict there
+  var vline = rel && typeof headline === "function" ? headline(rel, res.per_model || []) + "." : vhead;
+  h.push('<div class="card"><h2>Measured verdict</h2><p class="verdict">' + esc(vline) + '</p>' +
+    '<p class="verdict-why"><a href="#/session/' + enc(SESSION.id || "") + '/overview" data-to-verdict>See the full verdict on Overview</a></p>' +
     (hint.text ? '<p class="small">' + esc(hint.text) + '</p>' : "") + '<p class="muted small">Decision support, not a deployment sign-off.</p></div>');
   h.push(pickerCard(res), fitCard(res));
   if (dh) {
@@ -771,7 +774,7 @@ function fitCard(res) {
     '<p class="muted small">"no data": not measured in this run (e.g. no GPU memory or price on a CPU/mock run). A fit is not a sign-off: the run\'s flows, GPU and settings apply.</p></div>';
 }
 function recContextTab(res) {
-  var s3 = res.recommendation_stage3, h = [];
+  var s3 = res.recommendation_stage3, h = [], rel = res.relative_comparison;
   if (!s3) return '<div class="card"><p class="muted">This session predates the model-context rules.</p></div>';
   if (s3) {
     var notes = (s3.notes || []).map(function (n) {
@@ -782,7 +785,8 @@ function recContextTab(res) {
       return '<tr><td class="mono">' + esc(r.rule) + '</td><td class="mono">' + esc(short(r.model)) + '</td><td class="mono small">' + esc(r.condition) + '</td><td>' + esc(r.result) +
         (r.result === "no_data" ? ' <span class="muted small">(' + esc(r.detail) + ')</span>' : "") + '</td><td>' + esc((r.sources || []).join(", ")) + '</td><td class="mono small">' + esc(r.fetched_at || "—") + '</td></tr>';
     }).join("");
-    h.push('<div class="card" id="svc-stage3"><h2>Model context</h2><p><b>Measured verdict:</b> ' + esc((s3.verdict || {}).text || "—") + '</p>' +
+    h.push('<div class="card" id="svc-stage3"><h2>Model context</h2><p><b>Measured verdict:</b> ' + esc(rel && typeof headline === "function" ? headline(rel, res.per_model || []) + "." : (s3.verdict || {}).text || "—") +
+      ' <a href="#/session/' + enc(SESSION.id || "") + '/overview">See it on Overview</a>. The notes below add context and never change it.</p>' +
       (notes ? '<ul class="list" id="svc-stage3-notes">' + notes + '</ul>' : '<p class="muted" id="svc-stage3-notes">No context rule fired' +
         (s3.metadata_status === "ok" ? "" : " — Hugging Face metadata " + esc(s3.metadata_status) + ", so the metadata rules had no data") + '.</p>') +
       '<p class="muted small">' + esc(s3.framing || "") + ' Rule set: <span class="mono">' + esc(s3.rulebase || "") + '</span>.</p>' +

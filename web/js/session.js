@@ -274,7 +274,7 @@ var SECTION_Q = {
   "Can it keep up?": "How many flows can one GPU handle?", "Cold start": "How much does the first flow cost?",
   "Consistency of answers": "Are the answers consistent?", "Cost and energy": "What does it cost per 1,000 flows?",
   "Cost per valid answer": "What does each usable answer cost?", "Criteria profile": "How does each model score on each criterion?",
-  "Deployment fit at a glance": "Which deployment setups does each model fit?", "Effect size and confidence": "How big is the difference?",
+  "Deployment fit at a glance": "Which deployment setups does each model fit?", "Effect size and confidence": "Is the difference real?",
   "Efficiency frontier": "Which models are never beaten on two costs at once?", "Energy efficiency": "How energy-efficient is each model?",
   "Flow explorer": "Explore every flow", "GPU idle while running": "How much does an idle GPU cost?",
   "GPU memory": "How much GPU memory does it need?", "GPU over the run": "What did the GPU do during the run?",
@@ -291,25 +291,51 @@ var SECTION_Q = {
   "Which classes each model mixes up": "Which classes does each model mix up?", "What this would look like in a real SOC": "What would this look like in a real SOC?",
   "Prepared set": "Which flows were used?", "Report and results": "Download the report and results",
   "Since the last run on these flows": "What changed since the last run?", "Other pipelines on these flows": "How do other pipelines compare on these flows?",
-  "Best model for my priority": "Which model is best for my priority?", "What the prompts are made of": "What are the prompts made of?"
+  "Best model for my priority": "Which model is best for my priority?", "What the prompts are made of": "What are the prompts made of?",
+  "Load scaling": "Does it scale with parallel flows?", "How many flows do you need?": "How many flows are needed to tell models apart?",
+  "Repeatability across runs": "Is each model's result the same every time?", "Repeatability": "Is it the same every time?",
+  "Head-to-head": "Which model is faster, and by how much?"
 };
+// headings that carry a number or a model name: matched by pattern
+function sectionQ(title, names) {
+  if (SECTION_Q[title]) return SECTION_Q[title];
+  if (/^All \d+ models$/.test(title)) return "Which model is faster, and by how much?";
+  if (/^Effect size and confidence\b/.test(title)) return "Is the difference real?";
+  if (names[title]) return nick(names[title]) + ": where does the time go?";
+  return title;
+}
 var EMBED_TITLE = { "ranking/scores": "Score tables in detail", "ranking/weighting": "Weights in detail", "ranking/guide": "Model notes, questions and glossary",
   "performance/comparison": "Per attack class", "performance/latency": "How predictable is it, and where does the time go?",
   "performance/gpu": "Throughput", "performance/statistics": "Statistical tests", "recommendations/guidance": "What to do next, and how to optimise" };
 function secSlug(s) { return "sec-" + String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48); }
+// plain words in a section's own text: everyday model names, no em dashes, statistics in plain terms
+function plainNodes(root, models) {
+  if (!window.INSIGHTS) return;
+  var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: function (n) {
+    return !/[A-Za-z]/.test(n.nodeValue) || n.parentNode.closest("pre, code, textarea, script, style, [contenteditable], .mono-id") ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT; } });
+  var n, list = [];
+  while ((n = w.nextNode())) list.push(n);
+  list.forEach(function (t) { var v = INSIGHTS.plainText(t.nodeValue, models); if (v !== t.nodeValue) t.nodeValue = v; });
+}
 function reportify(tab, res) {
   var panel = $("spanel-" + tab), answers = window.INSIGHTS ? INSIGHTS.sectionAnswers(res) : {}, summary = panel.querySelector(".takeaway");
   var NAMES = {};                                     // a model's full or short name -> its full name
   (res.per_model || []).forEach(function (m) { NAMES[m.model] = m.model; NAMES[short(m.model)] = m.model; if (m.db_label) NAMES[m.db_label] = m.model; });
+  var MODELS = (res.per_model || []).map(function (m) { return m.model; });
   if (summary) summary.id = "sec-summary-" + tab;
   panel.querySelectorAll("[data-pane]").forEach(function (pn) {
     var items = [], seen = {};
     Array.prototype.slice.call(pn.children).filter(function (c) { return c.classList.contains("card") && c.querySelector("h2"); }).forEach(function (card) {
-      var h2 = card.querySelector("h2"), title = h2.textContent.trim(), q = SECTION_Q[title] || title, id = secSlug(q);
+      var h2 = card.querySelector("h2"), sub = h2.querySelector(".muted"), chips = Array.prototype.slice.call(h2.querySelectorAll(".chip"));
+      var title = (h2.children.length && h2.firstChild.nodeType === 3 ? h2.firstChild.nodeValue : h2.textContent).trim();
+      var full = NAMES[title], q = sectionQ(title, NAMES), id = secSlug(q);
       while (seen[id]) id += "-2";
       seen[id] = true;
       h2.textContent = q; card.id = card.id || id; card.classList.add("rsec");
-      var a = answers[q];
+      chips.forEach(function (c) { h2.appendChild(document.createTextNode(" ")); h2.appendChild(c); });
+      if (full) h2.title = full;
+      if (sub) { var sp = document.createElement("p"); sp.className = "muted small rsec-pair"; sp.textContent = sub.textContent.replace(/^A = /, "Compared: ").replace(/, B = /, " and "); h2.insertAdjacentElement("afterend", sp); }
+      var a = full ? answers["@agent:" + INSIGHTS.bare(full)] : answers[q];
       if (a && !card.querySelector(".rsec-a")) {
         var p = document.createElement("p"); p.className = "rsec-a"; p.textContent = a;
         (h2.parentNode === card ? h2 : h2.parentNode).insertAdjacentElement("afterend", p);
@@ -326,7 +352,8 @@ function reportify(tab, res) {
         if (!tn || el.querySelector("*:not(i)")) return;
         el.title = full; tn.nodeValue = nick(full); el.classList.add("model-name");
       });
-      items.push({ id: card.id, q: q });
+      plainNodes(card, MODELS);
+      items.push({ id: card.id, q: tab === "overview" && !items.length ? "The verdict" : q });
     });
     var key = tab + "/" + pn.getAttribute("data-pane");
     if (EMBED_PARTS[key]) items.push({ id: "embed-host", q: EMBED_TITLE[key] || "More detail" });
@@ -493,21 +520,21 @@ function tiles(res) {
   var rel = res.relative_comparison, lab = !!(res.session || {}).accuracy_available;
   if (!rel) return "";
   var t = rel.metrics.filter(function (m) { return TILE[m.metric]; }).map(function (m) {
-    var v = !m.available ? "—" : m.winner === "tie" ? "Tie" : Math.round(m.pct_better) + " % " + TILE[m.metric][1];
-    var w = !m.available ? "not measured" : m.winner === "tie" ? "within the tie range" : short(m.winner) + (m.runner_up ? " vs " + short(m.runner_up) : "");
+    var v = !m.available ? "—" : m.winner === "tie" ? "Tie" : Math.round(m.pct_better) + "% " + TILE[m.metric][1];
+    var w = !m.available ? "not measured" : m.winner === "tie" ? "within the tie range" : nick(m.winner) + (m.runner_up ? ", against " + nick(m.runner_up) : "");
     return '<div class="tile" data-metric="' + esc(m.metric) + '"><div class="k">' + TILE[m.metric][0] + '</div><div class="v">' + esc(v) + '</div><div class="w">' + esc(w) + '</div></div>';
   });
   var orl = (res.output_reliability || {}).per_model || [];
   var low = orl.slice().sort(function (a, b) { return (a.valid_rate || 0) - (b.valid_rate || 0); })[0];
   t.push('<div class="tile" data-metric="valid"><div class="k">Valid answers</div><div class="v">' + (low ? fmtPct(low.valid_rate) : "—") + '</div><div class="w">' +
-    esc(!low ? "not recorded" : orl.every(function (m) { return m.valid_rate === 1; }) ? "every model, every flow" : "lowest: " + short(low.model)) + '</div></div>');
+    esc(!low ? "not recorded" : orl.every(function (m) { return m.valid_rate === 1; }) ? "every model, every flow" : "lowest: " + nick(low.model)) + '</div></div>');
   if (res.ids) t.push('<div class="tile" data-metric="ids"><div class="k">IDS gate</div><div class="v">' + fmtPct(res.ids.llm_calls_saved_share) + ' saved</div><div class="w">' +
     esc(fmtNum(res.ids.n_alerts) + " of " + fmtNum(res.ids.n_flows_in) + " flows sent to the LLM") + '</div></div>');
   var tg = ((res.triage || {}).per_model || []).filter(function (m) { return m.gate; });
   if (tg.length) {
     var pass = tg.filter(function (m) { return effGate(m).passed === true; }), fail = tg.filter(function (m) { return effGate(m).passed === false; });
     t.push('<div class="tile" data-metric="gate"><div class="k">Triage gate</div><div class="v">' + (pass.length + fail.length ? pass.length + " of " + tg.length + " pass" : "not checked") + '</div><div class="w">' +
-      esc(fail.length ? "fails: " + fail.map(function (m) { return short(m.model); }).join(", ") : pass.length ? "every checked model" : "needs labelled input") + '</div></div>');
+      esc(fail.length ? "fails: " + fail.map(function (m) { return nick(m.model); }).join(", ") : pass.length ? "every checked model" : "needs labelled input") + '</div></div>');
   }
   return '<div class="tiles" id="svc-tiles">' + t.join("") + '</div>';
 }
@@ -1304,10 +1331,23 @@ function gpuHealthCard(res) {
       (cs.length ? 'clocks at ' + fmtNum(100 * Math.min.apply(null, cs), 0) + '%+ of maximum' : "") + (tm.length ? ', at most ' + fmtNum(Math.max.apply(null, tm), 0) + ' °C' : "") +
       ', no thermal or hardware slowdown, no other processes on the GPU.' + infoI(g.rule) + '</p>';
   }
-  return '<div class="notice warn" id="svc-gpu-health" role="status"><b>Check the GPU: it was not in a normal state during this run.</b> The latency and energy of the models below may reflect the GPU, not the model.' +
-    '<ul class="small" style="margin:6px 0 0">' + per.filter(function (m) { return m.status === "check"; }).map(function (m) {
-      return '<li><b>' + esc(short(m.model)) + '</b>: ' + m.reasons.map(esc).join("; ") + '</li>';
-    }).join("") + '</ul><p class="small" style="margin:6px 0 0">Run it again when the GPU is cool and not shared, then compare on <a href="#/trends">Repeatability</a>.' + infoI(g.rule) + '</p></div>';
+  var lim = g.limits || {}, bad = per.filter(function (m) { return m.status === "check"; });
+  // one plain line per flagged model; the driver's exact readings sit under "How to read this"
+  var plain = function (m) {
+    var w = [];
+    if (m.throttled_share != null && m.throttled_share > (lim.throttled_share != null ? lim.throttled_share : 0.05)) w.push("the GPU slowed itself down in " + fmtNum(100 * m.throttled_share, 0) + "% of samples");
+    if (m.clock_share != null && m.clock_share < (lim.clock_share != null ? lim.clock_share : 0.8)) w.push("it ran at " + fmtNum(100 * m.clock_share, 0) + "% of its top speed");
+    if (m.max_temp_c != null && m.max_temp_c >= (lim.temp_c != null ? lim.temp_c : 85)) w.push("it reached " + fmtNum(m.max_temp_c, 0) + " °C");
+    if ((m.other_processes || []).length) w.push("other programs were using it");
+    return w.length ? w.join(", ") : m.reasons.join("; ");
+  };
+  return '<div class="notice warn" id="svc-gpu-health" role="status"><b>Check the GPU: it was not in a normal state during this run.</b> The timings and energy below may reflect the GPU, not the model.' +
+    '<ul class="small" style="margin:6px 0 0">' + bad.map(function (m) {
+      return '<li><b class="model-name" title="' + esc(m.model) + '">' + esc(nick(m.model)) + '</b>: ' + esc(plain(m)) + '.</li>';
+    }).join("") + '</ul><p class="small" style="margin:6px 0 0">Run it again when the GPU is cool and not shared, then compare on <a href="#/trends">Repeatability</a>.</p>' +
+    '<details class="info"><summary>How to read this</summary><p class="small muted">' + esc(g.rule || "") + '</p><ul class="small muted">' + bad.map(function (m) {
+      return '<li>' + esc(nick(m.model)) + ': ' + m.reasons.map(function (r) { return esc(String(r).replace(/\s+\u2014\s+/g, ": ")); }).join("; ") + '</li>';
+    }).join("") + '</ul></details></div>';
 }
 function costCard(res) {
   var cen = res.cost_energy;

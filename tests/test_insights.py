@@ -557,3 +557,72 @@ def test_trends_group_by_model_and_setup_and_flag_drift():
     assert not call("trends", quiet)["drifts"]
     # fewer than three runs: no drift judgement at all
     assert not call("trends", rows[:2])["drifts"] and not call("trendSeries", call("trends", rows[:2])["series"][0], "mean_latency_s")["drift"]["enough"]
+
+
+# ---- report sections: one plain answer line per section (2026-11-10 report layout) ----
+REAL_A, REAL_B = "mistralai/Mistral-7B-Instruct-v0.3", "Qwen/Qwen2.5-7B-Instruct"
+
+
+def _report_session():
+    return {
+        "session": {"n_flows": 200, "provider": "real"},
+        "environment": {"provider": "real"},
+        "per_model": [
+            {"model": REAL_A, "efficiency": {"end_to_end": {"mean_latency_s": 2.0, "p95_latency_s": 3.0, "mean_tokens_per_flow": 900}}},
+            {"model": REAL_B, "efficiency": {"end_to_end": {"mean_latency_s": 3.0, "p95_latency_s": 4.0, "mean_tokens_per_flow": 800}}},
+        ],
+        "output_reliability": {"per_model": [
+            {"model": REAL_A, "valid_rate": 1.0, "empty": 0, "truncated": 0, "unparseable": 0,
+             "verdict_consistency": {"checked": 200, "agree": 200, "rate": 1.0, "disagree": 0}},
+            {"model": REAL_B, "valid_rate": 0.9, "empty": 5, "truncated": 15, "unparseable": 0,
+             "verdict_consistency": {"checked": 200, "agree": 190, "rate": 0.95, "disagree": 10}},
+        ]},
+        "memory": {"per_model": [{"model": REAL_A, "total_peak_mb": 5000}, {"model": REAL_B, "total_peak_mb": 9216}]},
+        "cost_energy": {"per_model": [
+            {"model": REAL_A, "cost_per_1k_flows_usd": 0.12, "wh_per_flow": 0.5},
+            {"model": REAL_B, "cost_per_1k_flows_usd": 0.20, "wh_per_flow": 0.8}]},
+        "gpu_health": {"available": True, "status": "check", "per_model": [
+            {"model": REAL_A, "status": "normal", "reasons": []},
+            {"model": REAL_B, "status": "check", "reasons": ["the GPU reached 88 °C"]}]},
+        "relative_comparison": {"models": [REAL_A, REAL_B], "metrics": [
+            {"metric": "mean_latency_s", "available": True, "winner": REAL_A, "runner_up": REAL_B, "pct_better": 33.3}]},
+        "accuracy_stats": {"labelled": True, "per_model": [
+            {"model": REAL_A, "accuracy": 0.8, "ci95": [0.74, 0.85]}, {"model": REAL_B, "accuracy": 0.6, "ci95": [0.53, 0.66]}],
+            "pairs": [{"a": REAL_A, "b": REAL_B, "differ": True}]},
+    }
+
+
+def test_section_answers_restate_stored_numbers_in_plain_words():
+    out = call("sectionAnswers", _report_session())
+    assert out["Did every flow get a usable answer?"].startswith("Not always: Qwen2.5 7B gave a usable answer for 90% of flows")
+    assert out["Where do answers fail?"] == "Qwen2.5 7B fails most: 20 answers empty, cut off or unreadable (15 hit the token budget)."
+    assert out["Do the explanations match the verdict?"] == "Mostly: at worst, Qwen2.5 7B's explanation names a different class in 10 of 200 flows."
+    assert out["How much GPU memory does it need?"] == "Mistral 7B needs the least: 4.9 GB at its peak; Qwen2.5 7B the most: 9.0 GB."
+    assert out["What does it cost per 1,000 flows?"] == "Mistral 7B is cheapest at $0.12 per 1,000 flows; Qwen2.5 7B costs $0.20."
+    assert out["How energy-efficient is each model?"] == "Mistral 7B does the most work per unit of energy: 2,000 flows per kWh."
+    assert out["Which model is faster, and by how much?"] == "Mistral 7B is 33% faster per flow than Qwen2.5 7B."
+    assert out["Can these results be trusted?"].startswith("With care: the GPU was not in a normal state while Qwen2.5 7B ran")
+    assert "1 of 1 model pairs differ by more than chance" in out["Are the accuracy differences real?"]
+    assert "How many flows can one GPU handle?" in out and "43,200 flows a day with Mistral 7B" in out["How many flows can one GPU handle?"]
+    for text in out.values():                 # plain copy: everyday names, no em dashes
+        assert "—" not in text and "Instruct" not in text and "mistralai/" not in text
+
+
+def test_section_answers_say_not_measured_and_demo_plainly():
+    s = _report_session()
+    s["session"]["provider"] = s["environment"]["provider"] = "mock"
+    s["memory"] = {"per_model": [{"model": REAL_A, "total_peak_mb": None, "reason": "mock/CPU run: no GPU memory to measure"}]}
+    out = call("sectionAnswers", s)
+    assert out["Can these results be trusted?"].startswith("Not as measurements: this is a demo run")
+    assert out["How much GPU memory does it need?"] == "Not measured in this run (mock/CPU run: no GPU memory to measure)."
+    assert "How many flows can one GPU handle?" not in out          # simulated times: no capacity claim
+
+
+def test_section_answers_skip_sections_without_data():
+    assert call("sectionAnswers", {"per_model": []}) == {"Can these results be trusted?": call("sectionAnswers", {"per_model": []})["Can these results be trusted?"]}
+
+
+def test_plain_text_translates_drift_notes_and_full_names():
+    t = call("plainText", "Stable over the run: no significant trend (Spearman rho -0.24, p = 0.25; last/first quarter medians 0.91x). "
+             "mock:" + REAL_A + " — ok", [REAL_A])
+    assert t == "Stable over the run: no trend beyond chance (p = 0.25; last quarter 0.91× the first). Mistral 7B: ok"

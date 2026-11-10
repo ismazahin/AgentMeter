@@ -40,6 +40,17 @@ APPROX_GB = {"mistralai/Mistral-7B-Instruct-v0.3": 14.5, "meta-llama/Meta-Llama-
              "google/gemma-2-9b-it": 18.5}
 
 
+def _total_vram_gb() -> float | None:
+    """Total memory of GPU 0 in GB (nvidia-smi), or None when it cannot be read."""
+    import subprocess
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+                             capture_output=True, text=True, timeout=20).stdout.strip().splitlines()
+        return float(out[0]) / 1024 if out else None
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
 def _token() -> str | None:
     return model_store.token()
 
@@ -117,6 +128,12 @@ def main(argv=None) -> int:
     marked = model_catalog.start_up_ids()                                  # admin: download at start-up
     models = ([m for m in study if args.all_study or m in marked]
               + [m for m in marked if m not in study])
+    # the session explainer (configs/explainer.yaml): the one model that fits this GPU, so
+    # explanations are written without a download wait (it is never benchmarked)
+    from agentmeter.session.explain import startup_model
+    ex = startup_model(_total_vram_gb())
+    if ex and ex not in models:
+        models.append(ex)
     extra = [m for m in models if m not in study]
     cache = runtime._hub_cache()
     print(f"Hugging Face cache: {cache}")

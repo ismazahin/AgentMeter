@@ -1,7 +1,7 @@
 # AI-written explanations for each session
 
 Date: 2026-11-10
-Status: design, waiting for the owner's approval
+Status: approved by the owner on 2026-11-10 (with the input and labelling changes below)
 
 ## Intent
 
@@ -18,7 +18,9 @@ finished analysis and writes the interpretive text. It does not measure, score o
 - Each session gets its own wording for the parts of the app that interpret results.
 - The text is written once, at the end of the session, and stored with it. Everyone who opens the
   session reads the same text, and it stays available after the rented GPU is destroyed.
-- The LLM reads only the analysis results. No raw flows, no internet, no other sessions.
+- The LLM reads only this session's own outputs: the analysis results plus a small sample of its
+  agent answers and slowest flows (owner: allowed when it makes the text more accurate). No IP
+  addresses or ports, no internet, no other sessions.
 - The text never uses `;`, `:` or a dash as punctuation (owner's style rule, see Checks).
 
 ## Non-goals
@@ -32,8 +34,10 @@ finished analysis and writes the interpretive text. It does not measure, score o
 
 ## Anti-goals (failure even if it "works")
 
+
 - A number in the AI text that is not in the results.
-- AI text that silently replaces the computed text without being labelled as AI-written.
+- AI text whose provenance is lost: admins must always be able to see which text came from the
+  model, and the stored file must record the model and prompt.
 - The LLM sharing the GPU with a measured model, or running before every model has released it.
 - A session that fails or is not scored because the explanation step failed.
 
@@ -119,7 +123,16 @@ only, compact JSON under about 4,000 tokens:
 - the fixed explanations already computed (tab headlines), so the LLM knows the facts it must not
   contradict
 
-Nothing else is sent: no flow rows, no prompts or agent answers, no IP addresses.
+Also, from the session's own `flows_<run>.json` (owner approved, because it makes the text more
+accurate):
+
+- up to 20 short agent-answer excerpts (each cut to 300 characters): failed answers (empty, cut
+  off at the token budget, unreadable label) and the most common mix-ups, with model, agent, true
+  class and predicted class. Passed as quoted data, never as instructions.
+- the 5 slowest flows per model: total time, per-agent times, prompt and answer tokens, true class.
+
+Never sent: IP addresses, ports, timestamps or any identification column, the internet, other
+sessions.
 
 ## Prompt
 
@@ -181,11 +194,15 @@ output). It tells the model:
 
 - Progress page: one more step, "Writing the explanation", with its own short progress line.
   (The app walk-through that counts seven steps is updated to eight.)
-- Overview: a Summary card at the top. Below the text, in small muted type:
-  "Written by gpt-oss-20b from this session's results. The numbers in the tabs are the measured
-  values."
-- Tab headlines and why lines use the AI text when present, each with a small "AI" marker whose
-  tooltip carries the same line as above.
+- Overview: a Summary card at the top.
+- Tab headlines and why lines use the AI text when present.
+- **No AI label for regular users** (owner's decision). Admins (and the operator of a single
+  server without a control plane, where there are no accounts) see a small ✦ marker after each
+  AI-written piece. Hovering or tapping it shows "Written by <model> from this session's results",
+  the time it took, and how many sections fell back to the computed text. Sections that fell back
+  get no marker.
+- The model, prompt version, timing and check results stay in `explanation.json` and the
+  reproducibility package.
 - Deployment recommendation and Optimisation guidance show the AI paragraph first, then the
   computed details as now.
 - When there is no AI text (old session, demo, failed or skipped), everything looks as it does
@@ -214,8 +231,24 @@ output). It tells the model:
 - Default model gpt-oss-20b with Apertus-8B as fallback, pending the timing test.
 - The ~35 per-question answers stay computed.
 - The AI text is not in the PDF in this version.
+- Single server without a control plane: the operator counts as an admin and sees the ✦ marker.
 - Demo runs get no AI text (a test-only fake exists for automated tests).
 - Hyphens inside words are allowed, dashes used as punctuation are not.
 - Time limit 5 minutes, one retry for failed sections, then computed text for those sections.
 - The embedded analysis page receives the explanation with the results (same message or fetch).
 - The progress page gains one step.
+
+## Build plan
+
+1. `configs/explainer.yaml`, `agentmeter/session/explain_prompt.md`.
+2. `agentmeter/session/explain.py`: digest, checks, the subprocess runner (engines `hf`, `vllm`,
+   and the test-only `fake`), `explanation.json`. Unit tests.
+3. Hook in `run_session`, telemetry `explain`, progress step "Write explanation" (8 steps).
+4. `GET /api/jobs/<id>/explanation`; `explanation.json` in the control plane upload, the Supabase
+   function's file allowlist and the reproducibility zip; start-up download in `scripts/vast_models.py`.
+5. App: load the explanation with the session, Overview Summary card, tab headline overrides,
+   admin-only ✦ marker; analysis page paragraphs for Deployment recommendation and Optimisation
+   guidance.
+6. Tests: unit, control plane, e2e with the fake explainer; full suites.
+7. `scripts/explainer_trial.py` for the owner to run once on an RTX 3090 rental (timing and output
+   of gpt-oss-20b and Apertus-8B on a stored session). Not runnable here: this container has no GPU.

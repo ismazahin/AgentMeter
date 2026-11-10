@@ -190,6 +190,22 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
             return fail(e)
         return send_file(p, mimetype="application/json", max_age=0)
 
+    @app.route("/api/jobs/<job_id>/explanation", methods=["GET"])
+    def job_explanation(job_id):
+        """The session's explanations written by the explainer (explanation.json), once done.
+        404 {"status": "none"} for a session without one (older, or still running)."""
+        from pathlib import Path as _Path
+        from ..session.explain import read as read_explanation
+        mgr = get_manager()
+        try:
+            mgr.result(job_id)
+            data = read_explanation(_Path(mgr.get(job_id).get("run_dir") or ""))
+        except JobError as e:
+            return fail(e)
+        if data is None:
+            return jsonify({"status": "none", "error": "this session has no written explanation"}), 404
+        return jsonify(data)
+
     @app.route("/api/jobs/<job_id>/report.pdf", methods=["GET"])
     def job_report_pdf(job_id):
         """Phase 42: a PDF report built verbatim from the finished job's results."""

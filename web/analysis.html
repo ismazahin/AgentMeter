@@ -304,6 +304,8 @@
   }
   .ds-caveat { margin-top: 12px; padding: 0 0 0 16px; border-left: 3px solid var(--critical); font-size: 13px; font-weight: 500; color: var(--ink); }
   /* decision support, explained: a points ledger, a per-step breakdown, numbered next steps */
+  .ai-mark { display: inline-grid; place-items: center; width: 17px; height: 17px; margin-left: 6px; border-radius: 50%; border: 1px solid var(--line-strong);
+             font: 600 10px/1 var(--sans); color: var(--brand); vertical-align: 1px; cursor: help; }
   .ds-detail:empty { display: none; }
   .ds-detail { margin-top: 24px; display: grid; gap: 24px; }
   .ds-detail h3 { margin: 0 0 4px; font: 600 14px/1.4 var(--sans); color: var(--ink); }
@@ -2571,9 +2573,30 @@
     }
     var o = document.getElementById("ds-optim");
     if (o) o.textContent = REPORT.optimisationHint(d, rec.top).text;
+    // the session's written explanation, while the weights are the stored ones (it was written for them)
+    var sw = (d.phase8 || {}).weights || {}, stored = CRIT.every(function (k) { return Math.abs((+state.weights[k] || 0) - (+sw[k] || 0)) < 1e-9; });
+    if (EXPL.sections && stored) {
+      if (h && EXPL.sections.deployment) explText(h, EXPL.sections.deployment);
+      if (o && EXPL.sections.optimisation) explText(o, EXPL.sections.optimisation);
+    }
     renderRecDetail(d, ranked, rec.top);
     renderOptimDetail(d, rec.top);
   }
+
+  // ---- the session's written explanation (sent by the app; see web/js/analysis.js postExplanation) ----
+  var EXPL = { sections: null, marker: "" };
+  function explText(el, text) {
+    el.textContent = text;
+    if (!EXPL.marker) return;
+    var m = document.createElement("span");
+    m.className = "ai-mark"; m.tabIndex = 0; m.title = EXPL.marker; m.setAttribute("aria-label", EXPL.marker); m.textContent = "\u2726";
+    el.appendChild(m);
+  }
+  window.addEventListener("message", function (ev) {
+    if (ev.source !== window.parent || !ev.data || ev.data.type !== "agentmeter-embed-explanation") return;
+    EXPL = { sections: ev.data.sections || {}, marker: ev.data.marker || "" };
+    try { renderDecision(); } catch (e) { /* no results loaded yet: applied on the first render */ }
+  });
 
   // ---- Deployment recommendation, explained: where the score comes from and what to check ----
   var DS_CRIT = {

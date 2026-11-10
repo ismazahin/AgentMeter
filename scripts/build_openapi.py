@@ -177,6 +177,7 @@ op(BE, "get", "/api/jobs/{job_id}/result", "Benchmarks", "A finished job's resul
 op(BE, "get", "/api/jobs/{job_id}/report.pdf", "Benchmarks", "The PDF report", RUN("read"), [JOB])
 op(BE, "get", "/api/jobs/{job_id}/constraints", "Benchmarks", "Fit check against limits", RUN("read"), [JOB])
 op(BE, "get", "/api/jobs/{job_id}/flows", "Benchmarks", "Every flow's answers per agent (flow explorer)", RUN("read"), [JOB])
+op(BE, "get", "/api/jobs/{job_id}/explanation", "Benchmarks", "The session's written explanations (explanation.json; 404 when there are none)", RUN("read"), [JOB])
 op(BE, "get", "/api/jobs/{job_id}/telemetry", "Benchmarks", "Live progress events and a GPU reading", RUN("read"), [JOB, p("since", schema={"type": "integer"})])
 op(BE, "post", "/api/jobs/{job_id}/resume", "Benchmarks", "Resume a failed or interrupted benchmark", RUN("resume"), [JOB])
 op(BE, "post", "/api/jobs/{job_id}/stop", "Benchmarks", "Stop a running benchmark (owner or admin)", RUN("stop"), [JOB])

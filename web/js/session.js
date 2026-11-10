@@ -453,6 +453,51 @@ function renderSession(res, job) {
   wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); SAME_SETUP = {};       // fresh per render: a later session on these flows must show up
   wireRepeat(res, job); wireRepLine(job); wireNotes(job); wireSchedule(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePipelineCompare(job); wirePrices(res); wirePicker(res);
   addExports($("session-body")); paintLimits($("session-body"));
+  loadExplanation(job);
+}
+
+// ---- the session explainer's text (explanation.json, written once at the end of the session) ----
+// It replaces each tab's headline and "why" line and adds an Overview summary. Regular users see it
+// as the page's own text; admins (and the operator of a server without a control plane) also see a
+// small marker with which model wrote it.
+var EXPL_TABS = ["ranking", "reliability", "performance", "agents", "cost", "recommendations"];
+function explPath(job) {
+  if (CP && job.stored) return (job.files || []).indexOf("explanation.json") >= 0 ? "/api/sessions/" + enc(job.job_id) + "/files/explanation.json" : null;
+  return "/api/jobs/" + enc(job.job_id) + "/explanation";
+}
+function loadExplanation(job) {
+  SESSION.expl = null;
+  var path = explPath(job), id = job.job_id;
+  if (!path) return;
+  api(path).then(function (r) {
+    if (SESSION.id !== id || !r.ok || !r.data || !r.data.sections || !Object.keys(r.data.sections).length) return;
+    SESSION.expl = r.data;
+    applyExplanation();
+  });
+}
+function explMarker() {
+  var e = SESSION.expl;
+  if (!e || !(!CP || (typeof isAdmin === "function" && isAdmin()))) return "";
+  var n = Object.keys(e.dropped || {}).length;
+  var tip = "Written by " + short(e.model) + " from this session's results" + (e.seconds != null ? ", in " + fmtNum(e.seconds, 0) + " s" : "") + ". " +
+    (n ? n + " section" + (n === 1 ? "" : "s") + " use" + (n === 1 ? "s" : "") + " the standard text instead." : "Every section passed the checks.") + " Only admins see this mark.";
+  return '<span class="info-i ai-mark" tabindex="0" role="button" data-tip="' + esc(tip) + '" aria-label="' + esc(tip) + '">✦</span>';
+}
+function applyExplanation() {
+  var e = SESSION.expl, s = (e && e.sections) || {}, mark = explMarker();
+  EXPL_TABS.forEach(function (t) {
+    var box = document.querySelector('#spanel-' + t + ' .takeaway[data-summary="' + t + '"]');
+    if (!box) return;
+    var hd = box.querySelector(".tk-h"), sb = box.querySelector(".tk-s");
+    if (s["tab." + t + ".h"] && hd) { hd.textContent = s["tab." + t + ".h"]; hd.insertAdjacentHTML("beforeend", mark); }
+    if (s["tab." + t + ".s"] && hd) {
+      if (!sb) { sb = document.createElement("p"); sb.className = "tk-s"; hd.insertAdjacentElement("afterend", sb); }
+      sb.textContent = s["tab." + t + ".s"]; sb.insertAdjacentHTML("beforeend", mark);
+    }
+  });
+  if (s.summary && !$("svc-ai-summary"))
+    $("spanel-overview").insertAdjacentHTML("afterbegin", '<div class="takeaway tab-summary" id="svc-ai-summary"><p class="tk-sum">' + esc(s.summary) + mark + '</p></div>');
+  postExplanation();
 }
 
 function setDl(a, path, name) {

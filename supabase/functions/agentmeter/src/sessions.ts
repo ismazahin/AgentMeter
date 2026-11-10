@@ -10,10 +10,11 @@ import { type Env, fail, intVar, json, nowIso, readJson } from "./util.ts";
 import { audit } from "./audit.ts";
 
 const SESSION_ID = /^job_\d{8}_\d{6}_([0-9a-f]{6}|[0-9a-f]{32})$/;
-export const FILES = ["report.pdf", "manifest.json", "features.csv", "labels.csv", "flows.json"] as const;
+export const FILES = ["report.pdf", "manifest.json", "features.csv", "labels.csv", "flows.json", "explanation.json"] as const;
 const CONTENT_TYPE: Record<string, string> = {
   "report.pdf": "application/pdf", "manifest.json": "application/json", "features.csv": "text/csv",
   "labels.csv": "text/csv", "session_results.json": "application/json", "flows.json": "application/json",
+  "explanation.json": "application/json",
 };
 
 interface Row {

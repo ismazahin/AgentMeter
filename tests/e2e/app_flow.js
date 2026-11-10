@@ -40,7 +40,7 @@ async function pickAndRun(p, models) {
     await p.waitForFunction(() => /Done: results are ready/.test(document.querySelector('#tel-log')?.textContent || ''), null, { timeout: 180000 });
     const steps = await p.$$eval('#tel-steps li', l => l.map(x => x.className));
     const tlog = await p.textContent('#tel-log');
-    log(steps.length === 7 && steps.every(c => c === 'done') && /Queued/.test(tlog) && /Hugging Face/.test(tlog) && /worker process/.test(tlog) &&
+    log(steps.length === 8 && steps.every(c => c === 'done') && /Queued/.test(tlog) && /Hugging Face/.test(tlog) && /worker process/.test(tlog) &&
         /flow\(s\) through the 4-agent pipeline/.test(tlog) && /Scoring/.test(tlog),
         'live telemetry: queue -> data -> Hugging Face -> load -> flows -> scoring -> done, all in the log');
     log((await p.$$('#tel-flow .tel-agent')).length === 4 && /no live GPU readings/.test(await p.textContent('#tel-gpu')),

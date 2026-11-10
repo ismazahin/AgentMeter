@@ -162,15 +162,17 @@ def test_start_up_downloads_only_the_models_the_admin_marked(monkeypatch, tmp_pa
     monkeypatch.setattr(vm.runtime, "models_local", lambda models=None: {m: m in fetched for m in models or []})
     monkeypatch.setattr(vm.runtime, "model_on_disk", lambda m: m in fetched)
     monkeypatch.setattr(vm, "_approx_gb", lambda m: 1.0)                   # no Hub lookups in tests
+    monkeypatch.setattr(vm, "_total_vram_gb", lambda: 24.0)                # an RTX 3090-class GPU
+    ex = "openai/gpt-oss-20b"                                              # the session explainer (configs/explainer.yaml)
     monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "hub"))
     try:
         assert vm.main([]) == 0
-        assert fetched == [study[3], "Qwen/Qwen2.5-3B-Instruct"]          # not all 5 study models
+        assert fetched == [study[3], "Qwen/Qwen2.5-3B-Instruct", ex]      # not all 5 study models; + the explainer
         fetched.clear()
         assert vm.main(["--all-study"]) == 0 and fetched[:5] == study      # the old behaviour, on request
         fetched.clear()
         model_catalog.set_state({"models": {}, "added": []})
         monkeypatch.setattr(vm, "_load_admin_state", lambda: None)
-        assert vm.main([]) == 0 and fetched == []                          # nothing marked: nothing now
+        assert vm.main([]) == 0 and fetched == [ex]                        # nothing marked: only the explainer
     finally:
         model_catalog.set_state({"models": {}, "added": []})

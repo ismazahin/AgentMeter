@@ -51,7 +51,7 @@ HEARTBEAT_S = max(1, int(os.environ.get("AGENTMETER_HEARTBEAT_S") or 60))   # th
 # The identification columns of a prepared set (ingest.feature_map.META_COLUMNS minus flow_id).
 # "Destination Port" is one of the 78 CIC features the models see, so it stays.
 from .prepare import IDENTIFICATION_COLUMNS  # noqa: E402 — one list for strip and import
-SESSION_FILES = ("manifest.json", "features.csv", "labels.csv")
+SESSION_FILES = ("manifest.json", "features.csv", "labels.csv", "explanation.json")
 
 
 class ControlPlaneError(RuntimeError):
@@ -316,7 +316,7 @@ class ControlPlane:
             self._store(base, "session_results.json", raw, "application/json")
             for name, data in files.items():
                 ctype = {"report.pdf": "application/pdf", "manifest.json": "application/json",
-                         "flows.json": "application/json"}.get(name, "text/csv")
+                         "flows.json": "application/json", "explanation.json": "application/json"}.get(name, "text/csv")
                 self._store(base, name, data, ctype)
             self.client.call("PUT", f"{base}/summary", {"summary": summary, "owner_username": summary.get("owner_username")})
             mgr._update(job_id, cp_uploaded=True, cp_identification_stripped=not keep)

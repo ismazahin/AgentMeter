@@ -549,6 +549,17 @@ function showEmbed(parts, tab) {
 function postParts() {
   var f = $("analysis-frame");
   if (f && EMBED.loaded && EMBED.parts) f.contentWindow.postMessage({ type: "agentmeter-embed-show", parts: EMBED.parts }, embedOrigin());
+  postExplanation();
+}
+// the session's written explanation (Deployment recommendation, Optimisation guidance) for the
+// embedded analysis page; marker: whether this viewer sees the admin-only ✦
+function postExplanation() {
+  var f = $("analysis-frame"), e = SESSION.expl;
+  if (!f || !EMBED.loaded || !e) return;
+  var mark = !CP || (typeof isAdmin === "function" && isAdmin());
+  f.contentWindow.postMessage({ type: "agentmeter-embed-explanation", session: SESSION.id,
+    sections: { deployment: (e.sections || {}).deployment || "", optimisation: (e.sections || {}).optimisation || "" },
+    marker: mark ? "Written by " + short(e.model) + " from this session's results. Only admins see this mark." : "" }, embedOrigin());
 }
 window.addEventListener("message", function (ev) {
   var f = $("analysis-frame");
@@ -873,6 +884,7 @@ function reproPackage(res, job, btn) {
     : job.run_name ? ["manifest.json", "features.csv", "labels.csv"].map(function (f) { return ["/api/prepared/" + setPath(job.run_name) + "/" + f, f]; }) : [];
   var wanted = setFiles.map(function (x) { return fetchBytes(x[0]).then(function (b) { return b ? { name: "prepared_set/" + x[1], data: b } : null; }); });
   wanted.push(fetchBytes(pdfPath(job)).then(function (b) { return b ? { name: "report.pdf", data: b } : null; }));
+  if (SESSION.expl) wanted.push(Promise.resolve({ name: "explanation.json", data: JSON.stringify(SESSION.expl, null, 2) }));
   Promise.all(wanted).then(function (got) {
     got = got.filter(Boolean);
     var run = { session_id: id, created_at: job.created_at || null, finished_at: job.finished_at || null, owner: job.owner || (job.user || {}).uname || null,
@@ -888,6 +900,7 @@ function reproPackage(res, job, btn) {
       "- `identity.json` holds the setup fingerprint (prepared-set hash, GPU, settings fingerprint) and the environment (GPU, driver, CUDA, library versions).\n" +
       (got.some(function (f) { return /^prepared_set\//.test(f.name); }) ? "- `prepared_set/` holds the exact flows the models answered (`features.csv`, `labels.csv` when labelled, `manifest.json` with the hash).\n" : "- (the prepared set's files could not be fetched when this package was made)\n") +
       (got.some(function (f) { return f.name === "report.pdf"; }) ? "- `report.pdf` is the session report.\n" : "") +
+      (got.some(function (f) { return f.name === "explanation.json"; }) ? "- `explanation.json` holds the written explanations, with the model and prompt version that wrote them.\n" : "") +
       "\n## The setup (what must match to compare)\n\n" +
       "- Prepared set (flows) SHA-256: `" + (ident.prepared_set_sha256 || "unknown") + "` (hash version " + (ident.prepared_set_hash_version || "?") + ")\n" +
       "- GPU: " + (ident.gpu_label || env.gpu_name || "unknown") + "\n" +

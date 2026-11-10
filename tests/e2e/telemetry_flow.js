@@ -29,7 +29,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     await p.waitForFunction(() => /^#\/new\/run\//.test(location.hash), null, { timeout: 30000 });
     const id = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[3]);
     await p.waitForFunction(() => document.querySelectorAll('#tel-host .tel-line').length >= 3, null, { timeout: 30000 });
-    log((await p.$$('#tel-host #tel-steps li')).length === 7, 'run page: the panel shows the steps and the log');
+    log((await p.$$('#tel-host #tel-steps li')).length === 8, 'run page: the panel shows the steps and the log');
     await p.goto(BASE + '/app.html#/sessions'); await p.waitForSelector('#view-sessions:not([hidden])');
     await p.waitForTimeout(800);
     await p.goto(BASE + '/app.html#/session/' + id);

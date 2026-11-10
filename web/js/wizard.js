@@ -1025,9 +1025,10 @@ function renderProgress(j, target) {
 // data, Hugging Face, 4-bit load, flows, scoring), the GPU now (utilisation, memory, power,
 // temperature; never simulated: a demo run says it has no GPU), each flow's agents, and the log.
 var TEL_STEPS = [["queue", "Queue"], ["data", "Data"], ["hf", "Hugging Face"], ["load", "Load model (4-bit)"],
-                 ["flows", "Run flows"], ["score", "Score & analyse"], ["done", "Done"]];
+                 ["flows", "Run flows"], ["score", "Score & analyse"], ["explain", "Write explanation"], ["done", "Done"]];
 var TEL_STEP_OF = { queued: 0, start: 0, data: 1, hf: 2, download: 2, downloaded: 2, worker: 3, load: 3, loaded: 3,
-                    measure: 4, flow: 4, extra: 4, idle: 4, worker_done: 4, scoring: 5, analysis: 5, results: 5, done: 6 };
+                    measure: 4, flow: 4, extra: 4, idle: 4, worker_done: 4, scoring: 5, analysis: 5, results: 5,
+                    explain: 6, explained: 6, done: 7 };
 function startTelemetry(host, id) {
   // one panel at a time: a panel left in a hidden view (the run page) must not take this one's updates
   document.querySelectorAll("#tel-card").forEach(function (c) { if (!host.contains(c)) c.remove(); });
@@ -1048,7 +1049,7 @@ function startTelemetry(host, id) {
   }
   function renderSteps() {
     q("tel-steps").innerHTML = TEL_STEPS.map(function (x, i) {
-      var cls = st.fail && i === st.step ? "bad" : i < st.step || st.step === 6 ? "done" : i === st.step ? "now" : "";
+      var cls = st.fail && i === st.step ? "bad" : i < st.step || st.step === TEL_STEPS.length - 1 ? "done" : i === st.step ? "now" : "";
       var sub = i === 3 || i === 4 ? (st.model ? '<span class="small muted">' + esc(short(st.model)) + (st.of ? ", " + st.of : "") + '</span>' : "") : "";
       return '<li class="' + cls + '"' + (cls === "now" ? ' aria-current="step"' : "") + '><span class="dot" aria-hidden="true"></span><span>' + esc(x[1]) + sub + '</span></li>';
     }).join("");

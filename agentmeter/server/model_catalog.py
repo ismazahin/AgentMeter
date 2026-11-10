@@ -41,7 +41,7 @@ CACHE_PREFIX = "repo:"          # app-DB cache key, kept apart from hf_metadata'
 TTL_S = 24 * 3600
 TIMEOUT_S = 8.0
 # the files a benchmark downloads (same patterns as scripts/vast_models.py)
-DOWNLOAD_PATTERNS = ["*.json", "*.safetensors", "tokenizer*", "*.model", "*.tiktoken", "*.txt"]
+DOWNLOAD_PATTERNS = ["*.json", "*.safetensors", "tokenizer*", "*.model", "*.tiktoken", "*.txt", "*.jinja"]
 # consolidated*.safetensors: Mistral's own-format copy of the same weights (transformers loads
 # the model-*.safetensors shards), so downloading it would double the size for nothing
 DOWNLOAD_IGNORE = ["original/*", "consolidated*", "*.pth", "*.bin", "*.gguf", "*.onnx", "*.msgpack", "*.h5"]

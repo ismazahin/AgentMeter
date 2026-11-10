@@ -483,6 +483,48 @@
     ]
    }
   },
+  "/api/jobs/{job_id}/explanation": {
+   "get": {
+    "operationId": "get__api_jobs_job_id_explanation",
+    "tags": [
+     "Benchmarks"
+    ],
+    "summary": "The session's written explanations (explanation.json; 404 when there are none)",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "job_id",
+      "in": "path",
+      "required": true,
+      "description": "Job id",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
   "/api/jobs/{job_id}/flows": {
    "get": {
     "operationId": "get__api_jobs_job_id_flows",

@@ -280,6 +280,14 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
                               labelled=bool((payload.get("session") or {}).get("accuracy_available")),
                               triage=triage_table(cfg_data), severity=severity_table(cfg_data),
                               ids_scores=ids_scores)), encoding="utf-8")
+    # Last step: the explainer writes this session's explanations from its finished results, in
+    # its own process, after every measured model has released the GPU. Never fails the session.
+    from .explain import explain_session
+    telemetry.emit("explain", "Writing the explanation from this session's results.")
+    ex = explain_session(payload, plan["run_dir"], real=bool(real))
+    telemetry.emit("explained", {"ok": "Explanation written.", "partial": "Explanation written; some parts use the standard text.",
+                                 "skipped": "No explanation written (" + str(ex.get("reason") or "") + ").",
+                                 "failed": "The explanation could not be written; the standard text is shown."}.get(ex.get("status"), "Explanation step finished."))
     return payload
 
 

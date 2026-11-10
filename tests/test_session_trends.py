@@ -297,6 +297,17 @@ def test_gpu_health_flags_thermal_throttling_low_clocks_heat_and_a_shared_gpu(mo
     assert b["status"] == "check" and b["reasons"] == ["1 other process held GPU memory (3,000 MB) — the GPU was shared"]
 
 
+def test_gpu_health_counts_samples_around_a_short_run(monkeypatch):
+    # A model whose flows all finish within one second: completed_at (1 s resolution) gives a window
+    # of a few ms at the middle of that second, between two 0.1 s samples. Its readings still count.
+    monkeypatch.setattr(analyses, "model_windows", lambda sr, label_of: {"m/a": (1000.5, 1000.501)})
+    energy = {"health_samples": [(1000.0 + i / 10 + 0.05, 1800.0, 55.0, 0) for i in range(10)],
+              "max_sm_mhz": 1800.0, "method": "synthetic (test only)", "interval_s": 0.1}
+    h = analyses.gpu_health_block([], {"m/a": "m/a"}, real=False, energy=energy)
+    assert h["available"] and h["synthetic"] and h["status"] == "normal"
+    assert h["per_model"][0]["n_samples"] >= 1
+
+
 def test_gpu_health_not_available_without_samples_or_on_demo():
     assert analyses.gpu_health_block([], {}, real=False)["available"] is False
     assert "not sampled" in analyses.gpu_health_block([], {}, real=True, energy={})["reason"]

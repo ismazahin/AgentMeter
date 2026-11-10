@@ -394,12 +394,16 @@
     flows.forEach(function (f) { f.agents.forEach(function (a) { if (agents.indexOf(a.agent) < 0) agents.push(a.agent); }); });
     return { flows: flows, agents: agents, thinned: !!(mk && mk.agent_turns_thinned), method: (mk && mk.method) || "" };
   }
-  function runningAt(markers, x) {
-    var fl = (markers && markers.flows) || [];
+  // What was running at x. `minW` (seconds, optional): the narrowest span the lane draws, so a turn
+  // shorter than that still answers for the strip it is drawn over (the later turn is drawn on top).
+  function runningAt(markers, x, minW) {
+    var fl = (markers && markers.flows) || [], w = minW || 0;
+    var end = function (from, to) { return Math.max(to, from + w); };
     for (var i = 0; i < fl.length; i++) {
-      var f = fl[i];
-      if (x >= f.t_s && x <= f.end_s) {
-        var a = f.agents.filter(function (t) { return x >= t.from_s && x <= t.to_s; })[0];
+      var f = fl[i], ags = f.agents || [], last = ags.length ? ags[ags.length - 1] : null;
+      if (x >= f.t_s && x <= Math.max(end(f.t_s, f.end_s), last ? end(last.from_s, last.to_s) : f.end_s)) {
+        var a = null;
+        ags.forEach(function (t) { if (x >= t.from_s && x <= end(t.from_s, t.to_s)) a = t; });
         return { model: f.model, flow: f.flow, agent: a ? a.agent : null };
       }
     }

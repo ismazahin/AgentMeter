@@ -967,11 +967,17 @@ def gpu_health_block(sr: list[dict], label_of: dict[str, str], *, real: bool,
         return {"available": False,
                 "reason": "demo run: no GPU" if not real else "the GPU's clock, temperature and throttle state were not sampled"}
     windows, max_sm = model_windows(sr, label_of), energy.get("max_sm_mhz")
+    # model_windows comes from completed_at, stamped to the second (taken as the middle of it), so
+    # the true run lies within ±0.5 s of the window; a short run (a mock, a few fast flows) can
+    # get a window of a few ms that sits between two samples. Widen it by that uncertainty plus one
+    # sampling interval so the readings taken while the model ran count. (Only the health check
+    # widens it: the energy windows are unchanged.)
+    pad = 0.5 + float(energy.get("interval_s") or 0.0)
     per, any_check = [], False
     for model, win in windows.items():
         if not win:
             continue
-        ins = [h for h in hs if win[0] <= h[0] <= win[1]]
+        ins = [h for h in hs if win[0] - pad <= h[0] <= win[1] + pad]
         if not ins:
             continue
         reasons = [h[3] for h in ins if h[3] is not None]

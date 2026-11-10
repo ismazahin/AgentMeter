@@ -1407,13 +1407,14 @@ function lineChart(spec) {
     '<line class="lc-cross" x1="0" x2="0" y1="' + T + '" y2="' + (T + ph) + '" visibility="hidden"/><rect class="lc-hit" x="' + L + '" y="' + T + '" width="' + pw + '" height="' + ph + '"/></svg></div>';
 }
 // a lane of coloured segments on the same x scale (the agent taking its turn), for a chart group
+var LANE_W = 720, LANE_L = 56, LANE_R = 10, LANE_MIN_W = 0.6;    // a turn is drawn at least LANE_MIN_W wide
 function laneChart(spec) {
-  var W = 720, H = spec.h || 40, L = 56, R = 10, T = 4, B = 4, pw = W - L - R, ph = H - T - B, x0 = spec.xMin || 0, xm = spec.xMax || 1;
+  var W = LANE_W, H = spec.h || 40, L = LANE_L, R = LANE_R, T = 4, B = 4, pw = W - L - R, ph = H - T - B, x0 = spec.xMin || 0, xm = spec.xMax || 1;
   var X = function (x) { return L + pw * (x - x0) / ((xm - x0) || 1); };
   LC[spec.id] = { spec: spec, X: X, L: L, pw: pw, x0: x0, xm: xm, group: spec.group || null };
   var segs = (spec.segments || []).filter(function (g) { return g.to >= x0 && g.from <= xm; }).map(function (g) {
     var f = Math.max(x0, g.from), t = Math.min(xm, g.to);
-    return '<rect class="lane-seg" x="' + X(f).toFixed(2) + '" y="' + T + '" width="' + Math.max(0.6, X(t) - X(f)).toFixed(2) + '" height="' + ph + '" style="fill:' + g.color + '"/>';
+    return '<rect class="lane-seg" x="' + X(f).toFixed(2) + '" y="' + T + '" width="' + Math.max(LANE_MIN_W, X(t) - X(f)).toFixed(2) + '" height="' + ph + '" style="fill:' + g.color + '"/>';
   }).join("");
   return '<div class="lc lc-grouped lane" id="' + spec.id + '"><svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(spec.label || "") + '">' +
     '<text class="lc-tick" x="' + (L - 6) + '" y="' + (T + ph / 2 + 4) + '" text-anchor="end">' + esc(spec.title || "") + '</text>' +
@@ -1520,7 +1521,7 @@ function gpuTimelineCard(res) {
     text: function (x) {
       var near = null;
       g.points.forEach(function (p) { if (!near || Math.abs(p.t - x) < Math.abs(near.t - x)) near = p; });
-      var run = INSIGHTS.runningAt(mk, x), inw = g.windows.filter(function (w) { return x >= w.from_s && x <= w.to_s; })[0], idle = g.idle.filter(function (w) { return x >= w.from_s && x <= w.to_s; })[0];
+      var run = INSIGHTS.runningAt(mk, x, LANE_MIN_W / (LANE_W - LANE_L - LANE_R) * (x1 - x0)), inw = g.windows.filter(function (w) { return x >= w.from_s && x <= w.to_s; })[0], idle = g.idle.filter(function (w) { return x >= w.from_s && x <= w.to_s; })[0];
       return fmtNum(x, 1) + " s" + (run ? " · " + short(run.model) + " · flow " + run.flow + (run.agent ? " · " + agName(run.agent) + " agent" : " · between agent calls") :
         inw ? " · " + short(inw.model) + " (between flows)" : idle ? " · idle baseline (" + short(idle.model) + ")" : "") +
         (near ? " — " + fmtNum(near.power_w, 0) + " W" + (near.util_pct != null ? " · " + fmtNum(near.util_pct, 0) + "% busy" : "") + (near.mem_mb != null ? " · " + fmtMB(near.mem_mb) : "") : "");

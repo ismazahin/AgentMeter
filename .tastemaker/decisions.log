@@ -1,0 +1,4 @@
+# Tastemaker decisions for AgentMeter (append-only). Format: date | status | surface | axis | choice | reason
+2026-11-10 | kept | session tab takeaways | hierarchy | A + C: large serif answer, one plain "why" sentence, models ranked with bars (best marked) | owner chose it over A, B (chips) and C alone, after first picking B
+2026-11-10 | rejected | session tab takeaways | hierarchy | B: answer in a box with per-model chips | owner changed their mind after seeing it built
+2026-11-10 | kept | explanations app-wide | copy | everyday model names in prose; plain statistics wording; no em dashes; card ledes 15px darker | owner asked for explanations that are easy to understand

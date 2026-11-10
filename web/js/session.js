@@ -264,10 +264,26 @@ function showSessionTab(tab) {
   if (t.tab === "agents") loadFlows();
 }
 function pane(name, html) { return '<div data-pane="' + name + '"' + (name === "main" ? "" : " hidden") + '>' + html + '</div>'; }
+// The takeaway at the top of a tab (A + C): the answer in large type, why it matters in a plain
+// sentence, then each model ranked with a bar (the best one marked). Bars are relative to the largest.
+function takeaway(t, key) {
+  if (!t) return "";
+  if (typeof t === "string") t = { h: t };
+  var rows = t.chips || [], max = Math.max.apply(null, rows.map(function (c) { return c.n || 0; }).concat([0]));
+  return '<div class="takeaway tab-summary" data-summary="' + esc(key || "") + '"><p class="tk-h">' + esc(t.h) + '</p>' +
+    (t.s ? '<p class="tk-s">' + esc(t.s) + '</p>' : "") +
+    (rows.length > 1 ? '<ol class="tk-list" aria-label="Per model">' + rows.map(function (c) {
+      var w = max > 0 && c.n != null ? Math.max(2, 100 * c.n / max) : 0;
+      return '<li class="tk-row' + (c.best ? " is-best" : "") + '"><span class="tk-name">' + esc(c.label) + '</span>' +
+        '<span class="tk-bar" aria-hidden="true"><i style="width:' + w.toFixed(1) + '%"></i></span><span class="tk-v">' + esc(c.value) +
+        (c.best ? '<span class="sr-only"> (best)</span>' : "") + '</span></li>';
+    }).join("") + '</ol>' : "") + '</div>';
+}
 function renderSession(res, job) {
   var s = res.session, env = res.environment || {}, real = env.provider === "real";
-  var vs = (res.per_model || []).map(function (m) { return short(m.model); }).join(" vs ");
+  var vs = (res.per_model || []).map(function (m) { return nick(m.model); }).join(" vs ");
   $("h-session").textContent = job.title || vs || job.job_id;      // a session the owner named shows its name
+  $("h-session").title = (res.per_model || []).map(function (m) { return m.model; }).join(" vs ");   // the full names on hover
   document.title = $("h-session").textContent + " · AgentMeter";
   $("session-chips").innerHTML = '<span class="chip ' + (real ? "ok" : "warn") + '">' + (real ? "GPU: " + esc(env.gpu_name || "unknown") : "Demo (no GPU)") + '</span>' +
     '<span class="chip">' + fmtNum(s.n_flows) + ' flows</span><span class="chip">' + esc((s.source_type || "").toUpperCase()) + '</span>' +
@@ -288,7 +304,7 @@ function renderSession(res, job) {
   setAgentSlots(res);
   $("session-guide").hidden = guideSeen("session");
   var SUM = window.INSIGHTS ? INSIGHTS.tabSummaries(res) : {};
-  var lead = function (k) { return SUM[k] ? '<p class="tab-summary" data-summary="' + k + '">' + esc(SUM[k]) + '</p>' : ""; };
+  var lead = function (k) { return takeaway(SUM[k], k); };
   LC = {};                                         // line charts of this session (wired after render)
   $("spanel-overview").innerHTML = pane("main", overviewTab(res) + '<div class="card" id="svc-rep-line" hidden></div>' + notesCard(job) + scheduleCard(job));
   $("spanel-ranking").innerHTML = lead("ranking") + pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +

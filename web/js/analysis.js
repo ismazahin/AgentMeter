@@ -731,7 +731,11 @@ function refreshLimits() {
 function recLimitsTab(res) {
   var rel = res.relative_comparison, dh = res.decision_helper, h = [];
   var hint = window.REPORT ? window.REPORT.optimisationHint(res, ((res.per_model || [])[0] || {}).db_label) : { text: "" };
-  h.push('<div class="card"><h2>Measured verdict</h2><p class="verdict">' + esc(rel ? rel.verdict : (res.comparison || {}).statement || "Single-model run — no head-to-head comparison.") + '</p>' +
+  // the verdict: its first sentence as the answer, the rest as a plain explanation
+  var vtext = INSIGHTS.plainText(rel ? rel.verdict : (res.comparison || {}).statement || "Single-model run: there is no head-to-head comparison.",
+                                 (res.per_model || []).map(function (m) { return m.model; }));
+  var vcut = vtext.search(/\.\s/), vhead = vcut > 0 ? vtext.slice(0, vcut + 1) : vtext, vrest = vcut > 0 ? vtext.slice(vcut + 2) : "";
+  h.push('<div class="card"><h2>Measured verdict</h2><p class="verdict">' + esc(vhead) + '</p>' + (vrest ? '<p class="verdict-why">' + esc(vrest) + '</p>' : "") +
     (hint.text ? '<p class="small">' + esc(hint.text) + '</p>' : "") + '<p class="muted small">Decision support, not a deployment sign-off.</p></div>');
   h.push(pickerCard(res), fitCard(res));
   if (dh) {

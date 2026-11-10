@@ -556,6 +556,25 @@
   .flow-agent { margin: 8px 0; }
   .flow-text { margin: 4px 0 0; padding: 8px 10px; background: var(--surface-2); border-radius: var(--radius); white-space: pre-wrap; overflow-wrap: anywhere; font: 12.5px/1.45 var(--mono, ui-monospace, monospace); max-height: 220px; overflow: auto; }
   .tab-summary { margin: 0 0 14px; padding: 10px 14px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 var(--radius) var(--radius) 0; font-size: 14.5px; }
+  /* How to read a session: tab name, then one short line */
+  .read-guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 14px 32px; margin: 4px 0 0; }
+  .read-guide dt { font-weight: 650; font-size: 15px; }
+  .read-guide dd { margin: 2px 0 0; color: var(--muted-2); font-size: 14.5px; line-height: 1.5; }
+  .verdict-why { color: var(--muted-2); font-size: 15px; line-height: 1.6; max-width: 74ch; margin: 8px 0 0; }
+  /* the takeaway (2026-11-10, A + C): a large plain answer, a "why" line, the models ranked with bars */
+  .takeaway.tab-summary { background: transparent; border-left: 0; border-radius: 0; padding: 20px 0 22px; }
+  .takeaway { border-top: 1px solid var(--rule); border-bottom: 1px solid var(--border); padding: 20px 0 22px; margin: 4px 0 22px; font-size: 15px; }
+  .takeaway .tk-h { font-family: var(--serif); font-weight: 400; font-size: clamp(22px, 2.3vw, 28px); line-height: 1.25; letter-spacing: -.02em; color: var(--text); margin: 0; max-width: 34em; }
+  .takeaway .tk-s { color: var(--muted-2); margin: 8px 0 0; max-width: 70ch; line-height: 1.6; }
+  .tk-list { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 9px; max-width: 640px; }
+  .tk-row { display: grid; grid-template-columns: minmax(96px, 140px) 1fr auto; align-items: center; gap: 14px; }
+  .tk-name { font-weight: 600; white-space: nowrap; }
+  .tk-bar { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+  .tk-bar > i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .tk-row.is-best .tk-bar > i { background: var(--success); }
+  .tk-v { font-variant-numeric: tabular-nums; color: var(--muted-2); white-space: nowrap; min-width: 7ch; text-align: right; }
+  .tk-row.is-best .tk-v, .tk-row.is-best .tk-name { color: var(--text); font-weight: 650; }
+  @media (max-width: 560px) { .tk-row { grid-template-columns: 1fr auto; } .tk-bar { grid-column: 1 / -1; grid-row: 2; } }
   .inspect { margin-top: 10px; max-height: 340px; overflow: auto; border-top: 1px solid var(--border); }
   .inspect .inspect-table td, .inspect .inspect-table th { padding: 3px 8px; }
   .exp-bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; margin-top: 10px; }
@@ -696,7 +715,15 @@
   th { background: transparent; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; font-weight: 700; border-bottom: 1px solid var(--rule); }
   .table-wrap { border: 0; border-radius: 0; }
   td { border-bottom: 1px solid var(--border); }
-  td.num { font-family: var(--mono); font-size: 13px; }
+  td.num { font-family: var(--font); font-variant-numeric: tabular-nums; font-size: 14px; }
+
+  /* explanations that read easily (2026-11-10): a card's opening text is a lede, not fine print;
+     model names and numbers in tables use the text font, not a typewriter one */
+  .card > h2 + p.muted.small, .card > h2 + p.small.muted, .card > .row + p.muted.small { font-size: 15px; line-height: 1.6; color: var(--muted-2); max-width: 74ch; margin-top: 0; }
+  td.mono { font-family: var(--font); font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
+  details.info > summary { font-size: 14px; font-weight: 600; }
+  details.info .small, details.info .list { font-size: 14px; line-height: 1.6; color: var(--muted-2); }
+  .tile .w { font-size: 13px; color: var(--muted-2); }
   .kv dt { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
 
   /* controls: square, quiet */
@@ -1443,12 +1470,16 @@
     <div id="session-body" hidden>
       <div id="session-guide" class="card guide" hidden>
         <div class="guide-head"><h2>How to read a session</h2><button type="button" class="btn" id="session-guide-hide">Got it</button></div>
-        <ul class="guide-steps">
-          <li><b>Overview</b> — the verdict, key findings and your notes. <b>Model Ranking</b> — the SAW score, its weights and how robust the order is.</li>
-          <li><b>Output Reliability</b> — did every flow end with a usable answer, and where answers fail. <b>Performance</b> — latency, GPU and the statistics behind the verdict.</li>
-          <li><b>Agent Analysis</b> — where time and tokens go inside the agent pipeline. <b>Cost &amp; Energy</b> — per 1,000 flows, projected to your volume.</li>
-          <li><b>Recommendations</b> — does a model fit your limits? <b>Data &amp; Exports</b> — the report, raw results and the flows. Cards with a table or chart have CSV/PNG downloads.</li>
-        </ul>
+        <dl class="read-guide">
+          <div><dt>Overview</dt><dd>The verdict, the key findings and your notes.</dd></div>
+          <div><dt>Model Ranking</dt><dd>The overall score, its weights, and how sure the order is.</dd></div>
+          <div><dt>Output Reliability</dt><dd>Whether every flow got a usable answer, and where answers go wrong.</dd></div>
+          <div><dt>Performance</dt><dd>Speed, GPU memory, and whether the differences are real.</dd></div>
+          <div><dt>Agent Analysis</dt><dd>Where the time and tokens go, agent by agent.</dd></div>
+          <div><dt>Cost &amp; Energy</dt><dd>Cost and energy per 1,000 flows, projected to your volume.</dd></div>
+          <div><dt>Recommendations</dt><dd>Which model fits your limits, and what to do next.</dd></div>
+          <div><dt>Data &amp; Exports</dt><dd>The report, the raw results and the flows. Tables and charts download as CSV or PNG.</dd></div>
+        </dl>
       </div>
       <div class="tabs stabs" role="tablist" aria-label="Session sections" id="session-tabs">
         <a role="tab" href="#" data-tab="overview" id="stab-overview" aria-controls="spanel-overview">Overview</a>

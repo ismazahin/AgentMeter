@@ -952,11 +952,11 @@ setInterval(function () {
       var st = r.data.status;
       if (["done", "failed", "interrupted", "stopped"].indexOf(st) < 0) return;
       setWatched(watchedRuns().filter(function (x) { return x.id !== w.id; }));
-      var ok = st === "done", what = (w.models || []).map(short).join(", ");
+      var ok = st === "done", what = (w.models || []).map(nick).join(", ");
       var title = ok ? "Benchmark finished" : "Benchmark " + st;
       try {
         if (window.Notification && Notification.permission === "granted" && document.hidden) {
-          var n = new Notification(title, { body: what + (ok ? " — results are ready." : ""), tag: w.id });
+          var n = new Notification(title, { body: what + (ok ? ". The results are ready." : ""), tag: w.id });
           n.onclick = function () { window.focus(); location.hash = ok ? "#/session/" + enc(w.id) : "#/new/run/" + enc(w.id); n.close(); };
           return;
         }

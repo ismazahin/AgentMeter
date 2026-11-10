@@ -777,53 +777,98 @@
   }
 
   // ---- one plain sentence at the top of each session tab (restates stored numbers only) ----
+  // A model's everyday name for prose: "Mistral-7B-Instruct-v0.3" -> "Mistral 7B", "Meta-Llama-3-8B-Instruct"
+  // -> "Llama 3 8B", "Phi-3-mini-4k-instruct" -> "Phi-3 mini", "gemma-2-9b-it" -> "Gemma 2 9B". Names without a
+  // size (test or mock models) are returned as they are. Tables keep the full name.
+  function nick(m) {
+    var b = short(m), x = b.replace(/^Meta-/i, "").replace(/[-_](instruct|chat|it)([-_].*)?$/i, "").replace(/[-_]\d+k$/i, "");
+    if (x === b && !/\d(\.\d+)?b\b/i.test(x)) return b;          // nothing to tidy (test or mock models)
+    x = x.replace(/(\d(?:\.\d+)?)b\b/gi, "$1B").replace(/-/g, " ").replace(/^Phi 3/i, "Phi-3");
+    return x.charAt(0).toUpperCase() + x.slice(1);
+  }
+  // The server's statistics wording, in plain words: "not statistically significant (Kruskal-Wallis
+  // p=0.126 >= 0.05)" -> "could be chance (p = 0.126)"; full model names -> everyday ones; no em dashes.
+  function plainText(text, models) {
+    var t = String(text == null ? "" : text);
+    t = t.replace(/\s*\((?:Kruskal-Wallis|Mann-Whitney|Welch'?s? t-test|t-test)\s*p\s*=\s*([\d.eE-]+)\s*(?:>=|<|>|<=)\s*0?\.05\)/g, " (p = $1)")
+         .replace(/\bnot statistically significant\b/g, "could be chance")
+         .replace(/\bstatistically significant\b/g, "larger than chance")
+         .replace(/\s+\u2014\s+/g, ": ").replace(/\u2014/g, ", ");
+    (models || []).map(function (m) { return [short(m), nick(m)]; }).filter(function (x) { return x[0] !== x[1]; })
+      .sort(function (a, b) { return b[0].length - a[0].length; })
+      .forEach(function (x) { t = t.split(x[0]).join(x[1]); });
+    return t;
+  }
+  // The takeaway at the top of each session tab: the answer in one short sentence (h), what it means (s),
+  // and one chip per model with its number (the best one marked). Restates stored numbers only.
   function tabSummaries(res) {
     var out = {}, rel = res.relative_comparison, pm = res.per_model || [];
-    // ranking: the stored efficiency-only SAW leader and how robust that is
+    // one row per model: its label, the number as text, the best one marked, and n for the bar's length
+    var chip = function (model, value, best, n) { return { label: nick(model), value: value, best: !!best, n: num(n) }; };
+    // ranking: the stored efficiency score leader and how robust that is
     var saw = pm.map(function (m) { return { model: m.model, v: num((m.saw_efficiency_only || m.saw || {}).composite_100) }; }).filter(function (x) { return x.v != null; })
       .sort(function (a, b) { return b.v - a.v; });
     if (saw.length > 1) {
       var tie = Math.abs(saw[0].v - saw[1].v) < 0.05;
       var st = weightStability(res), flips = st.rows.filter(function (r) { return r.changes && !r.no_data; }).map(function (r) { return r.criterion; });
-      out.ranking = tie ? (saw.length > 2 ? "The top two models tie" : "The two models tie") + " on the SAW score (" + saw[0].v.toFixed(1) + ")."
-        : short(saw[0].model) + " ranks first on the SAW score (" + saw[0].v.toFixed(1) + " vs " + saw[1].v.toFixed(1) + "); " +
-          (flips.length ? "moving the " + flips.join(" or ") + " weight far enough can change that." : "no single weight change overturns it.");
-    } else if (saw.length) out.ranking = "Single-model run: " + short(saw[0].model) + " scores " + saw[0].v.toFixed(1) + " on the SAW score.";
+      out.ranking = {
+        h: tie ? (saw.length > 2 ? "The top two models tie" : "The two models tie") + " on the efficiency score (" + saw[0].v.toFixed(1) + ")."
+               : nick(saw[0].model) + " ranks first on the efficiency score: " + saw[0].v.toFixed(1) + " against " + saw[1].v.toFixed(1) + ".",
+        s: tie ? "Neither is ahead on these flows." : flips.length ? "Weighting " + flips.join(" or ") + " much more heavily could change the order."
+               : "No single change to the weights overturns the order.",
+        chips: saw.map(function (x, i) { return chip(x.model, x.v.toFixed(1), i === 0 && !tie, x.v); }) };
+    } else if (saw.length) out.ranking = { h: nick(saw[0].model) + " scores " + saw[0].v.toFixed(1) + " on the efficiency score.", s: "One model in this run, so there is no ranking.", chips: [] };
     // output reliability: did every flow end with a usable answer?
     var rl = ((res.output_reliability || {}).per_model || []).filter(function (m) { return num(m.valid_rate) != null; });
     if (rl.length) {
-      var worst = rl.slice().sort(function (a, b) { return a.valid_rate - b.valid_rate; })[0];
-      out.reliability = rl.every(function (m) { return m.valid_rate === 1; })
-        ? "Every flow ended with a usable answer for " + (rl.length === 1 ? short(rl[0].model) : "every model") + ": the timings measure complete work."
-        : "Lowest share of usable answers: " + short(worst.model) + " at " + pct(worst.valid_rate) + " — check where answers fail before trusting its timings.";
+      var worst = rl.slice().sort(function (a, b) { return a.valid_rate - b.valid_rate; })[0], all = rl.every(function (m) { return m.valid_rate === 1; });
+      out.reliability = {
+        h: all ? (rl.length === 1 ? nick(rl[0].model) + " gave" : "Every model gave") + " a usable answer on every flow."
+               : nick(worst.model) + " gave a usable answer on " + pct(worst.valid_rate) + " of flows, the lowest.",
+        s: all ? "So the timings measure complete work." : "Check where its answers fail before trusting its timings.",
+        chips: rl.slice().sort(function (a, b) { return b.valid_rate - a.valid_rate; }).map(function (m) { return chip(m.model, pct(m.valid_rate) + " usable", false, m.valid_rate); }) };
     }
     // performance: the measured latency comparison
     var lat = rel && (rel.metrics || []).filter(function (m) { return m.metric === "mean_latency_s"; })[0];
+    var lats = pm.map(function (m) { return { model: m.model, v: num((((m.efficiency || {}).end_to_end) || {}).mean_latency_s) }; }).filter(function (x) { return x.v != null; })
+      .sort(function (a, b) { return a.v - b.v; });
+    var latChips = lats.map(function (x, i) { return chip(x.model, time(x.v) + " per flow", i === 0 && lats.length > 1, x.v); });
     if (lat && lat.available) {
-      out.performance = lat.winner === "tie" ? "Latency: the models are within the tie range (" + (lat.note || "no clear difference") + ")."
-        : short(lat.winner) + " is " + lat.pct_better + "% faster per flow" + (lat.runner_up ? " than the next-fastest, " + short(lat.runner_up) : "") + (lat.p_value != null ? " (p = " + (+lat.p_value).toPrecision(2) + ")" : "") + ".";
+      var sig = lat.p_value == null ? "" : (+lat.p_value < 0.05 ? "The gap is larger than chance (p = " : "The gap could be chance (p = ") + (+lat.p_value).toPrecision(2) + ").";
+      out.performance = lat.winner === "tie"
+        ? { h: "The models are about equally fast.", s: lat.note ? "The gap is small: " + plainText(lat.note) + "." : "No clear difference between them.", chips: latChips.map(function (c) { c.best = false; return c; }) }
+        : { h: nick(lat.winner) + " is the fastest: " + lat.pct_better + "% quicker per flow" + (lat.runner_up ? " than " + nick(lat.runner_up) : "") + ".", s: sig || null, chips: latChips };
     } else if (pm.length === 1) {
       var e = ((pm[0].efficiency || {}).end_to_end) || {};
-      if (e.mean_latency_s != null) out.performance = short(pm[0].model) + " takes " + time(e.mean_latency_s) + " per flow on average (p95 " + time(e.p95_latency_s) + ").";
+      if (e.mean_latency_s != null) out.performance = { h: nick(pm[0].model) + " takes " + time(e.mean_latency_s) + " per flow on average.", s: "The slowest 5% of flows take " + time(e.p95_latency_s) + " or more.", chips: [] };
     }
     // agents: where the time goes
-    var ag = ((res.agents || {}).per_model || []).map(function (m) {
+    var tops = ((res.agents || {}).per_model || []).map(function (m) {
       var top = (m.agents || []).slice().sort(function (a, b) { return (b.latency_share || 0) - (a.latency_share || 0); })[0];
-      return top ? short(m.model) + ": " + top.agent + " (" + pct(top.latency_share, 0) + ")" : null;
+      return top ? { model: m.model, agent: top.agent, share: top.latency_share } : null;
     }).filter(Boolean);
-    if (ag.length) out.agents = "The slowest step — " + ag.join("; ") + ". Hand-offs re-send earlier answers inside later prompts.";
+    if (tops.length) {
+      var same = tops.every(function (t) { return t.agent === tops[0].agent; }), cap = function (a) { return String(a).charAt(0).toUpperCase() + String(a).slice(1); };
+      out.agents = { h: same ? cap(tops[0].agent) + " is the slowest step" + (tops.length > 1 ? " for every model." : ".") : "The slowest step differs from model to model.",
+                     s: "Later agents re-read earlier answers, so their prompts grow along the pipeline.",
+                     chips: tops.map(function (t) { return chip(t.model, cap(t.agent) + ": " + pct(t.share, 0) + " of the time", false, t.share); }) };
+    }
     // cost
     var ce = ((res.cost_energy || {}).per_model || []).filter(function (r) { return r.cost_per_1k_flows_usd != null; })
       .sort(function (a, b) { return a.cost_per_1k_flows_usd - b.cost_per_1k_flows_usd; });
-    out.cost = ce.length ? short(ce[0].model) + " is the cheapest at $" + ce[0].cost_per_1k_flows_usd.toFixed(4) + " per 1,000 flows" +
-      (ce[0].wh_per_flow != null ? ", " + (ce[0].wh_per_flow * 1000).toFixed(0) + " Wh per 1,000 flows" : "") + "."
-      : res.cost_energy ? "Cost and energy were not measured in this run (no GPU price or power readings) — the projection below still shows the method." : null;
+    if (ce.length) out.cost = { h: nick(ce[0].model) + " is the cheapest: $" + ce[0].cost_per_1k_flows_usd.toFixed(4) + " per 1,000 flows.",
+                                s: ce[0].wh_per_flow != null ? "It uses " + (ce[0].wh_per_flow * 1000).toFixed(0) + " Wh of GPU energy per 1,000 flows." : null,
+                                chips: ce.map(function (r, i) { return chip(r.model, "$" + r.cost_per_1k_flows_usd.toFixed(4) + " per 1,000", i === 0 && ce.length > 1, r.cost_per_1k_flows_usd); }) };
+    else if (res.cost_energy) out.cost = { h: "Cost and energy were not measured in this run.", s: "There was no GPU price or power reading. The projection below still shows the method.", chips: [] };
     // recommendations
     var fit = deploymentFit(res);
     if (fit.models.length) {
-      var bestFit = fit.models.slice().sort(function (a, b) { return b.passes - a.passes; })[0];
-      out.recommendations = fit.models.map(function (m) { return short(m.model) + " fits " + m.passes + " of " + fit.profiles.length; }).join(", ") +
-        " common deployment profiles" + (fit.models.length > 1 && bestFit.passes > Math.min.apply(null, fit.models.map(function (m) { return m.passes; })) ? "; " + short(bestFit.model) + " fits the most." : ".");
+      var byFit = fit.models.slice().sort(function (a, b) { return b.passes - a.passes; }), n = fit.profiles.length;
+      var allSame = byFit.every(function (m) { return m.passes === byFit[0].passes; });
+      out.recommendations = { h: allSame ? (byFit.length > 1 ? "Every model fits " : nick(byFit[0].model) + " fits ") + byFit[0].passes + " of " + n + " common deployment profiles."
+                                         : nick(byFit[0].model) + " fits the most deployment profiles: " + byFit[0].passes + " of " + n + ".",
+                              s: "Checked against " + n + " common setups: memory, speed, daily volume and cost.",
+                              chips: byFit.map(function (m) { return chip(m.model, m.passes + " of " + n, !allSame && m.passes === byFit[0].passes, m.passes / n); }) };
     }
     Object.keys(out).forEach(function (k) { if (!out[k]) delete out[k]; });
     return out;
@@ -1166,7 +1211,7 @@
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
               workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, energyEfficiency: energyEfficiency, priceCompare: priceCompare, idleCost: idleCost, recommend: recommend, removeAgent: removeAgent, budgetTuning: budgetTuning, pipelineCompare: pipelineCompare, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, runningAt: runningAt, repeatability: repeatability,
-              loadScaling: loadScaling, trends: trends, trendSeries: trendSeries, setupKey: setupKey, compareSetups: compareSetups, excludedFrom: excludedFrom, repeatSummary: repeatSummary, STABLE_WITHIN: STABLE_WITHIN, STABLE_BY: STABLE_BY, envChanges: envChanges, changeText: changeText, runStats: runStats, welch: welch, compareRuns: compareRuns, tTwoSided: tTwoSided, runEstimate: runEstimate, flowGuidance: flowGuidance, sampleSize: sampleSize, tabSummaries: tabSummaries };
+              loadScaling: loadScaling, trends: trends, trendSeries: trendSeries, setupKey: setupKey, compareSetups: compareSetups, excludedFrom: excludedFrom, repeatSummary: repeatSummary, STABLE_WITHIN: STABLE_WITHIN, STABLE_BY: STABLE_BY, envChanges: envChanges, changeText: changeText, runStats: runStats, welch: welch, compareRuns: compareRuns, tTwoSided: tTwoSided, runEstimate: runEstimate, flowGuidance: flowGuidance, sampleSize: sampleSize, tabSummaries: tabSummaries, nick: nick, plainText: plainText };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

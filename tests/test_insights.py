@@ -365,15 +365,29 @@ def test_tab_summaries_restate_stored_numbers():
     s["per_model"][0]["saw"] = {"composite_100": 51.5}
     s["per_model"][1]["saw"] = {"composite_100": 48.0}
     out = call("tabSummaries", s)
-    assert out["ranking"].startswith("model-a ranks first on the SAW score (51.5 vs 48.0)")
-    assert out["performance"] == "model-a is 12.5% faster per flow (p = 0.010)."
-    assert out["cost"].startswith("model-a is the cheapest at $0.0200 per 1,000 flows")
+    r = out["ranking"]
+    assert r["h"] == "model-a ranks first on the efficiency score: 51.5 against 48.0."
+    assert [(c["label"], c["value"], c["best"]) for c in r["chips"]] == [("model-a", "51.5", True), ("model-b", "48.0", False)]
+    assert out["performance"]["h"] == "model-a is the fastest: 12.5% quicker per flow."
+    assert out["performance"]["s"] == "The gap is larger than chance (p = 0.010)."
+    assert out["cost"]["h"] == "model-a is the cheapest: $0.0200 per 1,000 flows."
     assert "accuracy" not in out                                   # no confusion matrices in this fixture
+    assert not any("\u2014" in (t.get("h", "") + (t.get("s") or "")) for t in out.values())   # no em dashes
     s["per_model"][1]["saw"] = {"composite_100": 51.5}
     s["relative_comparison"]["metrics"][0].update(winner="tie", note="within 5%")
     out = call("tabSummaries", s)
-    assert out["ranking"] == "The two models tie on the SAW score (51.5)."
-    assert out["performance"] == "Latency: the models are within the tie range (within 5%)."
+    assert out["ranking"]["h"] == "The two models tie on the efficiency score (51.5)."
+    assert not any(c["best"] for c in out["ranking"]["chips"])
+    assert out["performance"]["h"] == "The models are about equally fast."
+    assert out["performance"]["s"] == "The gap is small: within 5%."
+
+
+def test_everyday_model_names():
+    names = {"mistralai/Mistral-7B-Instruct-v0.3": "Mistral 7B", "meta-llama/Meta-Llama-3-8B-Instruct": "Llama 3 8B",
+             "Qwen/Qwen2.5-7B-Instruct": "Qwen2.5 7B", "microsoft/Phi-3-mini-4k-instruct": "Phi-3 mini",
+             "google/gemma-2-9b-it": "Gemma 2 9B", "org/model-a": "model-a", "mock-a": "mock-a"}
+    for full, want in names.items():
+        assert call("nick", full) == want, full
 
 
 # ---------------------------------------------------------------- analysis expansion, phase 1

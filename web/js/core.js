@@ -32,6 +32,8 @@ function fmtDate(s) {
   return String(s).replace("T", " ").replace("+00:00", " UTC").replace(/Z$/, " UTC");
 }
 function short(m) { return String(m || "").split("/").pop(); }
+// everyday model names in prose and titles ("Mistral 7B"); tables keep the full name (insights.js nick)
+function nick(m) { return window.INSIGHTS ? INSIGHTS.nick(m) : short(m); }
 // the 5 study models (validated baseline) — mirrors configs/run_full_l4.yaml (tests/test_model_catalog.py checks it)
 var STUDY_MODELS = ["mistralai/Mistral-7B-Instruct-v0.3", "meta-llama/Meta-Llama-3-8B-Instruct", "Qwen/Qwen2.5-7B-Instruct",
                     "microsoft/Phi-3-mini-4k-instruct", "google/gemma-2-9b-it"];

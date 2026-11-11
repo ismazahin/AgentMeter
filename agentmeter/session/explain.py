@@ -1,20 +1,26 @@
 """The session explainer: the LAST step of a session (design: docs/superpowers/specs/
 2026-11-10-ai-explanations-design.md).
 
-An open-source LLM reads this session's finished results and writes the interpretive text the
-app shows: an Overview summary, each tab's headline and "why" line, and the Deployment
-recommendation and Optimisation guidance paragraphs. It never measures, scores or ranks. Its
-output goes to <run_dir>/explanation.json; session_results.json is never changed.
+An open-source LLM writes the interpretive text the app shows (an Overview summary, each tab's
+headline and why line, the Deployment recommendation and Optimisation guidance openings) and
+describes what the agents' answers show. It never measures, scores or ranks. Its output goes to
+<run_dir>/explanation.json; session_results.json is never changed.
 
-  build_digest(results, run_dir)   the facts the model may use, from this session only: the
-                                   results, plus a few agent-answer excerpts and the slowest
-                                   flows from its flows_<run>.json (no IPs, ports or timestamps)
-  check_section(key, text, digest) the owner's rules: every number from the digest, no ; : or
-                                   dash as punctuation, everyday model names, word limits
-  explain_session(...)             runs the model in its OWN process (its GPU memory is freed when
-                                   it exits), checks each section, retries the failed ones once,
-                                   writes explanation.json. Never raises: a failure is recorded and
-                                   the session still finishes.
+Checked explanations (docs/superpowers/specs/2026-11-11-checked-explanations-design.md):
+
+  build_digest(results, run_dir)   facts worked out from this session (budget verdicts, slowest
+                                   steps, everyday names), the input of the statements
+  statements.build_statements      every statement each section may use, with its numbers and
+                                   the models and steps it is about
+  answer_patterns.build_groups     the groups of answers that went wrong, counted by code
+  orchestrate(gen, ...)            one request per section, then one per answer group, with the
+                                   model loaded once: each sentence is checked against the
+                                   statements it is tagged with, each pattern against the answers;
+                                   a section that fails is asked once more, then left to the
+                                   standard text
+  explain_session(...)             runs orchestrate in the model's OWN process (its GPU memory is
+                                   freed when it exits), tries the next model when one fails, and
+                                   writes explanation.json. Never raises.
 
 Engines: "hf" (transformers), "vllm", and "fake" (tests only, AGENTMETER_TEST_EXPLAINER=1).
 """
@@ -38,18 +44,33 @@ log = logging.getLogger("agentmeter.explain")
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = ROOT / "configs" / "explainer.yaml"
 PROMPT_PATH = Path(__file__).with_name("explain_prompt.md")
+PATTERN_PROMPT_PATH = Path(__file__).with_name("explain_patterns_prompt.md")
 OUT_NAME = "explanation.json"
 
 TABS = ("ranking", "reliability", "performance", "agents", "cost", "recommendations")
+# the keys the app reads from explanation.json "sections"
 SECTIONS = ("summary",) + tuple(f"tab.{t}.{p}" for t in TABS for p in ("h", "s")) + ("deployment", "optimisation")
-WORD_LIMIT = {"summary": 120, "deployment": 120, "optimisation": 120}
-for _t in TABS:
-    WORD_LIMIT[f"tab.{_t}.h"] = 20
-    WORD_LIMIT[f"tab.{_t}.s"] = 30
-MIN_WORDS = {"summary": 25, "deployment": 20, "optimisation": 20}
-for _t in TABS:
-    MIN_WORDS[f"tab.{_t}.h"] = 6
-    MIN_WORDS[f"tab.{_t}.s"] = 8
+# what each request asks for: purpose, sentences (fewest, most), words per sentence at most
+SECTION_SPECS = {
+    **{f"tab.{t}": {"purpose": p, "sentences": (1, 3), "words": 30} for t, p in {
+        "ranking": "the headline of the Model Ranking tab: who ranks first on the efficiency score and how solid that is, "
+                   "then one or two sentences on why",
+        "reliability": "the headline of the Output Reliability tab: whether the answers were usable and where they fail, "
+                       "then one or two sentences on why",
+        "performance": "the headline of the Performance tab: speed per flow and what drives it, then one or two sentences on why",
+        "agents": "the headline of the Agent Analysis tab: which pipeline step costs the most, then one or two sentences on why",
+        "cost": "the headline of the Cost and Energy tab: cost and energy per 1,000 flows or why they were not measured, "
+                "then one or two sentences on why",
+        "recommendations": "the headline of the Recommendations tab: what to deploy and under which condition, then one or "
+                           "two sentences on why"}.items()},
+    "deployment": {"purpose": "the opening above the checklist Before you deploy it. Say what matters most for this "
+                              "session and how the checks relate", "sentences": (2, 4), "words": 35},
+    "optimisation": {"purpose": "the opening above the list What you can change, and what it would save. Say which "
+                                "change to make first, what it costs and what it fixes", "sentences": (2, 4), "words": 35},
+    "summary": {"purpose": "the summary at the top of the session. What was compared, the main finding, the most "
+                           "important caveat and the one thing to do next", "sentences": (3, 5), "words": 35},
+}
+ORDER = tuple(f"tab.{t}" for t in TABS) + ("deployment", "optimisation", "summary")
 
 
 # ---------------------------------------------------------------------------- configuration
@@ -62,11 +83,14 @@ def load_config(path: Path = CONFIG_PATH) -> dict[str, Any]:
     cfg.setdefault("enabled", False)
     cfg.setdefault("models", [])
     cfg.setdefault("max_new_tokens", 1800)
-    cfg.setdefault("timeout_s", 300)
+    cfg.setdefault("timeout_s", 480)
     cfg.setdefault("retries", 1)
     cfg.setdefault("excerpts", 20)
     cfg.setdefault("excerpt_chars", 300)
     cfg.setdefault("slow_flows_per_model", 5)
+    cfg.setdefault("answer_patterns", {})
+    for k, v in {"max_groups": 4, "min_group": 3, "sample": 8, "contrast": 8, "chars": 300}.items():
+        cfg["answer_patterns"].setdefault(k, v)
     return cfg
 
 
@@ -190,6 +214,7 @@ def build_digest(res: dict, run_dir: Optional[str | Path] = None, cfg: Optional[
             "output_tokens_per_flow": _r(e2e.get("mean_output_tokens_per_flow"), 0),
             "efficiency_score_out_of_100": _r(saw.get("composite_100"), 1),
             "tier": saw.get("tier"),
+            "rank": saw.get("rank"),           # the page's order, ties included
             "working_vram_mean_mb": _r(mm.get("working_mean_mb"), 0),
             "total_peak_vram_gb": _r((_num(mm.get("total_peak_mb")) or 0) / 1024, 1) if _num(mm.get("total_peak_mb")) else None,
             "memory_status": mm.get("status"),
@@ -362,207 +387,345 @@ def _clean(o: Any) -> Any:
     return o
 
 
-# ---------------------------------------------------------------------------- checks
+# ---------------------------------------------------------------------------- the owner's rules
 _EMPTY_CLAIMS = [
     (r"no (issues|problems) (noted|found|observed)|\bsolid\b|is reliable\b|(high|good|strong) reliability|reliability (is|was) (high|good|strong|excellent|fine|solid)",
      "an unsupported reassurance"),
     (r"\b(retrain|fine-?tun)", "advice outside what AgentMeter can change"),
     (r"score (of |was |is |at )?\d+(\.\d+)?\s?%|\d+(\.\d+)?%\s+(efficiency )?score", "the efficiency score is points out of 100, not a percent"),
 ]
-_NUM_RE = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?![\w])")
 _STYLE = [(re.compile(r";"), "semicolon"), (re.compile(r"(?<!\d):|:(?!\d)"), "colon"),
           (re.compile(r"[—–]"), "dash"), (re.compile(r"\s-\s|^-\s|\s-$"), "dash")]
+_UP = re.compile(r"\b(increas|rais|expand|enlarg|extend)\w*\s+(?:\w+\s+){0,4}?budget|\b(higher|larger|bigger)\s+(?:token\s+)?budget", re.I)
+_DOWN = re.compile(r"\b(reduc|lower|decreas|cut(?!\s+off)|shrink|trim)\w*\s+(?:\w+\s+){0,4}?budget|\b(smaller|lower|tighter)\s+(?:token\s+)?budget", re.I)
 
 
-def _digest_numbers(o: Any, out: set) -> set:
-    if isinstance(o, bool):
-        return out
-    if isinstance(o, (int, float)):
-        out.add(float(o))
-    elif isinstance(o, str):
-        for m in _NUM_RE.finditer(o):
-            out.add(float(m.group(0).replace(",", "")))
-    elif isinstance(o, dict):
-        for v in o.values():
-            _digest_numbers(v, out)
-    elif isinstance(o, list):
-        for v in o:
-            _digest_numbers(v, out)
-    return out
-
-
-def _matches(t: float, dec: int, allowed: set) -> bool:
-    step = 10 ** -dec
-    for v in allowed:
-        for c in (v, v * 100, v * 1000, v / 1024, v / 1000):      # fraction→%, s→ms, MB→GB, per 1,000
-            if abs(round(c, dec) - t) <= step / 2 + 1e-9 or (dec < 2 and abs(c - t) <= step):
-                return True
-    return False
-
-
-def check_section(key: str, text: str, digest: dict, allowed: Optional[set] = None) -> Optional[str]:
-    """None when the section passes, else the reason it fails."""
-    if not isinstance(text, str):
-        return "not text"
-    t = text.strip()
-    if not t:
-        return None                                       # empty: the computed text shows
+def rule_problem(t: str, digest: dict) -> Optional[str]:
+    """The rules every written sentence follows, whatever its statements say."""
     for rx, what in _STYLE:
         if rx.search(t):
             return f"uses a {what}"
     if "/" in t and re.search(r"\b[\w.-]+/[\w.-]+\b", t):
         return "uses a full model id"
-    limit = WORD_LIMIT.get(key, 120)
-    n_words = len(t.split())
-    if n_words > limit * 1.5:
-        return f"too long ({n_words} words, limit {limit})"
-    least = MIN_WORDS.get(key, 0)
-    if n_words < least:
-        return f"too short ({n_words} words, a full sentence needs at least {least})"
     if re.search(r"than (expected|anticipated|usual)", t, re.I):
         return "compares with an expectation that is not in the results"
     for rx, why in _EMPTY_CLAIMS:
         if re.search(rx, t, re.I):
             return why
-    if re.search(r"['\"\u2018\u201c][A-Za-z]+['\"\u2019\u201d]", t):
+    if re.search(r"['\"‘“][A-Za-z]+['\"’”]", t):
         return "puts quote marks around a name"
     why = _budget_contradiction(t, digest)
     if why:
         return why
-    if key.startswith("tab.agents."):
-        slow = {str((pm.get("slowest_step") or {}).get("step") or "") for pm in digest.get("per_model") or []} - {""}
-        if slow and not any(re.search(r"\b" + re.escape(x) + r"\b", t, re.I) for x in slow):
-            return "does not name the slowest step (" + " or ".join(sorted(slow)) + ")"
     if (digest.get("session") or {}).get("n_models") == 1 and re.search(
             r"\b(ranks? (first|top|highest)|most efficient|best model|outperform|beats?)\b", t, re.I):
         return "ranks a model in a one-model session"
-    allowed = allowed if allowed is not None else _digest_numbers(digest, set())
-    names = [n for n in (digest.get("session") or {}).get("models") or []]
-    stripped = t
-    for n in sorted(names, key=len, reverse=True):
-        stripped = stripped.replace(n, " ")
-    stripped = re.sub(r"\b\d+-(bit|step|agent|class|flow)s?\b", " ", stripped, flags=re.I)  # 4-bit, four-step
-    for m in _NUM_RE.finditer(stripped):
-        whole, frac = m.group(1).replace(",", ""), m.group(2) or ""
-        val, dec = float(whole + ("." + frac if frac else "")), len(frac)
-        if dec == 0 and val <= 12:                       # small counts: "3 runs", "top 2"
-            continue
-        if not _matches(val, dec, allowed):
-            return f"number {m.group(0)} is not in the results"
     return None
 
 
-# ---------------------------------------------------------------------------- running the model
-def _json_reply(text: str) -> dict:
-    """The JSON object in a model's reply (gpt-oss: the final channel; others: the whole text)."""
+def _budget_contradiction(text: str, digest: dict) -> Optional[str]:
+    """A sentence that tells a step's budget to go the other way than its worked-out verdict."""
+    advice: dict[str, str] = {}
+    for pm in digest.get("per_model") or []:
+        for st in pm.get("steps") or []:
+            if st.get("step") and st.get("budget_advice"):
+                advice.setdefault(str(st["step"]).lower(), st["budget_advice"])
+    for sent in re.split(r"(?<=[.!?])\s+", text):
+        if "budget" not in sent.lower():
+            continue
+        named = [n for n in advice if re.search(r"\b" + re.escape(n) + r"\b", sent, re.I)]
+        if len(named) != 1:                                 # no step, or several: cannot tell which
+            continue
+        n, adv = named[0], advice[named[0]]
+        if _UP.search(sent) and re.search(r"\b(efficien|faster|speed|quicker|cheaper)", sent, re.I):
+            return f"says a bigger budget for {n.capitalize()} improves efficiency, but it costs time and tokens"
+        if _UP.search(sent) and not adv.startswith("raise"):
+            return f"advises a bigger budget for {n.capitalize()}, but {adv}"
+        if _DOWN.search(sent) and adv.startswith("raise"):
+            return f"advises a smaller budget for {n.capitalize()}, but {adv}"
+    return None
+
+
+def _matches(t: float, dec: int, allowed: list[float]) -> bool:
+    """A sentence's number equals one of its statements' numbers, at the sentence's rounding."""
+    step = 10 ** -dec
+    return any(abs(round(v, dec) - t) <= step / 2 + 1e-9 for v in allowed)
+
+
+def known_names(digest: dict) -> tuple[list[str], list[str]]:
+    """The session's model names and step names, as the statements write them."""
+    models = list((digest.get("session") or {}).get("models") or [])
+    steps = sorted({str(st.get("step")) for pm in digest.get("per_model") or [] for st in pm.get("steps") or [] if st.get("step")})
+    return models, steps
+
+
+def check_sentence(text: str, uses: list[str], by_id: dict[str, dict], digest: dict) -> Optional[str]:
+    """None when the sentence keeps to the statements it is tagged with (and the rules), else why not."""
+    from .statements import values_of
+    t = str(text or "").strip()
+    if not t:
+        return "empty"
+    if len(t.split()) > 45:
+        return "too long"
+    if not uses:
+        return "names no statement"
+    unknown = [u for u in uses if u not in by_id]
+    if unknown:
+        return f"uses a statement that is not in this section ({', '.join(unknown)})"
+    why = rule_problem(t, digest)
+    if why:
+        return why
+    models, steps = known_names(digest)
+    allowed = [v for u in uses for v in by_id[u]["values"]]
+    for x in values_of(t, models):
+        dec = len(str(x).split(".")[1]) if "." in str(x) and not float(x).is_integer() else 0
+        if not _matches(x, dec, allowed):
+            return f"the number {x:g} is not in its statements"
+    subjects = {s for u in uses for s in by_id[u]["subjects"]}
+    for n in models + steps:
+        if re.search(r"(?<![\w-])" + re.escape(n) + r"(?![\w-])", t) and n not in subjects:
+            return f"names {n}, which its statements are not about"
+    return None
+
+
+# ---------------------------------------------------------------------------- requests
+def _json_reply(text: str) -> Any:
+    """The JSON object in a model's reply (gpt-oss: its final channel), code fences allowed."""
     if "<|channel|>final<|message|>" in text:
         text = text.split("<|channel|>final<|message|>")[-1]
     text = re.sub(r"<\|[^|]*\|>", "", text)
-    text = re.sub(r"```(?:json)?", "", text)                     # code fences around the object
+    text = re.sub(r"```(?:json)?", "", text)
     a, b = text.find("{"), text.rfind("}")
     if a >= 0 and b > a:
         try:
-            got = json.loads(text[a: b + 1])
-            if isinstance(got, dict):
-                return got
+            return json.loads(text[a: b + 1])
         except ValueError:
             pass
-    # cut off or slightly broken: keep every complete "key": "value" pair of a known section
-    got = {}
-    for m in re.finditer(r'"((?:summary|deployment|optimisation|tab\.[a-z]+\.[hs]))"\s*:\s*"((?:[^"\\]|\\.)*)"', text):
+    # cut off: keep every complete sentence object of a section reply
+    got = []
+    for m in re.finditer(r'\{\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,\s*"uses"\s*:\s*\[([^\]]*)\]\s*\}', text):
         try:
-            got[m.group(1)] = json.loads('"' + m.group(2) + '"')
+            got.append({"text": json.loads('"' + m.group(1) + '"'), "uses": json.loads("[" + m.group(2) + "]")})
         except ValueError:
             continue
-    if not got:
-        raise ValueError("no JSON object in the reply")
-    return got
+    if got:
+        return {"sentences": got}
+    raise ValueError("no JSON object in the reply")
 
 
-def _messages(digest: dict, only: Optional[dict[str, str]] = None) -> list[dict]:
-    system = PROMPT_PATH.read_text(encoding="utf-8")
-    user = "Digest:\n" + json.dumps(digest, ensure_ascii=False, separators=(",", ":"))     # compact: fewer tokens
-    if only:
-        user += ("\n\nYour earlier reply broke a rule in these sections. Rewrite only these keys and "
-                 "return a JSON object with just them.\n" + json.dumps(only, ensure_ascii=False, indent=1))
-    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+def section_messages(section: str, stmts: list[dict], digest: dict, retry: Optional[list[dict]] = None) -> list[dict]:
+    spec = SECTION_SPECS[section]
+    lo, hi = spec["sentences"]
+    one = (digest.get("session") or {}).get("n_models") == 1
+    ask = {"section": section, "purpose": spec["purpose"],
+           "sentences": f"{lo} to {hi}", "words_per_sentence_at_most": spec["words"],
+           "only_one_model_ran": one,
+           "statements": [{"id": s["id"], "text": s["text"]} for s in stmts]}
+    if section.startswith("tab."):
+        ask["note"] = "The first sentence is the headline, at least 6 words. The next one or two explain it."
+    user = "Write this section.\nINPUT\n" + json.dumps(ask, ensure_ascii=False)
+    if retry:
+        user += ("\n\nYour earlier sentences broke a rule. Write the section again and avoid these problems.\n"
+                 + json.dumps(retry, ensure_ascii=False))
+    return [{"role": "system", "content": PROMPT_PATH.read_text(encoding="utf-8")}, {"role": "user", "content": user}]
 
 
-def _fake_reply(digest: dict, only: Optional[dict] = None) -> dict:
-    """Test-only stand-in (AGENTMETER_TEST_EXPLAINER=1): sentences built from the digest, with one
-    section that breaks the style rule so the fallback can be tested."""
-    pm = digest.get("per_model") or [{}]
-    a = pm[0]
-    name = a.get("name", "The model")
-    lat = a.get("mean_latency_s")
-    out = {
-        "summary": f"This session compared {len(pm)} model{'s' if len(pm) != 1 else ''} on {digest.get('session', {}).get('flows', 0)} flows. "
-                   f"{name} took {lat} s per flow on average, and every model gave usable answers on these flows. "
-                   "Run it again on more flows before you rely on a small gap between the models.",
-        "tab.ranking.h": f"{name} leads this session on the efficiency score.",
-        "tab.ranking.s": "The order holds for these flows and weights.",
-        "tab.performance.h": f"{name} answers a flow in {lat} s on average.",
-        "tab.performance.s": "Speed here comes mostly from the longest step in the pipeline.",
-        "tab.cost.h": "Cost was not measured; this is a demo run.",       # breaks the style rule, fixed on retry
-        "tab.agents.h": "Slowest step: see the table below.",             # breaks it, still broken after the retry
-        "deployment": f"Start from {name}, which leads this session. Check its speed against your alert volume before you deploy it, "
-                      "and test it on your own traffic first.",
-        "optimisation": "Shorten the answers of the slowest step first, because its answer length sets most of the time. "
-                        "Then trim the prompt of the step that reads the most.",
-    }
-    if only:
-        return {k: v.replace(";", ",") for k, v in out.items() if k in only}
+def pattern_messages(group: dict, cfg: dict, retry: Optional[str] = None) -> list[dict]:
+    pc = cfg.get("answer_patterns") or {}
+    n, k, chars = int(pc.get("sample", 8)), int(pc.get("contrast", 8)), int(pc.get("chars", 300))
+    cut = lambda t: t if len(t) <= chars else t[: chars - 1] + "…"  # noqa: E731
+    ask = {"group": group.get("describe"), "step": group.get("step"),
+           "answers": [cut(t) for t in group.get("texts", [])[:n]],
+           "contrast_answers": [cut(t) for t in group.get("contrast", [])[:k]]}
+    user = "Describe this group.\nINPUT\n" + json.dumps(ask, ensure_ascii=False)
+    if retry:
+        user += "\n\nYour earlier reply was not kept, because " + retry + ". Try again or return an empty pattern."
+    return [{"role": "system", "content": PATTERN_PROMPT_PATH.read_text(encoding="utf-8")}, {"role": "user", "content": user}]
+
+
+def _norm_sentence(t: str) -> str:
+    return re.sub(r"[^a-z0-9 ]", "", t.lower()).strip()
+
+
+def _assemble(section: str, kept: list[dict]) -> dict[str, str]:
+    if section.startswith("tab."):
+        out = {section + ".h": kept[0]["text"]}
+        if len(kept) > 1:
+            out[section + ".s"] = " ".join(x["text"] for x in kept[1:3])
+        return out
+    return {section: " ".join(x["text"] for x in kept)}
+
+
+def orchestrate(gen: Callable[[list[dict]], tuple[str, int, int]], statements: dict[str, list[dict]],
+                groups: list[dict], digest: dict, cfg: dict) -> dict:
+    """One request per section, then per answer group, checked as described in the module's
+    docstring. `gen(messages) -> (text, input tokens, output tokens)`."""
+    from .answer_patterns import check_pattern
+    t0 = time.time()
+    tokens = {"input": 0, "output": 0}
+    raws: list[str] = []
+
+    def ask(msgs):
+        text, n_in, n_out = gen(msgs)
+        tokens["input"] += int(n_in or 0)
+        tokens["output"] += int(n_out or 0)
+        raws.append(text or "")
+        return text or ""
+
+    sections: dict[str, str] = {}
+    detail: dict[str, dict] = {}
+    dropped: dict[str, str] = {}
+    seen: set[str] = set()
+    for section in ORDER:
+        stmts = statements.get(section.replace("tab.", "")) if section.startswith("tab.") else statements.get(section)
+        if not stmts:
+            continue
+        by_id = {s["id"]: s for s in stmts}
+        lo, _hi = SECTION_SPECS[section]["sentences"]
+        retry, result = None, None
+        for attempt in (1, 2):
+            try:
+                got = _json_reply(ask(section_messages(section, stmts, digest, retry)))
+                sents = got.get("sentences") if isinstance(got, dict) else got
+            except ValueError as e:
+                sents, retry = [], [{"problem": str(e) + ", reply with the JSON object only"}]
+                continue
+            kept, bad = [], []
+            for s in sents if isinstance(sents, list) else []:
+                text, uses = str((s or {}).get("text") or "").strip(), [str(u) for u in (s or {}).get("uses") or []]
+                why = check_sentence(text, uses, by_id, digest)
+                if not why and section != "summary" and _norm_sentence(text) in seen:
+                    why = "repeats a sentence of another section"
+                (bad if why else kept).append({"text": text, "uses": uses, **({"why": why} if why else {})})
+            first_ok = bool(kept) and (not section.startswith("tab.") or (sents and kept[0]["text"] == str((sents[0] or {}).get("text") or "").strip()
+                                                                           and len(kept[0]["text"].split()) >= 6))
+            if len(kept) >= lo and first_ok:
+                result = (kept, bad)
+                break
+            retry = [{"sentence": b["text"], "problem": b["why"]} for b in bad] or [{"problem": "too few sentences"}]
+        if result is None:
+            dropped[section] = "no version passed the checks: " + "; ".join(r.get("problem", "") for r in (retry or []))[:300]
+            continue
+        kept, bad = result
+        sections.update(_assemble(section, kept))
+        detail[section] = {"sentences": kept, "dropped": bad}
+        seen.update(_norm_sentence(x["text"]) for x in kept)
+
+    patterns, patterns_dropped = [], []
+    for g in groups:
+        why = None
+        for attempt in (1, 2):
+            try:
+                got = _json_reply(ask(pattern_messages(g, cfg, why)))
+            except ValueError as e:
+                why = str(e)
+                continue
+            if isinstance(got, dict) and not str(got.get("pattern") or "").strip():
+                why = "no pattern fits"
+                break
+            kept, why = check_pattern(got, g)
+            if kept:
+                patterns.append(kept)
+                break
+        else:
+            pass
+        if not any(p["group"] == g.get("id") for p in patterns):
+            patterns_dropped.append({"group": g.get("id"), "describe": g.get("describe"), "why": why})
+
+    status = "ok" if sections and not dropped else "partial" if sections else "failed"
+    out = {"status": status, "sections": sections, "detail": detail, "dropped": dropped,
+           "patterns": patterns, "patterns_dropped": patterns_dropped,
+           "statements": {s["id"]: s["text"] for v in statements.values() for s in v},
+           "tokens": tokens, "seconds": round(time.time() - t0, 1)}
+    if status == "failed":
+        out["reason"] = "no section passed the checks"
+    if status != "ok":
+        out["raw_reply"] = "\n----- next reply -----\n".join(raws)[-6000:]
     return out
 
 
-def _hf_generate(spec: dict, t0: float) -> tuple[str, int, int, float]:
-    """transformers path. Works on 4.56+ and 5.x: apply_chat_template returns a mapping
-    (input_ids, attention_mask) on 5.x and when asked to with return_dict=True on 4.x."""
+def _fake_gen(statements: dict[str, list[dict]], groups: list[dict]) -> Callable:
+    """Test-only stand-in (AGENTMETER_TEST_EXPLAINER=1): sentences that copy their statements,
+    one tagged with the wrong statement (dropped), and patterns from the answers, one with a made-up
+    quote (dropped)."""
+    from .answer_patterns import most_common_phrase
+    used: set[str] = set()
+
+    def gen(msgs):
+        user = msgs[-1]["content"]
+        req = json.loads(user.split("INPUT\n", 1)[1].split("\n\n", 1)[0])
+        if "section" in req:
+            st = req["statements"]
+            fresh = [s for s in st if s["text"] not in used] if req["section"] != "summary" else st
+            sents = [{"text": s["text"], "uses": [s["id"]]} for s in fresh[:3]]
+            used.update(x["text"] for x in sents)
+            if req["section"] == "tab.agents" and len(st) > 1 and "earlier" not in user:
+                sents.insert(1, {"text": st[1]["text"], "uses": [st[0]["id"]]})       # wrong tag: dropped
+            return json.dumps({"sentences": sents}), 0, 0
+        g = next((x for x in groups if x.get("describe") == req.get("group")), None) or {}
+        if g.get("id") == "g2":
+            return json.dumps({"pattern": "These answers repeat the same wording.", "key_phrase": "the same wording",
+                               "quote": "a sentence that no agent ever wrote"}), 0, 0
+        phrase = most_common_phrase(g) or ""
+        text = next((t for t in g.get("texts", []) if phrase and phrase in t.lower()), (g.get("texts") or [""])[0])
+        quote = " ".join(text.split()[:10])
+        return json.dumps({"pattern": f"These {g.get('step', '')} answers share the same wording before their conclusion.",
+                           "key_phrase": phrase, "quote": quote}), 0, 0
+    return gen
+
+
+# ---------------------------------------------------------------------------- the model's process
+def _load_generator(spec: dict) -> tuple[Callable, float]:
+    """Load the model once; return gen(messages) -> (text, input tokens, output tokens)."""
+    t0 = time.time()
+    mid, mx = spec["model"], int(spec["max_new_tokens"])
+    kw_chat = {"reasoning_effort": spec["reasoning"]} if spec.get("reasoning") else {}
+    if spec["engine"] == "vllm":
+        from vllm import LLM, SamplingParams
+        llm = LLM(model=mid, gpu_memory_utilization=0.85, max_model_len=16384)
+        sp = SamplingParams(max_tokens=mx, temperature=0.3)
+
+        def gen(msgs):
+            r = llm.chat(msgs, sp, **({"chat_template_kwargs": kw_chat} if kw_chat else {}))
+            return r[0].outputs[0].text, len(r[0].prompt_token_ids or []), len(r[0].outputs[0].token_ids)
+        return gen, round(time.time() - t0, 1)
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
-    mid, msgs = spec["model"], spec["messages"]
     tok = AutoTokenizer.from_pretrained(mid)
     model = AutoModelForCausalLM.from_pretrained(mid, dtype="auto", device_map="cuda")
-    t_load = time.time() - t0
-    kw = {"reasoning_effort": spec["reasoning"]} if spec.get("reasoning") else {}
-    enc = tok.apply_chat_template(msgs, add_generation_prompt=True, tokenize=True, return_dict=True,
-                                  return_tensors="pt", **kw)
-    if hasattr(enc, "keys"):
-        inputs = {k: v.to(model.device) for k, v in enc.items() if hasattr(v, "to")}
-    else:                                            # an older tokenizer returning a bare tensor
-        inputs = {"input_ids": enc.to(model.device)}
-    n_in = int(inputs["input_ids"].shape[-1])
-    with torch.no_grad():
-        gen = model.generate(**inputs, max_new_tokens=spec["max_new_tokens"], do_sample=True, temperature=0.3)
-    new_tokens = gen[0][n_in:]
-    text = tok.decode(new_tokens, skip_special_tokens=False)
-    return text, n_in, int(new_tokens.shape[-1]), round(t_load, 1)
+
+    def gen(msgs):
+        # transformers 4.56+ and 5.x: ask for the mapping (input_ids, attention_mask)
+        enc = tok.apply_chat_template(msgs, add_generation_prompt=True, tokenize=True, return_dict=True,
+                                      return_tensors="pt", **kw_chat)
+        if hasattr(enc, "keys"):
+            inputs = {k: v.to(model.device) for k, v in enc.items() if hasattr(v, "to")}
+        else:
+            inputs = {"input_ids": enc.to(model.device)}
+        n_in = int(inputs["input_ids"].shape[-1])
+        with torch.no_grad():
+            out = model.generate(**inputs, max_new_tokens=mx, do_sample=True, temperature=0.3)
+        new = out[0][n_in:]
+        return tok.decode(new, skip_special_tokens=False), n_in, int(new.shape[-1])
+    return gen, round(time.time() - t0, 1)
 
 
 def _worker_main(argv: list[str]) -> int:
-    """Child process: load the model, answer one request, write the reply, exit (frees the GPU).
-    Any error is written to the output file with its full traceback, for explanation.json."""
+    """Child process: load the model once, run every request with its checks, write the result,
+    exit (frees the GPU). An error is written with its full traceback, for explanation.json."""
     import traceback
     spec = json.loads(Path(argv[0]).read_text(encoding="utf-8"))
     out = Path(argv[1])
-    t0 = time.time()
     try:
-        load_s = None
-        if spec["engine"] == "vllm":
-            from vllm import LLM, SamplingParams
-            llm = LLM(model=spec["model"], gpu_memory_utilization=0.85, max_model_len=16384)
-            load_s = round(time.time() - t0, 1)
-            kw = {"chat_template_kwargs": {"reasoning_effort": spec["reasoning"]}} if spec.get("reasoning") else {}
-            res = llm.chat(spec["messages"], SamplingParams(max_tokens=spec["max_new_tokens"], temperature=0.3), **kw)
-            text, n_in, n_out = res[0].outputs[0].text, len(res[0].prompt_token_ids or []), len(res[0].outputs[0].token_ids)
-        else:
-            text, n_in, n_out, load_s = _hf_generate(spec, t0)
-        out.write_text(json.dumps({"text": text, "tokens": {"input": n_in, "output": n_out},
-                                   "load_s": load_s, "seconds": round(time.time() - t0, 1)}), encoding="utf-8")
+        gen, load_s = _load_generator(spec)
+        plan = spec["plan"]
+        res = orchestrate(gen, plan["statements"], plan["groups"], plan["digest"], plan["cfg"])
+        res["load_s"] = load_s
+        out.write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
         return 0
     except BaseException as e:  # noqa: BLE001 — report it to the parent, then fail
-        out.write_text(json.dumps({"error": f"{type(e).__name__}: {e}"[:400],
-                                   "trace": traceback.format_exc()[-4000:]}), encoding="utf-8")
+        out.write_text(json.dumps({"error": f"{type(e).__name__}: {e}"[:400], "trace": traceback.format_exc()[-4000:]}),
+                       encoding="utf-8")
         return 1
 
 
@@ -571,15 +734,12 @@ class ExplainerError(RuntimeError):
     trace = ""
 
 
-def _run_model(mspec: dict, messages: list[dict], cfg: dict, runner: Optional[Callable] = None) -> dict:
-    """Run one request in a child process with a time limit. Returns {text, tokens, seconds}."""
-    if runner is not None:
-        return runner(mspec, messages, cfg)
+def _run_child(mspec: dict, plan: dict, cfg: dict) -> dict:
     with tempfile.TemporaryDirectory(prefix="am-explain-") as td:
         spec_p, out_p = Path(td) / "in.json", Path(td) / "out.json"
         spec_p.write_text(json.dumps({"engine": mspec.get("engine", "hf"), "model": mspec["id"],
-                                      "reasoning": mspec.get("reasoning"), "messages": messages,
-                                      "max_new_tokens": int(cfg["max_new_tokens"])}), encoding="utf-8")
+                                      "reasoning": mspec.get("reasoning"), "max_new_tokens": int(cfg["max_new_tokens"]),
+                                      "plan": plan}, ensure_ascii=False), encoding="utf-8")
         env = dict(os.environ, HF_HUB_OFFLINE=os.environ.get("HF_HUB_OFFLINE", "1"),
                    # reuse memory PyTorch reserved in pieces (a long prompt's attention needs one block)
                    PYTORCH_CUDA_ALLOC_CONF=os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True"))
@@ -592,7 +752,6 @@ def _run_model(mspec: dict, messages: list[dict], cfg: dict, runner: Optional[Ca
             except ValueError:
                 got = None
         if p.returncode != 0 or not got or got.get("error"):
-            # the child's own report (full traceback) when it wrote one, else its stderr
             trace = (got or {}).get("trace") or (p.stderr or "")[-4000:]
             err = ExplainerError("explainer process failed: " + ((got or {}).get("error") or
                                  (trace.strip().splitlines() or ["no output"])[-1])[:300])
@@ -636,18 +795,25 @@ def _fitting_models(cfg: dict, free_gb: Optional[float]) -> list[dict]:
             if free_gb is None or free_gb >= float(m.get("min_free_vram_gb") or 0)]
 
 
-def _pick_model(cfg: dict, free_gb: Optional[float]) -> Optional[dict]:
-    fit = _fitting_models(cfg, free_gb)
-    return fit[0] if fit else None
-
-
 def _sha(s: str) -> str:
     return hashlib.sha256(s.encode("utf-8")).hexdigest()
 
 
+def plan_for(results: dict, run_dir: str | Path, cfg: dict) -> dict:
+    """What the model's process needs: the statements, the answer groups, the digest, the config."""
+    from .answer_patterns import build_groups
+    from .statements import build_statements
+    digest = build_digest(results, run_dir, cfg)
+    names = {pm.get("model"): nick(pm.get("model")) for pm in results.get("per_model") or [] if pm.get("model")}
+    flows = _flows_file(Path(run_dir) if run_dir else None, (results.get("session") or {}).get("run_id"))
+    return {"statements": build_statements(results, digest), "groups": build_groups(results, flows or {}, names, cfg),
+            "digest": digest, "cfg": cfg}
+
+
 def explain_session(results: dict, run_dir: str | Path, *, real: bool, cfg: Optional[dict] = None,
                     runner: Optional[Callable] = None, free_vram_gb: Optional[float] = None) -> dict:
-    """Write <run_dir>/explanation.json and return it. Never raises."""
+    """Write <run_dir>/explanation.json and return it. Never raises.
+    `runner(mspec, messages, cfg) -> {"text", "tokens"}` replaces the model (tests)."""
     run_dir = Path(run_dir)
     out: dict[str, Any] = {"status": "skipped", "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
     try:
@@ -658,24 +824,23 @@ def explain_session(results: dict, run_dir: str | Path, *, real: bool, cfg: Opti
         elif not real and not fake:
             out["reason"] = "demo run: no GPU, so no explanation is written"
         else:
-            digest = build_digest(results, run_dir, cfg)
-            prompt = PROMPT_PATH.read_text(encoding="utf-8")
-            out.update(prompt_sha256=_sha(prompt), digest_sha256=_sha(json.dumps(digest, sort_keys=True)))
+            plan = plan_for(results, run_dir, cfg)
+            out.update(prompt_sha256=_sha(PROMPT_PATH.read_text(encoding="utf-8") + PATTERN_PROMPT_PATH.read_text(encoding="utf-8")),
+                       statements_sha256=_sha(json.dumps(plan["statements"], sort_keys=True)))
             if fake:
                 cands = [{"id": "test-explainer", "engine": "fake"}]
-                runner = lambda ms, msgs, c: {"text": json.dumps(_fake_reply(digest, None)), "tokens": {"input": 0, "output": 0}, "seconds": 0.1}  # noqa: E731
             else:
                 cands = _fitting_models(cfg, free_vram_gb if free_vram_gb is not None else _free_vram_gb())
             if not cands:
                 out["reason"] = "the GPU does not have enough free memory for any configured explainer model"
             else:
-                out.update(_try_models(digest, cands, cfg, runner, fake))
+                out.update(_try_models(plan, cands, cfg, runner, fake))
         write(run_dir, out)
     except Exception as e:  # noqa: BLE001 — never fail the session
         log.exception("explanation failed")
         out.update(status="failed", reason=f"{type(e).__name__}: {e}"[:300])
         if getattr(e, "trace", ""):
-            out["trace"] = e.trace                       # the full error, for whoever fixes it
+            out["trace"] = e.trace
         try:
             write(run_dir, out)
         except OSError:
@@ -683,10 +848,8 @@ def explain_session(results: dict, run_dir: str | Path, *, real: bool, cfg: Opti
     return out
 
 
-def _try_models(digest: dict, cands: list[dict], cfg: dict, runner: Optional[Callable], fake: bool) -> dict:
-    """Each fitting model in turn until one writes something: a model that cannot run (engine
-    missing, out of memory, a load error) or whose every section fails gives way to the next.
-    Every failed attempt is kept in "attempts" with its reason and traceback."""
+def _try_models(plan: dict, cands: list[dict], cfg: dict, runner: Optional[Callable], fake: bool) -> dict:
+    """Each fitting model in turn until one writes something; every failed attempt is kept."""
     attempts: list[dict] = []
     for mspec in cands:
         problem = None if (runner is not None or fake) else _engine_problem(mspec.get("engine", "hf"))
@@ -694,7 +857,16 @@ def _try_models(digest: dict, cands: list[dict], cfg: dict, runner: Optional[Cal
             attempts.append({"model": mspec["id"], "reason": problem, "skipped": True})
             continue
         try:
-            res = _generate(digest, mspec, cfg, runner, fake)
+            if fake:
+                res = orchestrate(_fake_gen(plan["statements"], plan["groups"]), plan["statements"], plan["groups"], plan["digest"], cfg)
+            elif runner is not None:
+                def gen(msgs, _m=mspec):
+                    r = runner(_m, msgs, cfg)
+                    tk = r.get("tokens") or {}
+                    return r.get("text") or "", tk.get("input", 0), tk.get("output", 0)
+                res = orchestrate(gen, plan["statements"], plan["groups"], plan["digest"], cfg)
+            else:
+                res = _run_child(mspec, plan, cfg)
         except Exception as e:  # noqa: BLE001 — try the next model
             log.warning("explainer %s failed: %s", mspec["id"], e)
             a = {"model": mspec["id"], "reason": f"{type(e).__name__}: {e}"[:300]}
@@ -702,6 +874,7 @@ def _try_models(digest: dict, cands: list[dict], cfg: dict, runner: Optional[Cal
                 a["trace"] = e.trace
             attempts.append(a)
             continue
+        res.update(model=mspec["id"], engine=mspec.get("engine", "hf"))
         if res["status"] != "failed":
             if attempts:
                 res["attempts"] = attempts
@@ -712,120 +885,10 @@ def _try_models(digest: dict, cands: list[dict], cfg: dict, runner: Optional[Cal
     out = {"status": "skipped" if attempts and all(a.get("skipped") for a in attempts) else "failed",
            "reason": "; ".join(f"{a['model']}: {a['reason']}" for a in attempts)[:600] or "no explainer model could run",
            "attempts": attempts}
-    if last.get("trace"):
-        out["trace"] = last["trace"]
-    if last.get("raw_reply"):
-        out["raw_reply"] = last["raw_reply"]
+    for k in ("trace", "raw_reply"):
+        if last.get(k):
+            out[k] = last[k]
     return out
-
-
-_UP = re.compile(r"\b(increas|rais|expand|enlarg|extend)\w*\s+(?:\w+\s+){0,4}?budget|\b(higher|larger|bigger)\s+(?:token\s+)?budget", re.I)
-_DOWN = re.compile(r"\b(reduc|lower|decreas|cut(?!\s+off)|shrink|trim)\w*\s+(?:\w+\s+){0,4}?budget|\b(smaller|lower|tighter)\s+(?:token\s+)?budget", re.I)
-
-
-def _budget_contradiction(text: str, digest: dict) -> Optional[str]:
-    """A sentence that tells a step's budget to go the other way than its worked-out verdict."""
-    advice: dict[str, str] = {}
-    for pm in digest.get("per_model") or []:
-        for st in pm.get("steps") or []:
-            if st.get("step") and st.get("budget_advice"):
-                advice.setdefault(str(st["step"]).lower(), st["budget_advice"])
-    for sent in re.split(r"(?<=[.!?])\s+", text):
-        if "budget" not in sent.lower():
-            continue
-        named = [n for n in advice if re.search(r"\b" + re.escape(n) + r"\b", sent, re.I)]
-        if len(named) != 1:                                 # no step, or several: cannot tell which
-            continue
-        n, adv = named[0], advice[named[0]]
-        if _UP.search(sent) and re.search(r"\b(efficien|faster|speed|quicker|cheaper)", sent, re.I):
-            return f"says a bigger budget for {n.capitalize()} improves efficiency, but it costs time and tokens"
-        if _UP.search(sent) and not adv.startswith("raise"):
-            return f"advises a bigger budget for {n.capitalize()}, but {adv}"
-        if _DOWN.search(sent) and adv.startswith("raise"):
-            return f"advises a smaller budget for {n.capitalize()}, but {adv}"
-    return None
-
-
-def _sentences(t: str) -> list[str]:
-    return [re.sub(r"[^a-z0-9 ]", "", x.lower()).strip() for x in re.split(r"(?<=[.!?])\s+", t) if x.strip()]
-
-
-def _repeats(text: str, accepted: dict[str, str]) -> Optional[str]:
-    """A section whose sentences are mostly already in an accepted section is a repeat."""
-    mine = _sentences(text)
-    if not mine:
-        return None
-    seen = {x for v in accepted.values() for x in _sentences(v)}
-    same = sum(1 for x in mine if x in seen)
-    return "repeats another section" if same and same * 2 >= len(mine) else None
-
-
-_ONLY_JSON = ("Your earlier reply could not be read. Reply with the JSON object only: start with { and end "
-              "with }, no other text, no code fences. Keep each section within its word limit.")
-
-
-def _generate(digest: dict, mspec: dict, cfg: dict, runner: Optional[Callable], fake: bool) -> dict:
-    t0 = time.time()
-    allowed = _digest_numbers(digest, set())
-    reply = _run_model(mspec, _messages(digest), cfg, runner)
-    tokens = dict(reply.get("tokens") or {})
-    raw = reply.get("text") or ""
-    try:
-        got = _json_reply(raw)
-        first_err = None
-    except ValueError as e:
-        first_err = str(e)
-        got = {}
-        if not fake:                                          # unreadable: ask once more, firmly
-            msgs = _messages(digest)
-            msgs[1]["content"] += "\n\n" + _ONLY_JSON
-            r2 = _run_model(mspec, msgs, cfg, runner)
-            for k2, v2 in (r2.get("tokens") or {}).items():
-                tokens[k2] = (tokens.get(k2) or 0) + (v2 or 0)
-            raw = raw + "\n----- second reply -----\n" + (r2.get("text") or "")
-            try:
-                got = _json_reply(r2.get("text") or "")
-                first_err = None
-            except ValueError as e2:
-                first_err = str(e2) + " (twice)"
-    sections, dropped = {}, {}
-    for k in SECTIONS:
-        v = got.get(k)
-        if v is None or not str(v).strip():
-            continue
-        why = check_section(k, str(v), digest, allowed) or _repeats(str(v), sections)
-        if why:
-            dropped[k] = why
-        else:
-            sections[k] = str(v).strip()
-    for _ in range(int(cfg.get("retries") or 0)):
-        if not dropped:
-            break
-        ask = {k: dropped[k] for k in dropped}
-        if fake:
-            again = _fake_reply(digest, ask)
-        else:
-            r2 = _run_model(mspec, _messages(digest, ask), cfg, runner)
-            for k2, v2 in (r2.get("tokens") or {}).items():
-                tokens[k2] = (tokens.get(k2) or 0) + (v2 or 0)
-            try:
-                again = _json_reply(r2.get("text") or "")
-            except ValueError:
-                again = {}
-        for k in list(dropped):
-            v = again.get(k)
-            if v and not (check_section(k, str(v), digest, allowed) or _repeats(str(v), sections)):
-                sections[k] = str(v).strip()
-                del dropped[k]
-    status = "ok" if sections and not dropped else "partial" if sections else "failed"
-    res = {"status": status, "model": mspec["id"], "engine": mspec.get("engine", "hf"),
-           "seconds": round(time.time() - t0, 1), "load_s": reply.get("load_s"), "tokens": tokens,
-           "sections": sections, "dropped": dropped}
-    if status == "failed":
-        res["reason"] = first_err or "no section passed the checks"
-    if status != "ok":
-        res["raw_reply"] = raw[-6000:]                    # what the model wrote, for whoever fixes it
-    return res
 
 
 def write(run_dir: str | Path, data: dict) -> Path:

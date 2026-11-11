@@ -7,9 +7,9 @@ Run on a rented GPU box (the same kind your benchmarks use), with no benchmark r
 
 For each model (default: every model in configs/explainer.yaml) it copies the session's
 session_results.json and flows_<run>.json to a scratch folder, writes the explanation there with
-the real model (never touching the session itself), and prints how long it took, how many
-sections passed the checks, why any were dropped, and the text, so you can judge speed and
-quality. The model must already be downloaded (HF_HUB_OFFLINE is respected).
+the real model (never touching the session itself), and prints how long it took, each
+section's sentences with the checked statements they came from, every dropped sentence with
+its reason, and the answer patterns kept and dropped, so you can judge speed and quality. The model must already be downloaded (HF_HUB_OFFLINE is respected).
 """
 from __future__ import annotations
 
@@ -63,12 +63,23 @@ def main(argv=None) -> int:
             print("reason:", out["reason"])
         if out.get("trace"):
             print("full error:\n" + out["trace"])
-        if out.get("raw_reply"):
+        if out.get("raw_reply") and out.get("status") != "partial":
             print("what the model wrote (end of it):\n" + out["raw_reply"][-3000:])
         for k, why in (out.get("dropped") or {}).items():
-            print(f"  dropped {k}: {why}")
-        for k, v in (out.get("sections") or {}).items():
-            print(f"\n[{k}]\n{v}")
+            print(f"  SECTION LEFT TO THE STANDARD TEXT {k}: {why}")
+        st = out.get("statements") or {}
+        for sec, d in (out.get("detail") or {}).items():
+            print(f"\n[{sec}]")
+            for x in d.get("sentences") or []:
+                print(f"  + {x['text']}")
+                for u in x.get("uses") or []:
+                    print(f"      from {u}: {st.get(u, '?')}")
+            for x in d.get("dropped") or []:
+                print(f"  - DROPPED ({x.get('why')}): {x['text']}  [uses {', '.join(x.get('uses') or [])}]")
+        for p in out.get("patterns") or []:
+            print(f"\n[pattern {p['group']}] {p['pattern']}\n  {p['label']}  key phrase: {p['key_phrase']}\n  quote: {p['quote']}")
+        for p in out.get("patterns_dropped") or []:
+            print(f"\n[pattern {p['group']} DROPPED] {p.get('describe')}: {p.get('why')}")
         print(f"\n(written to {work / E.OUT_NAME})\n")
     return 0
 

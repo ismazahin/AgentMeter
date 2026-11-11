@@ -15,8 +15,15 @@ models:
     min_free_vram_gb: 16
     reasoning: low                   # gpt-oss only: low reasoning keeps it fast
 max_new_tokens: 1800
-timeout_s: 300                       # the explainer process is killed after this
-retries: 1                           # one more request for the sections that failed a check
+timeout_s: 480                       # the explainer process is killed after this (one request per section)
+retries: 1                           # one more request for a section that failed a check, with the reasons
 excerpts: 12                         # agent-answer excerpts sent (failures and mix-ups first)
 excerpt_chars: 200
 slow_flows_per_model: 5
+# What the answers show: code groups the answers that went wrong; the model names one pattern per
+# group, kept only when its quote and key phrase are found in the answers (answer_patterns.py).
+answer_patterns:
+  max_groups: 4                      # the largest groups first
+  min_group: 3                       # fewer answers than this are not a pattern
+  sample: 8                          # answers of the group shown to the model
+  contrast: 8                        # answers of the same step that did not go wrong

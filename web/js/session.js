@@ -475,20 +475,25 @@ function loadExplanation(job) {
     applyExplanation();
   });
 }
-function explMarker() {
+// the admin-only mark: which model wrote a piece and which checked statements it was built from
+function explSeesMark() { return !CP || (typeof isAdmin === "function" && isAdmin()); }
+function explMarker(section, extra) {
   var e = SESSION.expl;
-  if (!e || !(!CP || (typeof isAdmin === "function" && isAdmin()))) return "";
+  if (!e || !explSeesMark()) return "";
+  var d = ((e.detail || {})[section] || {}), st = e.statements || {}, used = [];
+  (d.sentences || []).forEach(function (x) { (x.uses || []).forEach(function (u) { if (st[u] && used.indexOf(st[u]) < 0) used.push(st[u]); }); });
   var n = Object.keys(e.dropped || {}).length;
   var tip = "Written by " + short(e.model) + " from this session's results" + (e.seconds != null ? ", in " + fmtNum(e.seconds, 0) + " s" : "") + ". " +
-    (n ? n + " section" + (n === 1 ? "" : "s") + " use" + (n === 1 ? "s" : "") + " the standard text instead." : "Every section passed the checks.") + " Only admins see this mark.";
-  return '<span class="info-i ai-mark" tabindex="0" role="button" data-tip="' + esc(tip) + '" aria-label="' + esc(tip) + '">✦</span>';
+    (extra || (used.length ? "Built from these checked statements. " + used.slice(0, 4).join(" ") : "")) +
+    (n ? " " + n + " section" + (n === 1 ? "" : "s") + " use" + (n === 1 ? "s" : "") + " the standard text instead." : "") + " Only admins see this mark.";
+  return '<span class="info-i ai-mark" tabindex="0" role="button" data-tip="' + esc(tip) + '" aria-label="' + esc(tip) + '">\u2726</span>';
 }
 function applyExplanation() {
-  var e = SESSION.expl, s = (e && e.sections) || {}, mark = explMarker();
+  var e = SESSION.expl, s = (e && e.sections) || {};
   EXPL_TABS.forEach(function (t) {
     var box = document.querySelector('#spanel-' + t + ' .takeaway[data-summary="' + t + '"]');
     if (!box) return;
-    var hd = box.querySelector(".tk-h"), sb = box.querySelector(".tk-s");
+    var hd = box.querySelector(".tk-h"), sb = box.querySelector(".tk-s"), mark = explMarker("tab." + t);
     if (s["tab." + t + ".h"] && hd) { hd.textContent = s["tab." + t + ".h"]; hd.insertAdjacentHTML("beforeend", mark); }
     if (s["tab." + t + ".s"] && hd) {
       if (!sb) { sb = document.createElement("p"); sb.className = "tk-s"; hd.insertAdjacentElement("afterend", sb); }
@@ -496,7 +501,21 @@ function applyExplanation() {
     }
   });
   if (s.summary && !$("svc-ai-summary"))
-    $("spanel-overview").insertAdjacentHTML("afterbegin", '<div class="takeaway tab-summary" id="svc-ai-summary"><p class="tk-sum">' + esc(s.summary) + mark + '</p></div>');
+    $("spanel-overview").insertAdjacentHTML("afterbegin", '<div class="takeaway tab-summary" id="svc-ai-summary"><p class="tk-sum">' + esc(s.summary) + explMarker("summary") + '</p></div>');
+  // what the answers show: patterns the answers support (counted by code), each with its quote
+  var pats = (e && e.patterns) || [], rel = $("spanel-reliability");
+  if (pats.length && rel && !$("svc-ai-patterns")) {
+    var html = '<div class="card" id="svc-ai-patterns"><h2>What the answers show</h2>' +
+      '<p class="muted small" style="margin-top:0">Patterns in the answers that went wrong, each found in at least half of the answers it describes, with one of them quoted.</p>' +
+      pats.map(function (p) {
+        return '<div class="ap-item"><p class="ap-pattern">' + esc(p.pattern) +
+          explMarker(null, "Key phrase \u201c" + p.key_phrase + "\u201d, counted in the answers by code.") + '</p>' +
+          '<p class="ap-count small muted">' + esc(p.label) + '</p>' +
+          '<blockquote class="ap-quote">\u201c' + esc(p.quote) + '\u201d</blockquote></div>';
+      }).join("") + '</div>';
+    var lead = rel.querySelector(".takeaway");
+    if (lead) lead.insertAdjacentHTML("afterend", html); else rel.insertAdjacentHTML("afterbegin", html);
+  }
   postExplanation();
 }
 

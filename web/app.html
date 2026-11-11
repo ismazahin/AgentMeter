@@ -588,6 +588,13 @@
   /* the session's written summary (Overview) and the admin-only mark on written text */
   .takeaway .tk-sum { margin: 0; max-width: 72ch; font-size: 16.5px; line-height: 1.7; color: var(--text); }
   .info-i.ai-mark { color: var(--accent-text); font-size: 10px; vertical-align: 2px; }
+  /* what the answers show: one pattern per group, its count and a quote */
+  #svc-ai-patterns .ap-item { padding: 14px 0; border-top: 1px solid var(--border); }
+  #svc-ai-patterns .ap-item:first-of-type { border-top: 0; padding-top: 4px; }
+  #svc-ai-patterns .ap-pattern { margin: 0; font-size: 15.5px; line-height: 1.6; color: var(--text); max-width: 72ch; }
+  #svc-ai-patterns .ap-count { margin: 4px 0 8px; }
+  #svc-ai-patterns .ap-quote { margin: 0; padding: 8px 14px; border-left: 3px solid var(--border-2); background: var(--surface-2);
+    font: 13px/1.55 var(--mono); color: var(--muted-2); overflow-wrap: anywhere; max-width: 80ch; }
   .tk-list { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 9px; max-width: 640px; }
   .tk-row { display: grid; grid-template-columns: minmax(96px, 140px) 1fr auto; align-items: center; gap: 14px; }
   .tk-name { font-weight: 600; white-space: nowrap; }

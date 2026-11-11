@@ -2,7 +2,7 @@
 # Install these ONLY on the GPU host (HF Space, 1x L4). They pull ~GBs.
 # Install AFTER requirements.txt.
 torch>=2.1
-transformers>=4.40
+transformers>=4.56   # 4.56+: the session explainer (gpt-oss-20b, Apertus-8B; configs/explainer.yaml)
 accelerate>=0.30
 huggingface_hub>=0.23
 sentencepiece>=0.2

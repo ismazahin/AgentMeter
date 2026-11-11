@@ -2562,8 +2562,10 @@
     var rec = REPORT.recommendation(d, ranked, state.weights);
     var h = document.getElementById("ds-rec-headline");
     var c = document.getElementById("ds-rec-caveat");
-    if (h) h.textContent = rec.headline;
-    if (c) c.textContent = rec.caveat;      // textContent: the honesty caveat, never HTML
+    // everyday model names in the sentences (REPORT returns the full ids)
+    var nm = function (t) { return rec.top ? String(t || "").split(rec.top).join(everyday(rec.top)) : t; };
+    if (h) h.textContent = nm(rec.headline);
+    if (c) c.textContent = nm(rec.caveat);      // textContent: the honesty caveat, never HTML
     // Session analysis: lead with the session's MEASURED head-to-head verdict (the same
     // sentence as the service results and PDF), never a SAW rank-1 picked inside a tie.
     if (state.session && d.relative_comparison) {
@@ -2598,6 +2600,8 @@
     try { renderDecision(); } catch (e) { /* no results loaded yet: applied on the first render */ }
   });
 
+  // the everyday model name the app uses ("Mistral 7B"), when insights.js is loaded
+  function everyday(m) { return window.INSIGHTS && INSIGHTS.nick ? INSIGHTS.nick(m) : shortModel(m); }
   // ---- Deployment recommendation, explained: where the score comes from and what to check ----
   var DS_CRIT = {
     accuracy: { name: "Accuracy", raw: "accuracy_pct", tgt: "accuracy_pct", higher: true,
@@ -2621,9 +2625,10 @@
     var p8 = d.phase8 || {}, raw = dsRow(p8.saw_table || p8.raw_criteria, top), nrm = dsRow(p8.normalised, top);
     if (!top || !raw || !nrm) { box.innerHTML = ""; return; }
     var w = SAW.normalizeWeights(state.weights), t = p8.targets || {}, tiers = p8.tiers || { healthy_min: 80, degraded_min: 60 };
-    var name = shortModel(top), keys = CRIT.filter(function (k) { return w[k] > 0; });
+    var name = everyday(top), keys = CRIT.filter(function (k) { return w[k] > 0; });
     var rows = keys.map(function (k) {
       var c = DS_CRIT[k], v = raw[c.raw], tg = t[c.tgt], n = +nrm[k] || 0;
+      if (k === "vram" && raw.vram_source === "marginal_working_memory") c = Object.assign({}, c, { name: "Working GPU memory", low: "working GPU memory" });
       var max = 100 * w[k], pts = max * n, why;
       if (v == null || isNaN(v)) why = "Not measured in this run, so it adds nothing.";
       else if (n >= 0.999) why = c.higher ? "At or above the target, full points." : "Within the target, full points.";
@@ -2649,7 +2654,10 @@
           "<span class='sr-only'> of " + r.max.toFixed(1) + " points</span></td><td class='why'>" + esc(r.why) + "</td></tr>";
       }).join("") + "</tbody></table>";
     // what to check before deploying, each grounded in one measured number
-    var steps = [], lat = raw.latency_s, mem = raw.total_device_vram_mb || raw.vram_mb, tok = raw.tokens_total;
+    // the whole GPU memory the model needs: the session's total peak (weights + working), never the
+    // working-only figure a session's VRAM score uses
+    var memRow = (((d.memory || {}).per_model) || []).filter(function (m) { return String(m.model).replace(/^mock:/, "") === String(top).replace(/^mock:/, ""); })[0] || {};
+    var steps = [], lat = raw.latency_s, mem = memRow.total_peak_mb || raw.total_device_vram_mb, tok = raw.tokens_total;
     if (lat >= 0.05) steps.push("<b>Check it keeps up with your alert volume.</b> At " + dsTime(lat) + " per flow, one GPU answers about " +
       fmtInt(86400 / lat) + " flows a day, one at a time. If your network raises more alerts than that, plan for more GPUs or a faster model.");
     if (mem > 0) { var g = dsGpuSize(mem);
@@ -2663,8 +2671,8 @@
         " target, so treat its labels as triage hints rather than final decisions.");
     if (ranked && ranked.length > 1) { var r2 = ranked[1], gap = 100 * (ranked[0].composite - r2.composite);
       steps.push(gap < 0.05
-        ? "<b>Treat it as a tie.</b> " + esc(shortModel(r2.model)) + " has the same " + (100 * r2.composite).toFixed(1) + " points, so either is a fair starting point. Decide on the measures you care about most, such as speed or valid answers."
-        : "<b>" + (gap < 3 ? "Treat the lead as narrow." : "Compare it with the runner-up.") + "</b> " + esc(shortModel(r2.model)) + " is next with " +
+        ? "<b>Treat it as a tie.</b> " + esc(everyday(r2.model)) + " has the same " + (100 * r2.composite).toFixed(1) + " points, so either is a fair starting point. Decide on the measures you care about most, such as speed or valid answers."
+        : "<b>" + (gap < 3 ? "Treat the lead as narrow." : "Compare it with the runner-up.") + "</b> " + esc(everyday(r2.model)) + " is next with " +
           (100 * r2.composite).toFixed(1) + " points, " + gap.toFixed(1) + " behind." + (gap < 3 ? " A gap this small can flip with other weights, so check the Robustness view." : "")); }
     steps.push("<b>Test it against your own limits.</b> Enter your latency, memory and token limits in the What-if constraint filter to see whether it passes, without a new run.");
     box.innerHTML = "<div><h3>Where the score comes from</h3><p class='ds-lede'>" + lede + "</p>" + ledger + "</div>" +
@@ -2715,7 +2723,7 @@
       steps.push("<b>Consider a smaller model for that one step.</b> " + esc(dsAgent(slow.agent_name)) + " takes " + Math.round(100 * sw / flow) +
         "% of every flow, so a faster model there would cut the most time. Its answers may change, so run the benchmark again to measure both speed and output validity.");
     steps.push("<b>Measure the change.</b> Build the adjusted pipeline under New benchmark (Build my own) and run it on the same prepared set. The new session compares like for like with this one. None of these suggestions changes a stored score.");
-    box.innerHTML = "<div><h3>Where each step spends its time</h3><p class='ds-lede'>Mean per flow for " + esc(shortModel(top)) + ". The " + esc(dsAgent(slow.agent_name)) + " step takes the longest" +
+    box.innerHTML = "<div><h3>Where each step spends its time</h3><p class='ds-lede'>Mean per flow for " + esc(everyday(top)) + ". The " + esc(dsAgent(slow.agent_name)) + " step takes the longest" +
       (heavy ? ", and " + esc(dsAgent(heavy.agent_name)) + " needs the most working memory" : "") + (heavy && heavy !== slow ? ". Both are highlighted.</p>" : ". It is highlighted.</p>") + table + "</div>" +
       "<div><h3>What you can change, and what it would save</h3><ol class='ds-steps'>" + steps.map(function (s) { return "<li><span>" + s + "</span></li>"; }).join("") + "</ol></div>";
   }

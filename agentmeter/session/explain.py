@@ -435,34 +435,60 @@ def _fake_reply(digest: dict, only: Optional[dict] = None) -> dict:
     return out
 
 
+def _hf_generate(spec: dict, t0: float) -> tuple[str, int, int, float]:
+    """transformers path. Works on 4.56+ and 5.x: apply_chat_template returns a mapping
+    (input_ids, attention_mask) on 5.x and when asked to with return_dict=True on 4.x."""
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    mid, msgs = spec["model"], spec["messages"]
+    tok = AutoTokenizer.from_pretrained(mid)
+    model = AutoModelForCausalLM.from_pretrained(mid, dtype="auto", device_map="cuda")
+    t_load = time.time() - t0
+    kw = {"reasoning_effort": spec["reasoning"]} if spec.get("reasoning") else {}
+    enc = tok.apply_chat_template(msgs, add_generation_prompt=True, tokenize=True, return_dict=True,
+                                  return_tensors="pt", **kw)
+    if hasattr(enc, "keys"):
+        inputs = {k: v.to(model.device) for k, v in enc.items() if hasattr(v, "to")}
+    else:                                            # an older tokenizer returning a bare tensor
+        inputs = {"input_ids": enc.to(model.device)}
+    n_in = int(inputs["input_ids"].shape[-1])
+    with torch.no_grad():
+        gen = model.generate(**inputs, max_new_tokens=spec["max_new_tokens"], do_sample=True, temperature=0.3)
+    new_tokens = gen[0][n_in:]
+    text = tok.decode(new_tokens, skip_special_tokens=False)
+    return text, n_in, int(new_tokens.shape[-1]), round(t_load, 1)
+
+
 def _worker_main(argv: list[str]) -> int:
-    """Child process: load the model, answer one request, write the reply, exit (frees the GPU)."""
+    """Child process: load the model, answer one request, write the reply, exit (frees the GPU).
+    Any error is written to the output file with its full traceback, for explanation.json."""
+    import traceback
     spec = json.loads(Path(argv[0]).read_text(encoding="utf-8"))
     out = Path(argv[1])
     t0 = time.time()
-    eng, mid, msgs = spec["engine"], spec["model"], spec["messages"]
-    if eng == "vllm":
-        from vllm import LLM, SamplingParams
-        llm = LLM(model=mid, gpu_memory_utilization=0.85, max_model_len=16384)
-        kw = {"chat_template_kwargs": {"reasoning_effort": spec["reasoning"]}} if spec.get("reasoning") else {}
-        res = llm.chat(msgs, SamplingParams(max_tokens=spec["max_new_tokens"], temperature=0.3), **kw)
-        text, n_in, n_out = res[0].outputs[0].text, len(res[0].prompt_token_ids or []), len(res[0].outputs[0].token_ids)
-    else:
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        tok = AutoTokenizer.from_pretrained(mid)
-        model = AutoModelForCausalLM.from_pretrained(mid, torch_dtype="auto", device_map="cuda")
-        kw = {"reasoning_effort": spec["reasoning"]} if spec.get("reasoning") else {}
-        ids = tok.apply_chat_template(msgs, add_generation_prompt=True, return_tensors="pt", **kw).to(model.device)
-        t_load = time.time() - t0
-        with torch.no_grad():
-            gen = model.generate(ids, max_new_tokens=spec["max_new_tokens"], do_sample=True, temperature=0.3)
-        text = tok.decode(gen[0][ids.shape[1]:], skip_special_tokens=False)
-        n_in, n_out = int(ids.shape[1]), int(gen.shape[1] - ids.shape[1])
-        spec["load_s"] = round(t_load, 1)
-    out.write_text(json.dumps({"text": text, "tokens": {"input": n_in, "output": n_out},
-                               "load_s": spec.get("load_s"), "seconds": round(time.time() - t0, 1)}), encoding="utf-8")
-    return 0
+    try:
+        load_s = None
+        if spec["engine"] == "vllm":
+            from vllm import LLM, SamplingParams
+            llm = LLM(model=spec["model"], gpu_memory_utilization=0.85, max_model_len=16384)
+            load_s = round(time.time() - t0, 1)
+            kw = {"chat_template_kwargs": {"reasoning_effort": spec["reasoning"]}} if spec.get("reasoning") else {}
+            res = llm.chat(spec["messages"], SamplingParams(max_tokens=spec["max_new_tokens"], temperature=0.3), **kw)
+            text, n_in, n_out = res[0].outputs[0].text, len(res[0].prompt_token_ids or []), len(res[0].outputs[0].token_ids)
+        else:
+            text, n_in, n_out, load_s = _hf_generate(spec, t0)
+        out.write_text(json.dumps({"text": text, "tokens": {"input": n_in, "output": n_out},
+                                   "load_s": load_s, "seconds": round(time.time() - t0, 1)}), encoding="utf-8")
+        return 0
+    except BaseException as e:  # noqa: BLE001 — report it to the parent, then fail
+        out.write_text(json.dumps({"error": f"{type(e).__name__}: {e}"[:400],
+                                   "trace": traceback.format_exc()[-4000:]}), encoding="utf-8")
+        return 1
+
+
+class ExplainerError(RuntimeError):
+    """The explainer process failed; .trace holds its traceback for explanation.json."""
+    trace = ""
 
 
 def _run_model(mspec: dict, messages: list[dict], cfg: dict, runner: Optional[Callable] = None) -> dict:
@@ -477,10 +503,20 @@ def _run_model(mspec: dict, messages: list[dict], cfg: dict, runner: Optional[Ca
         env = dict(os.environ, HF_HUB_OFFLINE=os.environ.get("HF_HUB_OFFLINE", "1"))
         p = subprocess.run([sys.executable, "-m", "agentmeter.session.explain", "--worker", str(spec_p), str(out_p)],
                            cwd=str(ROOT), env=env, capture_output=True, text=True, timeout=int(cfg["timeout_s"]))
-        if p.returncode != 0 or not out_p.is_file():
-            last = [ln for ln in (p.stderr or "").strip().splitlines() if ln.strip()][-2:]
-            raise RuntimeError("explainer process failed: " + " | ".join(ln.strip() for ln in last)[-280:])
-        return json.loads(out_p.read_text(encoding="utf-8"))
+        got = None
+        if out_p.is_file():
+            try:
+                got = json.loads(out_p.read_text(encoding="utf-8"))
+            except ValueError:
+                got = None
+        if p.returncode != 0 or not got or got.get("error"):
+            # the child's own report (full traceback) when it wrote one, else its stderr
+            trace = (got or {}).get("trace") or (p.stderr or "")[-4000:]
+            err = ExplainerError("explainer process failed: " + ((got or {}).get("error") or
+                                 (trace.strip().splitlines() or ["no output"])[-1])[:300])
+            err.trace = trace
+            raise err
+        return got
 
 
 def _free_vram_gb() -> Optional[float]:
@@ -556,6 +592,8 @@ def explain_session(results: dict, run_dir: str | Path, *, real: bool, cfg: Opti
     except Exception as e:  # noqa: BLE001 — never fail the session
         log.exception("explanation failed")
         out.update(status="failed", reason=f"{type(e).__name__}: {e}"[:300])
+        if getattr(e, "trace", ""):
+            out["trace"] = e.trace                       # the full error, for whoever fixes it
         try:
             write(run_dir, out)
         except OSError:

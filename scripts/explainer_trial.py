@@ -61,6 +61,8 @@ def main(argv=None) -> int:
               f" (model load {out.get('load_s')} s), tokens {out.get('tokens')}")
         if out.get("reason"):
             print("reason:", out["reason"])
+        if out.get("trace"):
+            print("full error:\n" + out["trace"])
         for k, why in (out.get("dropped") or {}).items():
             print(f"  dropped {k}: {why}")
         for k, v in (out.get("sections") or {}).items():

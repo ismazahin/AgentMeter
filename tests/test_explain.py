@@ -130,3 +130,85 @@ def test_one_model_downloaded_at_rental_start():
     assert E.startup_model(12.0, cfg) is None
     assert E.startup_model(None, cfg) == "openai/gpt-oss-20b"
     assert "openai/gpt-oss-20b" not in Path(E.ROOT / "configs" / "model_catalog.yaml").read_text()
+
+
+# --- the transformers path, with stand-in torch/transformers modules (no GPU in tests) ---------
+class _T:
+    """A tiny tensor: a list of token ids with the few methods the explainer uses."""
+    def __init__(self, ids): self.ids = list(ids)
+    @property
+    def shape(self): return (1, len(self.ids))
+    def to(self, _device): return self
+    def __getitem__(self, i): return self if i == 0 else None
+
+
+class _Gen(list):
+    def __getitem__(self, i):
+        return _Row(list.__getitem__(self, i)) if isinstance(i, int) else list.__getitem__(self, i)
+
+
+class _Row(list):
+    @property
+    def shape(self): return (len(self),)
+    def __getitem__(self, s): return _Row(list.__getitem__(self, s)) if isinstance(s, slice) else list.__getitem__(self, s)
+
+
+def _fake_modules(monkeypatch, *, as_mapping):
+    import contextlib
+    import sys
+    import types
+    torch = types.ModuleType("torch")
+    torch.no_grad = contextlib.nullcontext
+    tr = types.ModuleType("transformers")
+    seen = {}
+
+    class Tok:
+        @classmethod
+        def from_pretrained(cls, mid): return cls()
+        def apply_chat_template(self, msgs, **kw):
+            seen["kw"] = kw
+            ids = _T([1, 2, 3])
+            return {"input_ids": ids, "attention_mask": _T([1, 1, 1])} if as_mapping else ids
+        def decode(self, toks, skip_special_tokens=False):
+            return '<|channel|>final<|message|>{"summary": "Short."}<|return|>'
+
+    class Model:
+        device = "cuda"
+        @classmethod
+        def from_pretrained(cls, mid, **kw):
+            seen["load_kw"] = kw
+            return cls()
+        def generate(self, **kw):
+            seen["gen_kw"] = kw
+            return _Gen([[1, 2, 3, 9, 9]])
+
+    tr.AutoTokenizer, tr.AutoModelForCausalLM = Tok, Model
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "transformers", tr)
+    return seen
+
+
+@pytest.mark.parametrize("as_mapping", [True, False])
+def test_transformers_path_handles_v5_mappings_and_bare_tensors(tmp_path, monkeypatch, as_mapping):
+    seen = _fake_modules(monkeypatch, as_mapping=as_mapping)
+    spec = {"engine": "hf", "model": "openai/gpt-oss-20b", "reasoning": "low", "max_new_tokens": 50,
+            "messages": [{"role": "user", "content": "hi"}]}
+    (tmp_path / "in.json").write_text(json.dumps(spec))
+    assert E._worker_main([str(tmp_path / "in.json"), str(tmp_path / "out.json")]) == 0
+    got = json.loads((tmp_path / "out.json").read_text())
+    assert got["tokens"] == {"input": 3, "output": 2}
+    assert E._json_reply(got["text"]) == {"summary": "Short."}
+    assert seen["load_kw"]["dtype"] == "auto" and "torch_dtype" not in seen["load_kw"]
+    assert seen["kw"]["return_dict"] is True and seen["kw"]["reasoning_effort"] == "low"
+    assert "input_ids" in seen["gen_kw"]
+
+
+def test_worker_reports_its_error_with_the_traceback(tmp_path, monkeypatch):
+    import sys
+    import types
+    monkeypatch.setitem(sys.modules, "transformers", types.ModuleType("transformers"))   # no Auto* classes
+    monkeypatch.setitem(sys.modules, "torch", types.ModuleType("torch"))
+    (tmp_path / "in.json").write_text(json.dumps({"engine": "hf", "model": "m", "max_new_tokens": 5, "messages": []}))
+    assert E._worker_main([str(tmp_path / "in.json"), str(tmp_path / "out.json")]) == 1
+    got = json.loads((tmp_path / "out.json").read_text())
+    assert "ImportError" in got["error"] and "Traceback" in got["trace"]

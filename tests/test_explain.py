@@ -124,11 +124,11 @@ def test_a_model_reply_is_checked_and_a_failure_never_raises(tmp_path, res, monk
     assert out["status"] == "failed" and "CUDA out of memory" in out["reason"]
 
 
-def test_one_model_downloaded_at_rental_start():
+def test_explainer_models_downloaded_at_rental_start():
     cfg = E.load_config()
-    assert E.startup_model(24.0, cfg) == "openai/gpt-oss-20b"
-    assert E.startup_model(12.0, cfg) is None
-    assert E.startup_model(None, cfg) == "openai/gpt-oss-20b"
+    assert E.startup_models(24.0, cfg) == ["openai/gpt-oss-20b", "swiss-ai/Apertus-8B-Instruct-2509"]
+    assert E.startup_models(18.0, cfg) == ["openai/gpt-oss-20b"]
+    assert E.startup_models(12.0, cfg) == []
     assert "openai/gpt-oss-20b" not in Path(E.ROOT / "configs" / "model_catalog.yaml").read_text()
 
 
@@ -212,3 +212,27 @@ def test_worker_reports_its_error_with_the_traceback(tmp_path, monkeypatch):
     assert E._worker_main([str(tmp_path / "in.json"), str(tmp_path / "out.json")]) == 1
     got = json.loads((tmp_path / "out.json").read_text())
     assert "ImportError" in got["error"] and "Traceback" in got["trace"]
+
+
+def test_a_failed_model_gives_way_to_the_next(tmp_path, res, monkeypatch):
+    monkeypatch.delenv("AGENTMETER_TEST_EXPLAINER", raising=False)
+    tried = []
+
+    def runner(mspec, messages, cfg):
+        tried.append(mspec["id"])
+        if mspec["id"] == "openai/gpt-oss-20b":
+            e = E.ExplainerError("explainer process failed: OutOfMemoryError: CUDA out of memory")
+            e.trace = "Traceback ...\ntorch.OutOfMemoryError: CUDA out of memory"
+            raise e
+        return {"text": json.dumps({"summary": "Qwen2.5 7B leads this session."}), "tokens": {"input": 9, "output": 4}}
+
+    out = E.explain_session(res, tmp_path, real=True, runner=runner, free_vram_gb=23.0)
+    assert out["status"] == "ok" and out["model"] == "swiss-ai/Apertus-8B-Instruct-2509"
+    assert tried == ["openai/gpt-oss-20b", "swiss-ai/Apertus-8B-Instruct-2509"]
+    assert out["attempts"][0]["model"] == "openai/gpt-oss-20b" and "out of memory" in out["attempts"][0]["reason"]
+    assert "OutOfMemoryError" in out["attempts"][0]["trace"]
+
+
+def test_the_digest_is_sent_compact():
+    msgs = E._messages({"session": {"models": ["A"]}, "per_model": [{"name": "A", "x": 1}]})
+    assert '"per_model":[{"name":"A","x":1}]' in msgs[1]["content"]

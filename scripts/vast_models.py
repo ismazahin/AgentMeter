@@ -128,12 +128,10 @@ def main(argv=None) -> int:
     marked = model_catalog.start_up_ids()                                  # admin: download at start-up
     models = ([m for m in study if args.all_study or m in marked]
               + [m for m in marked if m not in study])
-    # the session explainer (configs/explainer.yaml): the one model that fits this GPU, so
+    # the session explainer (configs/explainer.yaml): the models that fit this GPU (the first, and its fallback), so
     # explanations are written without a download wait (it is never benchmarked)
-    from agentmeter.session.explain import startup_model
-    ex = startup_model(_total_vram_gb())
-    if ex and ex not in models:
-        models.append(ex)
+    from agentmeter.session.explain import startup_models
+    models += [m for m in startup_models(_total_vram_gb()) if m not in models]
     extra = [m for m in models if m not in study]
     cache = runtime._hub_cache()
     print(f"Hugging Face cache: {cache}")

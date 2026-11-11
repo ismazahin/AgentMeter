@@ -15,6 +15,6 @@ models:
 max_new_tokens: 1800
 timeout_s: 300                       # the explainer process is killed after this
 retries: 1                           # one more request for the sections that failed a check
-excerpts: 20                         # agent-answer excerpts sent (failures and mix-ups first)
-excerpt_chars: 300
+excerpts: 12                         # agent-answer excerpts sent (failures and mix-ups first)
+excerpt_chars: 200
 slow_flows_per_model: 5

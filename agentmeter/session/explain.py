@@ -72,16 +72,15 @@ def explainer_models(cfg: Optional[dict] = None) -> list[str]:
     return [m["id"] for m in cfg.get("models") or [] if m.get("id")] if cfg.get("enabled") else []
 
 
-def startup_model(total_vram_gb: Optional[float], cfg: Optional[dict] = None) -> Optional[str]:
-    """The ONE explainer model to download at rental start (scripts/vast_models.py): the first
-    whose memory need fits this GPU (with 1 GB to spare), so a rental never fetches both."""
+def startup_models(total_vram_gb: Optional[float], cfg: Optional[dict] = None) -> list[str]:
+    """The explainer models to download at rental start (scripts/vast_models.py): every model
+    whose memory need fits this GPU (with 1 GB to spare), so the fallback can load when the first
+    one fails during a session."""
     cfg = cfg or load_config()
     if not cfg.get("enabled"):
-        return None
-    for m in cfg.get("models") or []:
-        if total_vram_gb is None or total_vram_gb - 1 >= float(m.get("min_free_vram_gb") or 0):
-            return m.get("id")
-    return None
+        return []
+    return [m["id"] for m in cfg.get("models") or []
+            if m.get("id") and (total_vram_gb is None or total_vram_gb - 1 >= float(m.get("min_free_vram_gb") or 0))]
 
 
 # ---------------------------------------------------------------------------- names
@@ -404,7 +403,7 @@ def _json_reply(text: str) -> dict:
 
 def _messages(digest: dict, only: Optional[dict[str, str]] = None) -> list[dict]:
     system = PROMPT_PATH.read_text(encoding="utf-8")
-    user = "Digest:\n" + json.dumps(digest, ensure_ascii=False, indent=1)
+    user = "Digest:\n" + json.dumps(digest, ensure_ascii=False, separators=(",", ":"))     # compact: fewer tokens
     if only:
         user += ("\n\nYour earlier reply broke a rule in these sections. Rewrite only these keys and "
                  "return a JSON object with just them.\n" + json.dumps(only, ensure_ascii=False, indent=1))
@@ -500,7 +499,9 @@ def _run_model(mspec: dict, messages: list[dict], cfg: dict, runner: Optional[Ca
         spec_p.write_text(json.dumps({"engine": mspec.get("engine", "hf"), "model": mspec["id"],
                                       "reasoning": mspec.get("reasoning"), "messages": messages,
                                       "max_new_tokens": int(cfg["max_new_tokens"])}), encoding="utf-8")
-        env = dict(os.environ, HF_HUB_OFFLINE=os.environ.get("HF_HUB_OFFLINE", "1"))
+        env = dict(os.environ, HF_HUB_OFFLINE=os.environ.get("HF_HUB_OFFLINE", "1"),
+                   # reuse memory PyTorch reserved in pieces (a long prompt's attention needs one block)
+                   PYTORCH_CUDA_ALLOC_CONF=os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True"))
         p = subprocess.run([sys.executable, "-m", "agentmeter.session.explain", "--worker", str(spec_p), str(out_p)],
                            cwd=str(ROOT), env=env, capture_output=True, text=True, timeout=int(cfg["timeout_s"]))
         got = None
@@ -548,12 +549,15 @@ def _engine_problem(engine: str) -> Optional[str]:
     return None
 
 
+def _fitting_models(cfg: dict, free_gb: Optional[float]) -> list[dict]:
+    """The configured models whose memory need fits the free GPU memory, in config order."""
+    return [m for m in cfg.get("models") or []
+            if free_gb is None or free_gb >= float(m.get("min_free_vram_gb") or 0)]
+
+
 def _pick_model(cfg: dict, free_gb: Optional[float]) -> Optional[dict]:
-    for m in cfg.get("models") or []:
-        need = float(m.get("min_free_vram_gb") or 0)
-        if free_gb is None or free_gb >= need:
-            return m
-    return None
+    fit = _fitting_models(cfg, free_gb)
+    return fit[0] if fit else None
 
 
 def _sha(s: str) -> str:
@@ -577,17 +581,14 @@ def explain_session(results: dict, run_dir: str | Path, *, real: bool, cfg: Opti
             prompt = PROMPT_PATH.read_text(encoding="utf-8")
             out.update(prompt_sha256=_sha(prompt), digest_sha256=_sha(json.dumps(digest, sort_keys=True)))
             if fake:
-                mspec = {"id": "test-explainer", "engine": "fake"}
+                cands = [{"id": "test-explainer", "engine": "fake"}]
                 runner = lambda ms, msgs, c: {"text": json.dumps(_fake_reply(digest, None)), "tokens": {"input": 0, "output": 0}, "seconds": 0.1}  # noqa: E731
             else:
-                mspec = _pick_model(cfg, free_vram_gb if free_vram_gb is not None else _free_vram_gb())
-            problem = None if (mspec is None or runner is not None or fake) else _engine_problem(mspec.get("engine", "hf"))
-            if mspec is None:
+                cands = _fitting_models(cfg, free_vram_gb if free_vram_gb is not None else _free_vram_gb())
+            if not cands:
                 out["reason"] = "the GPU does not have enough free memory for any configured explainer model"
-            elif problem:
-                out["reason"] = problem
             else:
-                out.update(_generate(digest, mspec, cfg, runner, fake))
+                out.update(_try_models(digest, cands, cfg, runner, fake))
         write(run_dir, out)
     except Exception as e:  # noqa: BLE001 — never fail the session
         log.exception("explanation failed")
@@ -598,6 +599,39 @@ def explain_session(results: dict, run_dir: str | Path, *, real: bool, cfg: Opti
             write(run_dir, out)
         except OSError:
             pass
+    return out
+
+
+def _try_models(digest: dict, cands: list[dict], cfg: dict, runner: Optional[Callable], fake: bool) -> dict:
+    """Each fitting model in turn until one writes something: a model that cannot run (engine
+    missing, out of memory, a load error) or whose every section fails gives way to the next.
+    Every failed attempt is kept in "attempts" with its reason and traceback."""
+    attempts: list[dict] = []
+    for mspec in cands:
+        problem = None if (runner is not None or fake) else _engine_problem(mspec.get("engine", "hf"))
+        if problem:
+            attempts.append({"model": mspec["id"], "reason": problem, "skipped": True})
+            continue
+        try:
+            res = _generate(digest, mspec, cfg, runner, fake)
+        except Exception as e:  # noqa: BLE001 — try the next model
+            log.warning("explainer %s failed: %s", mspec["id"], e)
+            a = {"model": mspec["id"], "reason": f"{type(e).__name__}: {e}"[:300]}
+            if getattr(e, "trace", ""):
+                a["trace"] = e.trace
+            attempts.append(a)
+            continue
+        if res["status"] != "failed":
+            if attempts:
+                res["attempts"] = attempts
+            return res
+        attempts.append({"model": mspec["id"], "reason": res.get("reason") or "no section passed the checks"})
+    last = attempts[-1] if attempts else {}
+    out = {"status": "skipped" if attempts and all(a.get("skipped") for a in attempts) else "failed",
+           "reason": "; ".join(f"{a['model']}: {a['reason']}" for a in attempts)[:600] or "no explainer model could run",
+           "attempts": attempts}
+    if last.get("trace"):
+        out["trace"] = last["trace"]
     return out
 
 

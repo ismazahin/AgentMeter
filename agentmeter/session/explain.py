@@ -446,10 +446,25 @@ def _json_reply(text: str) -> dict:
     if "<|channel|>final<|message|>" in text:
         text = text.split("<|channel|>final<|message|>")[-1]
     text = re.sub(r"<\|[^|]*\|>", "", text)
+    text = re.sub(r"```(?:json)?", "", text)                     # code fences around the object
     a, b = text.find("{"), text.rfind("}")
-    if a < 0 or b <= a:
+    if a >= 0 and b > a:
+        try:
+            got = json.loads(text[a: b + 1])
+            if isinstance(got, dict):
+                return got
+        except ValueError:
+            pass
+    # cut off or slightly broken: keep every complete "key": "value" pair of a known section
+    got = {}
+    for m in re.finditer(r'"((?:summary|deployment|optimisation|tab\.[a-z]+\.[hs]))"\s*:\s*"((?:[^"\\]|\\.)*)"', text):
+        try:
+            got[m.group(1)] = json.loads('"' + m.group(2) + '"')
+        except ValueError:
+            continue
+    if not got:
         raise ValueError("no JSON object in the reply")
-    return json.loads(text[a: b + 1])
+    return got
 
 
 def _messages(digest: dict, only: Optional[dict[str, str]] = None) -> list[dict]:
@@ -679,14 +694,21 @@ def _try_models(digest: dict, cands: list[dict], cfg: dict, runner: Optional[Cal
             if attempts:
                 res["attempts"] = attempts
             return res
-        attempts.append({"model": mspec["id"], "reason": res.get("reason") or "no section passed the checks"})
+        attempts.append({"model": mspec["id"], "reason": res.get("reason") or "no section passed the checks",
+                         "raw_reply": res.get("raw_reply")})
     last = attempts[-1] if attempts else {}
     out = {"status": "skipped" if attempts and all(a.get("skipped") for a in attempts) else "failed",
            "reason": "; ".join(f"{a['model']}: {a['reason']}" for a in attempts)[:600] or "no explainer model could run",
            "attempts": attempts}
     if last.get("trace"):
         out["trace"] = last["trace"]
+    if last.get("raw_reply"):
+        out["raw_reply"] = last["raw_reply"]
     return out
+
+
+_ONLY_JSON = ("Your earlier reply could not be read. Reply with the JSON object only: start with { and end "
+              "with }, no other text, no code fences. Keep each section within its word limit.")
 
 
 def _generate(digest: dict, mspec: dict, cfg: dict, runner: Optional[Callable], fake: bool) -> dict:
@@ -694,13 +716,25 @@ def _generate(digest: dict, mspec: dict, cfg: dict, runner: Optional[Callable], 
     allowed = _digest_numbers(digest, set())
     reply = _run_model(mspec, _messages(digest), cfg, runner)
     tokens = dict(reply.get("tokens") or {})
+    raw = reply.get("text") or ""
     try:
-        got = _json_reply(reply.get("text") or "")
-    except ValueError as e:
-        got = {}
-        first_err = str(e)
-    else:
+        got = _json_reply(raw)
         first_err = None
+    except ValueError as e:
+        first_err = str(e)
+        got = {}
+        if not fake:                                          # unreadable: ask once more, firmly
+            msgs = _messages(digest)
+            msgs[1]["content"] += "\n\n" + _ONLY_JSON
+            r2 = _run_model(mspec, msgs, cfg, runner)
+            for k2, v2 in (r2.get("tokens") or {}).items():
+                tokens[k2] = (tokens.get(k2) or 0) + (v2 or 0)
+            raw = raw + "\n----- second reply -----\n" + (r2.get("text") or "")
+            try:
+                got = _json_reply(r2.get("text") or "")
+                first_err = None
+            except ValueError as e2:
+                first_err = str(e2) + " (twice)"
     sections, dropped = {}, {}
     for k in SECTIONS:
         v = got.get(k)
@@ -736,6 +770,8 @@ def _generate(digest: dict, mspec: dict, cfg: dict, runner: Optional[Callable], 
            "sections": sections, "dropped": dropped}
     if status == "failed":
         res["reason"] = first_err or "no section passed the checks"
+    if status != "ok":
+        res["raw_reply"] = raw[-6000:]                    # what the model wrote, for whoever fixes it
     return res
 
 

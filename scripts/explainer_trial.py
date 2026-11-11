@@ -63,6 +63,8 @@ def main(argv=None) -> int:
             print("reason:", out["reason"])
         if out.get("trace"):
             print("full error:\n" + out["trace"])
+        if out.get("raw_reply"):
+            print("what the model wrote (end of it):\n" + out["raw_reply"][-3000:])
         for k, why in (out.get("dropped") or {}).items():
             print(f"  dropped {k}: {why}")
         for k, v in (out.get("sections") or {}).items():

@@ -272,3 +272,26 @@ def test_budget_advice_follows_the_cut_offs():
     assert pm["slowest_step"]["step"] == "Perceive" and pm["slowest_step"]["share_of_each_flows_time_pct"] == 37.0
     assert pm["most_cut_off_step"]["budget_advice"].startswith("raise the budget, 9 of 11 answers were cut off at 160 tokens")
     assert next(s for s in pm["steps"] if s["step"] == "Decide")["budget_advice"].startswith("the budget could be lower")
+
+
+def test_replies_in_fences_or_cut_off_are_still_read():
+    assert E._json_reply('Here it is:\n```json\n{"summary": "A."}\n```') == {"summary": "A."}
+    cut = '{"tab.ranking.h": "Qwen2.5 7B leads on the efficiency score.", "tab.ranking.s": "It holds for th'
+    assert E._json_reply(cut) == {"tab.ranking.h": "Qwen2.5 7B leads on the efficiency score."}
+    with pytest.raises(ValueError):
+        E._json_reply("I cannot help with that.")
+
+
+def test_an_unreadable_reply_is_asked_again_and_kept(tmp_path, res, monkeypatch):
+    monkeypatch.delenv("AGENTMETER_TEST_EXPLAINER", raising=False)
+    calls = []
+
+    def runner(mspec, messages, cfg):
+        calls.append(messages[1]["content"])
+        return {"text": "Sure. The session went well overall.", "tokens": {"input": 5, "output": 5}}
+
+    cfg = dict(E.load_config(), models=[{"id": "swiss-ai/Apertus-8B-Instruct-2509", "engine": "hf"}])
+    out = E.explain_session(res, tmp_path, real=True, runner=runner, free_vram_gb=23.0, cfg=cfg)
+    assert len(calls) == 2 and "JSON object only" in calls[1]
+    assert out["status"] == "failed" and "twice" in out["reason"]
+    assert "The session went well" in out["raw_reply"]

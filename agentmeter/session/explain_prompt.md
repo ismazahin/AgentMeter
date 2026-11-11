@@ -35,7 +35,9 @@ Rules for every section:
 12. The efficiency score is points out of 100, never a percent. A step's share is a share of
     each flow's time, not a share of the flows.
 13. For token budgets, follow each step's `budget_advice` exactly. When answers are cut off,
-    the budget is too small, so never advise lowering it.
+    the budget is too small, so never advise lowering it. A bigger budget makes answers
+    usable, it does not make the pipeline faster or more efficient.
+    A step's share of time and its share of tokens are different numbers, use the right one.
 14. Only recommend what can be changed in this pipeline: a step's token budget, a step's
     instructions or prompt length, which model runs, or running more flows. Never suggest
     retraining or fine-tuning.

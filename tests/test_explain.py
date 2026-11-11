@@ -320,3 +320,12 @@ def test_budget_advice_must_follow_the_verdict_and_no_quoted_names():
         "Reduce the token budget of Perceive so it finishes sooner on every flow it handles.", d)
     assert "quote marks" in E.check_section("tab.performance.s", "The 'decide' step has the highest latency of all.", d)
     assert "reassurance" in E.check_section("tab.ranking.s", "This is a solid ranking for this session overall.", d)
+
+
+def test_cut_off_is_not_cut_the_budget_and_a_bigger_budget_is_not_more_efficient():
+    d = {"session": {"models": ["Mistral 7B"], "n_models": 1}, "per_model": [{"name": "Mistral 7B", "steps": [
+        {"step": "Perceive", "budget_advice": "raise the budget to about 200 tokens, 9 of 11 answers were cut off at 160 tokens"}]}]}
+    assert E._budget_contradiction("9 of 11 Perceive answers were cut off at the 160 token budget.", d) is None
+    assert "improves efficiency" in E._budget_contradiction(
+        "Increase the token budget in the Perceive step to improve efficiency.", d)
+    assert E._budget_contradiction("Raise the Perceive budget so its answers are no longer cut off.", d) is None

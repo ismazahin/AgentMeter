@@ -230,6 +230,7 @@ def build_digest(res: dict, run_dir: Optional[str | Path] = None, cfg: Optional[
             steps.append({"step": (a.get("agent") or "").capitalize(),
                           "share_of_each_flows_time_pct": _pct(a.get("latency_share"), 0),
                           "mean_time_s": _secs(a.get("mean_latency_s")),
+                          "share_of_all_tokens_pct": _pct(a.get("token_share"), 0),
                           "prompt_tokens": _r(a.get("mean_input_tokens"), 0),
                           "answer_tokens": _r(a.get("mean_output_tokens"), 0),
                           "token_budget": cap, "answers_cut_off_at_budget": hit, "flows": n,
@@ -719,7 +720,7 @@ def _try_models(digest: dict, cands: list[dict], cfg: dict, runner: Optional[Cal
 
 
 _UP = re.compile(r"\b(increas|rais|expand|enlarg|extend)\w*\s+(?:\w+\s+){0,4}?budget|\b(higher|larger|bigger)\s+(?:token\s+)?budget", re.I)
-_DOWN = re.compile(r"\b(reduc|lower|decreas|cut|shrink|trim)\w*\s+(?:\w+\s+){0,4}?budget|\b(smaller|lower|tighter)\s+(?:token\s+)?budget", re.I)
+_DOWN = re.compile(r"\b(reduc|lower|decreas|cut(?!\s+off)|shrink|trim)\w*\s+(?:\w+\s+){0,4}?budget|\b(smaller|lower|tighter)\s+(?:token\s+)?budget", re.I)
 
 
 def _budget_contradiction(text: str, digest: dict) -> Optional[str]:
@@ -736,6 +737,8 @@ def _budget_contradiction(text: str, digest: dict) -> Optional[str]:
         if len(named) != 1:                                 # no step, or several: cannot tell which
             continue
         n, adv = named[0], advice[named[0]]
+        if _UP.search(sent) and re.search(r"\b(efficien|faster|speed|quicker|cheaper)", sent, re.I):
+            return f"says a bigger budget for {n.capitalize()} improves efficiency, but it costs time and tokens"
         if _UP.search(sent) and not adv.startswith("raise"):
             return f"advises a bigger budget for {n.capitalize()}, but {adv}"
         if _DOWN.search(sent) and adv.startswith("raise"):

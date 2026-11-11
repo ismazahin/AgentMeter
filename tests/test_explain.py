@@ -270,7 +270,7 @@ def test_budget_advice_follows_the_cut_offs():
     pm = d["per_model"][0]
     assert d["session"]["comparison"].startswith("only one model ran")
     assert pm["slowest_step"]["step"] == "Perceive" and pm["slowest_step"]["share_of_each_flows_time_pct"] == 37.0
-    assert pm["most_cut_off_step"]["budget_advice"].startswith("raise the budget, 9 of 11 answers were cut off at 160 tokens")
+    assert pm["most_cut_off_step"]["budget_advice"] == "raise the budget to about 200 tokens, 9 of 11 answers were cut off at 160 tokens"
     assert next(s for s in pm["steps"] if s["step"] == "Decide")["budget_advice"].startswith("the budget could be lower")
 
 
@@ -295,3 +295,14 @@ def test_an_unreadable_reply_is_asked_again_and_kept(tmp_path, res, monkeypatch)
     assert len(calls) == 2 and "JSON object only" in calls[1]
     assert out["status"] == "failed" and "twice" in out["reason"]
     assert "The session went well" in out["raw_reply"]
+
+
+def test_agents_lines_name_the_slowest_step_and_repeats_are_dropped():
+    d = {"session": {"models": ["Mistral 7B"], "n_models": 1},
+         "per_model": [{"name": "Mistral 7B", "slowest_step": {"step": "Perceive", "share_of_each_flows_time_pct": 37.0}}]}
+    assert "slowest step (Perceive)" in E.check_section("tab.agents.h", "The most expensive step is Act at the end of each flow.", d)
+    assert E.check_section("tab.agents.h", "Perceive takes 37% of each flow's time, more than any other step.", d) is None
+    assert "reliability" not in (E.check_section("tab.reliability.s", "The reliability is good, but answers were cut off often.", d) or "reliability")
+    acc = {"deployment": "Raise the Perceive budget to avoid cut-offs. Run more flows to confirm the speed."}
+    assert E._repeats("Raise the Perceive budget to avoid cut-offs. Run more flows to confirm the speed.", acc) == "repeats another section"
+    assert E._repeats("Shorter Perceive instructions would cut its reading time.", acc) is None

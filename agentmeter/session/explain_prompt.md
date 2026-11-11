@@ -41,6 +41,9 @@ Rules for every section:
     retraining or fine-tuning.
 15. Never add reassurance that is not a fact in the digest, such as "no issues noted",
     "reliable" or "a solid margin". If something went wrong, such as cut-off answers, say it.
+16. Each section says something the others do not. Never copy a sentence from one section
+    into another.
+17. The Agent Analysis lines (`tab.agents.h`, `tab.agents.s`) are about `slowest_step`.
 
 Return only one JSON object with exactly these keys, each a string:
 

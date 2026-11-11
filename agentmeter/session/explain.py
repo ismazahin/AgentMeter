@@ -220,9 +220,11 @@ def build_digest(res: dict, run_dir: Optional[str | Path] = None, cfg: Optional[
             mx = _num(a.get("output_tokens_max"))
             # the budget verdict, worked out here: cut off often means too SMALL a budget
             if cap and n and hit / n >= 0.10:
-                advice = f"raise the budget: {hit} of {n} answers were cut off at {cap} tokens"
+                up = int(math.ceil(max(cap * 1.25, (mx or 0) * 1.25) / 50.0) * 50)
+                advice = f"raise the budget to about {up} tokens, {hit} of {n} answers were cut off at {cap} tokens"
             elif cap and mx is not None and mx < cap / 2:
-                advice = f"the budget could be lower: the longest answer used {int(mx)} of {cap} tokens"
+                down = max(8, int(math.ceil(mx * 1.5 / 10.0) * 10))
+                advice = f"the budget could be lowered to about {down} tokens, the longest answer used {int(mx)} of {cap} tokens"
             else:
                 advice = "the budget fits"
             steps.append({"step": (a.get("agent") or "").capitalize(),
@@ -361,7 +363,7 @@ def _clean(o: Any) -> Any:
 
 # ---------------------------------------------------------------------------- checks
 _EMPTY_CLAIMS = [
-    (r"no (issues|problems) (noted|found|observed)|solid margin|is reliable\b|high reliability|reliability is high",
+    (r"no (issues|problems) (noted|found|observed)|solid margin|is reliable\b|(high|good|strong) reliability|reliability (is|was) (high|good|strong|excellent|fine|solid)",
      "an unsupported reassurance"),
     (r"\b(retrain|fine-?tun)", "advice outside what AgentMeter can change"),
     (r"score (of |was |is |at )?\d+(\.\d+)?\s?%|\d+(\.\d+)?%\s+(efficiency )?score", "the efficiency score is points out of 100, not a percent"),
@@ -421,6 +423,10 @@ def check_section(key: str, text: str, digest: dict, allowed: Optional[set] = No
     for rx, why in _EMPTY_CLAIMS:
         if re.search(rx, t, re.I):
             return why
+    if key.startswith("tab.agents."):
+        slow = {str((pm.get("slowest_step") or {}).get("step") or "") for pm in digest.get("per_model") or []} - {""}
+        if slow and not any(re.search(r"\b" + re.escape(x) + r"\b", t, re.I) for x in slow):
+            return "does not name the slowest step (" + " or ".join(sorted(slow)) + ")"
     if (digest.get("session") or {}).get("n_models") == 1 and re.search(
             r"\b(ranks? (first|top|highest)|most efficient|best model|outperform|beats?)\b", t, re.I):
         return "ranks a model in a one-model session"
@@ -707,6 +713,20 @@ def _try_models(digest: dict, cands: list[dict], cfg: dict, runner: Optional[Cal
     return out
 
 
+def _sentences(t: str) -> list[str]:
+    return [re.sub(r"[^a-z0-9 ]", "", x.lower()).strip() for x in re.split(r"(?<=[.!?])\s+", t) if x.strip()]
+
+
+def _repeats(text: str, accepted: dict[str, str]) -> Optional[str]:
+    """A section whose sentences are mostly already in an accepted section is a repeat."""
+    mine = _sentences(text)
+    if not mine:
+        return None
+    seen = {x for v in accepted.values() for x in _sentences(v)}
+    same = sum(1 for x in mine if x in seen)
+    return "repeats another section" if same and same * 2 >= len(mine) else None
+
+
 _ONLY_JSON = ("Your earlier reply could not be read. Reply with the JSON object only: start with { and end "
               "with }, no other text, no code fences. Keep each section within its word limit.")
 
@@ -740,7 +760,7 @@ def _generate(digest: dict, mspec: dict, cfg: dict, runner: Optional[Callable], 
         v = got.get(k)
         if v is None or not str(v).strip():
             continue
-        why = check_section(k, str(v), digest, allowed)
+        why = check_section(k, str(v), digest, allowed) or _repeats(str(v), sections)
         if why:
             dropped[k] = why
         else:
@@ -761,7 +781,7 @@ def _generate(digest: dict, mspec: dict, cfg: dict, runner: Optional[Callable], 
                 again = {}
         for k in list(dropped):
             v = again.get(k)
-            if v and not check_section(k, str(v), digest, allowed):
+            if v and not (check_section(k, str(v), digest, allowed) or _repeats(str(v), sections)):
                 sections[k] = str(v).strip()
                 del dropped[k]
     status = "ok" if sections and not dropped else "partial" if sections else "failed"

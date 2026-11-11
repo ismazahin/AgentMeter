@@ -34,7 +34,7 @@ def test_digest_is_this_session_only_and_uses_everyday_names(digest):
     assert digest["session"]["models"] == ["Qwen2.5 7B", "Phi-3 mini"]
     assert "Qwen/" not in s and "mock:" not in s
     assert digest["per_model"][0]["name"] == "Qwen2.5 7B"
-    assert digest["per_model"][0]["efficiency_score"] == 62.6
+    assert digest["per_model"][0]["efficiency_score_out_of_100"] == 62.6
 
 
 def test_digest_excerpts_drop_addresses_and_ports(tmp_path, res):
@@ -242,3 +242,33 @@ def test_a_failed_model_gives_way_to_the_next(tmp_path, res, monkeypatch):
 def test_the_digest_is_sent_compact():
     msgs = E._messages({"session": {"models": ["A"]}, "per_model": [{"name": "A", "x": 1}]})
     assert '"per_model":[{"name":"A","x":1}]' in msgs[1]["content"]
+
+
+def test_empty_reassurance_out_of_scope_advice_and_percent_scores_are_rejected(digest):
+    for text, why in [("The cost was measured and is reliable, with no issues noted.", "reassurance"),
+                      ("Consider fine-tuning the model on your own traffic to speed it up.", "outside"),
+                      ("Its efficiency score was 62.6% on these flows overall.", "out of 100")]:
+        assert why in (E.check_section("tab.cost.s", text, digest) or ""), text
+
+
+def test_one_model_sessions_are_not_ranked(digest):
+    one = dict(digest, session=dict(digest["session"], n_models=1))
+    assert "one-model" in E.check_section("tab.ranking.h", "Qwen2.5 7B ranks first on the efficiency score.", one)
+    assert "one-model" in E.check_section("deployment", "Deploy Qwen2.5 7B because it is the most efficient model in this whole session and it handles the flows quickly enough.", one)
+    assert E.check_section("tab.ranking.h", "Qwen2.5 7B ranks first on the efficiency score.", digest) is None
+
+
+def test_budget_advice_follows_the_cut_offs():
+    res = {"session": {"n_flows": 11}, "environment": {"provider": "real"},
+           "per_model": [{"model": "mistralai/Mistral-7B-Instruct-v0.3", "efficiency": {"end_to_end": {"mean_latency_s": 16.6}}}],
+           "agents": {"per_model": [{"model": "mistralai/Mistral-7B-Instruct-v0.3", "n_flows": 11, "agents": [
+               {"agent": "perceive", "n": 11, "latency_share": 0.37, "mean_latency_s": 6.21, "mean_output_tokens": 155,
+                "output_tokens_max": 160, "failures": {"token_cap": 160, "hit_token_cap": 9}},
+               {"agent": "decide", "n": 11, "latency_share": 0.03, "mean_latency_s": 0.5, "mean_output_tokens": 2,
+                "output_tokens_max": 3, "failures": {"token_cap": 12, "hit_token_cap": 0}}]}]}}
+    d = E.build_digest(res, None, E.load_config())
+    pm = d["per_model"][0]
+    assert d["session"]["comparison"].startswith("only one model ran")
+    assert pm["slowest_step"]["step"] == "Perceive" and pm["slowest_step"]["share_of_each_flows_time_pct"] == 37.0
+    assert pm["most_cut_off_step"]["budget_advice"].startswith("raise the budget, 9 of 11 answers were cut off at 160 tokens")
+    assert next(s for s in pm["steps"] if s["step"] == "Decide")["budget_advice"].startswith("the budget could be lower")

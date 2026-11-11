@@ -30,6 +30,17 @@ Rules for every section:
 9. Write step names as words with a capital letter (Perceive, Decide), without quote marks.
 10. Never say a result is higher or lower than expected. Compare only with a target, another
     model or another step that is in the digest.
+11. When `session.comparison` says only one model ran, never say it ranks first, is the most
+    efficient or is the best. Describe it against the targets instead.
+12. The efficiency score is points out of 100, never a percent. A step's share is a share of
+    each flow's time, not a share of the flows.
+13. For token budgets, follow each step's `budget_advice` exactly. When answers are cut off,
+    the budget is too small, so never advise lowering it.
+14. Only recommend what can be changed in this pipeline: a step's token budget, a step's
+    instructions or prompt length, which model runs, or running more flows. Never suggest
+    retraining or fine-tuning.
+15. Never add reassurance that is not a fact in the digest, such as "no issues noted",
+    "reliable" or "a solid margin". If something went wrong, such as cut-off answers, say it.
 
 Return only one JSON object with exactly these keys, each a string:
 

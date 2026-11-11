@@ -188,7 +188,7 @@ def build_digest(res: dict, run_dir: Optional[str | Path] = None, cfg: Optional[
             "p95_latency_s": _secs(e2e.get("p95_latency_s")),
             "tokens_per_flow": _r(e2e.get("mean_tokens_per_flow"), 0),
             "output_tokens_per_flow": _r(e2e.get("mean_output_tokens_per_flow"), 0),
-            "efficiency_score": _r(saw.get("composite_100"), 1),
+            "efficiency_score_out_of_100": _r(saw.get("composite_100"), 1),
             "tier": saw.get("tier"),
             "working_vram_mean_mb": _r(mm.get("working_mean_mb"), 0),
             "total_peak_vram_gb": _r((_num(mm.get("total_peak_mb")) or 0) / 1024, 1) if _num(mm.get("total_peak_mb")) else None,
@@ -213,37 +213,51 @@ def build_digest(res: dict, run_dir: Optional[str | Path] = None, cfg: Optional[
             tot = sum(float(eff_w.get(k) or 0) for k in ("latency", "vram", "tokens")) or 1.0
             row["points"] = {k: _r(100 * float(eff_w.get(k) or 0) / tot * float(n.get(k) or 0), 1)
                              for k in ("latency", "vram", "tokens") if eff_w.get(k)}
-        steps = []
+        steps, pm_n = [], (ag.get(m) or {}).get("n_flows")
         for a in (ag.get(m) or {}).get("agents") or []:
             f = a.get("failures") or {}
-            steps.append({"step": a.get("agent"), "time_share_pct": _pct(a.get("latency_share"), 0),
+            cap, hit, n = f.get("token_cap"), f.get("hit_token_cap") or 0, a.get("n") or pm_n
+            mx = _num(a.get("output_tokens_max"))
+            # the budget verdict, worked out here: cut off often means too SMALL a budget
+            if cap and n and hit / n >= 0.10:
+                advice = f"raise the budget: {hit} of {n} answers were cut off at {cap} tokens"
+            elif cap and mx is not None and mx < cap / 2:
+                advice = f"the budget could be lower: the longest answer used {int(mx)} of {cap} tokens"
+            else:
+                advice = "the budget fits"
+            steps.append({"step": (a.get("agent") or "").capitalize(),
+                          "share_of_each_flows_time_pct": _pct(a.get("latency_share"), 0),
                           "mean_time_s": _secs(a.get("mean_latency_s")),
                           "prompt_tokens": _r(a.get("mean_input_tokens"), 0),
                           "answer_tokens": _r(a.get("mean_output_tokens"), 0),
-                          "token_budget": f.get("token_cap"), "hit_budget": f.get("hit_token_cap"),
-                          "empty": f.get("empty_output"), "failure_pct": _pct(a.get("failure_rate"))})
+                          "token_budget": cap, "answers_cut_off_at_budget": hit, "flows": n,
+                          "budget_advice": advice.replace(":", ","),
+                          "empty_answers": f.get("empty_output"), "failure_pct": _pct(a.get("failure_rate"))})
         row["steps"] = steps
         # the facts a small model tends to misread from the table, worked out here
-        timed = [x for x in steps if x.get("time_share_pct") is not None]
+        timed = [x for x in steps if x.get("share_of_each_flows_time_pct") is not None]
         if timed:
-            top = max(timed, key=lambda x: x["time_share_pct"])
-            row["slowest_step"] = {"step": top["step"], "share_of_flow_pct": top["time_share_pct"],
+            top = max(timed, key=lambda x: x["share_of_each_flows_time_pct"])
+            row["slowest_step"] = {"step": top["step"], "share_of_each_flows_time_pct": top["share_of_each_flows_time_pct"],
                                    "mean_time_s": top.get("mean_time_s")}
         wordy = [x for x in steps if x.get("answer_tokens") is not None]
         if wordy:
             top = max(wordy, key=lambda x: x["answer_tokens"])
             row["longest_answer_step"] = {"step": top["step"], "answer_tokens": top["answer_tokens"]}
-        capped = [x for x in steps if (x.get("hit_budget") or 0) > 0]
+        capped = [x for x in steps if (x.get("answers_cut_off_at_budget") or 0) > 0]
         if capped:
-            top = max(capped, key=lambda x: x["hit_budget"])
-            row["most_cut_off_step"] = {"step": top["step"], "answers_cut_off": top["hit_budget"],
-                                        "token_budget": top.get("token_budget")}
+            top = max(capped, key=lambda x: x["answers_cut_off_at_budget"])
+            row["most_cut_off_step"] = {"step": top["step"], "answers_cut_off": top["answers_cut_off_at_budget"],
+                                        "of_flows": top.get("flows"), "token_budget": top.get("token_budget"),
+                                        "budget_advice": top.get("budget_advice")}
         per_model.append({k: v for k, v in row.items() if v is not None})
 
     rc = res.get("relative_comparison") or {}
     gh = res.get("gpu_health") or {}
     digest: dict[str, Any] = {
         "session": {"models": [names[m] for m in models], "n_models": len(models),
+                    "comparison": ("only one model ran, so nothing is ranked or compared between models"
+                                   if len(models) == 1 else f"{len(models)} models compared on the same flows"),
                     "flows": sess.get("n_flows"), "input": sess.get("source_type"),
                     "labelled": bool(sess.get("accuracy_available")),
                     "gpu": env.get("gpu_name") if real else None, "demo": not real,
@@ -346,6 +360,12 @@ def _clean(o: Any) -> Any:
 
 
 # ---------------------------------------------------------------------------- checks
+_EMPTY_CLAIMS = [
+    (r"no (issues|problems) (noted|found|observed)|solid margin|is reliable\b|high reliability|reliability is high",
+     "an unsupported reassurance"),
+    (r"\b(retrain|fine-?tun)", "advice outside what AgentMeter can change"),
+    (r"score (of |was |is |at )?\d+(\.\d+)?\s?%|\d+(\.\d+)?%\s+(efficiency )?score", "the efficiency score is points out of 100, not a percent"),
+]
 _NUM_RE = re.compile(r"(?<![\w.])(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(?![\w])")
 _STYLE = [(re.compile(r";"), "semicolon"), (re.compile(r"(?<!\d):|:(?!\d)"), "colon"),
           (re.compile(r"[—–]"), "dash"), (re.compile(r"\s-\s|^-\s|\s-$"), "dash")]
@@ -398,6 +418,12 @@ def check_section(key: str, text: str, digest: dict, allowed: Optional[set] = No
         return f"too short ({n_words} words, a full sentence needs at least {least})"
     if re.search(r"than (expected|anticipated|usual)", t, re.I):
         return "compares with an expectation that is not in the results"
+    for rx, why in _EMPTY_CLAIMS:
+        if re.search(rx, t, re.I):
+            return why
+    if (digest.get("session") or {}).get("n_models") == 1 and re.search(
+            r"\b(ranks? (first|top|highest)|most efficient|best model|outperform|beats?)\b", t, re.I):
+        return "ranks a model in a one-model session"
     allowed = allowed if allowed is not None else _digest_numbers(digest, set())
     names = [n for n in (digest.get("session") or {}).get("models") or []]
     stripped = t

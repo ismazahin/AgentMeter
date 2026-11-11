@@ -100,7 +100,7 @@ if (Test-Path $IdsModel) {
     }
   }
 } else {
-  Write-Host "    no IDS model at $IdsModel: the IDS gate offers only the demo model (train one with scripts/train_ids.py)"
+  Write-Host "    no IDS model at ${IdsModel}: the IDS gate offers only the demo model (train one with scripts/train_ids.py)"
 }
 
 Write-Host "2/2 starting the backend in tmux session 'am' (about 5 min; models download on first use, or now if marked "download at start-up")..."

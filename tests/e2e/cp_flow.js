@@ -280,16 +280,16 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1 && !!(await p.$('#ds-offline')), 'GPU off: Data sets still lists the benchmarked set');
     log(await p.isVisible('.mainnav') && await p.isVisible('#svc-gpu-off') && /viewing/.test(await p.textContent('#svc-backend-badge')), 'GPU off: viewing mode — the menu stays, a banner says so');
     await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
-    log(/demo runs too/.test(await p.textContent('#wiz-offline')) && await p.isVisible('#wiz-steps'), 'GPU off: New benchmark opens and says runs (demo too) need the GPU server');
+    log(/GPU server must be running/.test(await p.textContent('#wiz-offline')) && await p.isVisible('#wiz-steps'), 'GPU off: New benchmark opens and says runs (demo too) need the GPU server');
     await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
     log(await p.isDisabled('#svc-upload-btn'), 'GPU off: New benchmark says GPU offline; Prepare is disabled');
     // the Reuse tab must stay open while the GPU is off (it used to snap back to "Upload a file")
     await p.click('#tab-src-reuse'); await p.waitForSelector('#svc-stored-table', { timeout: 15000 });
     await sleep(1500);
-    log(await p.isVisible('#src-reuse') && /src=reuse/.test(await p.evaluate(() => location.hash)) && /GPU offline/.test(await p.textContent('#svc-recent-sets')),
+    log(await p.isVisible('#src-reuse') && /src=reuse/.test(await p.evaluate(() => location.hash)) && /GPU is offline/.test(await p.textContent('#svc-recent-sets')),
         'GPU off: Reuse a prepared set opens and stays open, listing the saved sets');
     await p.click('#svc-stored-table [data-restore]'); await p.waitForSelector('#svc-stored-error:not([hidden])');
-    log(/GPU offline/.test(await p.textContent('#svc-stored-error')) && await p.isVisible('#src-reuse'), 'GPU off: using a saved set says the GPU is needed, the tab stays');
+    log(/GPU is offline/.test(await p.textContent('#svc-stored-error')) && await p.isVisible('#src-reuse'), 'GPU off: using a saved set says the GPU is needed, the tab stays');
     // notes and tags live in the control plane: editable and searchable with the GPU off
     await p.goto(APP + `/app.html#/session/${job1}/overview`); await p.waitForSelector('form#svc-notes', { timeout: 30000 });
     await p.fill('#svc-notes-text', 'first demo session'); await p.fill('#svc-notes-tags', 'cp-check');

@@ -38,15 +38,24 @@ function goOffline() {
   document.documentElement.classList.remove("boot-login");
   clearTimeout(offlineTimer);
   offlineTimer = setTimeout(CP ? checkControlPlaneBackend : checkBackend, 30000);   // comes back by itself when the GPU is rented
-  if (CP) { if (!$("view-new").hidden) routeWizard(parseHash().parts, parseHash().q); return; }
+  // redraw only when the GPU has just gone offline (or on the first check), not on every 30 s
+  // re-check while it stays offline: a redraw resets the page's lists and loses the user's place
+  var first = !OFF_DRAWN; OFF_DRAWN = true;
+  if (CP) {
+    if ($("view-new").hidden) return;
+    if (was || first) routeWizard(parseHash().parts, parseHash().q);
+    else if (typeof viaService === "function" && viaService() && !$("wiz-step-data").hidden) anServiceNotice();   // the prep service's status only
+    return;
+  }
   if (was || !SHOWN) { SHOWN = true; route(); }
 }
-var SHOWN = false;
+var SHOWN = false, OFF_DRAWN = false;
 $("svc-gpu-retry").addEventListener("click", function () { this.disabled = true; var b = this; (CP ? checkControlPlaneBackend() : checkBackend()).then(function () { b.disabled = false; }); });
 function gpuOffline() { if (CP) { API = ""; goOffline(); } }
 function goOnline(h) {
   var first = !ONLINE;
   ONLINE = true; HEALTH = h; badge(h); runModeLine(); apiVersionCheck(h);
+  OFF_DRAWN = false;
   $("view-offline").hidden = true; $("svc-gpu-off").hidden = true; SHOWN = true;
   if (CP) { clearTimeout(offlineTimer); offlineTimer = setTimeout(checkControlPlaneBackend, 30000); }
   if (!first) return Promise.resolve();

@@ -252,3 +252,15 @@ output). It tells the model:
 6. Tests: unit, control plane, e2e with the fake explainer; full suites.
 7. `scripts/explainer_trial.py` for the owner to run once on an RTX 3090 rental (timing and output
    of gpt-oss-20b and Apertus-8B on a stored session). Not runnable here: this container has no GPU.
+
+## Trial results and decisions (2026-11-11)
+
+- RTX 3090, transformers 5.22: Apertus-8B writes the explanations in about 50 seconds per session;
+  gpt-oss-20b loads but cannot run there (its MXFP4 experts stay on the CPU), so Apertus is first.
+- Checks added from the trials: worked-out key facts (slowest step, budget verdicts with a
+  suggested size, token shares, one-model sessions), minimum lengths, no ranking in a one-model
+  session, no reassurance or out-of-scope advice, budget advice must follow each step's verdict,
+  no quoted names, no repeated sections.
+- Owner's decision after the end-to-end run: keep the AI text on all six tab headlines, the
+  Overview summary and both Recommendations paragraphs, accepting that an occasional subtle
+  slip can pass the checks (reported slips are patched as they are found).

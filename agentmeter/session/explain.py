@@ -46,6 +46,10 @@ WORD_LIMIT = {"summary": 120, "deployment": 120, "optimisation": 120}
 for _t in TABS:
     WORD_LIMIT[f"tab.{_t}.h"] = 20
     WORD_LIMIT[f"tab.{_t}.s"] = 30
+MIN_WORDS = {"summary": 25, "deployment": 20, "optimisation": 20}
+for _t in TABS:
+    MIN_WORDS[f"tab.{_t}.h"] = 6
+    MIN_WORDS[f"tab.{_t}.s"] = 8
 
 
 # ---------------------------------------------------------------------------- configuration
@@ -219,6 +223,21 @@ def build_digest(res: dict, run_dir: Optional[str | Path] = None, cfg: Optional[
                           "token_budget": f.get("token_cap"), "hit_budget": f.get("hit_token_cap"),
                           "empty": f.get("empty_output"), "failure_pct": _pct(a.get("failure_rate"))})
         row["steps"] = steps
+        # the facts a small model tends to misread from the table, worked out here
+        timed = [x for x in steps if x.get("time_share_pct") is not None]
+        if timed:
+            top = max(timed, key=lambda x: x["time_share_pct"])
+            row["slowest_step"] = {"step": top["step"], "share_of_flow_pct": top["time_share_pct"],
+                                   "mean_time_s": top.get("mean_time_s")}
+        wordy = [x for x in steps if x.get("answer_tokens") is not None]
+        if wordy:
+            top = max(wordy, key=lambda x: x["answer_tokens"])
+            row["longest_answer_step"] = {"step": top["step"], "answer_tokens": top["answer_tokens"]}
+        capped = [x for x in steps if (x.get("hit_budget") or 0) > 0]
+        if capped:
+            top = max(capped, key=lambda x: x["hit_budget"])
+            row["most_cut_off_step"] = {"step": top["step"], "answers_cut_off": top["hit_budget"],
+                                        "token_budget": top.get("token_budget")}
         per_model.append({k: v for k, v in row.items() if v is not None})
 
     rc = res.get("relative_comparison") or {}
@@ -371,8 +390,14 @@ def check_section(key: str, text: str, digest: dict, allowed: Optional[set] = No
     if "/" in t and re.search(r"\b[\w.-]+/[\w.-]+\b", t):
         return "uses a full model id"
     limit = WORD_LIMIT.get(key, 120)
-    if len(t.split()) > limit * 1.5:
-        return f"too long ({len(t.split())} words, limit {limit})"
+    n_words = len(t.split())
+    if n_words > limit * 1.5:
+        return f"too long ({n_words} words, limit {limit})"
+    least = MIN_WORDS.get(key, 0)
+    if n_words < least:
+        return f"too short ({n_words} words, a full sentence needs at least {least})"
+    if re.search(r"than (expected|anticipated|usual)", t, re.I):
+        return "compares with an expectation that is not in the results"
     allowed = allowed if allowed is not None else _digest_numbers(digest, set())
     names = [n for n in (digest.get("session") or {}).get("models") or []]
     stripped = t
@@ -419,15 +444,18 @@ def _fake_reply(digest: dict, only: Optional[dict] = None) -> dict:
     lat = a.get("mean_latency_s")
     out = {
         "summary": f"This session compared {len(pm)} model{'s' if len(pm) != 1 else ''} on {digest.get('session', {}).get('flows', 0)} flows. "
-                   f"{name} took {lat} s per flow on average. Run it again on more flows before you rely on a small gap.",
+                   f"{name} took {lat} s per flow on average, and every model gave usable answers on these flows. "
+                   "Run it again on more flows before you rely on a small gap between the models.",
         "tab.ranking.h": f"{name} leads this session on the efficiency score.",
         "tab.ranking.s": "The order holds for these flows and weights.",
         "tab.performance.h": f"{name} answers a flow in {lat} s on average.",
         "tab.performance.s": "Speed here comes mostly from the longest step in the pipeline.",
         "tab.cost.h": "Cost was not measured; this is a demo run.",       # breaks the style rule, fixed on retry
         "tab.agents.h": "Slowest step: see the table below.",             # breaks it, still broken after the retry
-        "deployment": f"Start from {name}. Check its speed against your alert volume before you deploy it.",
-        "optimisation": "Shorten the answers of the slowest step first. Then trim the prompt of the step that reads the most.",
+        "deployment": f"Start from {name}, which leads this session. Check its speed against your alert volume before you deploy it, "
+                      "and test it on your own traffic first.",
+        "optimisation": "Shorten the answers of the slowest step first, because its answer length sets most of the time. "
+                        "Then trim the prompt of the step that reads the most.",
     }
     if only:
         return {k: v.replace(";", ",") for k, v in out.items() if k in only}

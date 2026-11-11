@@ -67,13 +67,19 @@ def test_style_rule_rejects_each_symbol(text, why, digest):
 
 def test_hyphens_inside_words_and_counts_are_fine(digest):
     ok = "Phi-3 mini runs at 4-bit like every per-agent step, and 3 runs would settle it."
-    assert E.check_section("summary", ok, digest) is None
+    assert E.check_section("tab.performance.s", ok, digest) is None
 
 
 def test_numbers_must_come_from_the_results(digest):
     tok = digest["per_model"][0]["tokens_per_flow"]
-    assert E.check_section("summary", f"Qwen2.5 7B uses {int(tok):,} tokens per flow.", digest) is None
-    assert "not in the results" in E.check_section("summary", "Qwen2.5 7B uses 98,765 tokens per flow.", digest)
+    assert E.check_section("tab.performance.h", f"Qwen2.5 7B uses {int(tok):,} tokens per flow.", digest) is None
+    assert "not in the results" in E.check_section("tab.performance.h", "Qwen2.5 7B uses 98,765 tokens per flow.", digest)
+
+
+def test_bare_labels_and_expectations_are_rejected(digest):
+    assert "too short" in E.check_section("tab.ranking.h", "Qwen2.5 7B", digest)
+    assert "too short" in E.check_section("tab.ranking.s", "Degraded", digest)
+    assert "expectation" in E.check_section("tab.ranking.s", "The efficiency score was lower than expected for this model.", digest)
 
 
 def test_word_limit(digest):
@@ -108,14 +114,14 @@ def test_a_model_reply_is_checked_and_a_failure_never_raises(tmp_path, res, monk
 
     def runner(mspec, messages, cfg):
         calls.append(messages)
-        body = {"summary": "Qwen2.5 7B leads.", "tab.ranking.h": "It scored 999.9 points."}
+        body = {"tab.ranking.s": "Qwen2.5 7B leads this session on the efficiency score.", "tab.ranking.h": "It scored 999.9 points on the score."}
         return {"text": "<|channel|>final<|message|>" + json.dumps(body), "tokens": {"input": 10, "output": 5}}
 
     out = E.explain_session(res, tmp_path, real=True, runner=runner, free_vram_gb=40.0)
-    assert out["sections"] == {"summary": "Qwen2.5 7B leads."}
+    assert out["sections"] == {"tab.ranking.s": "Qwen2.5 7B leads this session on the efficiency score."}
     assert "not in the results" in out["dropped"]["tab.ranking.h"]
     assert len(calls) == 2 and "broke a rule" in calls[1][1]["content"]                  # one retry
-    assert out["model"] == "openai/gpt-oss-20b"
+    assert out["model"] == "swiss-ai/Apertus-8B-Instruct-2509"
 
     def broken(mspec, messages, cfg):
         raise RuntimeError("CUDA out of memory")
@@ -126,7 +132,7 @@ def test_a_model_reply_is_checked_and_a_failure_never_raises(tmp_path, res, monk
 
 def test_explainer_models_downloaded_at_rental_start():
     cfg = E.load_config()
-    assert E.startup_models(24.0, cfg) == ["openai/gpt-oss-20b", "swiss-ai/Apertus-8B-Instruct-2509"]
+    assert E.startup_models(24.0, cfg) == ["swiss-ai/Apertus-8B-Instruct-2509", "openai/gpt-oss-20b"]
     assert E.startup_models(18.0, cfg) == ["openai/gpt-oss-20b"]
     assert E.startup_models(12.0, cfg) == []
     assert "openai/gpt-oss-20b" not in Path(E.ROOT / "configs" / "model_catalog.yaml").read_text()
@@ -220,16 +226,16 @@ def test_a_failed_model_gives_way_to_the_next(tmp_path, res, monkeypatch):
 
     def runner(mspec, messages, cfg):
         tried.append(mspec["id"])
-        if mspec["id"] == "openai/gpt-oss-20b":
+        if mspec["id"] == "swiss-ai/Apertus-8B-Instruct-2509":
             e = E.ExplainerError("explainer process failed: OutOfMemoryError: CUDA out of memory")
             e.trace = "Traceback ...\ntorch.OutOfMemoryError: CUDA out of memory"
             raise e
-        return {"text": json.dumps({"summary": "Qwen2.5 7B leads this session."}), "tokens": {"input": 9, "output": 4}}
+        return {"text": json.dumps({"tab.ranking.h": "Qwen2.5 7B leads this session on efficiency."}), "tokens": {"input": 9, "output": 4}}
 
     out = E.explain_session(res, tmp_path, real=True, runner=runner, free_vram_gb=23.0)
-    assert out["status"] == "ok" and out["model"] == "swiss-ai/Apertus-8B-Instruct-2509"
-    assert tried == ["openai/gpt-oss-20b", "swiss-ai/Apertus-8B-Instruct-2509"]
-    assert out["attempts"][0]["model"] == "openai/gpt-oss-20b" and "out of memory" in out["attempts"][0]["reason"]
+    assert out["status"] == "ok" and out["model"] == "openai/gpt-oss-20b"
+    assert tried == ["swiss-ai/Apertus-8B-Instruct-2509", "openai/gpt-oss-20b"]
+    assert out["attempts"][0]["model"] == "swiss-ai/Apertus-8B-Instruct-2509" and "out of memory" in out["attempts"][0]["reason"]
     assert "OutOfMemoryError" in out["attempts"][0]["trace"]
 
 

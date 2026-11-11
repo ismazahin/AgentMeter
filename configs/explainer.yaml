@@ -3,15 +3,17 @@
 # benchmarked, never scored and never in configs/model_catalog.yaml. It runs on the session's own
 # rented GPU after every measured model has released it, in its own process.
 enabled: true
-# Tried in order: the first one whose memory need fits the GPU's free memory is used.
+# Tried in order among those whose memory need fits the GPU; a model that fails gives way to the next.
+# Trial on an RTX 3090 (2026-11-11, transformers 5.22): Apertus-8B wrote the explanations;
+# gpt-oss-20b loaded but could not run there (MXFP4 experts left on the CPU), so it comes second.
 models:
+  - id: swiss-ai/Apertus-8B-Instruct-2509   # Apache 2.0; plain transformers, no custom code
+    engine: hf
+    min_free_vram_gb: 18             # bf16 weights
   - id: openai/gpt-oss-20b          # Apache 2.0; mixture of experts, about 3.6B active per token
     engine: hf                       # hf (transformers) or vllm
     min_free_vram_gb: 16
     reasoning: low                   # gpt-oss only: low reasoning keeps it fast
-  - id: swiss-ai/Apertus-8B-Instruct-2509   # Apache 2.0; plain transformers, no custom code
-    engine: hf
-    min_free_vram_gb: 18             # bf16 weights
 max_new_tokens: 1800
 timeout_s: 300                       # the explainer process is killed after this
 retries: 1                           # one more request for the sections that failed a check

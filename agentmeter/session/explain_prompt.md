@@ -21,7 +21,15 @@ Rules for every section:
    as in 4-bit or per-agent.
 5. When a difference is marked as possibly chance in the digest, say it could be chance.
 6. When something was not measured, say so plainly and do not guess it.
-7. Keep to the word limit of each section.
+7. Keep to the word limit of each section. Every headline and every second line is a full
+   sentence of at least 6 words that states one specific fact from the digest, never a bare
+   label such as a model name or a tier.
+8. For the slowest step, the step with the longest answers and the step cut off most often, use
+   `slowest_step`, `longest_answer_step` and `most_cut_off_step`. Do not work them out from the
+   step table yourself.
+9. Write step names as words with a capital letter (Perceive, Decide), without quote marks.
+10. Never say a result is higher or lower than expected. Compare only with a target, another
+    model or another step that is in the digest.
 
 Return only one JSON object with exactly these keys, each a string:
 

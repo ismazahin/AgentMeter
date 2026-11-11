@@ -163,7 +163,7 @@ def test_start_up_downloads_only_the_models_the_admin_marked(monkeypatch, tmp_pa
     monkeypatch.setattr(vm.runtime, "model_on_disk", lambda m: m in fetched)
     monkeypatch.setattr(vm, "_approx_gb", lambda m: 1.0)                   # no Hub lookups in tests
     monkeypatch.setattr(vm, "_total_vram_gb", lambda: 24.0)                # an RTX 3090-class GPU
-    ex = ["openai/gpt-oss-20b", "swiss-ai/Apertus-8B-Instruct-2509"]       # the session explainer (configs/explainer.yaml)
+    ex = ["swiss-ai/Apertus-8B-Instruct-2509", "openai/gpt-oss-20b"]       # the session explainer (configs/explainer.yaml)
     monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "hub"))
     try:
         assert vm.main([]) == 0

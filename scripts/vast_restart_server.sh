@@ -8,7 +8,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -f /venv/main/bin/activate ] && . /venv/main/bin/activate
 set -a
-for f in /root/backend.env /root/hf.env /root/agentmeter.env; do [ -f "$f" ] && . "$f"; done
+# (files written on Windows end lines with \r: read them without it)
+for f in /root/backend.env /root/hf.env /root/agentmeter.env; do [ -f "$f" ] && . <(tr -d '\r' < "$f"); done
 set +a
 DATA="${AGENTMETER_DATA_DIR:-/workspace}"
 LOGS="$DATA/agentmeter-logs"

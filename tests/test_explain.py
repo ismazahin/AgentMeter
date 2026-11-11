@@ -306,3 +306,17 @@ def test_agents_lines_name_the_slowest_step_and_repeats_are_dropped():
     acc = {"deployment": "Raise the Perceive budget to avoid cut-offs. Run more flows to confirm the speed."}
     assert E._repeats("Raise the Perceive budget to avoid cut-offs. Run more flows to confirm the speed.", acc) == "repeats another section"
     assert E._repeats("Shorter Perceive instructions would cut its reading time.", acc) is None
+
+
+def test_budget_advice_must_follow_the_verdict_and_no_quoted_names():
+    d = {"session": {"models": ["Qwen2.5 7B"], "n_models": 1}, "per_model": [{"name": "Qwen2.5 7B", "steps": [
+        {"step": "Decide", "budget_advice": "the budget could be lowered to about 10 tokens, the longest answer used 3 of 12 tokens"},
+        {"step": "Perceive", "budget_advice": "raise the budget to about 200 tokens, 9 of 11 answers were cut off at 160 tokens"}]}]}
+    assert "bigger budget for Decide" in E.check_section("tab.recommendations.s",
+        "Increase the token budget for the Decide step to reduce mix-ups in the answers it gives every flow.", d)
+    assert E.check_section("tab.recommendations.s",
+        "Increase the budget for the Perceive step to reduce cut-offs, because its answers stop at the limit.", d) is None
+    assert "smaller budget for Perceive" in E.check_section("tab.recommendations.s",
+        "Reduce the token budget of Perceive so it finishes sooner on every flow it handles.", d)
+    assert "quote marks" in E.check_section("tab.performance.s", "The 'decide' step has the highest latency of all.", d)
+    assert "reassurance" in E.check_section("tab.ranking.s", "This is a solid ranking for this session overall.", d)

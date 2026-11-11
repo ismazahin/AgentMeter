@@ -363,7 +363,7 @@ def _clean(o: Any) -> Any:
 
 # ---------------------------------------------------------------------------- checks
 _EMPTY_CLAIMS = [
-    (r"no (issues|problems) (noted|found|observed)|solid margin|is reliable\b|(high|good|strong) reliability|reliability (is|was) (high|good|strong|excellent|fine|solid)",
+    (r"no (issues|problems) (noted|found|observed)|\bsolid\b|is reliable\b|(high|good|strong) reliability|reliability (is|was) (high|good|strong|excellent|fine|solid)",
      "an unsupported reassurance"),
     (r"\b(retrain|fine-?tun)", "advice outside what AgentMeter can change"),
     (r"score (of |was |is |at )?\d+(\.\d+)?\s?%|\d+(\.\d+)?%\s+(efficiency )?score", "the efficiency score is points out of 100, not a percent"),
@@ -423,6 +423,11 @@ def check_section(key: str, text: str, digest: dict, allowed: Optional[set] = No
     for rx, why in _EMPTY_CLAIMS:
         if re.search(rx, t, re.I):
             return why
+    if re.search(r"['\"\u2018\u201c][A-Za-z]+['\"\u2019\u201d]", t):
+        return "puts quote marks around a name"
+    why = _budget_contradiction(t, digest)
+    if why:
+        return why
     if key.startswith("tab.agents."):
         slow = {str((pm.get("slowest_step") or {}).get("step") or "") for pm in digest.get("per_model") or []} - {""}
         if slow and not any(re.search(r"\b" + re.escape(x) + r"\b", t, re.I) for x in slow):
@@ -711,6 +716,31 @@ def _try_models(digest: dict, cands: list[dict], cfg: dict, runner: Optional[Cal
     if last.get("raw_reply"):
         out["raw_reply"] = last["raw_reply"]
     return out
+
+
+_UP = re.compile(r"\b(increas|rais|expand|enlarg|extend)\w*\s+(?:\w+\s+){0,4}?budget|\b(higher|larger|bigger)\s+(?:token\s+)?budget", re.I)
+_DOWN = re.compile(r"\b(reduc|lower|decreas|cut|shrink|trim)\w*\s+(?:\w+\s+){0,4}?budget|\b(smaller|lower|tighter)\s+(?:token\s+)?budget", re.I)
+
+
+def _budget_contradiction(text: str, digest: dict) -> Optional[str]:
+    """A sentence that tells a step's budget to go the other way than its worked-out verdict."""
+    advice: dict[str, str] = {}
+    for pm in digest.get("per_model") or []:
+        for st in pm.get("steps") or []:
+            if st.get("step") and st.get("budget_advice"):
+                advice.setdefault(str(st["step"]).lower(), st["budget_advice"])
+    for sent in re.split(r"(?<=[.!?])\s+", text):
+        if "budget" not in sent.lower():
+            continue
+        named = [n for n in advice if re.search(r"\b" + re.escape(n) + r"\b", sent, re.I)]
+        if len(named) != 1:                                 # no step, or several: cannot tell which
+            continue
+        n, adv = named[0], advice[named[0]]
+        if _UP.search(sent) and not adv.startswith("raise"):
+            return f"advises a bigger budget for {n.capitalize()}, but {adv}"
+        if _DOWN.search(sent) and adv.startswith("raise"):
+            return f"advises a smaller budget for {n.capitalize()}, but {adv}"
+    return None
 
 
 def _sentences(t: str) -> list[str]:

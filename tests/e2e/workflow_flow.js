@@ -82,14 +82,13 @@ async function grab(p, click) {
     log(/\\begin\{tabular\}/.test(tex) && /\\toprule/.test(tex) && tex.split('\\\\').length > 4, 'LaTeX: the ranking as a booktabs table');
     log(!!(await p.$('#lb-why-table')) && /Speed/.test(await p.textContent('#lb-why-table thead')), 'Why this order: points per measure under the ranking');
 
-    // Repeatability exports too
-    await p.goto(BASE + '/app.html#/trends?demo=1'); await p.waitForSelector('#tr-summary-table');
-    log(!!(await p.$('#tr-summary-card [data-exp="latex"]')), 'Repeatability: its table has the export buttons');
-
-    log(/automatic per measure/.test(await p.textContent('#tr-within')), 'Repeatability: stability limits per measure, or one chosen limit');
-    await p.selectOption('#tr-within', '0.2'); await p.waitForSelector('#tr-summary-table');
-    log(/within 20% of the median/.test(await p.textContent('#tr-summary-card')), 'Repeatability: a chosen limit is applied and stated');
-    await p.selectOption('#tr-within', '');
+    // Consistency: the runs of a model keep their downloads
+    await p.goto(BASE + '/app.html#/trends'); await p.waitForSelector('#tr-intro');
+    await p.waitForSelector('#tr-cards [data-tr-open], #tr-once-card');
+    if (await p.$('#tr-cards [data-tr-open]')) {
+      await p.click('#tr-cards [data-tr-open]'); await p.waitForSelector('#tr-chart-card');
+      log(!!(await p.$('#tr-chart-card [data-exp="latex"]')), 'Consistency: every run of a model downloads as CSV / LaTeX');
+    } else log(!!(await p.$('#tr-once-card')), 'Consistency: models run once are listed');
 
     // warm-up: the steady-state mean next to the headline mean
     await p.goto(BASE + '/app.html#/session/' + j1 + '/performance/latency'); await p.waitForSelector('#stats-percentiles');
@@ -121,7 +120,7 @@ async function grab(p, click) {
     log(true, 'Ctrl+K reaches pages by name');
     await p.keyboard.press('Control+k'); await p.keyboard.press('Escape');
     log(await p.isHidden('#gs'), 'Esc closes the search');
-    log(/In short,/.test(await p.textContent('#tr-plain')), 'Repeatability: a plain-language summary first');
+    log(/same result twice/.test(await p.textContent('#tr-intro')), 'Consistency: asks its question in plain words first');
 
     // Methodology
     await p.goto(BASE + '/app.html#/help'); await p.waitForSelector('#help-method');

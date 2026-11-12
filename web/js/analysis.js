@@ -1,104 +1,155 @@
-// AgentMeter web app — analysis.js: Repeatability, charts, exports (CSV / LaTeX / SVG / PNG), the reproducibility package and the remaining session cards.
+// AgentMeter web app — analysis.js: Consistency (Leaderboard tab), charts, exports (CSV / LaTeX / SVG / PNG), the reproducibility package and the remaining session cards.
 // One of the app's scripts (web/app.html loads them in order: core, home, wizard, session, analysis,
 // compare, settings, boot); they share the page's global scope, so a function defined in one is used by the others.
 "use strict";
-// ---------- REPEATABILITY (History & Trends) ----------
-var TR = { data: null, series: null, metric: null, sched: [] };
+// ---------- CONSISTENCY (Leaderboard tab, route #/trends; was Repeatability) ----------
+// Do you get the same result twice? One card per model on a setup that ran 2 or more times: its runs
+// as dots against the "same result" band, a verdict (the rules in insights.js: repeatSummary and its
+// drift rule, unchanged), one plain sentence and the next step. Models run once are one line below.
+var TR = { data: null, series: null, metric: null, sched: [], focus: null };
+var TRF = { model: "", set: "", gpu: "", measure: "mean_latency_s", status: "" };
+var TR_MEASURES = [["mean_latency_s", "Speed", 0.10], ["mean_tokens_per_flow", "Tokens", 0.05], ["max_peak_vram_mb", "GPU memory", 0.05]];
+var TR_VERDICT = { stable: ["Steady", "ok"], varies: ["Varies", "warn"], moved: ["Changed recently", "bad"], few: ["One more run for a verdict", "none"] };
 var SCHED_EVERY = [[6, "every 6 hours"], [12, "every 12 hours"], [24, "daily"], [48, "every 2 days"], [168, "weekly"]];
 function everyLabel(h) { var e = SCHED_EVERY.filter(function (x) { return x[0] === h; })[0]; return e ? e[1] : "every " + h + " hours"; }
 function loadTrends(q) {
   q = q || {};
   TR.series = q.series || (q.model && q.setup ? q.model + "||" + q.setup : null);
-  if (q.metric) TR.metric = q.metric;
-  if (q.demo === "1") $("tr-demo").checked = true;
-  try { var sw = localStorage.getItem("agentmeter.stableWithin"); if (sw != null) $("tr-within").value = sw; } catch (e) { /* the default */ }
-  $("tr-summary").innerHTML = skel(5, true); $("tr-body").innerHTML = ""; $("tr-drifts").innerHTML = "";
+  TR.focus = q.session || null;
+  if (q.metric) { TR.metric = q.metric; if (TR_MEASURES.some(function (m) { return m[0] === q.metric; })) TRF.measure = q.metric; }
+  $("tr-examples").innerHTML =
+    '<div>' + trStrip([2.40, 2.42, 2.38, 2.41], 0.1, null, 200, 80) + '<b>Steady</b><span>runs agree</span></div>' +
+    '<div>' + trStrip([2.20, 2.75, 2.05, 2.55], 0.1, null, 200, 80) + '<b>Varies</b><span>runs disagree</span></div>' +
+    '<div>' + trStrip([1.90, 1.94, 1.92, 2.60], 0.1, { moved: true }, 200, 80) + '<b>Changed recently</b><span>the latest run jumped</span></div>';
+  $("tr-summary").innerHTML = skel(5, true); $("tr-body").innerHTML = ""; $("tr-once").innerHTML = "";
   allSessions().then(function (r) {
     if (!r.ok) { $("tr-summary").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
     TR.data = r.data.sessions || [];
-    // a link to a demo series opens with demo sessions shown
-    if (TR.series && !$("tr-demo").checked && TR.data.some(function (s) { return s.status === "Demo"; }) &&
-        !INSIGHTS.trends(TR.data).series.some(function (x) { return x.id === TR.series; })) $("tr-demo").checked = true;
     renderTrends();
+    if (TR.series) trOpen(TR.series);
   });
   loadSchedules();
 }
-var REP_BADGE = { stable: "Stable", varies: "Varies", moved: "Moved", few: "Too few runs" };
-function repBadge(x) {
-  var NAMES = { mean_latency_s: "latency", mean_tokens_per_flow: "tokens", max_peak_vram_mb: "VRAM" };
-  var tip = x.status === "stable" ? "Every run is within the stability limit of the median (latency, tokens, VRAM)."
-    : x.status === "varies" ? "Runs differ from the median by more than the limit in " + (x.over || []).map(function (k) { return NAMES[k] + " (±" + fmtNum(100 * x.spread_by[k], 1) + "%)"; }).join(", ") + ", but the latest is within the usual spread."
-    : x.status === "moved" ? "The latest run moved beyond the usual spread of the earlier runs."
-    : "A verdict needs at least 3 runs of this model on this setup.";
-  return '<span class="rep-badge ' + x.status + '" title="' + esc(tip) + '">' + (x.status === "stable" ? "✓ " : x.status === "moved" ? "⚠ " : "") + REP_BADGE[x.status] + '</span>';
+// demo runs are simulated: checked only when there are no real runs at all (as on the Leaderboard)
+function trDemo(data) { return !data.some(function (s) { return s.status === "Done"; }) && data.some(function (s) { return s.status === "Demo"; }); }
+function trSetName(s) {
+  var byId = {}; (TR.data || []).forEach(function (x) { byId[x.session_id] = x; });
+  for (var i = 0; i < s.points.length; i++) {
+    var rn = (byId[s.points[i].session_id] || {}).run_name;
+    if (rn) return String(rn).split("/").pop().replace(/_\d{8}-\d{6}_[0-9a-f]+$/, "") + (s.setup.n_flows != null ? " (" + s.setup.n_flows + " flows)" : "");
+  }
+  return "set " + String(s.setup.prepared_set_sha256 || "").slice(0, 8);
+}
+// the runs of one measure as dots against the band around their median (an SVG drawn to the card's width)
+function trStrip(vals, band, opt, W, H) {
+  opt = opt || {}; W = W || 520; H = H || 90;
+  var vs = vals.filter(function (v) { return v != null; });
+  if (vs.length < 1) return '<div class="cs-none">Not measured in these runs</div>';
+  var sorted = vs.slice().sort(function (a, b) { return a - b; }), h = Math.floor(sorted.length / 2), med = sorted.length % 2 ? sorted[h] : (sorted[h - 1] + sorted[h]) / 2;
+  var lo = Math.min(Math.min.apply(null, vs), med * (1 - band)) * 0.96, hi = Math.max(Math.max.apply(null, vs), med * (1 + band)) * 1.04;
+  if (hi === lo) { hi = lo + 1; }
+  var x = function (i) { return 18 + i * ((W - 36) / Math.max(1, vals.length - 1)); }, y = function (v) { return H - 12 - (v - lo) / (hi - lo) * (H - 24); };
+  var b0 = y(med * (1 + band)), b1 = y(med * (1 - band));
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;display:block" role="img" aria-label="' + esc(opt.label || "each run") + '">' +
+    '<rect x="6" y="' + b0 + '" width="' + (W - 12) + '" height="' + Math.max(2, b1 - b0) + '" rx="5" fill="var(--success-soft)"/>' +
+    '<line x1="6" x2="' + (W - 6) + '" y1="' + y(med) + '" y2="' + y(med) + '" stroke="var(--success)" stroke-dasharray="3 4" stroke-width="1.2"/>' +
+    vals.map(function (v, i) {
+      if (v == null) return "";
+      var last = i === vals.length - 1, out = Math.abs(v - med) / Math.abs(med || 1) > band || (opt.moved && last);
+      var focus = opt.focus != null && opt.focus === i;
+      return (focus ? '<circle cx="' + x(i) + '" cy="' + y(v) + '" r="10" fill="none" stroke="var(--text)" stroke-width="2"/>' : "") +
+        '<circle cx="' + x(i) + '" cy="' + y(v) + '" r="' + (last ? 6 : 5) + '" fill="' + (out ? "#E8742A" : "var(--accent)") + '" stroke="var(--surface)" stroke-width="2"><title>' +
+        esc((opt.titles || [])[i] || "") + '</title></circle>';
+    }).join("") + '</svg>';
+}
+function trFmt(key, v) { return key === "mean_latency_s" ? fmtTime(v) : key === "max_peak_vram_mb" ? fmtMB(v) : fmtNum(v); }
+function trBetween(key, lo, hi) {
+  return key === "mean_latency_s" ? "took between " + trFmt(key, lo) + " and " + trFmt(key, hi) + " per flow"
+    : key === "max_peak_vram_mb" ? "needed between " + trFmt(key, lo) + " and " + trFmt(key, hi) + " of working GPU memory"
+    : "used between " + trFmt(key, lo) + " and " + trFmt(key, hi) + " tokens per flow";
+}
+function trCard(x, s) {
+  var key = TRF.measure, m = TR_MEASURES.filter(function (q) { return q[0] === key; })[0], ts = INSIGHTS.trendSeries(s, key);
+  var vals = ts.points.map(function (p) { return p.v; }), vs = vals.filter(function (v) { return v != null; });
+  var v = TR_VERDICT[x.status], name = trSetName(s);
+  var lo = vs.length ? Math.min.apply(null, vs) : null, hi = vs.length ? Math.max.apply(null, vs) : null;
+  var sorted = vs.slice().sort(function (a, b) { return a - b; }), h = Math.floor(sorted.length / 2), med = !sorted.length ? null : sorted.length % 2 ? sorted[h] : (sorted[h - 1] + sorted[h]) / 2;
+  var swing = med ? (hi - lo) / med : 0, NAME = { mean_latency_s: "speed", mean_tokens_per_flow: "tokens", max_peak_vram_mb: "GPU memory" };
+  var say, next = "";
+  if (!vs.length) say = esc(m[1]) + " was not measured in these runs. Pick another measure above.";
+  else if (x.status === "stable") say = "Every run " + trBetween(key, lo, hi) + ". You can trust this result.";
+  else if (x.status === "varies") {
+    var others = (x.over || []).filter(function (k) { return k !== key; }).map(function (k) { return NAME[k]; });
+    say = (x.over || []).indexOf(key) >= 0 ? "Runs " + trBetween(key, lo, hi) + ", a " + fmtNum(100 * swing, 0) + "% swing. One run alone could mislead you."
+      : "On " + NAME[key] + " the runs agree, but they differ on " + others.join(" and ") + ". Pick it under Measure to see the runs.";
+    next = "Look at the runs outside the green band. A busy GPU or a different rental often explains it." +
+      (x.checked_runs ? " " + x.checked_runs + " run" + (x.checked_runs === 1 ? " had" : "s had") + " an unusual GPU reading." : "");
+  } else if (x.status === "moved") {
+    var d = x.moved[0];
+    say = d ? "The earlier runs agreed at about " + fmtUnit(d.unit, d.baseline) + " (" + d.metric_label.toLowerCase() + "). The latest was " + fmtUnit(d.unit, d.latest) + ", " +
+      fmtNum(Math.abs(100 * d.change), 0) + "% " + (d.change > 0 ? "higher" : "lower") + "." : "The latest run left the usual spread of the earlier runs.";
+    next = x.changed.length ? "Changed in the latest run: " + x.changed.map(INSIGHTS.changeText).join(", ") + "."
+      : "Check what changed in the latest run: the GPU, the driver or the model version.";
+  } else say = "Two runs so far: " + trFmt(key, vals[0]) + " and " + trFmt(key, vals[vals.length - 1]) + (key === "mean_latency_s" ? " per flow" : "") + ". One more run gives a verdict.";
+  var focus = TR.focus ? ts.points.map(function (p) { return p.session_id; }).indexOf(TR.focus) : -1;
+  var titles = ts.points.map(function (p) { return fmtDate(p.at) + ": " + (p.v == null ? "not measured" : trFmt(key, p.v)); });
+  var lastSid = s.points[s.points.length - 1].session_id;
+  return '<div class="cs-card' + (TR.series === s.id ? " sel" : "") + '" data-series="' + esc(s.id) + '">' +
+    '<div class="cs-card-h"><div><h3>' + esc(nick(x.model)) + '</h3><div class="sub">' + esc(name + ", " + (s.setup.gpu || "GPU") + ", " + x.runs + " runs") + '</div></div>' +
+      '<span class="cs-chip ' + v[1] + '"><span class="cs-dot ' + v[1] + '"></span>' + esc(v[0]) + '</span></div>' +
+    trStrip(vals, m[2], { moved: x.status === "moved", focus: focus >= 0 ? focus : null, titles: titles, label: m[1] + " of each run, oldest first" }) +
+    '<div class="cs-axis" aria-hidden="true"><span>first run</span><span>' + esc(m[1].toLowerCase()) + ', each dot one run</span><span>latest</span></div>' +
+    '<p class="say">' + esc(say) + '</p>' + (next ? '<p class="next">' + esc(next) + '</p>' : "") +
+    '<div class="cs-card-f"><span>Last run ' + esc(x.last_at ? fmtDate(x.last_at) : "") + '</span><span class="actions">' +
+      (x.status === "few" ? '<a class="btn primary small-btn" href="#/session/' + enc(lastSid) + '">Run it again</a>' : "") +
+      '<button type="button" class="btn small-btn" data-tr-open="' + esc(s.id) + '">See every run</button></span></div></div>';
 }
 function renderTrends() {
   if (!TR.data || !window.INSIGHTS) return;
-  varsBar($("tr-vars"), TR.data.filter(function (x) { return x.metrics; }), renderTrends);
-  var t = INSIGHTS.trends(TR.data.filter(function (x) { return !VARS.pipeline || pipeName(x) === VARS.pipeline; }), { includeDemo: $("tr-demo").checked });
-  if (VARS.model) {
-    t.series = t.series.filter(function (x) { return x.model === VARS.model; });
-    t.drifts = t.drifts.filter(function (d) { return d.model === VARS.model; });
+  var t = INSIGHTS.trends(TR.data, { includeDemo: trDemo(TR.data) });
+  var bySeries = {}; t.series.forEach(function (s) { bySeries[s.id] = s; });
+  var rows = INSIGHTS.repeatSummary(t).map(function (x) { x.s = bySeries[x.series]; x.set = trSetName(x.s); x.gpu = x.s.setup.gpu || "GPU"; return x; });
+  var uniq = function (f) { var o = []; rows.forEach(function (x) { var v = f(x); if (v && o.indexOf(v) < 0) o.push(v); }); return o.sort(); };
+  var opts = function (vals, fmt) { return [["", "All"]].concat(vals.map(function (v) { return [v, fmt ? fmt(v) : v]; })); };
+  $("tr-fbar").innerHTML = fpill("tr-f-model", "Model", opts(uniq(function (x) { return x.model; }), nick), TRF.model, "") +
+    fpill("tr-f-set", "Data set", opts(uniq(function (x) { return x.set; })), TRF.set, "") +
+    fpill("tr-f-gpu", "GPU", opts(uniq(function (x) { return x.gpu; })), TRF.gpu, "") +
+    fpill("tr-f-measure", "Measure", TR_MEASURES.map(function (m) { return [m[0], m[1]]; }), TRF.measure, "mean_latency_s");
+  var shown = rows.filter(function (x) { return (!TRF.model || x.model === TRF.model) && (!TRF.set || x.set === TRF.set) && (!TRF.gpu || x.gpu === TRF.gpu); });
+  var multi = shown.filter(function (x) { return x.runs >= 2; }), once = shown.filter(function (x) { return x.runs === 1; });
+  var cnt = { stable: 0, varies: 0, moved: 0, few: 0 }; multi.forEach(function (x) { cnt[x.status]++; });
+  if (TRF.status && !cnt[TRF.status]) TRF.status = "";
+  $("tr-tally").innerHTML = !multi.length ? "" : '<button type="button" data-tr-status="" aria-pressed="' + String(!TRF.status) + '">All <b>' + multi.length + '</b></button>' +
+    ["stable", "varies", "moved", "few"].filter(function (k) { return cnt[k]; }).map(function (k) {
+      return '<button type="button" data-tr-status="' + k + '" aria-pressed="' + String(TRF.status === k) + '"><span class="cs-dot ' + TR_VERDICT[k][1] + '"></span>' + esc(TR_VERDICT[k][0]) + ' <b>' + cnt[k] + '</b></button>';
+    }).join("");
+  var cards = multi.filter(function (x) { return !TRF.status || x.status === TRF.status; });
+  if (!rows.length) {
+    $("tr-summary").innerHTML = '<div class="card empty" id="tr-empty"><h2>No finished runs yet</h2><p>Run a benchmark, then run it again on the same data and GPU. Each model then shows here with its runs side by side.</p>' +
+      '<a class="btn primary" href="#/new">New benchmark</a></div>';
+  } else if (!multi.length) {
+    $("tr-summary").innerHTML = '<div class="card" id="tr-empty"><h2>No model has run twice yet</h2><p style="margin-bottom:0">A check needs at least two runs of the same model on the same data and GPU. Run one of the models below again, or repeat a run automatically.</p></div>';
+  } else {
+    $("tr-summary").innerHTML = '<div class="cs-cards" id="tr-cards">' + cards.map(function (x) { return trCard(x, x.s); }).join("") + '</div>';
   }
-  var ser = $("tr-series"), met = $("tr-metric");
-  if (!t.series.length) {
-    ser.innerHTML = ""; met.innerHTML = ""; $("tr-controls").hidden = true;
-    var demoHidden = !$("tr-demo").checked && TR.data.some(function (s) { return s.status === "Demo"; });
-    $("tr-summary").innerHTML = '<div class="card empty" id="tr-empty"><h2>No repeated runs yet</h2>' +
-      (demoHidden ? '<p class="small muted">Demo sessions are hidden. Tick <i>Include demo sessions</i> to see them.</p>' : "") +
-      '<ol class="rep-steps" style="text-align:left">' +
-      '<li><b>Run a benchmark.</b> <a href="#/new">New benchmark</a></li>' +
-      '<li><b>Run it again on the same setup.</b> Open the finished session and use <i>Repeat on a schedule</i> on its Overview, or start the same flows with the same model again.</li>' +
-      '<li><b>Come back after 3 or more runs.</b> Each model then gets a verdict of Stable, Varies or Moved.</li></ol></div>';
-    $("tr-body").innerHTML = ""; $("tr-drifts").innerHTML = "";
-    return;
-  }
-  var within = $("tr-within").value ? +$("tr-within").value : null;
-  var rows = INSIGHTS.repeatSummary(t, { within: within });
-  if (TR.series && !t.series.some(function (s) { return s.id === TR.series; })) TR.series = null;
-  if (!t.metrics.some(function (m) { return m.key === TR.metric; })) TR.metric = t.metrics[0].key;
-  var cnt = { stable: 0, varies: 0, moved: 0, few: 0 };
-  rows.forEach(function (x) { cnt[x.status]++; });
-  var mv = rows.filter(function (x) { return x.status === "moved"; });
-  var plain = 'In short, of ' + rows.length + ' model' + (rows.length === 1 ? "" : "s") + ' on ' + (rows.length === 1 ? "its setup" : "their setups") + ', ' +
-    [cnt.stable ? cnt.stable + " " + (cnt.stable === 1 ? "is" : "are") + " stable" : null, cnt.varies ? cnt.varies + " var" + (cnt.varies === 1 ? "ies" : "y") : null,
-     cnt.moved ? cnt.moved + " moved" : null, cnt.few ? cnt.few + " " + (cnt.few === 1 ? "has" : "have") + " too few runs for a verdict" : null].filter(Boolean).join(", ") + "." +
-    (mv.length ? " Check " + mv.slice(0, 3).map(function (x) { return short(x.model) + (x.moved[0] ? " (" + x.moved[0].metric_label.toLowerCase() + " " + (x.moved[0].change > 0 ? "+" : "") + fmtNum(100 * x.moved[0].change, 0) + "%)" : ""); }).join(", ") + " first." :
-     cnt.few === rows.length ? " Run each again (Run again on its session, or Repeat on a schedule) to get a verdict." : "");
-  $("tr-summary").innerHTML = '<p class="tab-summary" id="tr-plain">' + esc(plain) + '</p><div class="card" id="tr-summary-card"><h2>Is each model\'s result the same every time?</h2>' +
-    '<p class="muted small" style="margin-top:0">One row per model and setup (same flows, GPU and settings). <b>Stable</b>: every run within ' +
-    (within != null ? Math.round(100 * within) + '% of the median' : 'the limit of each measure (latency 10%, tokens and VRAM 5%) of the median') + '. <b>Varies</b>: runs differ by more. <b>Moved</b>: the latest run left the usual spread. Click a row to see its runs.' + infoI(t.rule) + '</p>' +
-    '<div class="table-wrap"><table id="tr-summary-table"><thead><tr><th>Model</th><th>Setup</th><th class="num">Runs</th><th>Result</th><th class="num">Latency spread</th><th>Last run</th></tr></thead><tbody>' +
-    rows.map(function (x) {
-      var st = x.setup;
-      return '<tr data-tr-row="' + esc(x.series) + '" tabindex="0" aria-selected="' + (x.series === TR.series) + '"><td><b>' + esc(short(x.model)) + '</b></td><td class="small">' +
-        esc((st.gpu || "GPU") + ", " + (st.input_type || "") + " " + (st.n_flows == null ? "" : st.n_flows + " flows") + ", set " + String(st.prepared_set_sha256).slice(0, 8)) +
-        '</td><td class="num">' + x.runs + '</td><td>' + repBadge(x) + (x.moved.length ? ' <span class="small muted">' + esc(x.moved[0].metric_label.toLowerCase()) + ' ' + (x.moved[0].change > 0 ? "+" : "") + fmtNum(100 * x.moved[0].change, 0) + '%</span>' : "") +
-        (x.changed.length || (x.last_health && x.last_health.status === "check") ? '<br><span class="small rep-why" data-rep-why>' +
-          [x.changed.length ? "changed in the latest run, " + x.changed.map(INSIGHTS.changeText).join(", ") : null,
-           x.last_health && x.last_health.status === "check" ? "the GPU was not normal in the latest run" : null].filter(Boolean).map(esc).join(". ") + '</span>' : "") +
-        '</td><td class="num">' + (x.latency_spread == null ? "—" : "±" + fmtNum(100 * x.latency_spread, 1) + "%") + '</td><td class="small">' + esc(x.last_at ? fmtDate(x.last_at) : "—") + '</td></tr>';
-    }).join("") + '</tbody></table></div></div>';
-  ser.innerHTML = t.series.map(function (s) { return '<option value="' + esc(s.id) + '"' + (s.id === TR.series ? " selected" : "") + '>' + esc(s.label + " — " + s.points.length + " run" + (s.points.length === 1 ? "" : "s")) + '</option>'; }).join("");
-  met.innerHTML = t.metrics.map(function (m) { return '<option value="' + esc(m.key) + '"' + (m.key === TR.metric ? " selected" : "") + '>' + esc(m.label) + '</option>'; }).join("");
-  $("tr-controls").hidden = !TR.series;
-  if (TR.series) {
-    var s = t.series.filter(function (x) { return x.id === TR.series; })[0], ts = INSIGHTS.trendSeries(s, TR.metric);
-    $("tr-body").innerHTML = historyCard(s, ts, t);
+  $("tr-once").innerHTML = !once.length ? "" : '<div class="card" id="tr-once-card"><p style="margin:0"><b>' + once.length + ' model' + (once.length === 1 ? " has" : "s have") +
+    ' only one run so far.</b> Run ' + (once.length === 1 ? "it" : "them") + ' again to check.</p><ul class="small">' + once.map(function (x) {
+      return '<li><a href="#/session/' + enc(x.s.points[0].session_id) + '">' + esc(nick(x.model)) + '</a> on ' + esc(x.set + ", " + x.gpu) + '</li>';
+    }).join("") + '</ul></div>';
+  if (TR.series && bySeries[TR.series]) {
+    TR.metric = TRF.measure;
+    $("tr-body").innerHTML = historyCard(bySeries[TR.series], INSIGHTS.trendSeries(bySeries[TR.series], TR.metric), t);
+    addExports($("tr-body"));
   } else $("tr-body").innerHTML = "";
-  $("tr-drifts").innerHTML = '<div class="card" id="tr-drift-card"><h2>Runs that moved</h2>' +
-    (t.drifts.length ? '<p class="muted small" style="margin-top:0">The latest run of a series against the median of its earlier runs.' + infoI(t.rule) + '</p><ul class="tr-drift-list">' + t.drifts.map(function (d) {
-      return '<li><span class="chip ' + (d.worse ? "bad" : "ok") + '">' + (d.worse ? "worse" : "better") + '</span> <b>' + esc(d.label) + '</b>: ' + esc(d.metric_label) + ' ' +
-        esc(fmtUnit(d.unit, d.baseline)) + ' → ' + esc(fmtUnit(d.unit, d.latest)) + ' (' + (d.change > 0 ? "+" : "") + fmtNum(100 * d.change, 0) + '% over ' + (d.n - 1) + ' earlier runs) ' +
-        '<button type="button" class="btn small-btn" data-tr-open="' + esc(d.series) + '" data-tr-metric="' + esc(d.metric) + '">Show</button></li>';
-    }).join("") + '</ul>'
-      : '<p class="muted" style="margin-bottom:0">No series moved beyond its usual spread' + (t.series.some(function (x) { return x.points.length >= 3; }) ? "." : ". A judgement needs at least three runs of the same model on the same setup.") + infoI(t.rule) + '</p>') + '</div>';
-  addExports($("view-trends"));
-  if (t.skipped) $("tr-drifts").innerHTML += '<p class="muted small">' + t.skipped + ' finished session' + (t.skipped === 1 ? " has" : "s have") + ' no recorded setup (older sessions) and ' + (t.skipped === 1 ? "is" : "are") + ' left out.</p>';
+}
+function trOpen(id) {
+  TR.series = id; renderTrends();
+  var c = $("tr-chart-card"); if (c) c.scrollIntoView({ block: "start" });
 }
 function historyCard(s, ts, t) {
   var pts = ts.points.filter(function (p) { return p.v != null; });
-  var head = '<div class="card" id="tr-chart-card"><h2>' + esc(ts.label) + ' — ' + esc(short(s.model)) + '</h2><p class="muted small" style="margin-top:0">' +
+  var head = '<div class="card" id="tr-chart-card"><div class="row" style="margin-top:0;justify-content:space-between"><h2>Every run of ' + esc(nick(s.model)) + ': ' + esc(ts.label.toLowerCase()) + '</h2>' +
+    '<button type="button" class="btn small-btn" data-tr-close>Close</button></div><p class="muted small" style="margin-top:0">' +
     esc((s.setup.gpu || "GPU") + ", " + (s.setup.input_type || "") + ", " + (s.setup.n_flows == null ? "" : s.setup.n_flows + " flows") + ", prepared set " + String(s.setup.prepared_set_sha256).slice(0, 12) +
         ", settings " + String(s.setup.settings_fingerprint).slice(0, 8)) + ', ' + (ts.lower_is_better ? "lower is better" : "higher is better") + '</p>';
   if (!pts.length) return head + '<p class="muted" id="tr-none">Not measured in these runs (e.g. demo runs have no GPU energy or price).</p></div>';
@@ -135,11 +186,11 @@ function loadSchedules() {
   var host = $("tr-schedules");
   backendFetch("/api/schedules").then(function (r) {
     if (!r.ok) {
-      host.innerHTML = '<h2>Scheduled re-runs</h2><p class="muted" style="margin-bottom:0">' + esc(r.data.code === "backend_offline" || r.status === 0 ? "The GPU backend is offline. Schedules run there, so they cannot be listed now." : (r.data.error || "Could not load the schedules.")) + '</p>';
+      host.innerHTML = '<h2>Repeat a run automatically</h2><p class="muted" style="margin-bottom:0">' + esc(r.data.code === "backend_offline" || r.status === 0 ? "The GPU backend is offline. Schedules run there, so they cannot be listed now." : (r.data.error || "Could not load the schedules.")) + '</p>';
       return;
     }
     TR.sched = r.data.schedules || [];
-    host.innerHTML = '<h2>Scheduled re-runs</h2><p class="muted small" style="margin-top:0">Each one repeats a finished session on this GPU (same flows, models and settings) and adds its runs to Repeatability above. Start one from a session\'s Overview tab.</p>' +
+    host.innerHTML = '<h2>Repeat a run automatically</h2><p class="muted small" style="margin-top:0">Pick a session and AgentMeter runs it again on a schedule, for example every night for a week, so this page fills in by itself. Start one from a session\'s Overview tab (Repeat on a schedule).</p>' +
       (TR.sched.length ? '<div class="table-wrap"><table id="tr-sched-table"><thead><tr><th>Repeats</th><th>Models</th><th>How often</th><th class="num">Runs</th><th>Next</th><th>Owner</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
         TR.sched.map(schedRow).join("") + '</tbody></table></div>' : '<p class="muted" id="tr-sched-none" style="margin-bottom:0">No schedules yet.</p>');
   });
@@ -161,21 +212,17 @@ function cancelSchedule(id, jobId, done) {
   });
 }
 document.addEventListener("change", function (ev) {
-  if (ev.target.id === "tr-series") { TR.series = ev.target.value; renderTrends(); }
-  else if (ev.target.id === "tr-metric") { TR.metric = ev.target.value; renderTrends(); }
-  else if (ev.target.id === "tr-demo") renderTrends();
-  else if (ev.target.id === "tr-within") { try { localStorage.setItem("agentmeter.stableWithin", ev.target.value); } catch (e) { /* this view only */ } renderTrends(); }
+  var k = { "tr-f-model": "model", "tr-f-set": "set", "tr-f-gpu": "gpu", "tr-f-measure": "measure" }[ev.target.id];
+  if (k) { TRF[k] = ev.target.value; renderTrends(); }
 });
 document.addEventListener("click", function (ev) {
-  var tr = ev.target.closest && !ev.target.closest("a") && ev.target.closest("[data-tr-row]");
-  if (tr) { TR.series = tr.getAttribute("data-tr-row"); renderTrends(); $("tr-chart-card").scrollIntoView({ block: "nearest" }); return; }
+  var st = ev.target.closest && ev.target.closest("[data-tr-status]");
+  if (st) { TRF.status = st.getAttribute("data-tr-status"); renderTrends(); return; }
   var o = ev.target.closest && ev.target.closest("[data-tr-open]");
-  if (o) { TR.series = o.getAttribute("data-tr-open"); TR.metric = o.getAttribute("data-tr-metric"); renderTrends(); $("tr-chart-card").scrollIntoView({ block: "start" }); return; }
+  if (o) { trOpen(o.getAttribute("data-tr-open")); return; }
+  if (ev.target.closest && ev.target.closest("[data-tr-close]")) { TR.series = null; renderTrends(); return; }
   var c = ev.target.closest && ev.target.closest("[data-sch-cancel]");
   if (c && c.closest("#tr-schedules")) cancelSchedule(c.getAttribute("data-sch-cancel"), c.getAttribute("data-sch-job"), loadSchedules);
-});
-document.addEventListener("keydown", function (ev) {
-  if ((ev.key === "Enter" || ev.key === " ") && ev.target.matches && ev.target.matches("[data-tr-row]")) { ev.preventDefault(); ev.target.click(); }
 });
 // Overview: how often this session's models were measured on its setup, and whether they held
 function wireRepLine(job) {
@@ -192,10 +239,10 @@ function wireRepLine(job) {
       return x.series.slice(x.series.indexOf("||") + 2) === key && (me.models || []).indexOf(x.model) >= 0;
     });
     if (!rows.length) return;
-    host.innerHTML = '<h2 style="margin-bottom:6px">Repeatability</h2><ul class="lk-list" id="svc-rep-list">' + rows.map(function (x) {
-      var what = x.runs < 3 ? x.runs + " run" + (x.runs === 1 ? "" : "s") + " on this setup, and a verdict needs 3" :
-        x.runs + " runs, " + (x.status === "stable" ? "stable ✓" : x.status === "moved" ? "moved ⚠" : "varies") + (x.latency_spread == null ? "" : " (latency ±" + fmtNum(100 * x.latency_spread, 1) + "%)");
-      return '<li><b>' + esc(short(x.model)) + '</b>: <a href="' + repLink(x.model, key) + '">' + esc(what) + '</a></li>';
+    host.innerHTML = '<h2 style="margin-bottom:6px">Is this result consistent?</h2><ul class="lk-list" id="svc-rep-list">' + rows.map(function (x) {
+      var what = x.runs === 1 ? "run once on this setup, run it again to check" : x.runs < 3 ? x.runs + " runs on this setup, one more gives a verdict" :
+        x.runs + " runs, " + (x.status === "stable" ? "steady" : x.status === "moved" ? "changed recently" : "varies");
+      return '<li><b>' + esc(nick(x.model)) + '</b>: <a href="' + repLink(x.model, key) + '&session=' + enc(job.job_id) + '">' + esc(what) + '</a></li>';
     }).join("") + '</ul>' + (rows.every(function (x) { return x.runs < 3; }) ? '<p class="small muted" style="margin:6px 0 0">Run this setup again (or repeat it on a schedule below) to check that the results hold.</p>' : "");
     host.hidden = false;
   });
@@ -204,7 +251,7 @@ function wireRepLine(job) {
 function scheduleCard(job) {
   var st = String(job.status || "").toLowerCase();
   if (!(st === "done" || st === "demo") || !canEditNotes(job)) return "";
-  return '<form class="card" id="svc-schedule" novalidate><h2>Repeat on a schedule</h2><p class="muted small" style="margin-top:0">Runs this session again on this GPU with the same flows, models and settings, so <a href="#/trends">Repeatability</a> can show whether the numbers hold over time. Each run is an ordinary session in the queue, and a run waits while the previous one is still going.</p>' +
+  return '<form class="card" id="svc-schedule" novalidate><h2>Repeat on a schedule</h2><p class="muted small" style="margin-top:0">Runs this session again on this GPU with the same flows, models and settings, so <a href="#/trends">Leaderboard › Consistency</a> can show whether the numbers hold over time. Each run is an ordinary session in the queue, and a run waits while the previous one is still going.</p>' +
     '<div class="row" style="gap:16px;flex-wrap:wrap;align-items:flex-end"><div class="field" style="margin:0"><label for="sch-every">How often</label><select id="sch-every">' +
     SCHED_EVERY.map(function (e) { return '<option value="' + e[0] + '"' + (e[0] === 24 ? " selected" : "") + '>' + esc(e[1]) + '</option>'; }).join("") + '</select></div>' +
     '<div class="field" style="margin:0"><label for="sch-runs">Number of runs <span class="hint">(1–30)</span></label><input type="number" id="sch-runs" min="1" max="30" step="1" value="7" inputmode="numeric"></div>' +
@@ -297,7 +344,7 @@ function wireRepeat(res, job) {
   var host = $("svc-repeat-host"), id = job.job_id;
   if (!host || !window.INSIGHTS) return;
   var again = '<a class="btn" href="#/new/models?set=' + enc(job.run_name || "") + (CP && job.stored ? "&from=" + enc(id) : "") + '">Benchmark these flows again</a>';
-  var head = '<h2>Repeatability across runs</h2><p class="muted small" style="margin-top:0">The same models on the same flows, GPU and settings in other sessions. How much do the numbers move from run to run?</p>';
+  var head = '<h2>Consistency across runs</h2><p class="muted small" style="margin-top:0">The same models on the same flows, GPU and settings in other sessions. How much do the numbers move from run to run?</p>';
   sameSetup(id).then(function (d) {
     if (SESSION.id !== id) return;
     var r = { ok: d.ok, data: { error: d.error } };
@@ -910,7 +957,7 @@ function reproPackage(res, job, btn) {
       "1. Open AgentMeter and use **Run again** on the session page, or open " + again + "\n" +
       "   (if the prepared set is not on the GPU server, import `prepared_set/` under New benchmark › Reuse a prepared set, and its hash stays the same).\n" +
       "2. Use the same GPU type. Results are only comparable on the same prepared set, GPU and settings.\n" +
-      "3. The new session appears on Repeatability next to this one, and a change beyond the usual spread is flagged.\n";
+      "3. The new session appears on Leaderboard > Consistency next to this one, and a change beyond the usual spread is flagged.\n";
     var files = [{ name: "README.md", data: readme }, { name: "run.json", data: JSON.stringify(run, null, 2) },
                  { name: "identity.json", data: JSON.stringify({ session_identity: ident, environment: env }, null, 2) },
                  { name: "session_results.json", data: JSON.stringify(res, null, 2) }].concat(got);

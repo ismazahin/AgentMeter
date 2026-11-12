@@ -2,35 +2,7 @@
 // One of the app's scripts (web/app.html loads them in order: core, home, wizard, session, analysis,
 // compare, settings, boot); they share the page's global scope, so a function defined in one is used by the others.
 "use strict";
-// ---- variables (as on an observability dashboard): one Model and one Pipeline filter, shared
-// by Compare and Trends; "All" shows everything. Kept in this browser.
-var VARS = (function () { try { return JSON.parse(localStorage.getItem("agentmeter.vars") || "{}") || {}; } catch (e) { return {}; } })();
-function pipeName(s) { return s.pipeline && s.pipeline.length ? s.pipeline.join(" → ") : "Default (4 agents)"; }
-function varsMatch(s, model) {
-  return (!VARS.model || (model ? model === VARS.model : (s.models || []).indexOf(VARS.model) >= 0)) && (!VARS.pipeline || pipeName(s) === VARS.pipeline);
-}
-function varsBar(host, sessions, onChange) {
-  var models = [], pipes = [];
-  sessions.forEach(function (s) {
-    (s.models || []).forEach(function (m) { if (models.indexOf(m) < 0) models.push(m); });
-    var p = pipeName(s); if (pipes.indexOf(p) < 0) pipes.push(p);
-  });
-  if (VARS.model && models.indexOf(VARS.model) < 0) VARS.model = "";
-  if (VARS.pipeline && pipes.indexOf(VARS.pipeline) < 0) VARS.pipeline = "";
-  var sel = function (id, label, vals, cur, fmt) {
-    return '<div class="field"><label for="' + id + '">' + label + '</label><select id="' + id + '"><option value="">All</option>' +
-      vals.sort().map(function (v) { return '<option value="' + esc(v) + '"' + (v === cur ? " selected" : "") + '>' + esc(fmt ? fmt(v) : v) + '</option>'; }).join("") + '</select></div>';
-  };
-  host.innerHTML = '<div class="card row vars-row">' + sel(host.id + "-model", "Model", models, VARS.model, short) + sel(host.id + "-pipeline", "Pipeline", pipes, VARS.pipeline) + '</div>';
-  [["model", host.id + "-model"], ["pipeline", host.id + "-pipeline"]].forEach(function (k) {
-    $(k[1]).addEventListener("change", function () {
-      VARS[k[0]] = this.value;
-      try { localStorage.setItem("agentmeter.vars", JSON.stringify(VARS)); } catch (e) { /* not kept */ }
-      onChange();
-    });
-  });
-}
-// a model's Repeatability chart on one setup (linked from the analysis)
+// a model's Consistency card on one setup (linked from a session and the analysis)
 function repLink(model, key) { return "#/trends?model=" + enc(model) + "&setup=" + enc(key); }
 
 // ---------- DATA SETS: every prepared set, what is in it and who used it ----------
@@ -328,7 +300,7 @@ function renderUpcoming(r) {
   host.innerHTML = '<div class="card" id="gq-upcoming-card"><h2>Coming up</h2>' + (next.length ? '<ul class="lk-list small">' + next.slice(0, 5).map(function (x) {
     return '<li>' + esc(fmtDate(x.next_at)) + ', repeat of <a class="mono" href="#/session/' + enc(x.source_job_id) + '">' + esc(shortId(x.source_job_id)) + '</a> (' + esc((x.models || []).map(short).join(", ")) + '), run ' + (x.runs_done + 1) + ' of ' + x.runs_total + '</li>';
   }).join("") + '</ul>' : '<p class="muted" style="margin-bottom:0">No scheduled re-runs.</p>') +
-    '<p class="small muted" style="margin-bottom:0">Schedules are started from a session\'s Overview and managed on <a href="#/trends">Repeatability</a>.</p></div>';
+    '<p class="small muted" style="margin-bottom:0">Schedules are started from a session\'s Overview and shown on <a href="#/trends">Consistency</a>.</p></div>';
 }
 // ---------- LEADERBOARD ----------
 // By setup: a list of the setups (same flows, GPU and settings) and the chosen one's ranking.
@@ -512,7 +484,7 @@ function setupPanel(g) {
       return '<button type="button" data-sort="' + m[0] + '" aria-pressed="' + String(m[0] === LBF.sort) + '">' + esc(m[1]) + '</button>'; }).join("") + '</div>' + ne +
     '<div class="table-wrap"><table class="lb-table rk" id="lb-table-0"><thead><tr><th class="num">Rank</th><th>Model</th><th><span class="sr-only">Bar</span></th><th class="num">' + esc(col[1]) +
       (hi ? " (higher is better)" : " (lower is better)") + '</th><th>' + (showOwners() ? "Run by" : "Runs") + '</th><th><span class="sr-only">Sessions</span></th></tr></thead><tbody>' + rows + '</tbody></table></div>' + gap +
-    whyOrder(g) + '<div class="actions" style="margin-top:16px"><a class="btn" href="#/trends">Repeatability</a></div>';
+    whyOrder(g) + '<div class="actions" style="margin-top:16px"><a class="btn" href="#/trends">Consistency</a></div>';
 }
 // ---- Why this order: where each model's SAW score points come from (speed, GPU memory, tokens) ----
 // Points are stored with each session (weight x normalised value x 100, adding up to its score); a

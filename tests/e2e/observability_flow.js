@@ -111,16 +111,15 @@ async function dragAcross(p, sel, from, to) {
     await p.waitForSelector('#trend-0', { state: 'attached' });
     log(/your p95 limit/.test(await p.textContent('#trend-0')), 'the latency chart draws your p95 limit');
 
-    // variables: the Model filter on Repeatability
+    // Consistency: the Model filter
     const models = await p.evaluate(() => fetch('/api/jobs?limit=20').then(r => r.json()).then(d => d.jobs.find(j => j.kind !== 'prepare').models));
-    await p.goto(ORIGIN + '/app.html#/trends?demo=1'); await p.waitForSelector('#tr-vars-model');      // mock runs are demo sessions
-    await p.selectOption('#tr-vars-model', models[0]);
-    log(await p.inputValue('#tr-vars-model') === models[0], 'Repeatability: a Model filter');
-    await p.waitForSelector('#tr-summary-table');
-    const series = await p.$$eval('#tr-summary-table tbody tr td:first-child', x => x.map(o => o.textContent));
-    log(series.length >= 1 && series.every(t => t.indexOf(models[0].split('/').pop()) >= 0), `Trends: only that model's series (${series.length})`);
-    await p.selectOption('#tr-vars-model', '');
-    log((await p.$$eval('#tr-summary-table tbody tr', x => x.length)) >= 2, 'Trends: "All" shows every model again');
+    await p.goto(ORIGIN + '/app.html#/trends'); await p.waitForSelector('#tr-f-model');
+    const all = await p.$$eval('#tr-cards .cs-card, #tr-once-card li', x => x.length);
+    await p.selectOption('#tr-f-model', models[0]);
+    const one = await p.$$eval('#tr-cards .cs-card h3, #tr-once-card li a', x => x.map(o => o.textContent));
+    log(one.length >= 1 && one.length <= all, `Consistency: the Model filter keeps that model only (${one.length} of ${all})`);
+    await p.selectOption('#tr-f-model', '');
+    log((await p.$$eval('#tr-cards .cs-card, #tr-once-card li', x => x.length)) === all, 'Consistency: "All" shows every model again');
     await p.screenshot({ path: S + '/trends-vars.png', fullPage: false });
   } catch (e) {
     log(false, 'walk-through crashed: ' + e.message.split('\n')[0]);

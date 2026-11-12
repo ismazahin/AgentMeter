@@ -306,32 +306,25 @@ async function frameOf(p) {
   await p.click('#lbtab-setup'); await p.waitForSelector('#lb-setup-panel:not([hidden]) #lb-table-0');
   log(/^#\/leaderboard/.test(await p.evaluate(() => location.hash)) && !(await p.$('#lbtab-compare')), 'back to By setup; no Compare models tab');
 
-  // Repeatability (#/trends): the same model on one setup over time; demo sessions only when asked
+  // Consistency (#/trends, was Repeatability): the same model on one setup, run after run
   await p.click('.mainnav a[data-nav="leaderboard"]'); await p.click('#lbtab-repeat'); await p.waitForSelector('#view-trends:not([hidden])');
-  log(/Repeatability/.test(await p.textContent('#lbtab-repeat')) && /Repeatability/.test(await p.textContent('#h-trends')), 'Trends is now called Repeatability');
-  log(/same model on the same setup more than once/.test(await p.textContent('#tr-purpose')) && /different models, same setup, one moment/.test(await p.textContent('#tr-distinct')),
-      'Repeatability: says what it is for, and how it differs from Compare');
-  await p.waitForSelector('#tr-empty');
-  log(/Demo sessions are hidden/.test(await p.textContent('#tr-empty')) && (await p.$$('#tr-empty .rep-steps li')).length === 3, 'Repeatability: a guided empty state (3 steps); demo sessions hidden, said plainly');
-  await p.check('#tr-demo'); await p.waitForSelector('#tr-summary-table');
-  const sumRows = await p.$$eval('#tr-summary-table tbody tr', r => r.map(x => x.textContent));
-  const runsCol = await p.$$eval('#tr-summary-table tbody tr td:nth-child(3)', r => r.map(x => x.textContent));
-  log(sumRows.length >= 2 && /Too few runs/.test(sumRows[0]) && runsCol[0] === '2', 'Repeatability: a summary row per model and setup with its runs and badge (' + sumRows[0].slice(0, 80) + ')');
-  log(!(await p.$('#tr-chart-card')) && await p.isHidden('#tr-controls'), 'Repeatability: the chart waits for a row click');
-  await p.click('#tr-summary-table tbody tr >> nth=0'); await p.waitForSelector('#tr-chart-card');
-  const trOpts = await p.$$eval('#tr-series option', o => o.map(x => x.textContent));
-  log(trOpts.length >= 2 && trOpts.every(t => /Demo \(no GPU\)/.test(t)), 'Repeatability: a series per model and setup (' + trOpts[0] + ')');
+  log(/Consistency/.test(await p.textContent('#lbtab-repeat')) && /same result twice/.test(await p.textContent('#tr-intro')), 'Consistency: the tab asks "Do you get the same result twice?"');
+  await p.waitForSelector('#tr-cards');
+  const cards = await p.$$eval('#tr-cards .cs-card', xs => xs.map(x => x.textContent));
+  log(cards.length >= 1 && /One more run for a verdict/.test(cards[0]) && /2 runs/.test(cards[0]), 'a card per model run twice: its runs as dots, one more run for a verdict');
+  log(!!(await p.$('#tr-once-card')), 'models run once are one line below the cards');
+  await p.click('#tr-cards [data-tr-open]'); await p.waitForSelector('#tr-chart-card');
   log((await p.$$('#tr-table tbody tr')).length === 2 && (await p.$$('#tr-plot circle')).length === 2 && /needs at least 3/.test(await p.textContent('#tr-verdict')),
-      'Repeatability: chart and table list both runs; no judgement from 2 runs');
-  await p.selectOption('#tr-metric', 'wh_per_flow'); await p.waitForSelector('#tr-none');
-  log(/Not measured/.test(await p.textContent('#tr-none')), 'Repeatability: a measure the demo never records says so');
-  await p.selectOption('#tr-metric', 'mean_latency_s');
-  log(/No series moved/.test(await p.textContent('#tr-drift-card')) && /No schedules yet/.test(await p.textContent('#tr-schedules')), 'Repeatability: nothing flagged; no schedules yet');
+      'See every run: chart and table list both runs; no judgement from 2 runs');
+  await p.selectOption('#tr-f-measure', 'max_peak_vram_mb'); await p.waitForFunction(() => /not measured/i.test(document.querySelector('#tr-cards')?.textContent || ''));
+  log(true, 'a measure the demo never records says so on the card');
+  await p.selectOption('#tr-f-measure', 'mean_latency_s');
+  log(/No schedules yet/.test(await p.textContent('#tr-schedules')), 'Consistency: no schedules yet');
   await p.goto(BASE + '/app.html#/session/' + job3 + '/overview'); await p.waitForSelector('#svc-rep-line:not([hidden])');
   const repLine = await p.textContent('#svc-rep-line');
-  log(/Repeatability/.test(repLine) && /2 runs on this setup/.test(repLine) && !!(await p.$('#svc-rep-list a[href^="#/trends?model="]')), 'Session Overview: a Repeatability line per model, linking to its runs');
+  log(/Is this result consistent/.test(repLine) && /2 runs on this setup/.test(repLine) && !!(await p.$('#svc-rep-list a[href^="#/trends?model="]')), 'Session Overview: is this result consistent, per model, linking to its runs');
   await p.click('#svc-rep-list a'); await p.waitForSelector('#tr-chart-card');
-  log((await p.$$('#tr-table tbody tr')).length === 2, 'the Overview link opens that model\'s runs on Repeatability');
+  log((await p.$$('#tr-table tbody tr')).length === 2 && !!(await p.$('#tr-cards .cs-card.sel')), 'the Overview link opens that model\'s card and runs on Consistency');
   await p.screenshot({ path: S + '/11d-trends.png', fullPage: true });
   // Repeat on a schedule (session Overview) -> listed on Trends -> cancel
   await p.goto(BASE + '/app.html#/session/' + job1 + '/overview'); await p.waitForSelector('#svc-schedule');
@@ -373,7 +366,7 @@ async function frameOf(p) {
   const ph = await (await b.newContext({ viewport: { width: 375, height: 800 }, colorScheme: 'dark' })).newPage();
   ph.on('pageerror', e => errs.push('phone: ' + e.message));
   for (const [hash, sel] of [['#/', '#home-latest:not([hidden])'], ['#/new', '#svc-upload-form:not([hidden])'],
-                             ['#/session/' + job1, '#session-body:not([hidden])'], ['#/leaderboard', '#lb-slist'], ['#/trends?demo=1', '#tr-summary-card'],
+                             ['#/session/' + job1, '#session-body:not([hidden])'], ['#/leaderboard', '#lb-slist'], ['#/trends', '#tr-intro'],
                              ['#/compare?sessions=' + job1 + ',' + job3, '#lb-table-0']]) {
     await ph.goto(BASE + '/app.html' + hash); await ph.waitForSelector(sel, { timeout: 20000 });
     const over = await ph.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

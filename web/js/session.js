@@ -312,7 +312,7 @@ var SECTION_Q = {
   "Since the last run on these flows": "What changed since the last run?", "Other pipelines on these flows": "How do other pipelines compare on these flows?",
   "Best model for my priority": "Which model is best for my priority?", "What the prompts are made of": "What are the prompts made of?",
   "Load scaling": "Does it scale with parallel flows?", "How many flows do you need?": "How many flows are needed to tell models apart?",
-  "Repeatability across runs": "Is each model's result the same every time?", "Repeatability": "Is it the same every time?",
+  "Consistency across runs": "Is each model's result the same every time?", "Consistency": "Is it the same every time?",
   "Head-to-head": "Which model is faster, and by how much?"
 };
 // headings that carry a number or a model name: matched by pattern
@@ -1427,7 +1427,7 @@ function gpuHealthCard(res) {
   return '<div class="notice warn" id="svc-gpu-health" role="status"><b>Check the GPU. It was not in a normal state during this run.</b> The timings and energy below may reflect the GPU, not the model.' +
     '<ul class="small" style="margin:6px 0 0">' + bad.map(function (m) {
       return '<li><b class="model-name" title="' + esc(m.model) + '">' + esc(nick(m.model)) + '</b>: ' + esc(plain(m)) + '.</li>';
-    }).join("") + '</ul><p class="small" style="margin:6px 0 0">Run it again when the GPU is cool and not shared, then compare on <a href="#/trends">Repeatability</a>.</p>' +
+    }).join("") + '</ul><p class="small" style="margin:6px 0 0">Run it again when the GPU is cool and not shared, then compare on <a href="#/trends">Consistency</a>.</p>' +
     '<details class="info"><summary>How to read this</summary><p class="small muted">' + esc(g.rule || "") + '</p><ul class="small muted">' + bad.map(function (m) {
       return '<li>' + esc(nick(m.model)) + ': ' + m.reasons.map(function (r) { return esc(String(r).replace(/\s+\u2014\s+/g, ": ")); }).join("; ") + '</li>';
     }).join("") + '</ul></details></div>';

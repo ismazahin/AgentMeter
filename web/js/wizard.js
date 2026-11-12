@@ -579,7 +579,7 @@ function applyAgain(id) {
     }
     note.innerHTML = '<b>Run again</b> of <a class="mono" href="#/session/' + enc(id) + '">' + esc(shortId(id)) + '</a>: the same data set and models' +
       (j ? ', pipeline (' + esc(plChain()) + ') and options' : '; its pipeline and options were not found on this GPU server, so check them below') +
-      '. Running it again on the same GPU adds a run to <a href="#/trends">Repeatability</a>.';
+      '. Running it again on the same GPU adds a run to <a href="#/trends">Consistency</a>.';
     note.hidden = false;
     syncRun();
   });

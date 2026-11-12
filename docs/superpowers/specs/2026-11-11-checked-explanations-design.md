@@ -1,7 +1,7 @@
 # Checked explanations: statements first, and what the answers show
 
 Date: 2026-11-11
-Status: design, waiting for the owner's approval
+Status: approved 2026-11-11
 Builds on: docs/superpowers/specs/2026-11-10-ai-explanations-design.md (the session explainer)
 
 ## Intent

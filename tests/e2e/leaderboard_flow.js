@@ -21,9 +21,8 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
   try {
     const sd = await seed();
     await p.goto(ORIGIN + '/app.html#/leaderboard'); await p.evaluate(() => localStorage.removeItem('agentmeter.lbf'));
-    await p.reload(); await p.waitForSelector('#lb-demo-only');
-    log(/Only demo runs so far/.test(await p.textContent('#lb-demo-only')), 'demo runs are hidden by default, and the page says so');
-    await p.click('#lb-show-demo'); await p.waitForSelector('#lb-slist');
+    await p.reload(); await p.waitForSelector('#lb-slist');
+    log(!(await p.$('#lb-demo')) && !(await p.$('#lb-demo-only')), 'no Demo runs toggle: with only demo runs on this server, they are ranked');
     const items = await p.$$eval('#lb-slist .sitem', xs => xs.map(x => x.textContent));
     log(items.length === 2 && /4 models/.test(items[0]) && /Not enough/.test(items[1]), 'By setup: the setup list, most sessions first, with a Not enough badge');
     log(await p.getAttribute('#lb-slist .sitem', 'aria-current') === 'true' && (await p.$$('#lb-table-0 tbody tr')).length === 4, 'the first setup is open: 4 models ranked');
@@ -53,8 +52,6 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     // filters
     await p.selectOption('#lb-input', 'PCAP').catch(() => {});
     log((await p.$$('#lb-input option')).length === 2, 'Input only offers what was measured (All, CSV)');
-    await p.click('#lb-demo'); await p.waitForSelector('#lb-demo-only');
-    await p.click('#lb-show-demo'); await p.waitForSelector('#lb-slist');
     // Overall
     await p.click('#lbtab-overall'); await p.waitForSelector('#lb-podium');
     const pod = await p.$$eval('#lb-podium .pcol', xs => xs.map(x => x.className + ' ' + x.textContent));

@@ -412,7 +412,7 @@ function route() {
   if (CP && !AUTH.user) { show("login"); showLogin(); return; }
   if (v === "compare") {                         // Compare models was folded into By setup: open that session's setup
     LB.focus = r.q.a || String(r.q.sessions || "").split(",")[0] || null;
-    if (LB.focus) { LBF.gpu = LBF.set = LBF.input = ""; LBF.demo = true; }
+    if (LB.focus) { LBF.gpu = LBF.set = LBF.input = ""; }
     location.replace("#/leaderboard?tab=setup"); return;
   }
   if (VIEWS.indexOf(v) < 0 || v === "login" || (v === "admin" && !isAdmin()) || (v === "profile" && !CP)) v = "home";
@@ -626,11 +626,15 @@ function loadOwners() {
 // a filter pill: a real <select> drawn as "Label Value"; tinted when it is not on its default
 function fpill(id, label, opts, val, def) {
   return '<label class="fpill' + (val !== (def || "") ? " on" : "") + '" for="' + id + '"><span class="fk">' + esc(label) + '</span><select id="' + id + '">' +
-    opts.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === val ? " selected" : "") + '>' + esc(o[1]) + '</option>'; }).join("") + '</select></label>';
+    opts.map(function (o) {
+      var one = function (x) { return '<option value="' + esc(x[0]) + '"' + (x[0] === val ? " selected" : "") + '>' + esc(x[1]) + '</option>'; };
+      return o.group ? '<optgroup label="' + esc(o.group) + '">' + o.opts.map(one).join("") + '</optgroup>' : one(o);
+    }).join("") + '</select></label>';
 }
 function ftoggle(id, label, on) { return '<label class="ftog" for="' + id + '"><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + '>' + esc(label) + '</label>'; }
 function ownerOpts(owners, everyone) {
-  return [["", everyone || "Everyone"], ["me", "Only mine"]].concat((owners || []).map(function (n) { return [n, n]; }));
+  var o = [["", everyone || "Everyone"], ["me", "Only mine (" + ((AUTH.user || {}).username || "you") + ")"]];
+  return (owners || []).length ? o.concat([{ group: "Other people", opts: owners.map(function (n) { return [n, n]; }) }]) : o;
 }
 function hbars(title, rows, fmt, unitNote) {
   var vals = rows.map(function (r) { return r.v; }).filter(function (v) { return v != null; });

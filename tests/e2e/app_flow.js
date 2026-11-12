@@ -286,10 +286,9 @@ async function frameOf(p) {
   log(!!(await p.$('#lb-why')) && /Speed/.test(await p.textContent('#lb-why-table thead')), 'Why this order explains the ranking');
   await p.screenshot({ path: S + '/09-leaderboard-why.png', fullPage: true });
 
-  // 9. Leaderboard (By setup: setup list + ranking panel; Overall: podium + model list). Demo runs
-  // are hidden by default; this server is a demo, so the page offers to show them.
-  await p.click('.mainnav a[data-nav="leaderboard"]'); await p.waitForSelector('#lb-demo-only');
-  await p.click('#lb-show-demo'); await p.waitForSelector('#lb-slist');
+  // 9. Leaderboard (By setup: setup list + ranking panel; Overall: podium + model list). Demo runs are
+  // ranked only when there are no real runs, as on this demo server.
+  await p.click('.mainnav a[data-nav="leaderboard"]'); await p.waitForSelector('#lb-slist');
   const groups = await p.$$('#lb-slist .sitem');
   log(groups.length === 2, 'Leaderboard: 2 setups (CSV set, PCAP set) listed, ' + groups.length);
   log(/2 sessions/.test(await p.textContent('#lb-slist .sitem')), 'Leaderboard: the CSV setup pools its 2 sessions');

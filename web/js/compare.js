@@ -389,36 +389,37 @@ function lbFetch(sort) {
     });
   });
 }
+// demo runs are simulated: ranked only when there are no real runs at all (a server in demo mode)
+function lbDemoShown() { var all = LB.data.groups || []; return all.length > 0 && all.every(function (g) { return g.demo; }); }
 function lbGroups() {
+  var demo = lbDemoShown();
   return (LB.data.groups || []).filter(function (g) {
-    return (LBF.demo || !g.demo) && (!LBF.gpu || g.gpu === LBF.gpu) && (!LBF.input || g.input_type === LBF.input) && (!LBF.set || gName(g) === LBF.set);
+    return (demo || !g.demo) && (!LBF.gpu || g.gpu === LBF.gpu) && (!LBF.input || g.input_type === LBF.input) && (!LBF.set || gName(g) === LBF.set);
   });
 }
 // the filter bar, shared by By setup and Overall
 function lbBar(owners) {
-  var gs = (LB.data.groups || []).filter(function (g) { return LBF.demo || !g.demo; });
+  var demo = lbDemoShown(), gs = (LB.data.groups || []).filter(function (g) { return demo || !g.demo; });
   var uniq = function (f) { var o = []; gs.forEach(function (g) { var v = f(g); if (v && o.indexOf(v) < 0) o.push(v); }); return o.sort(); };
   var opts = function (vals) { return [["", "All"]].concat(vals.map(function (v) { return [v, v]; })); };
   var shown = lbGroups(), sids = [];
   shown.forEach(function (g) { (g.sessions || []).forEach(function (x) { if (sids.indexOf(x) < 0) sids.push(x); }); });
-  var people = gPeople(sids).length, any = LBF.owner || LBF.gpu || LBF.set || LBF.input || LBF.demo;
+  var people = gPeople(sids).length, any = LBF.owner || LBF.gpu || LBF.set || LBF.input;
   var count = !seesAll() && CP ? "Your sessions only, " + sids.length + " session" + (sids.length === 1 ? "" : "s")
     : shown.length + " setup" + (shown.length === 1 ? "" : "s") + ", " + sids.length + " session" + (sids.length === 1 ? "" : "s") + (showOwners() && people ? " from " + people + (people === 1 ? " person" : " people") : "");
   $("lb-fbar").innerHTML = (seesAll() ? fpill("lb-owner", "Sessions", ownerOpts(owners), LBF.owner, "") : "") +
     fpill("lb-gpu", "GPU", opts(uniq(function (g) { return g.gpu; })), LBF.gpu, "") +
     fpill("lb-set", "Data set", opts(uniq(gName)), LBF.set, "") +
     fpill("lb-input", "Input", opts(uniq(function (g) { return g.input_type; })), LBF.input, "") +
-    ftoggle("lb-demo", "Demo runs", LBF.demo) +
     (any ? '<button type="button" class="fclear" id="lb-clear">Clear filters</button>' : "") +
     '<span class="fcount" id="lb-count">' + esc(count) + '</span>';
   [["lb-owner", "owner", true], ["lb-gpu", "gpu"], ["lb-set", "set"], ["lb-input", "input"]].forEach(function (k) {
     var el = $(k[0]); if (!el) return;
     el.addEventListener("change", function () { LBF[k[1]] = this.value; if (k[2]) loadLeaderboard(); else lbRender(); });
   });
-  $("lb-demo").addEventListener("change", function () { LBF.demo = this.checked; lbRender(); });
   if ($("lb-clear")) $("lb-clear").addEventListener("click", function () {
     var reload = !!LBF.owner;
-    LBF.owner = LBF.gpu = LBF.set = LBF.input = ""; LBF.demo = false;
+    LBF.owner = LBF.gpu = LBF.set = LBF.input = "";
     if (reload) loadLeaderboard(); else lbRender();
   });
 }
@@ -442,12 +443,8 @@ function lbRender() {
   lbUrl();
 }
 function lbEmpty(host) {
-  var all = LB.data.groups || [], demoOnly = all.length && all.every(function (g) { return g.demo; }) && !LBF.demo;
-  if (demoOnly) {
-    host.innerHTML = '<div class="card empty" id="lb-demo-only"><p>Only demo runs so far. Demo runs are simulated, so they are hidden from the rankings.</p>' +
-      '<button type="button" class="btn" id="lb-show-demo">Show demo runs</button></div>';
-    $("lb-show-demo").addEventListener("click", function () { LBF.demo = true; lbRender(); });
-  } else if (!all.length) {
+  var all = LB.data.groups || [];
+  if (!all.length) {
     host.innerHTML = '<div class="card empty" id="lb-none"><p>' + (CP && !seesAll() ? "You have not finished a benchmark yet." : "No finished sessions yet.") +
       '</p><a class="btn primary" href="#/new">New benchmark</a></div>';
   } else {

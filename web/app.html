@@ -481,7 +481,9 @@
   .mini { display: inline-flex; gap: 2px; vertical-align: middle; margin-right: 4px; }
   .mini i { width: 6px; height: 14px; border-radius: 1px; background: var(--border-2); display: inline-block; }
   .mini i.f { background: var(--accent); }
-  .lpanel { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 20px 22px; min-width: 0; }
+  .lpanel { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 20px 22px; min-width: 0; margin: 0; }
+  .why-card.card { padding: 0; margin: 18px 0 0; background: var(--surface); }
+  .why-card .exp-bar { padding: 0 16px 14px; }
   .lpanel h2 { margin: 0; font-size: 24px; }
   .lpanel .sub { font-size: 13px; color: var(--muted); margin: 4px 0 0; }
   .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border-2); border-radius: 6px; overflow: hidden; margin-top: 14px; }
@@ -561,6 +563,29 @@
   }
   @keyframes ped-rise { from { transform: scaleY(.2); } to { transform: scaleY(1); } }
   @keyframes panel-in { from { opacity: .35; } to { opacity: 1; } }
+  .why-card { margin-top: 18px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .why-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; padding: 12px 16px; background: var(--surface-2); }
+  .why-h h3 { margin: 0; font-size: 16px; }
+  .why-h span { font-size: 12.5px; color: var(--muted); }
+  .why-lead { padding: 14px 16px 4px; font-size: 14px; line-height: 1.55; margin: 0; }
+  .why-lead b { color: var(--text); }
+  table.why { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  table.why th { font-size: 11px; text-align: right; padding: 8px 12px; border-bottom: 1px solid var(--border-2); white-space: nowrap; }
+  table.why th:first-child, table.why td:first-child { text-align: left; }
+  table.why th small { display: block; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted); font-size: 11px; }
+  table.why td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: right; font-size: 13.5px; vertical-align: middle; white-space: nowrap; }
+  table.why td .pts { display: block; font-family: var(--mono); font-weight: 700; font-size: 14px; }
+  table.why td .val { display: block; font-size: 11.5px; color: var(--muted); }
+  table.why td.hi { background: color-mix(in srgb, var(--cta) 26%, transparent); }
+  table.why td.sc { font-family: var(--mono); font-weight: 700; font-size: 15px; }
+  table.why th.wp { white-space: normal; min-width: 90px; }
+  .stack { display: flex; height: 12px; width: 100px; border-radius: 6px; overflow: hidden; background: var(--surface-2); margin-left: auto; }
+  .stack i { display: block; height: 100%; }
+  .stack i.s0, .legend3 i.s0 { background: #1E4BB8; } .stack i.s1, .legend3 i.s1 { background: #0F6E86; } .stack i.s2, .legend3 i.s2 { background: #7C97DA; }
+  .legend3 { display: flex; gap: 14px; justify-content: flex-end; font-size: 12px; color: var(--muted); padding: 10px 16px 12px; flex-wrap: wrap; }
+  .legend3 span { display: inline-flex; align-items: center; gap: 6px; } .legend3 i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .why-foot { font-size: 12.5px; color: var(--muted); padding: 0 16px 14px; margin: 0; }
+  @media (max-width: 640px) { table.why .wp { display: none; } }
   .vars-row { gap: 12px; align-items: flex-end; flex-wrap: wrap; padding-top: 12px; padding-bottom: 12px; }
   .vars-row .field { margin: 0; min-width: 0; flex: 1 1 220px; }
   .gpu-zoom { gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0 4px; }
@@ -1345,7 +1370,7 @@
         <li><a href="#/gpu">GPU &amp; Queue</a> (click the GPU status chip in the sidebar) shows the GPU server right now, with live utilisation, memory, power and temperature, the run on it with its progress, the runs waiting in order, scheduled re-runs coming up, what just finished, and where a new file would be prepared.</li>
         <li><a href="#/sessions">Sessions</a> lists every run. Search by text, filter by tag, open a session, add a note, or delete a finished session (with an account).</li>
         <li><a href="#/planner">Cost planner</a> projects each model's GPU time, cost and energy for a daily number of alerts, from its latest real benchmark on that GPU. No GPU needed.</li>
-        <li><a href="#/leaderboard">Leaderboard</a> ranks and compares models, in three tabs. <b>By setup</b> ranks every model on each setup (the same flows, GPU and settings). <a href="#/compare"><b>Compare models</b></a> lets you choose one setup and as many models on it as you like, from any sessions, and puts them side by side with a ranking and a bar per model. Sessions on other flows, GPUs or settings are listed with the reason they are left out. <b>Overall</b> counts how often each model ranks first across setups.</li>
+        <li><a href="#/leaderboard">Leaderboard</a> ranks models, in three tabs. <b>By setup</b> lists the setups (the same flows, GPU and settings) and ranks the models of the one you pick. Under the ranking, <b>Why this order</b> shows where each model earned its score: points for speed, GPU memory and tokens. <b>Overall</b> counts how often each model ranks first across setups. <b>Repeatability</b> follows one model on one setup over time.</li>
         <li><a href="#/trends">Repeatability</a> (a tab of Leaderboard) checks that the same model on the same setup gives the same result each time it runs. Each model gets a verdict of Stable, Varies or Moved after 3 runs. To collect such runs automatically, open a finished session and use <b>Repeat on a schedule</b> on its Overview tab. In short, Compare looks at different models on the same setup at one moment, and Repeatability looks at the same model on the same setup over time.</li>
       </ul>
     </div>
@@ -1625,7 +1650,7 @@
       </div>
       <div class="actions" style="margin-top:0">
         <a class="btn" id="session-again" href="#/new" hidden title="A new session on the same data set, with the same models, pipeline and options">Run again</a>
-        <a class="btn" id="session-compare" href="#/compare">Compare</a>
+        <a class="btn" id="session-compare" href="#/compare">On the Leaderboard</a>
         <a class="btn primary" id="svc-dl-pdf" href="#" download>Download PDF</a>
       </div>
     </div>
@@ -1671,30 +1696,15 @@
   <!-- LEADERBOARD -->
   <section id="view-leaderboard" class="view" hidden aria-labelledby="h-lb">
     <div class="page-head"><div><h1 id="h-lb">Leaderboard</h1>
-      <p id="lb-lede">Rank and compare models. Models are only ranked and compared against others on the same flows, GPU and settings.</p></div></div>
+      <p id="lb-lede">Rank models. Models are only ranked and compared against others on the same flows, GPU and settings.</p></div></div>
     <div class="tabs" role="tablist" aria-label="Leaderboard views" id="lb-tabs">
       <button type="button" role="tab" id="lbtab-setup" data-lbtab="setup" aria-controls="lb-setup-panel" aria-selected="true">By setup</button>
-      <button type="button" role="tab" id="lbtab-compare" data-lbtab="compare" aria-controls="lb-compare-panel" aria-selected="false" tabindex="-1">Compare models</button>
       <button type="button" role="tab" id="lbtab-overall" data-lbtab="overall" aria-controls="lb-overall-panel" aria-selected="false" tabindex="-1">Overall</button>
       <a role="tab" id="lbtab-repeat" href="#/trends" aria-selected="false" tabindex="-1">Repeatability</a>
     </div>
     <div class="fbar" id="lb-fbar" role="group" aria-label="Filter the leaderboard"></div>
     <div id="lb-setup-panel" role="tabpanel" aria-labelledby="lbtab-setup">
       <div id="lb-groups"></div>
-    </div>
-    <div id="lb-compare-panel" role="tabpanel" aria-labelledby="lbtab-compare" hidden>
-      <p class="small" id="cmp-intro" style="margin-top:0">Pick a setup, then any number of models measured on it, from any sessions. The flows, GPU and settings are locked, so the only difference is the model.</p>
-      <p class="small muted cmp-vs-rep" id="cmp-distinct"><b>Compare</b> = different models, same setup, one moment. <a href="#/trends"><b>Repeatability</b></a> = the same model, same setup, over time.</p>
-    <div class="vars" id="cmp-vars" role="group" aria-label="Filter the setups"></div>
-      <form class="card" id="cmp-form" novalidate>
-        <div class="field" style="max-width:720px"><label for="cmp-setup"><span class="step-n">1</span> Setup <span class="hint">(data set, GPU and settings)</span></label><select id="cmp-setup" class="wide"></select></div>
-        <div id="cmp-locked" aria-live="polite"></div>
-        <div id="cmp-cands" aria-live="polite"></div>
-        <div class="row"><button type="submit" class="btn primary" id="cmp-go" disabled>Compare</button></div>
-        <div id="cmp-error" class="notice error" role="alert" hidden></div>
-      </form>
-      <div id="cmp-result"></div>
-      <div id="cmp-excluded"></div>
     </div>
     <div id="lb-overall-panel" role="tabpanel" aria-labelledby="lbtab-overall" hidden>
       <div id="lb-overall"></div>
@@ -1731,13 +1741,12 @@
   <section id="view-trends" class="view" hidden aria-labelledby="h-trends">
     <div class="tabs" role="tablist" aria-label="Leaderboard views" id="tr-lb-tabs">
       <a role="tab" href="#/leaderboard" aria-selected="false" tabindex="-1">By setup</a>
-      <a role="tab" href="#/compare" aria-selected="false" tabindex="-1">Compare models</a>
       <a role="tab" href="#/leaderboard?tab=overall" aria-selected="false" tabindex="-1">Overall</a>
       <a role="tab" href="#/trends" aria-selected="true">Repeatability</a>
     </div>
     <div class="page-head"><div><h1 id="h-trends">Repeatability</h1>
       <p id="tr-purpose">Run the same model on the same setup more than once and see if results stay the same. Stable results can be trusted. A result that moves may point to a problem such as a slower rented GPU, a driver change or a model update.</p>
-      <p class="small muted cmp-vs-rep" id="tr-distinct"><a href="#/compare"><b>Compare</b></a> = different models, same setup, one moment. <b>Repeatability</b> = the same model, same setup, over time.</p></div></div>
+      <p class="small muted cmp-vs-rep" id="tr-distinct"><a href="#/leaderboard"><b>By setup</b></a> = different models, same setup, one moment. <b>Repeatability</b> = the same model, same setup, over time.</p></div></div>
     <div class="vars" id="tr-vars" role="group" aria-label="Filter the series"></div>
     <div class="row" style="margin:0 0 12px;gap:16px;flex-wrap:wrap;align-items:center">
       <label class="check" style="margin:0"><input type="checkbox" id="tr-demo"> Include demo sessions</label>

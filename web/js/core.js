@@ -410,8 +410,10 @@ function route() {
   if ((v === "prepared" || v === "run") && p.length === 3) { location.replace("#/new/models?set=" + enc(p[1] + "/" + p[2])); return; }
   if (v === "job" && p[1]) { legacyJob(p[1]); return; }
   if (CP && !AUTH.user) { show("login"); showLogin(); return; }
-  if (v === "compare") {                         // Compare lives in Leaderboard › Compare models
-    show("leaderboard"); lbTab("compare", true); loadCompare(r.q); return;
+  if (v === "compare") {                         // Compare models was folded into By setup: open that session's setup
+    LB.focus = r.q.a || String(r.q.sessions || "").split(",")[0] || null;
+    if (LB.focus) { LBF.gpu = LBF.set = LBF.input = ""; LBF.demo = true; }
+    location.replace("#/leaderboard?tab=setup"); return;
   }
   if (VIEWS.indexOf(v) < 0 || v === "login" || (v === "admin" && !isAdmin()) || (v === "profile" && !CP)) v = "home";
   show(v);

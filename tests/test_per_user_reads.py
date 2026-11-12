@@ -51,3 +51,18 @@ def test_gpu_and_queue_shows_another_users_run_without_its_details(app):  # noqa
     assert bob["running"] == [{**bob["running"][0], "job_id": None, "other": True, "models": None, "owner": None, "run_name": None}]
     alice = c.get("/api/gpu", headers=auth(tok("read", sub="u1"))).get_json()
     assert alice["running"][0]["job_id"] == jid and alice["running"][0]["owner"] == "alice"
+
+
+def test_points_per_measure_add_up_to_the_stored_score():
+    """Leaderboard › Why this order: each session stores where its SAW points come from."""
+    import json
+    from pathlib import Path
+    from agentmeter.server.sessions import model_metrics
+    res = json.loads((Path(__file__).parent / "fixtures" / "golden_session" / "golden_session_results.json").read_text())
+    rows = model_metrics(res)
+    assert rows and all(set(r["saw_eff_points"]) == {"latency", "vram", "tokens"} for r in rows.values())
+    for r in rows.values():
+        assert abs(sum(r["saw_eff_points"].values()) - r["saw_eff_composite_100"]) <= 0.15
+        assert abs(sum(r["saw_eff_weights"].values()) - 100) < 0.5
+    res["phase8"]["normalised"] = []                       # nothing to split: no points, never invented
+    assert all("saw_eff_points" not in r for r in model_metrics(res).values())

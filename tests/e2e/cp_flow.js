@@ -258,8 +258,9 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.waitForFunction(() => /^#\/session\//.test(location.hash), null, { timeout: 180000 });
     const job2 = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[2]);
     await p.waitForSelector('#session-body:not([hidden])', { timeout: 60000 });
-    await p.goto(APP + `/app.html#/compare?a=${job1}&b=${job2}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
-    log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Compare: like-for-like (same prepared set, same settings)');
+    await p.goto(APP + `/app.html#/compare?a=${job1}`); await p.waitForSelector('#lb-table-0', { timeout: 30000 });
+    log(/^#\/leaderboard/.test(await p.evaluate(() => location.hash)) && /2 sessions/.test(await p.textContent('#lb-panel .sub')),
+        'an old Compare link opens the Leaderboard on that session\'s setup (both sessions, same prepared set and settings)');
     await lbOpen(p);
     log(await p.$$eval('#lb-table-0 tbody tr', r => r.length) >= 2, 'Leaderboard ranks the models');
     log(/Your sessions only/.test(await p.textContent('#lb-count')) && !(await p.$('#lb-owner')), 'Leaderboard for a user: their own sessions, no owner choice');
@@ -308,7 +309,6 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(/GPU offline/.test(await p.textContent('#svc-backend-badge')), 'GPU off: the badge says GPU offline');
     await p.goto(APP + '/app.html#/session/' + job1); await p.waitForSelector('#session-body:not([hidden])', { timeout: 30000 });
     log(true, 'GPU off: a session opens with all its tabs');
-    await p.goto(APP + `/app.html#/compare?a=${job1}&b=${job2}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
     await lbOpen(p);
     log(true, 'GPU off: Compare and Leaderboard work');
     await p.goto(APP + '/app.html#/gpu'); await p.waitForSelector('#gq-state');
@@ -369,8 +369,6 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.waitForSelector('#session-body:not([hidden])', { timeout: 60000 });
     const s1 = await workerJson('/api/sessions/' + job1, offTok), s3 = await workerJson('/api/sessions/' + job3, offTok);
     log(s1.identity.prepared_set_sha256 === s3.identity.prepared_set_sha256, 'the restored set has the same prepared-set hash as on the first rental');
-    await p.goto(APP + `/app.html#/compare?a=${job1}&b=${job3}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
-    log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Compare: rental-1 session vs rental-2 session on the restored set is like-for-like');
     await lbOpen(p);
     log((await p.$$('#lb-slist .sitem')).length === 1, 'Leaderboard keeps all three sessions in one setup');
 

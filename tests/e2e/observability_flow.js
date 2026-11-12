@@ -111,18 +111,11 @@ async function dragAcross(p, sel, from, to) {
     await p.waitForSelector('#trend-0', { state: 'attached' });
     log(/your p95 limit/.test(await p.textContent('#trend-0')), 'the latency chart draws your p95 limit');
 
-    // variables: one Model / Pipeline filter for Compare and Trends
+    // variables: the Model filter on Repeatability
     const models = await p.evaluate(() => fetch('/api/jobs?limit=20').then(r => r.json()).then(d => d.jobs.find(j => j.kind !== 'prepare').models));
-    await p.goto(ORIGIN + '/app.html#/compare'); await p.waitForSelector('#cmp-vars-model');
-    const opts = () => p.$$eval('#cmp-setup option', x => x.length - 1);
-    const all = await opts();
-    await p.selectOption('#cmp-vars-model', models[0]);
-    const one = await opts();
-    log(all >= 1 && one === all, `Compare: filtering by a model in the session keeps it (${one} of ${all})`);
-    await p.selectOption('#cmp-vars-pipeline', 'Default (4 agents)');
-    log(await opts() === all, 'Compare: the default pipeline matches it too');
     await p.goto(ORIGIN + '/app.html#/trends?demo=1'); await p.waitForSelector('#tr-vars-model');      // mock runs are demo sessions
-    log(await p.inputValue('#tr-vars-model') === models[0], 'Trends uses the same Model filter');
+    await p.selectOption('#tr-vars-model', models[0]);
+    log(await p.inputValue('#tr-vars-model') === models[0], 'Repeatability: a Model filter');
     await p.waitForSelector('#tr-summary-table');
     const series = await p.$$eval('#tr-summary-table tbody tr td:first-child', x => x.map(o => o.textContent));
     log(series.length >= 1 && series.every(t => t.indexOf(models[0].split('/').pop()) >= 0), `Trends: only that model's series (${series.length})`);

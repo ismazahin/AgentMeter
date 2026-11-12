@@ -277,53 +277,14 @@ async function frameOf(p) {
   const job3 = await pickAndRun(p, [1, 3]);
   log(true, 'reused prepared set ' + csvSet + ' -> session ' + job3);
 
-  // 8. Compare: setup first, then 2-4 models measured on it; only the model may differ
-  await p.click('#session-compare'); await p.waitForSelector('#cmp-locked-box');
-  log(await p.isVisible('#view-leaderboard') && await p.getAttribute('#lbtab-compare', 'aria-selected') === 'true' &&
-      await p.getAttribute('.mainnav a[data-nav="leaderboard"]', 'aria-current') === 'page', 'Compare opens as Leaderboard › Compare models');
-  const lockTxt = await p.textContent('#cmp-locked-box');
-  log(/Locked conditions/.test(lockTxt) && /Data set/.test(lockTxt) && /Flows/.test(lockTxt) && /GPU/.test(lockTxt) && /Pipeline/.test(lockTxt) && /4-bit NF4/.test(lockTxt) &&
-      /Only the LLM model differs/.test(lockTxt) && (await p.$$('#cmp-locked-box .lk-ok')).length === 5, 'Compare: the locked conditions are listed, each ticked; only the model differs');
-  log(/Compare.*different models, same setup, one moment.*Repeatability.*same model, same setup, over time/.test(await p.textContent('#cmp-distinct')), 'Compare: says how it differs from Repeatability');
-  const setupOpt = await p.$eval('#cmp-setup', s => s.options[s.selectedIndex].textContent);
-  log(/2 models/.test(setupOpt), 'Compare is preselected on the session\'s setup (' + setupOpt + ')');
-  const offered = await p.$$eval('#cmp-list input', xs => xs.map(x => x.value));
-  const job3models = await p.evaluate(id => fetch('/api/jobs/' + id).then(r => r.json()).then(j => j.models), job3);
-  log(offered.length === 2 && job3models.every(m => offered.includes(m)), 'Compare: each model of the setup is offered once, though it was measured in 2 sessions');
-  log(/2 runs/.test(await p.textContent('#cmp-list')) && !!(await p.$('#cmp-list a[data-rep-link]')), 'Compare: a model measured twice points to Repeatability');
-  await p.waitForSelector('#cmp-excluded-card');
-  const exTxt = await p.textContent('#cmp-excluded-table');
-  log(exTxt.includes(job2.slice(-8)) || /different flows/.test(exTxt), 'Compare: the PCAP session is listed as left out');
-  log(/different flows/.test(exTxt), 'Compare: with the reason (different flows)');
-  log((await p.$$('#cmp-list input:checked')).length === offered.length, 'Compare: every model of the setup is ticked by default (no upper limit)');
-  await p.click('#cmp-clear'); log(await p.isDisabled('#cmp-go'), 'Compare: Clear unticks every model');
-  await p.click('#cmp-all'); log(/Compare 2 models/.test(await p.textContent('#cmp-go')), 'Compare: Select all; the button counts the models');
-  await p.uncheck('#cmp-list input >> nth=1');
-  log(await p.isDisabled('#cmp-go'), 'Compare: one model is not enough');
-  await p.check('#cmp-list input >> nth=1');
-  await p.click('#cmp-go');
-  await p.waitForSelector('#cmp-validity');
-  log(/Like-for-like comparison/.test(await p.textContent('#cmp-validity')) && /2 models/.test(await p.textContent('#cmp-validity')) && /[Oo]nly the model differs/.test(await p.textContent('#cmp-validity')),
-      'Compare: like-for-like, 2 models, only the model differs');
-  log((await p.$$('#cmp-table thead th')).length === 3 && (await p.$$('#cmp-table tbody tr')).length >= 15, 'Compare: every metric (+ SAW, accuracy), one column per model (not per run)');
-  log(/latest of 2 runs/.test(await p.textContent('#cmp-table thead')), 'Compare: a model run twice is one column, marked "latest of 2 runs"');
-  const rank = await p.$$eval('#cmp-rank-table tbody tr', r => r.map(x => x.children[0].textContent));
-  log(rank.join(',') === '1,2' && !!(await p.$('#cmp-rank-table td.best')), 'Compare: a ranking with one row per model (' + rank + '), best marked');
-  log((await p.$$('#cmp-bars .hbar')).length === 2, 'Compare: a bar per model for the chosen measure');
-  await p.selectOption('#cmp-bar-metric', 'wh_per_flow'); await p.waitForSelector('#cmp-bars-none');
-  log(true, 'Compare: a measure the demo never records says so');
-  log((await p.$$('#cmp-tiles .tile')).length === 4, 'Compare › Overview: who is fastest / least VRAM / fewest tokens / top SAW');
-  log(!(await p.$('#cmp-mode')), 'Compare: no per-run mode (the same model twice belongs to Repeatability)');
-  await p.click('#ctab-performance');
-  log(!!(await p.$('#cmp-performance-table')), 'Compare › Performance');
-  log(!(await p.$('#ctab-accuracy')) && /SAW \(efficiency\)|efficiency only/i.test(await p.textContent('#cmp-result')), 'Compare: no accuracy tab; the SAW shown is efficiency-only');
-  await p.screenshot({ path: S + '/09-compare-like.png', fullPage: true });
-  await p.goto(BASE + '/app.html#/compare?a=' + job2); await p.waitForSelector('#cmp-none');
-  log(/Only one model/.test(await p.textContent('#cmp-none')) && /Benchmark these flows again/.test(await p.textContent('#cmp-none')),
-      'Compare: a setup with one model says so and offers to benchmark its flows again');
-  await p.goto(BASE + '/app.html#/compare?a=' + job1 + '&b=' + job2); await p.waitForSelector('#cmp-error:not([hidden])');
-  log(/same flows, GPU and settings/.test(await p.textContent('#cmp-error')), 'an old link to two different setups is refused (not merged)');
-  await p.screenshot({ path: S + '/10-compare-none.png', fullPage: true });
+  // 8. A session's "On the Leaderboard" opens By setup on that session's setup (Compare models was folded in)
+  await p.click('#session-compare'); await p.waitForSelector('#lb-demo-only, #lb-table-0');
+  if (await p.$('#lb-show-demo')) await p.click('#lb-show-demo');
+  await p.waitForSelector('#lb-table-0');
+  log(await p.isVisible('#view-leaderboard') && await p.getAttribute('.mainnav a[data-nav="leaderboard"]', 'aria-current') === 'page' &&
+      /2 sessions/.test(await p.textContent('#lb-panel .sub')), 'a session opens its setup on the Leaderboard (the CSV setup, 2 sessions)');
+  log(!!(await p.$('#lb-why')) && /Speed/.test(await p.textContent('#lb-why-table thead')), 'Why this order explains the ranking');
+  await p.screenshot({ path: S + '/09-leaderboard-why.png', fullPage: true });
 
   // 9. Leaderboard (By setup: setup list + ranking panel; Overall: podium + model list). Demo runs
   // are hidden by default; this server is a demo, so the page offers to show them.
@@ -338,19 +299,13 @@ async function frameOf(p) {
   await p.waitForFunction(() => /not ranked/.test(document.querySelector('#lb-table-0 tbody')?.textContent || ''));
   log(true, 'Leaderboard: rank by VRAM on mock data -> not ranked (no VRAM reading)');
   await p.click('#lb-sort [data-sort="latency"]'); await p.waitForFunction(() => /Latency/.test(document.querySelector('#lb-table-0 thead')?.textContent || ''));
-  const cmpHref = await p.getAttribute('#lb-panel .lb-compare', 'href');
-  log(/^#\/compare\?sessions=job_[^,]+,job_/.test(cmpHref || ''), 'Leaderboard: a setup with 2 sessions links to Compare (' + cmpHref + ')');
   await p.screenshot({ path: S + '/11-leaderboard.png', fullPage: true });
   await p.click('#lbtab-overall'); await p.waitForSelector('#lb-podium');
   log(await p.isHidden('#lb-setup-panel') && (await p.$$('#lb-models .mrow')).length === 2, 'Leaderboard Overall: a podium and every model with its wins');
   log(/Who wins most often/.test(await p.textContent('#lb-podium')) && /SAW score \(efficiency\)/.test(await p.textContent('#lb-podium')), 'Leaderboard Overall: wins are counted on efficiency');
   await p.screenshot({ path: S + '/11b-leaderboard-overall.png', fullPage: true });
-  await p.click('#lbtab-compare'); await p.waitForSelector('#lb-compare-panel:not([hidden]) #cmp-setup');
-  log(/^#\/compare/.test(await p.evaluate(() => location.hash)) && await p.isHidden('#lb-setup-panel'), 'Leaderboard › Compare models: its own tab and address');
   await p.click('#lbtab-setup'); await p.waitForSelector('#lb-setup-panel:not([hidden]) #lb-table-0');
-  log(/^#\/leaderboard/.test(await p.evaluate(() => location.hash)), 'back to By setup');
-  await p.click('#lb-panel .lb-compare'); await p.waitForSelector('#cmp-validity');
-  log(/Like-for-like/.test(await p.textContent('#cmp-validity')), '"Compare these models" opens that setup in Compare models');
+  log(/^#\/leaderboard/.test(await p.evaluate(() => location.hash)) && !(await p.$('#lbtab-compare')), 'back to By setup; no Compare models tab');
 
   // Repeatability (#/trends): the same model on one setup over time; demo sessions only when asked
   await p.click('.mainnav a[data-nav="leaderboard"]'); await p.click('#lbtab-repeat'); await p.waitForSelector('#view-trends:not([hidden])');
@@ -420,7 +375,7 @@ async function frameOf(p) {
   ph.on('pageerror', e => errs.push('phone: ' + e.message));
   for (const [hash, sel] of [['#/', '#home-latest:not([hidden])'], ['#/new', '#svc-upload-form:not([hidden])'],
                              ['#/session/' + job1, '#session-body:not([hidden])'], ['#/leaderboard', '#lb-slist'], ['#/trends?demo=1', '#tr-summary-card'],
-                             ['#/compare?sessions=' + job1 + ',' + job3, '#cmp-validity']]) {
+                             ['#/compare?sessions=' + job1 + ',' + job3, '#lb-table-0']]) {
     await ph.goto(BASE + '/app.html' + hash); await ph.waitForSelector(sel, { timeout: 20000 });
     const over = await ph.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     log(over <= 0, 'phone 375px: no horizontal page scroll on ' + hash + ' (' + over + ')');

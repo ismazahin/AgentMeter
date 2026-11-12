@@ -75,25 +75,12 @@ async function grab(p, click) {
     await p.waitForSelector('.toast', { timeout: 120000 });
     log(/Benchmark finished/.test(await p.textContent('.toast')) && !!(await p.$(`.toast a[href="#/session/${j3}"]`)), 'when it finishes, a message links to the results (while on another page)');
 
-    // thesis exports: Leaderboard › Compare models
-    await p.goto(BASE + '/app.html#/compare?a=' + j1); await p.waitForSelector('#cmp-list input');
-    await p.click('#cmp-go'); await p.waitForSelector('#cmp-rank-table');
-    const rankCard = await p.$('#cmp-rank-table >> xpath=ancestor::div[contains(@class,"card")]');
-    const tex = fs.readFileSync(await grab(p, () => rankCard.$('[data-exp="latex"]').then(x => x.click())), 'utf8');
-    log(/\\begin\{tabular\}/.test(tex) && /\\caption\{Ranking/.test(tex) && /\\toprule/.test(tex) && tex.split('\\\\').length > 4, 'LaTeX: a booktabs table with its caption');
-    const barsCard = await p.$('#cmp-bars-card');
-    const svg = fs.readFileSync(await grab(p, () => barsCard.$('[data-exp="svg"]').then(x => x.click())), 'utf8');
-    log(/^<svg/.test(svg) && /Side by side: Latency \/ flow — AgentMeter/.test(svg) && (svg.match(/<rect/g) || []).length >= 4, 'SVG: the bar chart as a vector figure with a caption');
-    const png = await grab(p, () => barsCard.$('[data-exp="png"]').then(x => x.click()));
-    log(fs.readFileSync(png).subarray(1, 4).toString() === 'PNG', 'PNG: the same figure as a picture');
-
-    // every run: mean ± 95% CI and "is the difference real?"
-    await p.check('#cmp-basis input[value="all"]'); await p.waitForSelector('#cmp-diff-table');
-    const diff = await p.$$eval('#cmp-diff-table tbody tr', r => r.map(x => x.textContent));
-    log(/mean of 2 runs/.test(await p.textContent('#cmp-rank-table')) && /±/.test(await p.textContent('#cmp-rank-table')), 'Compare › Every run: models run twice show mean ± 95% CI');
-    log(diff.length === 4 && diff.some(t => /best/.test(t)) && diff.some(t => /too few runs/.test(t)), 'Compare: "Are the differences real?" — best, and too few runs for the models run once');
-    await p.check('#cmp-basis input[value="latest"]'); await p.waitForSelector('#cmp-rank-table');
-    log(!(await p.$('#cmp-diff-table')) || true, 'Compare: back to the latest run');
+    // thesis exports: the Leaderboard ranking (an old Compare link opens By setup on that session's setup)
+    await p.goto(BASE + '/app.html#/compare?a=' + j1); await p.waitForSelector('#lb-table-0');
+    log(/^#\/leaderboard/.test(await p.evaluate(() => location.hash)), 'an old Compare link opens the Leaderboard');
+    const tex = fs.readFileSync(await grab(p, () => p.$('#lb-panel > .exp-bar [data-exp="latex"]').then(x => x.click())), 'utf8');
+    log(/\\begin\{tabular\}/.test(tex) && /\\toprule/.test(tex) && tex.split('\\\\').length > 4, 'LaTeX: the ranking as a booktabs table');
+    log(!!(await p.$('#lb-why-table')) && /Speed/.test(await p.textContent('#lb-why-table thead')), 'Why this order: points per measure under the ranking');
 
     // Repeatability exports too
     await p.goto(BASE + '/app.html#/trends?demo=1'); await p.waitForSelector('#tr-summary-table');
@@ -135,8 +122,6 @@ async function grab(p, click) {
     await p.keyboard.press('Control+k'); await p.keyboard.press('Escape');
     log(await p.isHidden('#gs'), 'Esc closes the search');
     log(/In short,/.test(await p.textContent('#tr-plain')), 'Repeatability: a plain-language summary first');
-    await p.goto(BASE + '/app.html#/compare?a=' + j1); await p.waitForSelector('#cmp-list input'); await p.click('#cmp-go'); await p.waitForSelector('#cmp-plain');
-    log(/In short,/.test(await p.textContent('#cmp-plain')), 'Compare: a plain-language summary of the result');
 
     // Methodology
     await p.goto(BASE + '/app.html#/help'); await p.waitForSelector('#help-method');

@@ -56,7 +56,17 @@
      "saw_composite_100": 47.58,
      "saw_tier": "Critical",
      "saw_eff_composite_100": 62.63,
-     "valid_rate": null
+     "valid_rate": null,
+     "saw_eff_points": {
+      "latency": 41.67,
+      "vram": 0.0,
+      "tokens": 20.96
+     },
+     "saw_eff_weights": {
+      "latency": 41.7,
+      "vram": 33.3,
+      "tokens": 25.0
+     }
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -187,7 +197,17 @@
      "saw_composite_100": 47.58,
      "saw_tier": "Critical",
      "saw_eff_composite_100": 62.63,
-     "valid_rate": null
+     "valid_rate": null,
+     "saw_eff_points": {
+      "latency": 41.67,
+      "vram": 0.0,
+      "tokens": 20.96
+     },
+     "saw_eff_weights": {
+      "latency": 41.7,
+      "vram": 33.3,
+      "tokens": 25.0
+     }
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -318,7 +338,17 @@
      "saw_composite_100": 62.63,
      "saw_tier": "Degraded",
      "saw_eff_composite_100": 62.63,
-     "valid_rate": null
+     "valid_rate": null,
+     "saw_eff_points": {
+      "latency": 41.67,
+      "vram": 0.0,
+      "tokens": 20.96
+     },
+     "saw_eff_weights": {
+      "latency": 41.7,
+      "vram": 33.3,
+      "tokens": 25.0
+     }
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -448,7 +478,17 @@
      "saw_composite_100": 47.58,
      "saw_tier": "Critical",
      "saw_eff_composite_100": 62.63,
-     "valid_rate": null
+     "valid_rate": null,
+     "saw_eff_points": {
+      "latency": 41.67,
+      "vram": 0.0,
+      "tokens": 20.96
+     },
+     "saw_eff_weights": {
+      "latency": 41.7,
+      "vram": 33.3,
+      "tokens": 25.0
+     }
     }
    },
    "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -547,7 +587,17 @@
      "saw_composite_100": 47.58,
      "saw_tier": "Critical",
      "saw_eff_composite_100": 62.63,
-     "valid_rate": null
+     "valid_rate": null,
+     "saw_eff_points": {
+      "latency": 41.67,
+      "vram": 0.0,
+      "tokens": 20.96
+     },
+     "saw_eff_weights": {
+      "latency": 41.7,
+      "vram": 33.3,
+      "tokens": 25.0
+     }
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -678,7 +728,17 @@
      "saw_composite_100": 47.58,
      "saw_tier": "Critical",
      "saw_eff_composite_100": 62.63,
-     "valid_rate": null
+     "valid_rate": null,
+     "saw_eff_points": {
+      "latency": 41.67,
+      "vram": 0.0,
+      "tokens": 20.96
+     },
+     "saw_eff_weights": {
+      "latency": 41.7,
+      "vram": 33.3,
+      "tokens": 25.0
+     }
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -798,7 +858,17 @@
      "saw_composite_100": 47.58,
      "saw_tier": "Critical",
      "saw_eff_composite_100": 62.63,
-     "valid_rate": null
+     "valid_rate": null,
+     "saw_eff_points": {
+      "latency": 41.67,
+      "vram": 0.0,
+      "tokens": 20.96
+     },
+     "saw_eff_weights": {
+      "latency": 41.7,
+      "vram": 33.3,
+      "tokens": 25.0
+     }
     },
     "microsoft/Phi-3-mini-4k-instruct": {
      "n_flows": 10,
@@ -935,7 +1005,17 @@
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
        "saw_eff_composite_100": 62.63,
-       "valid_rate": null
+       "valid_rate": null,
+       "saw_eff_points": {
+        "latency": 41.67,
+        "vram": 0.0,
+        "tokens": 20.96
+       },
+       "saw_eff_weights": {
+        "latency": 41.7,
+        "vram": 33.3,
+        "tokens": 25.0
+       }
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1038,7 +1118,17 @@
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
        "saw_eff_composite_100": 62.63,
-       "valid_rate": null
+       "valid_rate": null,
+       "saw_eff_points": {
+        "latency": 41.67,
+        "vram": 0.0,
+        "tokens": 20.96
+       },
+       "saw_eff_weights": {
+        "latency": 41.7,
+        "vram": 33.3,
+        "tokens": 25.0
+       }
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1467,7 +1557,17 @@
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
        "saw_eff_composite_100": 62.63,
-       "valid_rate": null
+       "valid_rate": null,
+       "saw_eff_points": {
+        "latency": 41.67,
+        "vram": 0.0,
+        "tokens": 20.96
+       },
+       "saw_eff_weights": {
+        "latency": 41.7,
+        "vram": 33.3,
+        "tokens": 25.0
+       }
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1570,7 +1670,17 @@
        "saw_composite_100": 62.63,
        "saw_tier": "Degraded",
        "saw_eff_composite_100": 62.63,
-       "valid_rate": null
+       "valid_rate": null,
+       "saw_eff_points": {
+        "latency": 41.67,
+        "vram": 0.0,
+        "tokens": 20.96
+       },
+       "saw_eff_weights": {
+        "latency": 41.7,
+        "vram": 33.3,
+        "tokens": 25.0
+       }
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -1989,7 +2099,17 @@
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
        "saw_eff_composite_100": 62.63,
-       "valid_rate": null
+       "valid_rate": null,
+       "saw_eff_points": {
+        "latency": 41.67,
+        "vram": 0.0,
+        "tokens": 20.96
+       },
+       "saw_eff_weights": {
+        "latency": 41.7,
+        "vram": 33.3,
+        "tokens": 25.0
+       }
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2091,7 +2211,17 @@
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
        "saw_eff_composite_100": 62.63,
-       "valid_rate": null
+       "valid_rate": null,
+       "saw_eff_points": {
+        "latency": 41.67,
+        "vram": 0.0,
+        "tokens": 20.96
+       },
+       "saw_eff_weights": {
+        "latency": 41.7,
+        "vram": 33.3,
+        "tokens": 25.0
+       }
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -2472,7 +2602,17 @@
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
        "saw_eff_composite_100": 62.63,
-       "valid_rate": null
+       "valid_rate": null,
+       "saw_eff_points": {
+        "latency": 41.67,
+        "vram": 0.0,
+        "tokens": 20.96
+       },
+       "saw_eff_weights": {
+        "latency": 41.7,
+        "vram": 33.3,
+        "tokens": 25.0
+       }
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -2575,7 +2715,17 @@
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
        "saw_eff_composite_100": 62.63,
-       "valid_rate": null
+       "valid_rate": null,
+       "saw_eff_points": {
+        "latency": 41.67,
+        "vram": 0.0,
+        "tokens": 20.96
+       },
+       "saw_eff_weights": {
+        "latency": 41.7,
+        "vram": 33.3,
+        "tokens": 25.0
+       }
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -3010,7 +3160,17 @@
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
        "saw_eff_composite_100": 62.63,
-       "valid_rate": null
+       "valid_rate": null,
+       "saw_eff_points": {
+        "latency": 41.67,
+        "vram": 0.0,
+        "tokens": 20.96
+       },
+       "saw_eff_weights": {
+        "latency": 41.7,
+        "vram": 33.3,
+        "tokens": 25.0
+       }
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -3113,7 +3273,17 @@
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
        "saw_eff_composite_100": 62.63,
-       "valid_rate": null
+       "valid_rate": null,
+       "saw_eff_points": {
+        "latency": 41.67,
+        "vram": 0.0,
+        "tokens": 20.96
+       },
+       "saw_eff_weights": {
+        "latency": 41.7,
+        "vram": 33.3,
+        "tokens": 25.0
+       }
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -3550,7 +3720,17 @@
        "saw_composite_100": 62.63,
        "saw_tier": "Degraded",
        "saw_eff_composite_100": 62.63,
-       "valid_rate": null
+       "valid_rate": null,
+       "saw_eff_points": {
+        "latency": 41.67,
+        "vram": 0.0,
+        "tokens": 20.96
+       },
+       "saw_eff_weights": {
+        "latency": 41.7,
+        "vram": 33.3,
+        "tokens": 25.0
+       }
       },
       "microsoft/Phi-3-mini-4k-instruct": {
        "n_flows": 10,
@@ -3652,7 +3832,17 @@
        "saw_composite_100": 47.58,
        "saw_tier": "Critical",
        "saw_eff_composite_100": 62.63,
-       "valid_rate": null
+       "valid_rate": null,
+       "saw_eff_points": {
+        "latency": 41.67,
+        "vram": 0.0,
+        "tokens": 20.96
+       },
+       "saw_eff_weights": {
+        "latency": 41.7,
+        "vram": 33.3,
+        "tokens": 25.0
+       }
       }
      },
      "prepared_set_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

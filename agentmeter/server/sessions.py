@@ -108,8 +108,28 @@ def model_metrics(res: dict[str, Any]) -> dict[str, dict[str, Any]]:
                "saw_tier": (pm.get("saw") or {}).get("tier"),
                "saw_eff_composite_100": (pm.get("saw_efficiency_only") or {}).get("composite_100"),
                "valid_rate": (valid.get(m) or {}).get("valid_rate")}
+        row.update(_saw_points(res, m, row["saw_eff_composite_100"]))
         out[m] = row
     return out
+
+
+_SAW_PARTS = ("latency", "vram", "tokens")
+
+
+def _saw_points(res: dict[str, Any], model: str, composite: Optional[float]) -> dict[str, Any]:
+    """Where the efficiency SAW score's points come from (Leaderboard › Why this order): per measure,
+    weight x normalised value x 100, from the stored results (the same targets, weights and maths
+    the score was computed with). Kept only when the three add up to the stored score."""
+    p8 = res.get("phase8") or {}
+    w = ((res.get("phase8_efficiency_only") or {}).get("weights") or {})
+    bare = lambda x: str(x or "").removeprefix("mock:")                       # noqa: E731
+    norm = next((n for n in p8.get("normalised") or [] if bare(n.get("model")) == bare(model)), None)
+    if composite is None or not norm or any(w.get(k) is None or norm.get(k) is None for k in _SAW_PARTS):
+        return {}
+    pts = {k: round(float(w[k]) * float(norm[k]) * 100, 2) for k in _SAW_PARTS}
+    if abs(sum(pts.values()) - float(composite)) > 0.15:
+        return {}
+    return {"saw_eff_points": pts, "saw_eff_weights": {k: round(float(w[k]) * 100, 1) for k in _SAW_PARTS}}
 
 
 def _verdict(res: dict[str, Any]) -> dict[str, Any]:
@@ -621,6 +641,21 @@ def register_sessions(app, get_manager) -> None:
             return fail(JobError("both must be finished benchmark sessions", "bad_request", 400))
         return jsonify(compare(ja, ra, jb, rb))
 
+    def _sessions_info(mgr, ss: list[dict]) -> dict[str, dict]:
+        """Per session in a ranking: whose, its name, when it finished, its measured rows (the
+        control plane sends the same), so the Leaderboard can show the sessions behind a model."""
+        out = {}
+        for x in ss:
+            try:
+                j = mgr.get(x["session_id"])
+            except JobError:
+                j = {}
+            u = j.get("user") if isinstance(j.get("user"), dict) else {}
+            out[x["session_id"]] = {"owner": u.get("uname"), "title": j.get("title") or "", "run_name": x.get("run_name"),
+                                    "finished_at": x.get("finished_at") or x.get("created_at"), "gpu": x.get("gpu"),
+                                    "metrics": x.get("metrics") or {}}
+        return out
+
     def _summaries(mgr) -> list[dict]:
         out = []
         for j in _benchmark_jobs(mgr):
@@ -668,4 +703,5 @@ def register_sessions(app, get_manager) -> None:
         sort = request.args.get("sort", "latency")
         if sort not in LEADERBOARD_SORTS:
             return fail(JobError(f"sort must be one of {sorted(LEADERBOARD_SORTS)}", "bad_request", 400))
-        return jsonify(leaderboard_s(_summaries(mgr), sort))
+        ss = _summaries(mgr)
+        return jsonify({**leaderboard_s(ss, sort), "sessions_info": _sessions_info(mgr, ss)})

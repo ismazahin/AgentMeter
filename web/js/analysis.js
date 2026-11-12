@@ -335,7 +335,7 @@ function repeatCard(rp, head, again, id) {
     '<details class="info"><summary>Show as table</summary><div class="table-wrap"><table id="svc-repeat-table"><thead><tr><th>Model</th><th>Metric</th><th class="num">Runs</th><th class="num">Mean</th><th class="num">SD</th><th class="num">CoV</th><th class="num">Min to max</th></tr></thead><tbody>' +
     rp.models.map(function (m) { return m.metrics.map(function (d) { var f = REP_FMT[d.unit] || function (v) { return fmtNum(v, 2); };
       return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(d.label) + '</td><td class="num">' + d.n + '</td><td class="num">' + f(d.mean) + '</td><td class="num">' + (d.sd == null ? "—" : f(d.sd)) + '</td><td class="num">' + (d.cov == null ? "—" : fmtPct(d.cov)) + '</td><td class="num">' + f(d.min) + ' to ' + f(d.max) + '</td></tr>'; }).join(""); }).join("") +
-    '</tbody></table></div></details><div class="actions"><a class="btn" href="#/compare?a=' + enc(id) + '">Open in Compare</a>' + again + '</div></div>';
+    '</tbody></table></div></details><div class="actions"><a class="btn" href="#/compare?a=' + enc(id) + '">Open on the Leaderboard</a>' + again + '</div></div>';
 }
 // Performance -> GPU & Throughput: throughput and p95 latency with 1, 2, 4 flows in flight (opt-in step)
 function loadCard(res) {

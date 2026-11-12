@@ -1,15 +1,7 @@
-// AgentMeter web app — compare.js: Leaderboard › Compare models, Data sets, GPU & Queue, Leaderboard.
+// AgentMeter web app — compare.js: Data sets, GPU & Queue, Leaderboard (By setup, Overall).
 // One of the app's scripts (web/app.html loads them in order: core, home, wizard, session, analysis,
 // compare, settings, boot); they share the page's global scope, so a function defined in one is used by the others.
 "use strict";
-// ---------- COMPARE ----------
-// Compare: one session + the sessions on the SAME setup (same flows hash, GPU, settings) —
-// only those are offered. The merged view shows every run side by side (stored values).
-var CMP = { rows: [], data: null, tab: "overview", setups: [], key: null, given: [], want: [], pick: {}, old: null };
-function sessionLabel(s) {
-  return (s.models || []).map(short).join(" vs ") + ", " + (s.input_type || "") + ", " + fmtNum(s.n_flows) + " flows, " +
-    (s.gpu || "") + ", " + fmtDate(s.finished_at || s.created_at);
-}
 // ---- variables (as on an observability dashboard): one Model and one Pipeline filter, shared
 // by Compare and Trends; "All" shows everything. Kept in this browser.
 var VARS = (function () { try { return JSON.parse(localStorage.getItem("agentmeter.vars") || "{}") || {}; } catch (e) { return {}; } })();
@@ -38,322 +30,8 @@ function varsBar(host, sessions, onChange) {
     });
   });
 }
-// Compare: setup first (one prepared set, one GPU, one group of settings), then the models
-// measured on it. Only the model differs; a model measured several times is one column (its
-// latest run, or the run the link names) — how its runs vary is the Repeatability page's job.
-function cmpRow(id) { return CMP.rows.filter(function (s) { return s.session_id === id; })[0] || null; }
-function cmpSetup() { return (CMP.setups || []).filter(function (g) { return g.key === CMP.key; })[0] || null; }
-function setupName(g) {
-  var st = g.setup;
-  return (g.name || "prepared set " + String(st.prepared_set_sha256).slice(0, 8)) + ", " + (st.input_type || "") + ", " + fmtNum(st.n_flows) + " flows, " + (st.gpu || "GPU") + ", " + g.pipeline;
-}
+// a model's Repeatability chart on one setup (linked from the analysis)
 function repLink(model, key) { return "#/trends?model=" + enc(model) + "&setup=" + enc(key); }
-function loadCompare(q) {
-  $("cmp-error").hidden = true;
-  if (q.a && q.b && !q.sessions) { location.replace("#/compare?sessions=" + enc(q.a) + "," + enc(q.b)); return; }   // old links
-  var ids = (q.sessions || "").split(",").filter(Boolean), first = ids[0] || q.a || "";
-  var want = (q.models || "").split(",").filter(Boolean);
-  (function () {
-    var want = ids.length ? ids : first ? [first] : [];
-    return allSessions().then(function (r) {           // a session named in the link but not in a cached list: read again
-      var miss = r.ok && want.some(function (id) { return !(r.data.sessions || []).some(function (x) { return x.session_id === id; }); });
-      return miss ? allSessions(true) : r;
-    });
-  })().then(function (r) {
-    if (!r.ok) { showError($("cmp-error"), r.data); return; }
-    CMP.rows = (r.data.sessions || []).filter(function (s) { return s.status === "Done" || s.status === "Demo"; });
-    CMP.setups = window.INSIGHTS ? INSIGHTS.compareSetups(CMP.rows).setups : [];
-    CMP.given = ids.length ? ids : first ? [first] : [];
-    CMP.want = want;
-    CMP.old = null;
-    $("cmp-result").innerHTML = ""; $("cmp-excluded").innerHTML = "";
-    var target = first ? cmpRow(first) : null;
-    if (first) {
-      CMP.key = target ? INSIGHTS.setupKey(target) : null;
-      if (target && !CMP.key) CMP.old = target;
-      // no models= in the link: every model of the setup (Compare is for ranking many models at once)
-      if (!CMP.want.length && CMP.key) CMP.want = ((CMP.setups.filter(function (g) { return g.key === CMP.key; })[0] || {}).models || []).map(function (m) { return m.model; });
-    }
-    var off = ids.filter(function (id) { var s = cmpRow(id); return !s || !CMP.key || INSIGHTS.setupKey(s) !== CMP.key; });
-    varsBar($("cmp-vars"), CMP.rows, fillSetups);
-    fillSetups();
-    if (!CMP.rows.length) { $("cmp-result").innerHTML = '<div class="card empty"><p>No finished sessions yet.</p><a class="btn primary" href="#/new">New benchmark</a></div>'; return; }
-    if (off.length) {
-      showError($("cmp-error"), { error: "These sessions do not share the same flows, GPU and settings, so they are not compared (" + off.map(shortId).join(", ") +
-        "). Choose a setup below and tick the models measured on it." });
-      return;
-    }
-    if (ids.length && CMP.want.length >= 2) runPicked();
-  });
-}
-function fillSetups() {
-  var all = CMP.setups || [], shown = all.filter(function (g) { return g.key === CMP.key || g.sessions.some(function (s) { return varsMatch(s); }); });
-  $("cmp-setup").innerHTML = '<option value="">Choose a setup… (' + shown.length + (shown.length === all.length ? "" : " of " + all.length) + ')</option>' + shown.map(function (g) {
-    return '<option value="' + esc(g.key) + '"' + (g.key === CMP.key ? " selected" : "") + '>' + esc(setupName(g) + " — " + g.models.length + " model" + (g.models.length === 1 ? "" : "s")) + '</option>';
-  }).join("");
-  renderSetup();
-}
-$("cmp-setup").addEventListener("change", function () {
-  CMP.key = this.value || null; CMP.given = []; CMP.want = []; CMP.old = null;
-  $("cmp-result").innerHTML = ""; $("cmp-error").hidden = true;
-  renderSetup();
-});
-function renderSetup() {
-  var g = cmpSetup(), box = $("cmp-cands");
-  $("cmp-go").disabled = true;
-  if (CMP.old) {
-    $("cmp-locked").innerHTML = ""; $("cmp-excluded").innerHTML = "";
-    box.innerHTML = '<p class="notice warn small" id="cmp-none">This session predates the setup fingerprint, so it cannot be compared.</p>';
-    return;
-  }
-  if (!g) { $("cmp-locked").innerHTML = ""; box.innerHTML = ""; $("cmp-excluded").innerHTML = ""; return; }
-  var st = g.setup, ok = '<span class="lk-ok" aria-hidden="true">✓</span> ';
-  $("cmp-locked").innerHTML = '<div class="validity ok locked" id="cmp-locked-box" role="status"><strong>Locked conditions</strong>' +
-    '<ul class="lk-list">' +
-    '<li>' + ok + 'Data set: <b>' + esc(g.name || "—") + '</b> (' + esc(st.input_type || "") + ')</li>' +
-    '<li>' + ok + 'Flows: <b>' + fmtNum(st.n_flows) + '</b>, the same flows for every model (set <span class="mono">' + esc(String(st.prepared_set_sha256).slice(0, 12)) + '</span>)</li>' +
-    '<li>' + ok + 'GPU: <b>' + esc(st.gpu || "—") + '</b></li>' +
-    '<li>' + ok + 'Pipeline: <b>' + esc(g.pipeline) + '</b></li>' +
-    '<li>' + ok + 'Settings: <b>4-bit NF4</b>, the same token caps and engine (settings <span class="mono">' + esc(String(st.settings_fingerprint).slice(0, 8)) + '</span>)</li>' +
-    '</ul><p class="small" style="margin:6px 0 0"><b>Only the LLM model differs.</b></p></div>';
-  var one = g.models.length < 2;
-  if (one) {
-    var last = g.sessions[0];
-    box.innerHTML = '<div class="notice" id="cmp-none"><b>Only one model (' + esc(short(g.models[0].model)) + ') has been measured on this setup.</b> Run these flows again with other models to compare them.' +
-      (g.models[0].runs.length > 1 ? ' Its ' + g.models[0].runs.length + ' runs are on <a href="' + repLink(g.models[0].model, g.key) + '">Repeatability</a>.' : "") +
-      (last.run_name ? '<div class="actions"><a class="btn" href="#/new/models?set=' + enc(last.run_name) + '">Benchmark these flows again</a></div>' : "") + '</div>';
-  } else {
-    var want = CMP.want.filter(function (m) { return g.models.some(function (x) { return x.model === m; }); });
-    if (!want.length) want = g.models.map(function (x) { return x.model; });              // every model, by default
-    box.innerHTML = '<fieldset style="border:0;padding:0;margin:12px 0 0"><legend class="small" style="font-weight:600"><span class="step-n">2</span> Models measured on this setup (' + g.models.length + '). Tick 2 or more.</legend>' +
-      '<div class="row" style="margin:4px 0 8px;gap:8px"><button type="button" class="btn small-btn" id="cmp-all">Select all</button><button type="button" class="btn small-btn" id="cmp-clear">Clear</button></div>' +
-      '<div class="models" id="cmp-list">' + g.models.map(function (m) {
-        var on = want.indexOf(m.model) >= 0;
-        return '<label class="model"><input type="checkbox" value="' + esc(m.model) + '"' + (on ? " checked" : "") + '><span><b>' + esc(short(m.model)) + '</b>' + extraTag(m.model) +
-          '<br><span class="muted small">' + (m.runs.length === 1 ? "1 run, " + esc(fmtDate(m.runs[0].at)) : m.runs.length + ' runs, latest ' + esc(fmtDate(m.runs[0].at)) +
-            ', <a href="' + repLink(m.model, g.key) + '" data-rep-link>how they vary</a>') + '</span></span></label>';
-      }).join("") + '</div></fieldset>' +
-      '<p class="small muted" id="cmp-pick-note" style="margin:6px 0 0">Each model is one row, from its latest run on this setup. Whether a model gives the same result every time is on <a href="#/trends">Repeatability</a>.</p>';
-    var sync = function () {
-      var on = box.querySelectorAll("input:checked").length;
-      $("cmp-go").disabled = on < 2;
-      $("cmp-go").textContent = on >= 2 ? "Compare " + on + " models" : "Compare";
-    };
-    box.querySelectorAll("input").forEach(function (x) { x.addEventListener("change", sync); });
-    $("cmp-all").addEventListener("click", function () { box.querySelectorAll("input").forEach(function (x) { x.checked = true; }); sync(); });
-    $("cmp-clear").addEventListener("click", function () { box.querySelectorAll("input").forEach(function (x) { x.checked = false; }); sync(); });
-    sync();
-  }
-  var ex = INSIGHTS.excludedFrom(g, CMP.rows);
-  $("cmp-excluded").innerHTML = !ex.length ? "" : '<details class="card info" id="cmp-excluded-card"><summary>Not on this setup (' + ex.length + ' session' + (ex.length === 1 ? "" : "s") + ') left out of Compare</summary>' +
-    '<div class="table-wrap"><table id="cmp-excluded-table"><thead><tr><th>Session</th><th>Models</th><th>Data set</th><th>GPU</th><th>Why it is left out</th></tr></thead><tbody>' +
-    ex.slice(0, 100).map(function (x) {
-      var s = x.session;
-      return '<tr><td><a class="mono" href="#/session/' + enc(s.session_id) + '">' + esc(shortId(s.session_id)) + '</a></td><td class="small">' + esc((s.models || []).map(short).join(", ")) +
-        '</td><td class="small">' + esc((s.run_name || "—") + ", " + fmtNum(s.n_flows) + " flows") + '</td><td class="small">' + esc(s.gpu || "—") + '</td><td>' + esc(x.reasons.join(". ")) + '</td></tr>';
-    }).join("") + '</tbody></table></div>' + (ex.length > 100 ? '<p class="small muted">The first 100 are listed.</p>' : "") + '</details>';
-}
-// the session that stands for each model: the latest one the link names, else its latest run
-function cmpPick(g, models) {
-  var pick = {};
-  models.forEach(function (m) {
-    var row = g.models.filter(function (x) { return x.model === m; })[0];
-    if (!row) return;
-    var named = row.runs.filter(function (r) { return CMP.given.indexOf(r.session_id) >= 0; })[0];
-    pick[m] = (named || row.runs[0]).session_id;
-  });
-  return pick;
-}
-function runPicked() {
-  var g = cmpSetup();
-  if (!g) return;
-  var pick = cmpPick(g, CMP.want), ids = [];
-  Object.keys(pick).forEach(function (m) { if (ids.indexOf(pick[m]) < 0) ids.push(pick[m]); });
-  if (Object.keys(pick).length < 2) { showError($("cmp-error"), { error: "Tick at least two models measured on this setup." }); return; }
-  if (ids.length === 1) {                    // every model came from one session: merged needs two, so add another of this setup
-    var other = g.sessions.filter(function (s) { return s.session_id !== ids[0]; })[0];
-    if (!other) {
-      $("cmp-result").innerHTML = '<div class="notice" id="cmp-one-session">These models were measured together in one session, which already compares them: <a href="#/session/' + enc(ids[0]) + '">open it</a>.</div>';
-      return;
-    }
-    ids.push(other.session_id);
-  }
-  if (ids.length > 20) { showError($("cmp-error"), { error: "These models come from " + ids.length + " sessions, and up to 20 sessions can be merged at once. Untick a few models." }); return; }
-  runMerged(ids, pick);
-}
-$("cmp-form").addEventListener("submit", function (ev) {
-  ev.preventDefault();
-  var g = cmpSetup(), models = Array.prototype.map.call($("cmp-cands").querySelectorAll("input:checked"), function (x) { return x.value; });
-  if (!g || models.length < 2) { showError($("cmp-error"), { error: "Choose a setup and tick at least two models measured on it." }); return; }
-  var pick = cmpPick(g, models), ids = [];
-  models.forEach(function (m) { if (ids.indexOf(pick[m]) < 0) ids.push(pick[m]); });
-  var h = "#/compare?sessions=" + ids.map(enc).join(",") + "&models=" + models.map(enc).join(",");
-  if (location.hash === h) loadCompare(parseHash().q); else location.hash = h;
-});
-var CMP_TABS = [["overview", "Overview"], ["performance", "Performance"], ["cost", "Cost & Energy"]];
-var CMP_GROUPS = {
-  performance: ["mean_latency_s", "median_latency_s", "p95_latency_s", "p99_latency_s", "mean_peak_vram_mb", "max_peak_vram_mb", "total_peak_mb",
-                "weights_mb", "mean_tokens_per_flow", "mean_input_tokens_per_flow", "mean_output_tokens_per_flow", "handoff_share_of_total", "throughput_flows_per_s"],
-  cost: ["cost_per_1k_flows_usd", "wh_per_flow", "wh_per_1k_flows", "wh_per_flow_net_idle"]
-};
-function runMerged(ids, pick) {
-  $("cmp-result").innerHTML = skel(6, true);
-  api("/api/compare/merged?sessions=" + ids.map(enc).join(",")).then(function (r) {
-    if (!r.ok) { $("cmp-result").innerHTML = ""; showError($("cmp-error"), r.data); return; }
-    CMP.data = r.data; CMP.tab = "overview"; CMP.pick = pick || {};
-    renderMerged();
-  });
-}
-// one column per model: the run of the session picked for it (model against model only)
-function cmpCols() {
-  var d = CMP.data, seen = {}, cols = [];
-  d.runs.forEach(function (run, i) {
-    if (CMP.pick[run.model] !== run.session || seen[run.model]) return;
-    seen[run.model] = true;
-    var g = cmpSetup(), mr = g && g.models.filter(function (x) { return x.model === run.model; })[0], n = mr ? mr.runs.length : 1;
-    var latest = function (k) { var row = d.rows.filter(function (x) { return x.metric === k; })[0]; return row ? row.values[i] : null; };
-    var all = CMP.basis === "all" && n > 1;
-    cols.push({ head: short(run.model), model: run.model, runs: n, session: run.session,
-                sub: all ? "mean of " + n + " runs" : fmtDate(run.created_at).slice(0, 16) + (n > 1 ? ", latest of " + n + " runs" : ""),
-                stats: function (k) { return INSIGHTS.runStats(cmpRunValues(run.model, k)); },
-                val: all ? function (k) { var st = INSIGHTS.runStats(cmpRunValues(run.model, k)); return st.n ? st.mean : latest(k); } : latest });
-  });
-  return cols;
-}
-function bestIdx(vals, lower) {
-  var p = vals.filter(function (v) { return v != null; });
-  if (p.length < 2) return [];
-  var b = lower ? Math.min.apply(null, p) : Math.max.apply(null, p);
-  if (p.every(function (v) { return v === b; })) return [];               // all equal: nothing stands out
-  return vals.map(function (v, i) { return v === b ? i : -1; }).filter(function (i) { return i >= 0; });
-}
-function cmpTable(id, keys) {
-  var d = CMP.data, cols = cmpCols();
-  var defs = keys.map(function (k) { return d.rows.filter(function (x) { return x.metric === k; })[0]; }).filter(Boolean);
-  return '<div class="table-wrap"><table id="' + id + '"><thead><tr><th>Metric</th>' + cols.map(function (c) {
-    return '<th class="num">' + esc(short(c.model)) + extraTag(c.model) + '<br><span class="small muted" style="font-weight:400">' + esc(c.sub) + '</span></th>';
-  }).join("") + '</tr></thead><tbody>' + defs.map(function (row) {
-    var f = row.unit === "score" ? function (x) { return fmtNum(x, 2); } : (METRIC_FMT[row.unit] || function (x) { return fmtNum(x, 2); });
-    var vals = cols.map(function (c) { return c.val(row.metric); });
-    var best = row.context_only ? [] : bestIdx(vals, row.lower_is_better);
-    return '<tr><td>' + esc(row.label) + (row.context_only && !/context/.test(row.label) ? ' <span class="muted small">(context)</span>' : "") + '</td>' + vals.map(function (x, i) {
-      return '<td class="num' + (best.indexOf(i) >= 0 ? " best" : "") + '">' + (x == null ? '<span class="muted">—</span>' : f(x)) + '</td>';
-    }).join("") + '</tr>';
-  }).join("") + '</tbody></table></div>';
-}
-function cmpTiles() {
-  var cols = cmpCols(), pick = function (k, lower) {
-    var vals = cols.map(function (c) { return c.val(k); }), b = bestIdx(vals, lower);
-    return b.length === 1 ? cols[b[0]].head : vals.filter(function (v) { return v != null; }).length > 1 ? "Tie" : "—";
-  };
-  var t = [["Fastest", pick("mean_latency_s", true)], ["Least working VRAM", pick("mean_peak_vram_mb", true)],
-           ["Fewest tokens", pick("mean_tokens_per_flow", true)], ["Top SAW score (efficiency)", pick("saw_eff_composite_100", false)]];
-  return '<div class="tiles" id="cmp-tiles">' + t.map(function (x) { return '<div class="tile"><div class="k">' + x[0] + '</div><div class="v" style="font-size:18px">' + esc(x[1]) + '</div></div>'; }).join("") + '</div>';
-}
-// many models at once: one row per model, ranked by the efficiency SAW score
-var CMP_RANK = [["saw_eff_composite_100", "SAW score (efficiency)"], ["mean_latency_s", "Latency / flow"], ["p95_latency_s", "p95 latency"], ["mean_peak_vram_mb", "Working VRAM"],
-                ["mean_tokens_per_flow", "Tokens / flow"], ["cost_per_1k_flows_usd", "Cost / 1k flows"], ["wh_per_flow", "Energy / flow"]];
-// every run of a model on the chosen setup: its stored value of one measure, per session
-function cmpRunValues(model, k) {
-  var g = cmpSetup(), mr = g && g.models.filter(function (x) { return x.model === model; })[0];
-  return mr ? mr.runs.map(function (r) { var row = cmpRow(r.session_id); return row && row.metrics && row.metrics[model] ? row.metrics[model][k] : null; })
-    .filter(function (v) { return v != null; }) : [];
-}
-// the comparison in one plain sentence (what a reader should take away), from the shown values
-function cmpPlain() {
-  var cols = cmpCols(), pick = function (k, lower) {
-    var vs = cols.map(function (c) { return { c: c, v: c.val(k) }; }).filter(function (x) { return x.v != null; });
-    if (vs.length < 2) return null;
-    vs.sort(function (a, b) { return lower ? a.v - b.v : b.v - a.v; });
-    return { best: vs[0], worst: vs[vs.length - 1], tie: vs[0].v === vs[1].v };
-  };
-  var bits = [], lat = pick("mean_latency_s", true), vr = pick("mean_peak_vram_mb", true), tok = pick("mean_tokens_per_flow", true), saw = pick("saw_eff_composite_100", false);
-  if (lat && !lat.tie) bits.push("<b>" + esc(lat.best.c.head) + "</b> is the fastest (" + esc(fmtTime(lat.best.v)) + " per flow" +
-    (lat.worst.v ? ", " + fmtNum(100 * (1 - lat.best.v / lat.worst.v), 0) + "% quicker than " + esc(lat.worst.c.head) : "") + ")");
-  if (vr && !vr.tie) bits.push("<b>" + esc(vr.best.c.head) + "</b> needs the least working memory (" + esc(fmtMB(vr.best.v)) + ")");
-  if (tok && !tok.tie) bits.push("<b>" + esc(tok.best.c.head) + "</b> uses the fewest tokens");
-  if (saw && !saw.tie) bits.push("the best balance (SAW score) is <b>" + esc(saw.best.c.head) + "</b>'s");
-  if (!bits.length) return '<p class="tab-summary" id="cmp-plain">These models are level on every measure shown here.</p>';
-  return '<p class="tab-summary" id="cmp-plain">In short, ' + bits.map(function (b, i) { return i ? b.charAt(0).toUpperCase() + b.slice(1) : b; }).join(". ") + "." + (CMP.basis === "all" ? " These are means over every run." : cols.some(function (c) { return c.runs > 1; }) ? " These are the latest runs. Switch to Every run to see whether the gaps hold." : "") + '</p>';
-}
-function cmpDiffCard() {
-  var row = cmpDef(CMP.bar || "mean_latency_s"), f = cmpFmt(row), byModel = {};
-  cmpCols().forEach(function (c) { byModel[c.model] = cmpRunValues(c.model, row.metric); });
-  var r = INSIGHTS.compareRuns(byModel, row.lower_is_better);
-  if (r.rows.length < 2) return "";
-  var best = short(r.best);
-  return '<div class="card" id="cmp-diff-card"><h2>Are the differences in ' + esc(row.label) + ' real?</h2><p class="muted small" style="margin-top:0">Over every run on this setup, against the best model (' + esc(best) + ').' + infoI(r.rule) + '</p>' +
-    '<div class="table-wrap"><table id="cmp-diff-table"><thead><tr><th>Model</th><th class="num">Mean ± 95% CI</th><th class="num">Runs</th><th class="num">vs ' + esc(best) + '</th><th class="num">p</th><th>Verdict</th></tr></thead><tbody>' +
-    r.rows.map(function (x) {
-      var chip = x.verdict === "best" ? '<span class="chip ok">best</span>' : x.verdict === "real difference" ? '<span class="chip warn">real difference</span>' : x.verdict === "within noise" ? '<span class="chip">within noise</span>' : '<span class="chip">too few runs</span>';
-      return '<tr><td><b>' + esc(short(x.model)) + '</b></td><td class="num">' + f(x.mean) + (x.ci != null ? ' <span class="small muted">± ' + f(x.ci) + '</span>' : "") + '</td><td class="num">' + x.n +
-        '</td><td class="num">' + (x.diff == null ? "—" : (x.diff > 0 ? "+" : "") + fmtNum(100 * x.diff, 1) + "%") + '</td><td class="num">' + (x.p == null ? "—" : x.p < 0.001 ? "&lt; 0.001" : fmtNum(x.p, 3)) + '</td><td>' + chip + '</td></tr>';
-    }).join("") + '</tbody></table></div>' +
-    (r.rows.some(function (x) { return x.verdict === "too few runs"; }) ? '<p class="small muted" style="margin-bottom:0">Run a model on this setup at least twice (Run again on its session) to judge whether its difference is real.</p>' : "") + '</div>';
-}
-function cmpDef(k) { return CMP.data.rows.filter(function (x) { return x.metric === k; })[0]; }
-function cmpFmt(row) { return row.unit === "score" ? function (x) { return fmtNum(x, 1); } : (METRIC_FMT[row.unit] || function (x) { return fmtNum(x, 2); }); }
-function cmpRanking() {
-  var cols = cmpCols(), defs = CMP_RANK.map(function (r) { return [r, cmpDef(r[0])]; }).filter(function (x) { return x[1]; });
-  var saw = function (c) { var v = c.val("saw_eff_composite_100"); return v == null ? -Infinity : v; };
-  var lat = function (c) { var v = c.val("mean_latency_s"); return v == null ? Infinity : v; };
-  var order = cols.slice().sort(function (a, b) { return saw(b) - saw(a) || lat(a) - lat(b) || a.head.localeCompare(b.head); });   // a tie on SAW: the faster first
-  var best = {};
-  defs.forEach(function (x) { var vals = order.map(function (c) { return c.val(x[0][0]); }); best[x[0][0]] = bestIdx(vals, x[1].lower_is_better); });
-  return '<div class="card"><h2>Ranking (' + cols.length + ' models)</h2><p class="muted small" style="margin-top:0">Ordered by the SAW score (efficiency), then by latency on a tie. The best value in each column is marked.</p>' +
-    '<div class="table-wrap"><table id="cmp-rank-table"><thead><tr><th class="num">#</th><th>Model</th>' + defs.map(function (x) { return '<th class="num">' + esc(x[0][1]) + '</th>'; }).join("") + '</tr></thead><tbody>' +
-    order.map(function (c, i) {
-      return '<tr><td class="num">' + (saw(c) === -Infinity ? "—" : i + 1) + '</td><td><b>' + esc(c.head) + '</b>' + extraTag(c.model) + '<br><span class="small muted"><a href="#/session/' + enc(c.session) + '" title="' + esc(c.session) + '">' +
-        esc(shortId(c.session)) + '</a>' + (c.runs > 1 ? (CMP.basis === "all" ? ', mean of ' + c.runs + ' runs' : ', latest of ' + c.runs + ' runs') : "") + '</span></td>' + defs.map(function (x) {
-          var v = c.val(x[0][0]), st = CMP.basis === "all" && c.runs > 1 ? c.stats(x[0][0]) : null;
-          return '<td class="num' + (best[x[0][0]].indexOf(i) >= 0 ? " best" : "") + '">' + (v == null ? '<span class="muted">—</span>' : cmpFmt(x[1])(v) +
-            (st && st.ci != null ? '<br><span class="small muted">± ' + cmpFmt(x[1])(st.ci) + '</span>' : "")) + '</td>';
-        }).join("") + '</tr>';
-    }).join("") + '</tbody></table></div></div>';
-}
-function cmpBars() {
-  var defs = CMP_RANK.filter(function (r) { return cmpDef(r[0]); });
-  if (!defs.some(function (r) { return r[0] === CMP.bar; })) CMP.bar = "mean_latency_s";
-  var row = cmpDef(CMP.bar), f = cmpFmt(row);
-  var items = cmpCols().map(function (c) { return { c: c, v: c.val(CMP.bar) }; }).filter(function (x) { return x.v != null; })
-    .sort(function (a, b) { return row.lower_is_better ? a.v - b.v : b.v - a.v; });
-  var max = Math.max.apply(null, items.map(function (x) { return Math.abs(x.v); }).concat([0])) || 1;
-  return '<div class="card" id="cmp-bars-card"><div class="row" style="margin-top:0;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap"><h2 style="margin:0">Side by side</h2>' +
-    '<div class="field" style="margin:0"><label for="cmp-bar-metric">Measure</label><select id="cmp-bar-metric">' + defs.map(function (r) {
-      return '<option value="' + r[0] + '"' + (r[0] === CMP.bar ? " selected" : "") + '>' + esc(r[1]) + '</option>'; }).join("") + '</select></div></div>' +
-    '<p class="muted small">' + (row.lower_is_better ? "Lower is better" : "Higher is better") + '; best first.</p>' +
-    (items.length ? '<div id="cmp-bars" class="hbars">' + items.map(function (x, i) {
-      return '<div class="hbar"><span class="hb-l">' + esc(x.c.head) + '</span><span class="hb-t"><span class="hb-f' + (i === 0 && items.length > 1 ? " lead" : "") + '" style="width:' +
-        Math.max(1, 100 * Math.abs(x.v) / max).toFixed(1) + '%"></span></span><span class="hb-v num">' + esc(f(x.v)) + '</span></div>';
-    }).join("") + '</div>' : '<p class="muted" id="cmp-bars-none">Not measured for these models (e.g. demo runs have no GPU energy or price).</p>') + '</div>';
-}
-function renderMerged() {
-  var d = CMP.data, st = d.setup, g = cmpSetup(), cols = cmpCols();
-  var tabs = CMP_TABS;
-  if (!tabs.some(function (t) { return t[0] === CMP.tab; })) CMP.tab = "overview";
-  var body;
-  if (CMP.tab === "overview") {
-    body = cmpPlain() + cmpTiles() + cmpRanking() + cmpBars() + cmpDiffCard();
-  } else {
-    body = '<div class="card">' + cmpTable("cmp-" + CMP.tab + "-table", CMP_GROUPS[CMP.tab]) + '</div>';
-  }
-  $("cmp-result").innerHTML =
-    '<div class="validity ok" id="cmp-validity" role="status"><strong>Like-for-like comparison.</strong> ' + cols.length + ' models, same flows (' +
-      esc(String(st.input_type || "").toUpperCase()) + ', ' + fmtNum(st.n_flows) + ' flows, set <span class="mono">' + esc(String(st.prepared_set_sha256).slice(0, 12)) + '</span>), same GPU (' + esc(st.gpu) + '), same settings. Only the model differs.' +
-      infoI("Every model answered the same flows on the same GPU with the same settings, so the differences are the models'. Each model is one entry, from its latest run on this setup. Values are the stored ones, and the best is marked.") + '</div>' +
-    (cols.some(function (c) { return c.runs > 1; }) ? '<div class="seg-opts" id="cmp-basis" role="radiogroup" aria-label="Which runs" style="margin:0 0 12px">' +
-      '<label><input type="radio" name="cmp-basis" value="latest"' + (CMP.basis !== "all" ? " checked" : "") + '> Latest run of each model</label>' +
-      '<label><input type="radio" name="cmp-basis" value="all"' + (CMP.basis === "all" ? " checked" : "") + '> Every run (mean ± 95% CI)</label></div>' : "") +
-    '<div class="tabs" role="tablist" aria-label="Comparison sections" id="cmp-tabs">' + tabs.map(function (t) {
-      return '<a role="tab" href="#" data-ctab="' + t[0] + '" id="ctab-' + t[0] + '" aria-selected="' + (t[0] === CMP.tab) + '">' + esc(t[1]) + '</a>';
-    }).join("") + '</div>' + body +
-    '<details class="info"><summary>All metrics</summary>' + cmpTable("cmp-table", d.rows.map(function (x) { return x.metric; })) + '</details>' +
-    '<p class="muted small">View only. Stored scores never change.</p>';
-  $("cmp-result").querySelectorAll("[data-ctab]").forEach(function (a) { a.addEventListener("click", function (ev) { ev.preventDefault(); CMP.tab = a.getAttribute("data-ctab"); renderMerged(); }); });
-  if ($("cmp-bar-metric")) $("cmp-bar-metric").addEventListener("change", function () { CMP.bar = this.value; renderMerged(); });
-  $("cmp-result").querySelectorAll('input[name="cmp-basis"]').forEach(function (x) { x.addEventListener("change", function () { CMP.basis = x.value; renderMerged(); }); });
-  addExports($("cmp-result"));
-}
 
 // ---------- DATA SETS: every prepared set, what is in it and who used it ----------
 // One row per prepared set, keyed by its content hash (the like-for-like key), built from the
@@ -662,7 +340,7 @@ var LB_COLS = [["saw_eff_composite_100", "SAW (efficiency)", function (v) { retu
                ["mean_tokens_per_flow", "Tokens / flow", function (v) { return fmtNum(v); }], ["cost_per_1k_flows_usd", "Cost / 1k flows", fmtUsd], ["wh_per_flow", "Energy / flow", fmtWh]];
 var LB_MEASURES = [["efficiency", "SAW score"], ["latency", "Latency"], ["vram", "VRAM"], ["total_vram", "Total VRAM"], ["tokens", "Tokens"], ["cost", "Cost"], ["energy", "Energy"]];
 var LB = { tab: "setup", data: null, info: {} };
-var LB_TABS = ["setup", "compare", "overall"];
+var LB_TABS = ["setup", "overall"];
 var LBF = (function () {
   var d = { owner: "", gpu: "", set: "", input: "", demo: false, sort: "efficiency", setup: "", model: "" };
   try { var k = JSON.parse(localStorage.getItem("agentmeter.lbf") || "{}"); Object.keys(d).forEach(function (x) { if (k[x] != null) d[x] = k[x]; }); } catch (e) { /* defaults */ }
@@ -676,9 +354,6 @@ function lbTab(t, routed) {
     b.setAttribute("aria-selected", String(x === t)); b.tabIndex = x === t ? 0 : -1;
     $("lb-" + x + "-panel").hidden = x !== t;
   });
-  $("lb-fbar").hidden = t === "compare";
-  if (t === "compare") { if (!routed) location.hash = "#/compare"; return; }        // its own address, so links and reloads keep it
-  if (/^#\/compare/.test(location.hash)) { location.hash = "#/leaderboard"; return; }
   var q = parseHash().q;
   if (q.setup) LBF.setup = q.setup;
   if (q.model) LBF.model = q.model;
@@ -783,6 +458,11 @@ function lbEmpty(host) {
 function renderBySetup() {
   var host = $("lb-groups"), gs = lbGroups();
   if (!gs.length) { lbEmpty(host); return; }
+  if (LB.focus) {                                          // from a session's link (old Compare addresses)
+    var f = gs.filter(function (x) { return (x.sessions || []).indexOf(LB.focus) >= 0; })[0];
+    if (f) LBF.setup = gKey(f);
+    LB.focus = null;
+  }
   var g = gs.filter(function (x) { return gKey(x) === LBF.setup; })[0] || gs[0];
   LBF.setup = gKey(g);
   host.innerHTML = '<div class="md2"><div class="slist" id="lb-slist"><div class="slist-h"><span>Setups</span><span>Most sessions first</span></div>' +
@@ -795,7 +475,7 @@ function renderBySetup() {
         '<span class="lead">' + (rk.length < 2 ? '<span class="muted">Only ' + esc(nick((x.rows[0] || {}).model || "")) + ' so far</span>'
           : '<span class="trophy" aria-hidden="true">1</span><b>' + esc(nick(lead.model)) + '</b> ' + esc(colOf(LB.data.sort_metric)[2](lead[LB.data.sort_metric]))) +
         (showOwners() ? avatars(gPeople(x.sessions)) : "") + '</span></button>';
-    }).join("") + '</div><div class="lpanel" id="lb-panel">' + setupPanel(g) + '</div></div>';
+    }).join("") + '</div><div class="lpanel card" id="lb-panel">' + setupPanel(g) + '</div></div>';
   host.querySelectorAll("[data-setup]").forEach(function (b) {
     b.addEventListener("click", function () {
       LBF.setup = b.getAttribute("data-setup"); renderBySetup(); lbUrl();
@@ -824,7 +504,7 @@ function setupPanel(g) {
       '<td style="width:36px"><button type="button" class="xbtn" data-open="' + i + '" aria-expanded="false" aria-label="Sessions behind ' + esc(nick(r.model)) + '">▾</button></td></tr>';
   }).join("");
   var gap = "";
-  if (rk.length >= 2 && rk[0][key] != null && rk[1][key] != null) {
+  if (LBF.sort !== "efficiency" && rk.length >= 2 && rk[0][key] != null && rk[1][key] != null) {
     var d = Math.abs(rk[0][key] - rk[1][key]), pts = key === "saw_eff_composite_100";
     gap = '<p class="gap-note" id="lb-gap">' + ((pts ? d < 0.05 : d === 0) ? esc(nick(rk[0].model)) + ' and ' + esc(nick(rk[1].model)) + ' tie on ' + esc(col[1]) + '. More flows or another run can tell them apart.'
       : esc(nick(rk[0].model)) + ' leads ' + esc(nick(rk[1].model)) + ' by <b>' + esc(pts ? fmtNum(d, 1) + " points" : col[2](d)) + '</b>.') + ' Click a model to see the sessions behind it.</p>';
@@ -835,8 +515,84 @@ function setupPanel(g) {
       return '<button type="button" data-sort="' + m[0] + '" aria-pressed="' + String(m[0] === LBF.sort) + '">' + esc(m[1]) + '</button>'; }).join("") + '</div>' + ne +
     '<div class="table-wrap"><table class="lb-table rk" id="lb-table-0"><thead><tr><th class="num">Rank</th><th>Model</th><th><span class="sr-only">Bar</span></th><th class="num">' + esc(col[1]) +
       (hi ? " (higher is better)" : " (lower is better)") + '</th><th>' + (showOwners() ? "Run by" : "Runs") + '</th><th><span class="sr-only">Sessions</span></th></tr></thead><tbody>' + rows + '</tbody></table></div>' + gap +
-    '<div class="actions" style="margin-top:16px">' + (g.n_sessions > 1 ? '<a class="btn lb-compare" href="#/compare?sessions=' + g.sessions.map(enc).join(",") + '">Compare these models</a>' : "") +
-      '<a class="btn" href="#/trends">Repeatability</a></div>';
+    whyOrder(g) + '<div class="actions" style="margin-top:16px"><a class="btn" href="#/trends">Repeatability</a></div>';
+}
+// ---- Why this order: where each model's SAW score points come from (speed, GPU memory, tokens) ----
+// Points are stored with each session (weight x normalised value x 100, adding up to its score); a
+// setup's points are the flow-weighted mean over its sessions, like its score. The sentence is worked
+// out here from those points, never written by a language model.
+var WHY_PARTS = [["latency", "Speed", "mean_latency_s", function (v) { return fmtTime(v) + " per flow"; }],
+                 ["vram", "GPU memory", "mean_peak_vram_mb", function (v) { return fmtMB(v) + " working"; }],
+                 ["tokens", "Tokens", "mean_tokens_per_flow", function (v) { return fmtNum(v) + " per flow"; }]];
+function whyPoints(r) {
+  var acc = { latency: 0, vram: 0, tokens: 0 }, w = 0, weights = null;
+  for (var i = 0; i < (r.sessions || []).length; i++) {
+    var m = (gInfo(r.sessions[i]).metrics || {})[r.model];
+    if (!m || !m.saw_eff_points) return null;                        // one older session: no split for this model
+    var n = m.n_flows || 1;
+    WHY_PARTS.forEach(function (p) { acc[p[0]] += n * m.saw_eff_points[p[0]]; });
+    w += n; weights = weights || m.saw_eff_weights;
+  }
+  if (!w) return null;
+  WHY_PARTS.forEach(function (p) { acc[p[0]] = acc[p[0]] / w; });
+  acc.weights = weights;
+  return acc;
+}
+function whySentence(a, b, pa, pb) {
+  var name = { latency: "speed", vram: "GPU memory", tokens: "tokens" };
+  var d = WHY_PARTS.map(function (p) { return { k: p[0], v: pa[p[0]] - pb[p[0]], key: p[2], fmt: p[3] }; });
+  var lead = d.slice().sort(function (x, y) { return y.v - x.v; })[0];
+  if (!lead || lead.v <= 0.05) return "";
+  var A = esc(nick(a.model)), B = esc(nick(b.model)), pts = function (x) { return fmtNum(Math.abs(x), 1); };
+  var vs = { latency: "It takes " + esc(fmtTime(a.mean_latency_s)) + " per flow against " + esc(fmtTime(b.mean_latency_s)) + " for " + B,
+             vram: "It needs " + esc(fmtMB(a.mean_peak_vram_mb)) + " of working GPU memory against " + esc(fmtMB(b.mean_peak_vram_mb)) + " for " + B,
+             tokens: "It uses " + esc(fmtNum(a.mean_tokens_per_flow)) + " tokens per flow against " + esc(fmtNum(b.mean_tokens_per_flow)) + " for " + B };
+  var better = { latency: "faster", vram: "lighter on GPU memory", tokens: "uses fewer tokens" };
+  var out = '<b>' + A + ' ranks first because of ' + name[lead.k] + '.</b> ' + vs[lead.k] + ', which earns it ' + pts(lead.v) + ' more points.';
+  var back = d.filter(function (x) { return x.v < -0.05; }), also = d.filter(function (x) { return x !== lead && x.v > 0.05; });
+  var parts = back.map(function (x) { return B + " is " + better[x.k] + ", worth " + pts(x.v) + " more points"; })
+    .concat(also.map(function (x) { return A + " is also " + better[x.k] + ", worth " + pts(x.v); }));
+  if (parts.length) out += " " + parts.join(", and ").replace(/^./, function (c) { return c.toUpperCase(); }) + ".";
+  var gap = (a.saw_eff_composite_100 || 0) - (b.saw_eff_composite_100 || 0);
+  out += gap < 0.05 ? " Together they end level on the score." : " Together that leaves " + A + " " + fmtNum(gap, 1) + " points ahead.";
+  return out;
+}
+function whyOrder(g) {
+  var rk = ranked(g);
+  if (LBF.sort !== "efficiency" || rk.length < 2) return "";
+  var pts = {}; rk.forEach(function (r) { pts[r.model] = whyPoints(r); });
+  var any = rk.filter(function (r) { return pts[r.model]; }), weights = any.length ? pts[any[0].model].weights : null;
+  var best = {};
+  WHY_PARTS.forEach(function (p) {
+    var vals = any.map(function (r) { return pts[r.model][p[0]]; });
+    // highlight a clear best only: when every model has the same, nothing stands out
+    var hiOf = function (xs, f) { return xs.length && Math.max.apply(null, xs) !== Math.min.apply(null, xs) ? f.apply(null, xs) : null; };
+    best[p[0]] = hiOf(vals, Math.max);
+    if (!any.length) best[p[0] + "_v"] = hiOf(rk.map(function (r) { return r[p[2]]; }).filter(function (v) { return v != null; }), Math.min);
+  });
+  var head = weights ? "The SAW score adds up points for three measures. Speed is worth " + fmtNum(weights.latency, 0) + ", GPU memory " + fmtNum(weights.vram, 0) + " and tokens " + fmtNum(weights.tokens, 0) + "."
+    : "The SAW score adds up points for speed, GPU memory and tokens. Each is scored against its target.";
+  var lead = pts[rk[0].model] && pts[rk[1].model] ? whySentence(rk[0], rk[1], pts[rk[0].model], pts[rk[1].model]) : "";
+  if (!lead && pts[rk[0].model] && pts[rk[1].model] && Math.abs((rk[0].saw_eff_composite_100 || 0) - (rk[1].saw_eff_composite_100 || 0)) < 0.05)
+    lead = '<b>' + esc(nick(rk[0].model)) + ' and ' + esc(nick(rk[1].model)) + ' tie on the score.</b> They earn the same points on every measure, so the order between them says nothing.';
+  var rows = rk.map(function (r) {
+    var p = pts[r.model];
+    return '<tr><td><b>' + esc(nick(r.model)) + '</b></td>' + WHY_PARTS.map(function (q) {
+      var v = r[q[2]], hi = p ? p[q[0]] === best[q[0]] : v != null && v === best[q[0] + "_v"];
+      return '<td class="' + (hi ? "hi" : "") + '">' + (p ? '<span class="pts">' + esc(fmtNum(p[q[0]], 1)) + '</span>' : "") + '<span class="val">' + (v == null ? "not measured" : esc(q[3](v))) + '</span></td>';
+    }).join("") +
+      (any.length ? '<td class="wp">' + (p ? '<span class="stack" aria-hidden="true">' + WHY_PARTS.map(function (q, i) { return '<i class="s' + i + '" style="width:' + Math.max(0, p[q[0]]) + '%"></i>'; }).join("") + '</span>' : '<span class="small muted">older sessions</span>') + '</td>' : "") +
+      '<td class="sc">' + esc(fmtNum(r.saw_eff_composite_100, 1)) + '</td></tr>';
+  }).join("");
+  return '<div class="why-card card" id="lb-why"><div class="why-h"><h3>Why this order</h3><span>' + esc(head) + '</span></div>' +
+    (lead ? '<p class="why-lead">' + lead + '</p>' : "") +
+    '<div class="table-wrap"><table class="why" id="lb-why-table"><thead><tr><th>Model</th>' + WHY_PARTS.map(function (q) {
+      return '<th>' + esc(q[1]) + (weights ? '<small>up to ' + esc(fmtNum(weights[q[0]], 0)) + ' points</small>' : "") + '</th>'; }).join("") +
+      (any.length ? '<th class="wp">Where the points come from</th>' : "") + '<th>Score<small>out of 100</small></th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    (any.length ? '<div class="legend3" aria-hidden="true"><span><i class="s0"></i>Speed</span><span><i class="s1"></i>GPU memory</span><span><i class="s2"></i>Tokens</span></div>' : "") +
+    '<p class="why-foot">' + (any.length ? "Highlighted: the most points on that measure. " : "Highlighted: the best measured value. ") +
+      (any.length === rk.length ? "" : "The points split is stored with sessions run from now on, so older ones show their measured values only. ") +
+      'Cost and energy are not part of the score. Pick them under Rank by to rank on them.</p></div>';
 }
 function sessionsBehind(sids, model, key, col, extraCols) {
   var hasV = sids.some(function (sid) { return gInfo(sid).metrics; });
@@ -862,7 +618,7 @@ function wirePanel(g) {
       tr.after(row);
     });
   });
-  addExports(p);
+  addExports($("lb-groups"));
 }
 // ---- Overall: places counted from the same per-setup ranking (by SAW score) ----
 function overallStats(gs) {
@@ -926,7 +682,7 @@ function renderOverall() {
         '<span class="w">' + s.wins + '/' + s.setups + '<small>beat ' + pct(s.rb) + '</small></span></button>';
     }).join("") +
     '<div class="legend2" aria-hidden="true"><span><span class="strip"><i class="p1">1</i></span> won</span><span><span class="strip"><i>2</i></span> place</span><span><span class="strip"><i class="nr"></i></span> not run</span><span><span class="strip"><i class="ne">n</i></span> not enough</span></div>' +
-    '</div><div class="lpanel" id="lb-mpanel">' + modelPanel(sel, gs) + '</div></div>';
+    '</div><div class="lpanel card" id="lb-mpanel">' + modelPanel(sel, gs) + '</div></div>';
   host.querySelectorAll("[data-model]").forEach(function (b) {
     if (b.tagName !== "BUTTON") return;
     b.addEventListener("click", function () {
@@ -936,6 +692,7 @@ function renderOverall() {
     });
   });
   wireModelPanel(sel, gs);
+  addExports(host);
 }
 function modelPanel(s, gs) {
   var col = colOf(LB.data.sort_metric), pct = function (x) { return Math.round(x * 100) + "%"; };

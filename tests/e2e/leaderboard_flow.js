@@ -36,7 +36,13 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     await p.click('#lb-table-0 [data-open="0"]');
     log(await p.getAttribute('#lb-table-0 [data-open="0"]', 'aria-expanded') === 'true' && (await p.$$('#lb-table-0 tr.exp a[href^="#/session/"]')).length === 2,
         'a model opens its sessions (Mistral 7B ran in both), each with Open');
-    log(/lb-compare/.test(await p.innerHTML('#lb-panel')) && !!(await p.$('#lb-gap')), 'Compare these models, and the gap between 1st and 2nd');
+    log(!!(await p.$('#lb-why')) && (await p.$$('#lb-why-table tbody tr')).length === 4 && /Speed is worth \d+/.test(await p.textContent('#lb-why')),
+        'Why this order: the points each measure is worth, and every ranked model');
+    log((await p.$$('#lb-why-table .stack')).length === 4 && (await p.$$('#lb-why-table td.hi')).length === 0 && /tie on the score/.test(await p.textContent('#lb-why')), 'each model\'s points per measure; demo models tie, so nothing is highlighted and the tie is said');
+    await p.click('#lb-sort [data-sort="latency"]'); await p.waitForFunction(() => /Latency/.test(document.querySelector('#lb-table-0 thead')?.textContent || ''));
+    log(!(await p.$('#lb-why')) && !!(await p.$('#lb-gap')), 'ranking by one measure: no Why this order, the gap line instead');
+    await p.click('#lb-sort [data-sort="efficiency"]'); await p.waitForSelector('#lb-why');
+    log(!(await p.$('#lbtab-compare')), 'no Compare models tab');
     // the one-model setup: not enough, with the next step
     await p.click('#lb-slist .sitem:nth-child(3)'); await p.waitForSelector('#lb-not-enough');
     log(/Not enough to rank yet/.test(await p.textContent('#lb-not-enough')) && /at least 2 models/.test(await p.textContent('#lb-not-enough')), 'one model: Not enough to rank yet, and why');

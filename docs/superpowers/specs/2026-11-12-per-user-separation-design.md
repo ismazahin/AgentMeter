@@ -125,6 +125,32 @@ chosen measure there. Today's rule, unchanged.
 
 Admins see the same notices when their chosen view (Only mine, or one user) is too small.
 
+## Leaderboard layout (replaces one long scroll of per-setup tables)
+
+**By setup: setup list and ranking panel** (owner's pick, 2026-11-12, mockup A-setup-list.png).
+- Left, a list of the setups: data set, GPU, input, flows, sessions, how many models (small bars),
+  the current leader, and who ran them (avatars, admins). "Not enough" badge on a setup with 1 model.
+  Sorted by most sessions.
+- Right, the chosen setup: a ranking with bars, a measure switch (SAW score, Latency, VRAM, Tokens,
+  Cost, Energy), and per model the people who ran it. Clicking a model opens its sessions (name,
+  run by, finished, value, Open). Under it the gap between 1st and 2nd, and buttons to Compare and
+  Repeatability. The "Not enough to rank yet" notice and its button live in this panel.
+- The chosen setup is in the address, so a link opens the same setup.
+- On a phone: the list first, a setup opens its ranking as its own screen, with a Back link.
+
+**Overall: podium, then list and panel** (owner asked for A and C combined without the setup cards;
+draft, mockup D-overall.png).
+- "Who wins most often": the top three on a low podium. Each card has the wins ("3 wins of 3
+  setups"), the share of rivals beaten, a strip with one square per setup (its place there, lime for
+  a win, dashed for not run, orange for not enough) and who ran it. The winner's pedestal is the
+  tallest and dark, with its numeral in lime.
+- Below, A's layout: all models on the left (wins, rivals beaten, the same strip), and the chosen
+  model on the right with three figures (wins, win rate, rivals beaten) and one row per setup it ran
+  on: its place there, score bar, who ran it. A row opens its sessions and how far it was from 1st.
+- The numbers are today's Overall rule (setups with 2 or more models, a win is 1st place), unchanged.
+- Motion: the pedestals rise once when the tab opens (under 300 ms, none with reduced motion); the
+  panel cross-fades when another model or setup is chosen. Nothing moves on hover.
+
 ## The filter bar (see the mockups)
 
 A row of compact dropdown pills under the tabs, each "Label Value ▾": `Sessions Everyone ▾` (admins

@@ -325,34 +325,31 @@ async function frameOf(p) {
   log(/same flows, GPU and settings/.test(await p.textContent('#cmp-error')), 'an old link to two different setups is refused (not merged)');
   await p.screenshot({ path: S + '/10-compare-none.png', fullPage: true });
 
-  // 9. Leaderboard
-  await p.click('.mainnav a[data-nav="leaderboard"]'); await p.waitForSelector('.lb-group');
-  const groups = await p.$$('.lb-group');
-  log(groups.length === 2, 'Leaderboard: 2 groups (CSV set, PCAP set) — ' + groups.length);
-  const g0 = await p.textContent('.lb-group');
-  log(/2 sessions/.test(g0), 'Leaderboard: the CSV group pools its 2 sessions');
+  // 9. Leaderboard (By setup: setup list + ranking panel; Overall: podium + model list). Demo runs
+  // are hidden by default; this server is a demo, so the page offers to show them.
+  await p.click('.mainnav a[data-nav="leaderboard"]'); await p.waitForSelector('#lb-demo-only');
+  await p.click('#lb-show-demo'); await p.waitForSelector('#lb-slist');
+  const groups = await p.$$('#lb-slist .sitem');
+  log(groups.length === 2, 'Leaderboard: 2 setups (CSV set, PCAP set) listed, ' + groups.length);
+  log(/2 sessions/.test(await p.textContent('#lb-slist .sitem')), 'Leaderboard: the CSV setup pools its 2 sessions');
   const ranks = await p.$$eval('#lb-table-0 tbody tr td:first-child', ts => ts.map(t => t.textContent));
-  log(ranks.join(',') === '1,2', 'Leaderboard: ranks restart within each group (' + ranks + ')');
-  await p.check('#lb-sort input[value="vram"]');
-  await p.waitForFunction(() => { const t = document.querySelector('#lb-table-0 tbody td'); return t && /—/.test(t.textContent); });
-  log(true, 'Leaderboard: sort by VRAM on mock data -> unranked (no VRAM reading)');
-  await p.check('#lb-sort input[value="latency"]'); await p.waitForSelector('#lb-table-0');
-  const cmpHref = await p.getAttribute('.lb-group .lb-compare', 'href');
+  log(ranks.join(',') === '1,2', 'Leaderboard: ranks restart within each setup (' + ranks + ')');
+  await p.click('#lb-sort [data-sort="vram"]');
+  await p.waitForFunction(() => /not ranked/.test(document.querySelector('#lb-table-0 tbody')?.textContent || ''));
+  log(true, 'Leaderboard: rank by VRAM on mock data -> not ranked (no VRAM reading)');
+  await p.click('#lb-sort [data-sort="latency"]'); await p.waitForFunction(() => /Latency/.test(document.querySelector('#lb-table-0 thead')?.textContent || ''));
+  const cmpHref = await p.getAttribute('#lb-panel .lb-compare', 'href');
   log(/^#\/compare\?sessions=job_[^,]+,job_/.test(cmpHref || ''), 'Leaderboard: a setup with 2 sessions links to Compare (' + cmpHref + ')');
   await p.screenshot({ path: S + '/11-leaderboard.png', fullPage: true });
-  await p.click('#lbtab-overall'); await p.waitForSelector('#lb-overall-empty');
-  log(await p.isHidden('#lb-setup-panel') && /two or more models/.test(await p.textContent('#lb-overall-empty')), 'Leaderboard Overall: demo sessions are left out by default');
-  await p.check('#lb-demo'); await p.waitForSelector('#lb-overall-table');
-  const ov = await p.$$eval('#lb-overall-table tbody tr', r => r.map(x => x.children[2].textContent));
-  log(ov.length === 2 && ov.some(w => Number(w) > 0), 'Leaderboard Overall (demo included): wins counted per model (' + ov + ')');
-  log(/Most often #1 by SAW score \(efficiency\)/.test(await p.textContent('#lb-overall-head')), 'Leaderboard Overall: names the model most often #1 on efficiency');
-  log((await p.$$('#lb-by input')).length === 1, 'Leaderboard Overall: wins are counted on efficiency only (no accuracy option)');
+  await p.click('#lbtab-overall'); await p.waitForSelector('#lb-podium');
+  log(await p.isHidden('#lb-setup-panel') && (await p.$$('#lb-models .mrow')).length === 2, 'Leaderboard Overall: a podium and every model with its wins');
+  log(/Who wins most often/.test(await p.textContent('#lb-podium')) && /SAW score \(efficiency\)/.test(await p.textContent('#lb-podium')), 'Leaderboard Overall: wins are counted on efficiency');
   await p.screenshot({ path: S + '/11b-leaderboard-overall.png', fullPage: true });
   await p.click('#lbtab-compare'); await p.waitForSelector('#lb-compare-panel:not([hidden]) #cmp-setup');
   log(/^#\/compare/.test(await p.evaluate(() => location.hash)) && await p.isHidden('#lb-setup-panel'), 'Leaderboard › Compare models: its own tab and address');
   await p.click('#lbtab-setup'); await p.waitForSelector('#lb-setup-panel:not([hidden]) #lb-table-0');
-  log(await p.evaluate(() => location.hash) === '#/leaderboard', 'back to By setup');
-  await p.click('.lb-group .lb-compare'); await p.waitForSelector('#cmp-validity');
+  log(/^#\/leaderboard/.test(await p.evaluate(() => location.hash)), 'back to By setup');
+  await p.click('#lb-panel .lb-compare'); await p.waitForSelector('#cmp-validity');
   log(/Like-for-like/.test(await p.textContent('#cmp-validity')), '"Compare these models" opens that setup in Compare models');
 
   // Repeatability (#/trends): the same model on one setup over time; demo sessions only when asked
@@ -422,7 +419,7 @@ async function frameOf(p) {
   const ph = await (await b.newContext({ viewport: { width: 375, height: 800 }, colorScheme: 'dark' })).newPage();
   ph.on('pageerror', e => errs.push('phone: ' + e.message));
   for (const [hash, sel] of [['#/', '#home-latest:not([hidden])'], ['#/new', '#svc-upload-form:not([hidden])'],
-                             ['#/session/' + job1, '#session-body:not([hidden])'], ['#/leaderboard', '.lb-group'], ['#/trends?demo=1', '#tr-summary-card'],
+                             ['#/session/' + job1, '#session-body:not([hidden])'], ['#/leaderboard', '#lb-slist'], ['#/trends?demo=1', '#tr-summary-card'],
                              ['#/compare?sessions=' + job1 + ',' + job3, '#cmp-validity']]) {
     await ph.goto(BASE + '/app.html' + hash); await ph.waitForSelector(sel, { timeout: 20000 });
     const over = await ph.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

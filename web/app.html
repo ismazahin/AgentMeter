@@ -432,6 +432,135 @@
   .lc.lane .lane-seg { opacity: .9; }
   .over-limit { color: var(--danger); font-weight: 600; }
   .in-limit { color: var(--success); }
+  /* filter bar: real selects styled as "Label Value ▾" pills; a pill off its default is tinted */
+  .fbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 16px; }
+  .fpill { position: relative; display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 0 0 12px;
+    border: 1px solid var(--border-2); border-radius: 6px; background: var(--surface); font-size: 13.5px; color: var(--text); white-space: nowrap; }
+  .fpill .fk { color: var(--muted); font-weight: 500; }
+  .fpill select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; font: inherit; font-weight: 600; color: inherit;
+    height: 36px; padding: 0 30px 0 0; margin: 0; cursor: pointer; max-width: 220px; text-overflow: ellipsis; }
+  .fpill select:focus-visible { outline: none; }
+  .fpill:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .fpill::after { content: ""; position: absolute; right: 12px; top: 50%; margin-top: -2px; border: 5px solid transparent; border-top-color: var(--muted-2); pointer-events: none; }
+  .fpill.on { border-color: var(--accent); background: var(--accent-soft); }
+  .fpill.on select { color: var(--accent-text); }
+  .ftog { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border: 1px solid var(--border-2); border-radius: 6px; background: var(--surface); font-size: 13.5px; cursor: pointer; }
+  .ftog input { appearance: none; -webkit-appearance: none; width: 30px; height: 17px; border-radius: 9px; background: var(--border-2); position: relative; margin: 0; cursor: pointer; flex: none; }
+  .ftog input::after { content: ""; position: absolute; left: 2px; top: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; transition: transform .15s ease-out; }
+  .ftog input:checked { background: var(--accent); }
+  .ftog input:checked::after { transform: translateX(13px); }
+  .ftog:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .fpill.fsearch::after { display: none; }
+  .fpill.fsearch input:focus { outline: none; }
+  .fclear { font-size: 13px; background: none; border: 0; color: var(--accent-text); text-decoration: underline; cursor: pointer; padding: 0 4px; }
+  .fcount { margin-left: auto; font-size: 13px; color: var(--muted); }
+  @media (max-width: 640px) { .fcount { margin-left: 0; flex-basis: 100%; } }
+  /* whose: initials in a stable colour per username */
+  .who { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .av { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; flex: none; }
+  .avs { display: inline-flex; gap: 2px; vertical-align: middle; }
+  .adminnote { font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; align-items: center; margin: 0 0 12px; }
+  .tag-admin { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-text); background: var(--accent-soft); padding: 2px 7px; border-radius: 999px; }
+  /* Leaderboard › By setup: setup list + ranking panel; Overall: podium + model list + placement panel */
+  .md2 { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 900px) { .md2 { grid-template-columns: 1fr; } }
+  .slist { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .slist-h { padding: 10px 14px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+  .sitem { display: block; width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-bottom: 1px solid var(--border); border-left: 3px solid transparent; padding: 12px 14px; cursor: pointer; }
+  .sitem:last-child { border-bottom: 0; }
+  .sitem:hover { background: var(--surface-2); }
+  .sitem[aria-current="true"] { background: var(--accent-soft); border-left-color: var(--accent); }
+  .sitem:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .sitem .t { font-weight: 600; font-size: 14.5px; display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .sitem .t > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sitem .m { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .sitem .lead { font-size: 12.5px; margin-top: 6px; display: flex; align-items: center; gap: 6px; color: var(--muted-2); }
+  .sitem .lead .avs { margin-left: auto; }
+  .trophy { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--cta); color: var(--cta-ink); font-size: 10px; font-weight: 800; flex: none; }
+  .badge-ne { font-size: 11px; font-weight: 700; color: var(--warn-text); background: var(--warn-soft); padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+  .mini { display: inline-flex; gap: 2px; vertical-align: middle; margin-right: 4px; }
+  .mini i { width: 6px; height: 14px; border-radius: 1px; background: var(--border-2); display: inline-block; }
+  .mini i.f { background: var(--accent); }
+  .lpanel { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 20px 22px; min-width: 0; }
+  .lpanel h2 { margin: 0; font-size: 24px; }
+  .lpanel .sub { font-size: 13px; color: var(--muted); margin: 4px 0 0; }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border-2); border-radius: 6px; overflow: hidden; margin-top: 14px; }
+  .seg button { font: inherit; font-size: 13px; padding: 7px 12px; border: 0; border-right: 1px solid var(--border-2); background: var(--surface); color: var(--muted-2); cursor: pointer; }
+  .seg button:last-child { border-right: 0; }
+  .seg button[aria-pressed="true"] { background: var(--text); color: var(--surface); font-weight: 600; }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  table.rk { width: 100%; margin-top: 14px; border-collapse: collapse; }
+  table.rk th { font-size: 11px; }
+  table.rk td { padding: 11px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  table.rk td.rn { width: 40px; text-align: center; font-weight: 700; color: var(--muted-2); }
+  table.rk tr.first td.rn span { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--cta); color: var(--cta-ink); font-size: 13px; }
+  table.rk td.nm { font-weight: 600; white-space: nowrap; }
+  table.rk td.bar-c { width: 38%; }
+  .rbar { height: 10px; background: var(--surface-2); border-radius: 5px; overflow: hidden; }
+  .rbar b { display: block; height: 100%; background: var(--accent); border-radius: 5px; }
+  tr.first .rbar b { background: var(--text); }
+  table.rk td.v { font-family: var(--mono); font-weight: 600; text-align: right; white-space: nowrap; }
+  table.rk tr.open > td { background: var(--surface-2); border-bottom: 0; }
+  table.rk tr.exp > td { background: var(--surface-2); padding: 2px 8px 12px 48px; font-size: 13px; }
+  table.rk tr.exp table td, table.rk tr.exp table th { padding: 6px 8px; }
+  .xbtn { background: none; border: 0; padding: 4px 6px; color: var(--muted); cursor: pointer; font: inherit; border-radius: 4px; }
+  .xbtn:focus-visible { outline: 2px solid var(--accent); }
+  .gap-note { margin-top: 14px; font-size: 13px; color: var(--muted-2); }
+  .ne-box { border-left: 4px solid var(--warn); background: var(--warn-soft); padding: 14px 16px; border-radius: 3px; margin-top: 14px; }
+  .ne-box h3 { margin: 0 0 6px; font-size: 16px; }
+  .ne-box ol { margin: 8px 0 0 18px; padding: 0; }
+  .dots2 { display: inline-flex; gap: 4px; vertical-align: middle; margin-left: 6px; }
+  .dots2 i { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--warn-text); display: inline-block; }
+  .dots2 i.f { background: var(--warn-text); }
+  .ov-band { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 22px 24px 0; margin-bottom: 18px; overflow: hidden; }
+  .ov-band-h { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .ov-band-h h2 { margin: 0; font-size: 22px; }
+  .ov-band-h p { margin: 0; font-size: 13px; color: var(--muted); }
+  .pod3 { display: grid; grid-template-columns: repeat(3, minmax(0, 250px)); justify-content: center; gap: 18px; align-items: end; margin-top: 18px; }
+  .pod3.n2 { grid-template-columns: repeat(2, minmax(0, 250px)); } .pod3.n1 { grid-template-columns: minmax(0, 250px); }
+  .pcol { display: flex; flex-direction: column; min-width: 0; }
+  .pcard { border: 1px solid var(--border); border-bottom: 0; border-radius: 6px 6px 0 0; padding: 14px 16px 12px; background: var(--bg); text-align: left; font: inherit; color: inherit; cursor: pointer; }
+  .pcard:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .pcol.w .pcard { background: var(--surface); border-color: var(--border-2); box-shadow: 0 -6px 18px rgba(15,27,51,.06); }
+  .pcard .nm { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+  .pcard .big { font-family: var(--serif); font-size: 34px; line-height: 1; margin-top: 10px; }
+  .pcard .big small { font-family: var(--font); font-size: 13px; color: var(--muted); margin-left: 6px; }
+  .pcard .psub { font-size: 12.5px; color: var(--muted-2); margin-top: 6px; }
+  .pcard .row2 { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 8px; }
+  .ped { flex: none; display: flex; align-items: center; justify-content: center; font-family: var(--serif); font-size: 26px; color: #EEF2FA; background: var(--band); height: 46px; transform-origin: bottom; }
+  .pcol.w .ped { background: #0F1B33; color: var(--cta); height: 74px; }
+  .pcol.p3 .ped { height: 30px; font-size: 20px; }
+  :root[data-theme="dark"] .pcol.w .ped { background: #E8ECF5; color: #0F1B33; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .pcol.w .ped { background: #E8ECF5; color: #0F1B33; } }
+  @media (max-width: 640px) { table.rk td.bar-c, table.rk th:nth-child(3) { display: none; } table.rk td { padding: 10px 6px; } table.rk tr.exp > td { padding-left: 8px; } }
+  .pbase { height: 6px; background: var(--rule); margin: 0 -24px; }
+  .crown { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; background: var(--cta); color: var(--cta-ink); padding: 2px 8px; border-radius: 999px; }
+  .strip { display: inline-flex; gap: 3px; flex-wrap: wrap; }
+  .strip i { width: 18px; height: 18px; border-radius: 3px; display: inline-grid; place-items: center; font-style: normal; font-size: 10.5px; font-weight: 700; border: 1px solid var(--border-2); color: var(--muted-2); background: var(--surface); }
+  .strip i.p1 { background: var(--cta); border-color: #9CC12F; color: var(--cta-ink); }
+  .strip i.nr { border-style: dashed; background: transparent; }
+  .strip i.ne { background: var(--warn-soft); border-color: transparent; color: var(--warn-text); }
+  .mrow { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+  .mrow .rn { font-weight: 700; color: var(--muted-2); text-align: center; }
+  .mrow .w { text-align: right; font-family: var(--mono); font-weight: 700; font-size: 14px; }
+  .mrow .w small { display: block; font-family: var(--font); font-weight: 500; font-size: 11.5px; color: var(--muted); }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+  .kpi { border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; }
+  .kpi b { font-family: var(--serif); font-size: 26px; display: block; font-weight: 400; }
+  .kpi span { font-size: 12px; color: var(--muted); }
+  .place { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted-2); white-space: nowrap; display: inline-block; }
+  .place.p1 { background: var(--cta); color: var(--cta-ink); }
+  .place.ne { background: var(--warn-soft); color: var(--warn-text); }
+  tr.open .place:not(.p1):not(.ne) { background: var(--surface); border: 1px solid var(--border-2); }
+  .legend2 { display: flex; gap: 6px 12px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); padding: 10px 14px; border-top: 1px solid var(--border); }
+  .legend2 .strip i { width: 14px; height: 14px; font-size: 9px; }
+  @media (max-width: 720px) { .pod3, .pod3.n2 { grid-template-columns: 1fr; } .ped { display: none; } .pcard { border-bottom: 1px solid var(--border); border-radius: 6px; } .kpis { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: no-preference) {
+    .ped.rise { animation: ped-rise .26s cubic-bezier(.2,.8,.2,1) both; }
+    .lpanel.swap { animation: panel-in .18s ease-out both; }
+  }
+  @keyframes ped-rise { from { transform: scaleY(.2); } to { transform: scaleY(1); } }
+  @keyframes panel-in { from { opacity: .35; } to { opacity: 1; } }
   .vars-row { gap: 12px; align-items: flex-end; flex-wrap: wrap; padding-top: 12px; padding-bottom: 12px; }
   .vars-row .field { margin: 0; min-width: 0; flex: 1 1 220px; }
   .gpu-zoom { gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0 4px; }
@@ -1467,16 +1596,19 @@
   <!-- SESSIONS -->
   <section id="view-sessions" class="view" hidden aria-labelledby="h-sessions">
     <div class="page-head"><div><h1 id="h-sessions">Sessions</h1>
-      <p>All your benchmark runs.<span class="info-i" tabindex="0" role="button" data-tip="Sessions are non-validated user runs and never merge into the locked study.">i</span></p></div>
+      <p><span id="sessions-lede">All your benchmark runs.</span><span class="info-i" tabindex="0" role="button" data-tip="Sessions are non-validated user runs and never merge into the locked study.">i</span></p></div>
       <a class="btn primary" href="#/new">New benchmark</a></div>
     <div class="card">
-      <form class="row" style="margin-top:0" id="sessions-filter">
-        <div class="field" style="flex:1 1 260px"><label for="flt-q">Search</label>
-          <input type="search" id="flt-q" class="wide" placeholder="model, notes, tag, owner…" autocomplete="off"></div>
-        <div class="field"><label for="flt-status">Status</label>
-          <select id="flt-status"><option value="">All</option><option>Done</option><option>Demo</option><option>Running</option><option>Failed</option><option>Stopped</option></select></div>
-        <div class="field"><label for="flt-input">Input type</label>
-          <select id="flt-input"><option value="">All</option><option value="CSV">CSV</option><option value="PCAP">PCAP</option></select></div>
+      <div id="sess-admin-note"></div>
+      <form class="fbar" style="margin-top:0" id="sessions-filter" role="search">
+        <label class="fpill fsearch" for="flt-q" style="flex:1 1 260px;padding-right:12px"><span class="fk">Search</span>
+          <input type="search" id="flt-q" placeholder="model, notes, tag, owner…" autocomplete="off" style="border:0;background:transparent;font:inherit;flex:1;min-width:0;height:36px;padding:0;color:inherit"></label>
+        <span id="flt-owner-box"></span>
+        <label class="fpill" for="flt-status"><span class="fk">Status</span>
+          <select id="flt-status"><option value="">All</option><option>Done</option><option>Demo</option><option>Running</option><option>Failed</option><option>Stopped</option></select></label>
+        <span id="flt-gpu-box"></span>
+        <label class="fpill" for="flt-input"><span class="fk">Input</span>
+          <select id="flt-input"><option value="">All</option><option value="CSV">CSV</option><option value="PCAP">PCAP</option></select></label>
       </form>
       <p id="flt-tag-row" class="small" hidden>Tag: <button type="button" class="chip tag-chip" id="flt-tag" aria-label="Remove tag filter"></button></p>
       <div class="table-wrap" style="margin-top:14px" id="sessions-table-box"></div>
@@ -1539,28 +1671,15 @@
   <!-- LEADERBOARD -->
   <section id="view-leaderboard" class="view" hidden aria-labelledby="h-lb">
     <div class="page-head"><div><h1 id="h-lb">Leaderboard</h1>
-      <p>Rank and compare models. Models are only ranked and compared against others on the same flows, GPU and settings.</p></div></div>
+      <p id="lb-lede">Rank and compare models. Models are only ranked and compared against others on the same flows, GPU and settings.</p></div></div>
     <div class="tabs" role="tablist" aria-label="Leaderboard views" id="lb-tabs">
       <button type="button" role="tab" id="lbtab-setup" data-lbtab="setup" aria-controls="lb-setup-panel" aria-selected="true">By setup</button>
       <button type="button" role="tab" id="lbtab-compare" data-lbtab="compare" aria-controls="lb-compare-panel" aria-selected="false" tabindex="-1">Compare models</button>
       <button type="button" role="tab" id="lbtab-overall" data-lbtab="overall" aria-controls="lb-overall-panel" aria-selected="false" tabindex="-1">Overall</button>
       <a role="tab" id="lbtab-repeat" href="#/trends" aria-selected="false" tabindex="-1">Repeatability</a>
     </div>
+    <div class="fbar" id="lb-fbar" role="group" aria-label="Filter the leaderboard"></div>
     <div id="lb-setup-panel" role="tabpanel" aria-labelledby="lbtab-setup">
-      <div class="card">
-        <fieldset style="border:0;padding:0;margin:0">
-          <legend class="small" style="font-weight:600;margin-bottom:6px">Rank by</legend>
-          <div class="seg-opts" id="lb-sort">
-            <label><input type="radio" name="lb-sort" value="efficiency" checked> SAW score (efficiency)</label>
-            <label><input type="radio" name="lb-sort" value="latency"> Latency</label>
-            <label><input type="radio" name="lb-sort" value="vram"> Working VRAM</label>
-            <label><input type="radio" name="lb-sort" value="total_vram"> Total peak VRAM</label>
-            <label><input type="radio" name="lb-sort" value="tokens"> Tokens</label>
-            <label><input type="radio" name="lb-sort" value="cost"> Cost / 1k flows</label>
-            <label><input type="radio" name="lb-sort" value="energy"> Energy / flow</label>
-          </div>
-        </fieldset>
-      </div>
       <div id="lb-groups"></div>
     </div>
     <div id="lb-compare-panel" role="tabpanel" aria-labelledby="lbtab-compare" hidden>
@@ -1578,15 +1697,6 @@
       <div id="cmp-excluded"></div>
     </div>
     <div id="lb-overall-panel" role="tabpanel" aria-labelledby="lbtab-overall" hidden>
-      <div class="card">
-        <fieldset style="border:0;padding:0;margin:0">
-          <legend class="small" style="font-weight:600;margin-bottom:6px">Count wins by</legend>
-          <div class="seg-opts" id="lb-by">
-            <label><input type="radio" name="lb-by" value="efficiency" checked> SAW score (efficiency)</label>
-          </div>
-        </fieldset>
-        <label class="check" style="margin-top:10px"><input type="checkbox" id="lb-demo"> Include demo sessions</label>
-      </div>
       <div id="lb-overall"></div>
     </div>
   </section>

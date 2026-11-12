@@ -407,14 +407,16 @@ function dsInfo(g) {
   var m = dsMetaFor(DS.meta, g.key, g.names), file = g.name ? g.name.split("/").pop() : "(unnamed set)";
   return { label: (m && m.label) || "", file: file, shown: (m && m.label) || file, deleted: dsGone(DS.meta, g.key, g.names, g.last) };
 }
-// rename / delete: the set's owner (who ran its first session, or prepared it) or an admin; the
-// control plane and the GPU server check again
+// delete (its files on the GPU server): the set's owner (who ran its first session, or prepared it) or an
+// admin; the control plane and the GPU server check again. A name is each user's own, so anyone renames.
 function dsCanEdit(g) {
   if (!CP || isAdmin()) return true;
   var first = g.sessions[g.sessions.length - 1];                      // sessions are newest first
   if (first) return !!first.can_edit;
   return !!(g.preparer && AUTH.user && g.preparer === AUTH.user.username);
 }
+// whose a data set is (admins see it): who ran its first session, else who prepared it
+function dsOwner(g) { var first = g.sessions[g.sessions.length - 1]; return (first && first.owner) || g.preparer || null; }
 function dsMatch(g) {
   var t = $("ds-type").value, words = $("ds-q").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (t && g.type !== t) return false;
@@ -432,21 +434,21 @@ function renderDatasets() {
   $("ds-body").innerHTML = (off ? '<p class="notice small" id="ds-offline">The GPU server is offline. Sets that have been benchmarked are listed, and sets prepared but not yet benchmarked appear when it is back.</p>' : "") +
     '<div class="card"><p class="muted small" style="margin-top:0">' + rows.length + ' of ' + live.length + ' set' + (live.length === 1 ? "" : "s") +
     '. The fingerprint is the hash of the prepared flows. Two sessions with the same fingerprint answered exactly the same flows.</p>' +
-    '<div class="table-wrap"><table id="ds-table"><thead><tr><th>Data set</th><th class="num">Flows</th><th>Fingerprint</th><th class="num">Sessions</th><th class="num">Models</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+    '<div class="table-wrap"><table id="ds-table"><thead><tr><th>Data set</th><th class="num">Flows</th><th>Fingerprint</th><th class="num">Sessions</th><th class="num">Models</th>' + (seesAll() ? '<th>Owner</th>' : '') + '<th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
     rows.map(function (g) {
       var open = DS.open === g.key, info = dsInfo(g), can = dsCanEdit(g), k = esc(g.key);
       return '<tr data-ds="' + k + '"><td>' + (info.label ? '<span class="row-name">' + esc(info.label) + '</span><span class="row-sub mono small muted">' + esc(info.file) + '</span>'
           : '<b class="mono small">' + esc(info.file) + '</b><br>') + '<span class="chip">' + esc(g.type || "—") + '</span>' +
         (g.labelled === true ? ' <span class="chip ok">labelled</span>' : g.labelled === false ? ' <span class="chip">no labels</span>' : "") +
         (g.sessions.length ? "" : ' <span class="chip warn">not benchmarked yet</span>') + '</td><td class="num">' + (g.n_flows == null ? "—" : fmtNum(g.n_flows)) +
-        '</td><td class="mono small">' + (g.sha ? esc(g.sha.slice(0, 12)) : "—") + '</td><td class="num">' + g.sessions.length + '</td><td class="num">' + g.models.length +
-        '</td><td class="small">' + esc(g.last ? fmtDate(g.last) : "—") + '</td><td class="ds-actions row-acts"><button type="button" class="btn small-btn" data-ds-open="' + k + '" aria-expanded="' + open + '">' + (open ? "Hide" : "Details") + '</button>' +
+        '</td><td class="mono small">' + (g.sha ? esc(g.sha.slice(0, 12)) : "—") + '</td><td class="num">' + g.sessions.length + '</td><td class="num">' + g.models.length + '</td>' +
+        (seesAll() ? '<td>' + whoTag(dsOwner(g)) + '</td>' : '') + '<td class="small">' + esc(g.last ? fmtDate(g.last) : "—") + '</td><td class="ds-actions row-acts"><button type="button" class="btn small-btn" data-ds-open="' + k + '" aria-expanded="' + open + '">' + (open ? "Hide" : "Details") + '</button>' +
         rowMenu("More actions for data set " + info.shown, [
           g.name && { label: "Benchmark this set", icon: "run", href: "#/new/models?set=" + enc(g.name) },
-          can && { label: "Rename", icon: "rename", attr: 'data-ds-rename="' + k + '"' },
+          { label: "Rename", icon: "rename", attr: 'data-ds-rename="' + k + '"' },
           can && { sep: true },
           can && { label: "Delete data set", icon: "trash", attr: 'data-ds-del="' + k + '"', danger: true }]) + '</td></tr>' +
-        (open ? '<tr class="ds-detail"><td colspan="7"><div id="ds-detail">' + dsDetail(g, null) + '</div></td></tr>' : "");
+        (open ? '<tr class="ds-detail"><td colspan="' + (seesAll() ? 8 : 7) + '"><div id="ds-detail">' + dsDetail(g, null) + '</div></td></tr>' : "");
     }).join("") + '</tbody></table></div>' + (rows.length ? "" : '<p class="muted" id="ds-none">No set matches.</p>') + '</div>';
   addExports($("ds-body"));
   var g = DS.rows.filter(function (x) { return x.key === DS.open; })[0];
@@ -500,7 +502,7 @@ document.addEventListener("click", function (ev) {
   if (!g) return;
   var info = dsInfo(g);
   askName({ title: "Rename data set", label: "Data set name", value: info.label, placeholder: info.file,
-            hint: "Up to 80 characters, shown for everyone instead of the file name " + info.file + ". Leave it empty to show the file name again.",
+            hint: "Up to 80 characters, shown to you instead of the file name " + info.file + ". Leave it empty to show the file name again.",
             save: function (name) { return dsPost("rename", { key: g.key, set: g.name || null, label: name }); }
   }).then(function (r) { if (r) datasetMeta(true).then(function (m) { DS.meta = m; renderDatasets(); }); });
 });
@@ -510,12 +512,12 @@ document.addEventListener("click", function (ev) {
   var g = dsByKey(b.getAttribute("data-ds-del"));
   if (g) dsDelete(g);
 });
-// Delete = remove the set's files from the GPU server, then the set from Data sets (for everyone).
+// Delete = remove the set's files from the GPU server, then the set from your Data sets.
 // Sessions that ran on it keep their results. GPU off: only the second step (its files stay there).
 function dsDelete(g) {
   var info = dsInfo(g), n = g.sessions.length, gpuOff = CP && !ONLINE;
   confirmAction({ title: "Delete data set \u201C" + info.shown + "\u201D?", danger: true, ok: "Delete data set",
-    body: "It disappears from Data sets for everyone and can no longer be benchmarked. " +
+    body: "It disappears from your Data sets and can no longer be benchmarked. " +
           (gpuOff ? "The GPU server is offline, so its prepared files there are not deleted now. "
                   : "Its prepared files are deleted from the GPU server. ") +
           (n ? "The " + n + " session" + (n === 1 ? "" : "s") + " that ran on it keep" + (n === 1 ? "s" : "") + " " + (n === 1 ? "its" : "their") + " results, but Run again on " + (n === 1 ? "it" : "them") + " will not work. " : "") +
@@ -651,10 +653,22 @@ function renderUpcoming(r) {
     '<p class="small muted" style="margin-bottom:0">Schedules are started from a session\'s Overview and managed on <a href="#/trends">Repeatability</a>.</p></div>';
 }
 // ---------- LEADERBOARD ----------
+// By setup: a list of the setups (same flows, GPU and settings) and the chosen one's ranking.
+// Overall: who wins most often (a podium for the top three), then every model and where it placed.
+// Both read only the sessions the viewer may see (a user's own; an admin everyone's, or one owner's),
+// so the rankings are built from the same rule the server applies. Nothing here changes a value:
+// ranks and values come from the server; Overall counts places from them.
 var LB_COLS = [["saw_eff_composite_100", "SAW (efficiency)", function (v) { return fmtNum(v, 1); }], ["mean_latency_s", "Latency / flow", fmtTime], ["mean_peak_vram_mb", "Working VRAM", fmtMB], ["total_peak_mb", "Total peak VRAM", fmtMB],
                ["mean_tokens_per_flow", "Tokens / flow", function (v) { return fmtNum(v); }], ["cost_per_1k_flows_usd", "Cost / 1k flows", fmtUsd], ["wh_per_flow", "Energy / flow", fmtWh]];
-var LB = { tab: "setup" };
+var LB_MEASURES = [["efficiency", "SAW score"], ["latency", "Latency"], ["vram", "VRAM"], ["total_vram", "Total VRAM"], ["tokens", "Tokens"], ["cost", "Cost"], ["energy", "Energy"]];
+var LB = { tab: "setup", data: null, info: {} };
 var LB_TABS = ["setup", "compare", "overall"];
+var LBF = (function () {
+  var d = { owner: "", gpu: "", set: "", input: "", demo: false, sort: "efficiency", setup: "", model: "" };
+  try { var k = JSON.parse(localStorage.getItem("agentmeter.lbf") || "{}"); Object.keys(d).forEach(function (x) { if (k[x] != null) d[x] = k[x]; }); } catch (e) { /* defaults */ }
+  return d;
+})();
+function lbSave() { try { localStorage.setItem("agentmeter.lbf", JSON.stringify(LBF)); } catch (e) { /* not kept */ } }
 function lbTab(t, routed) {
   LB.tab = t;
   LB_TABS.forEach(function (x) {
@@ -662,64 +676,302 @@ function lbTab(t, routed) {
     b.setAttribute("aria-selected", String(x === t)); b.tabIndex = x === t ? 0 : -1;
     $("lb-" + x + "-panel").hidden = x !== t;
   });
+  $("lb-fbar").hidden = t === "compare";
   if (t === "compare") { if (!routed) location.hash = "#/compare"; return; }        // its own address, so links and reloads keep it
   if (/^#\/compare/.test(location.hash)) { location.hash = "#/leaderboard"; return; }
+  var q = parseHash().q;
+  if (q.setup) LBF.setup = q.setup;
+  if (q.model) LBF.model = q.model;
   loadLeaderboard();
 }
-function loadLeaderboard() { if (LB.tab === "overall") loadOverall(); else loadPerSetup(); }
-function loadPerSetup() {
-  var sort = (document.querySelector('input[name="lb-sort"]:checked') || {}).value || "efficiency";
-  $("lb-groups").innerHTML = skel(5, true);
-  api("/api/leaderboard?view=per_setup&sort=" + enc(sort)).then(function (r) {
-    if (!r.ok) { $("lb-groups").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
-    var gs = r.data.groups || [];
-    if (!gs.length) { $("lb-groups").innerHTML = '<div class="card empty"><p>No finished sessions yet.</p><a class="btn primary" href="#/new">New benchmark</a></div>'; return; }
-    $("lb-groups").innerHTML = '<p class="muted small">' + (r.data.higher_is_better ? "Higher is better." : "Lower is better.") + ' Sessions on one setup are combined.' + infoI(r.data.rule) + '</p>' + gs.map(function (g, gi) {
-      return '<div class="card lb-group"><div class="row" style="margin-top:0;justify-content:space-between"><h2>' + esc(g.gpu) + ', ' + esc(g.input_type || "") + ', ' + fmtNum(g.n_flows_per_session) + ' flows</h2>' +
-        '<span class="chips"><span class="chip mono" title="Prepared-set hash">set ' + esc(String(g.prepared_set_sha256).slice(0, 12)) + '</span><span class="chip">' + g.n_sessions + ' session' + (g.n_sessions === 1 ? "" : "s") + '</span>' +
-        (g.demo ? '<span class="chip warn">demo</span>' : "") + '</span></div>' +
-        '<div class="table-wrap" style="margin-top:10px"><table class="lb-table" id="lb-table-' + gi + '"><thead><tr><th class="num">Rank</th><th>Model</th><th class="num">Sessions</th><th class="num">Flows</th>' +
-        LB_COLS.map(function (c) { return '<th class="num">' + esc(c[1]) + '</th>'; }).join("") + '</tr></thead><tbody>' +
-        g.rows.map(function (row) {
-          return '<tr><td class="num">' + (row.rank == null ? '<span class="muted" title="no value for this key">—</span>' : row.rank) + '</td><td class="mono">' + esc(row.model) + extraTag(row.model) + '</td><td class="num">' + row.n_sessions +
-            '</td><td class="num">' + fmtNum(row.n_flows) + '</td>' + LB_COLS.map(function (c) { return '<td class="num">' + (row[c[0]] == null ? '<span class="muted">—</span>' : c[2](row[c[0]])) + '</td>'; }).join("") + '</tr>';
-        }).join("") + '</tbody></table></div>' +
-        (g.n_sessions > 1 ? '<p class="small" style="margin-bottom:0"><a class="lb-compare" href="#/compare?sessions=' + g.sessions.map(enc).join(",") + '">Compare these models →</a></p>' : "") + '</div>';
-    }).join("");
-    addExports($("lb-groups"));
+function lbUrl() {                       // the chosen setup or model in the address, without a reload
+  var q = "tab=" + LB.tab + (LB.tab === "setup" && LBF.setup ? "&setup=" + enc(LBF.setup) : "") + (LB.tab === "overall" && LBF.model ? "&model=" + enc(LBF.model) : "");
+  try { history.replaceState(null, "", "#/leaderboard?" + q); } catch (e) { /* address unchanged */ }
+  lbSave();
+}
+function gKey(g) { return String(g.prepared_set_sha256) + "|" + (g.gpu || "") + "|" + (g.settings_fingerprint || ""); }
+function gInfo(sid) { return LB.info[sid] || {}; }
+function gName(g) {
+  for (var i = 0; i < (g.sessions || []).length; i++) {
+    var rn = gInfo(g.sessions[i]).run_name;
+    if (rn) return String(rn).split("/").pop().replace(/_\d{8}-\d{6}_[0-9a-f]+$/, "");
+  }
+  return "set " + String(g.prepared_set_sha256 || "").slice(0, 10);
+}
+function gRun(g) { for (var i = 0; i < (g.sessions || []).length; i++) { var rn = gInfo(g.sessions[i]).run_name; if (rn) return rn; } return ""; }
+function gPeople(sids) { var out = []; (sids || []).forEach(function (sid) { var o = gInfo(sid).owner; if (o && out.indexOf(o) < 0) out.push(o); }); return out; }
+function ranked(g) { return (g.rows || []).filter(function (r) { return r.rank != null; }); }
+function colOf(key) { return LB_COLS.filter(function (c) { return c[0] === key; })[0] || LB_COLS[0]; }
+function showOwners() { return seesAll() && LB.scope !== "mine" && LBF.owner !== "me"; }
+// the server's ranking (per setup), with who ran each session; non-control-plane: names from the sessions list
+function lbFetch(sort) {
+  var q = "/api/leaderboard?view=per_setup&sort=" + enc(sort) + (seesAll() && LBF.owner ? "&owner=" + enc(LBF.owner) : "");
+  return api(q).then(function (r) {
+    if (!r.ok || r.data.sessions_info) return r;
+    return allSessions().then(function (a) {                  // a single GPU server: no owners, names from its list
+      var info = {}; ((a.ok && a.data.sessions) || []).forEach(function (s) { info[s.session_id] = { owner: s.owner || null, title: s.title || "", run_name: s.run_name, finished_at: s.finished_at || s.created_at, metrics: null }; });
+      r.data.sessions_info = info; return r;
+    });
   });
 }
-var LB_BY = { efficiency: "SAW score (efficiency)" };
-function loadOverall() {
-  var by = (document.querySelector('input[name="lb-by"]:checked') || {}).value || "efficiency";
-  $("lb-overall").innerHTML = skel(4, true);
-  api("/api/leaderboard?view=overall&by=" + enc(by) + ($("lb-demo").checked ? "&demo=1" : "")).then(function (r) {
-    if (!r.ok) { $("lb-overall").innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
-    var d = r.data, rows = d.rows || [];
-    if (!rows.length) {
-      $("lb-overall").innerHTML = '<div class="card empty" id="lb-overall-empty"><p>' + "No setup has two or more models yet." +
-        '</p><p class="muted small">Benchmark at least two models on the same flows.</p><a class="btn primary" href="#/new">New benchmark</a></div>';
-      return;
-    }
-    var top = rows.filter(function (x) { return x.wins === rows[0].wins && x.win_rate === rows[0].win_rate && x.rivals_beaten === rows[0].rivals_beaten; });
-    $("lb-overall").innerHTML =
-      '<div class="card" id="lb-overall-head"><p style="margin:0">Most often #1 by ' + esc(LB_BY[by]) + ' is <b>' + top.map(function (x) { return esc(x.model); }).join(", ") + '</b>, with ' +
-        rows[0].wins + ' of ' + rows[0].setups + ' setup' + (rows[0].setups === 1 ? "" : "s") + '.' + infoI(d.rule) + '</p>' +
-        '<p class="muted small" style="margin-bottom:0">Counted over ' + d.n_setups + ' setup' + (d.n_setups === 1 ? "" : "s") + ' with 2+ models' +
-        (d.n_setups_single_model ? ' (' + d.n_setups_single_model + ' with one model skipped)' : "") + '.' +
-        ' Ranked on resource efficiency (latency, VRAM, tokens).</p></div>' +
-      '<div class="card"><div class="table-wrap"><table class="lb-table" id="lb-overall-table"><thead><tr><th class="num">Rank</th><th>Model</th><th class="num">Wins</th><th class="num">Win rate</th>' +
-        '<th class="num">Rivals beaten' + infoI("The share of other models it placed above, averaged over its setups.") + '</th><th class="num">Setups</th><th class="num">Sessions</th></tr></thead><tbody>' +
-        rows.map(function (x) {
-          return '<tr><td class="num">' + x.rank + '</td><td class="mono">' + esc(x.model) + extraTag(x.model) + (x.few_data ? ' <span class="chip warn" title="Measured on only one setup">few data</span>' : "") +
-            '</td><td class="num">' + x.wins + '</td><td class="num">' + fmtPct(x.win_rate) + '</td><td class="num">' + fmtPct(x.rivals_beaten) + '</td><td class="num">' + x.setups + '</td><td class="num">' + x.n_sessions + '</td></tr>';
-        }).join("") + '</tbody></table></div></div>';
-    addExports($("lb-overall"));
+function lbGroups() {
+  return (LB.data.groups || []).filter(function (g) {
+    return (LBF.demo || !g.demo) && (!LBF.gpu || g.gpu === LBF.gpu) && (!LBF.input || g.input_type === LBF.input) && (!LBF.set || gName(g) === LBF.set);
   });
 }
-document.querySelectorAll('input[name="lb-sort"]').forEach(function (r) { r.addEventListener("change", loadPerSetup); });
-document.querySelectorAll('input[name="lb-by"]').forEach(function (r) { r.addEventListener("change", loadOverall); });
-$("lb-demo").addEventListener("change", loadOverall);
+// the filter bar, shared by By setup and Overall
+function lbBar(owners) {
+  var gs = (LB.data.groups || []).filter(function (g) { return LBF.demo || !g.demo; });
+  var uniq = function (f) { var o = []; gs.forEach(function (g) { var v = f(g); if (v && o.indexOf(v) < 0) o.push(v); }); return o.sort(); };
+  var opts = function (vals) { return [["", "All"]].concat(vals.map(function (v) { return [v, v]; })); };
+  var shown = lbGroups(), sids = [];
+  shown.forEach(function (g) { (g.sessions || []).forEach(function (x) { if (sids.indexOf(x) < 0) sids.push(x); }); });
+  var people = gPeople(sids).length, any = LBF.owner || LBF.gpu || LBF.set || LBF.input || LBF.demo;
+  var count = !seesAll() && CP ? "Your sessions only, " + sids.length + " session" + (sids.length === 1 ? "" : "s")
+    : shown.length + " setup" + (shown.length === 1 ? "" : "s") + ", " + sids.length + " session" + (sids.length === 1 ? "" : "s") + (showOwners() && people ? " from " + people + (people === 1 ? " person" : " people") : "");
+  $("lb-fbar").innerHTML = (seesAll() ? fpill("lb-owner", "Sessions", ownerOpts(owners), LBF.owner, "") : "") +
+    fpill("lb-gpu", "GPU", opts(uniq(function (g) { return g.gpu; })), LBF.gpu, "") +
+    fpill("lb-set", "Data set", opts(uniq(gName)), LBF.set, "") +
+    fpill("lb-input", "Input", opts(uniq(function (g) { return g.input_type; })), LBF.input, "") +
+    ftoggle("lb-demo", "Demo runs", LBF.demo) +
+    (any ? '<button type="button" class="fclear" id="lb-clear">Clear filters</button>' : "") +
+    '<span class="fcount" id="lb-count">' + esc(count) + '</span>';
+  [["lb-owner", "owner", true], ["lb-gpu", "gpu"], ["lb-set", "set"], ["lb-input", "input"]].forEach(function (k) {
+    var el = $(k[0]); if (!el) return;
+    el.addEventListener("change", function () { LBF[k[1]] = this.value; if (k[2]) loadLeaderboard(); else lbRender(); });
+  });
+  $("lb-demo").addEventListener("change", function () { LBF.demo = this.checked; lbRender(); });
+  if ($("lb-clear")) $("lb-clear").addEventListener("click", function () {
+    var reload = !!LBF.owner;
+    LBF.owner = LBF.gpu = LBF.set = LBF.input = ""; LBF.demo = false;
+    if (reload) loadLeaderboard(); else lbRender();
+  });
+}
+function loadLeaderboard() {
+  var host = LB.tab === "overall" ? $("lb-overall") : $("lb-groups");
+  host.innerHTML = skel(5, true);
+  $("lb-lede").textContent = CP && !seesAll() ? "Rank and compare the models you ran. Models are only ranked against others on the same flows, GPU and settings."
+    : "Rank and compare models. Models are only ranked and compared against others on the same flows, GPU and settings.";
+  var sort = LB.tab === "overall" ? "efficiency" : LBF.sort;
+  Promise.all([lbFetch(sort), loadOwners()]).then(function (rs) {
+    var r = rs[0];
+    if (!r.ok) { host.innerHTML = '<div class="notice error">' + esc(r.data.error) + '</div>'; return; }
+    LB.data = r.data; LB.info = r.data.sessions_info || {}; LB.scope = r.data.scope; LB.owners = rs[1];
+    lbRender();
+  });
+}
+function lbRender() {
+  if (!LB.data) return;
+  lbBar(LB.owners);
+  if (LB.tab === "overall") renderOverall(); else renderBySetup();
+  lbUrl();
+}
+function lbEmpty(host) {
+  var all = LB.data.groups || [], demoOnly = all.length && all.every(function (g) { return g.demo; }) && !LBF.demo;
+  if (demoOnly) {
+    host.innerHTML = '<div class="card empty" id="lb-demo-only"><p>Only demo runs so far. Demo runs are simulated, so they are hidden from the rankings.</p>' +
+      '<button type="button" class="btn" id="lb-show-demo">Show demo runs</button></div>';
+    $("lb-show-demo").addEventListener("click", function () { LBF.demo = true; lbRender(); });
+  } else if (!all.length) {
+    host.innerHTML = '<div class="card empty" id="lb-none"><p>' + (CP && !seesAll() ? "You have not finished a benchmark yet." : "No finished sessions yet.") +
+      '</p><a class="btn primary" href="#/new">New benchmark</a></div>';
+  } else {
+    host.innerHTML = '<div class="card empty" id="lb-filtered"><p>No setup matches these filters.</p></div>';
+  }
+}
+// ---- By setup ----
+function renderBySetup() {
+  var host = $("lb-groups"), gs = lbGroups();
+  if (!gs.length) { lbEmpty(host); return; }
+  var g = gs.filter(function (x) { return gKey(x) === LBF.setup; })[0] || gs[0];
+  LBF.setup = gKey(g);
+  host.innerHTML = '<div class="md2"><div class="slist" id="lb-slist"><div class="slist-h"><span>Setups</span><span>Most sessions first</span></div>' +
+    gs.map(function (x) {
+      var rk = ranked(x), n = (x.rows || []).length, lead = rk[0];
+      return '<button type="button" class="sitem" data-setup="' + esc(gKey(x)) + '" aria-current="' + String(x === g) + '">' +
+        '<span class="t"><span>' + esc(gName(x)) + '</span>' + (rk.length < 2 ? '<span class="badge-ne">Not enough</span>'
+          : '<span class="small muted"><span class="mini" aria-hidden="true">' + [0, 1, 2, 3].map(function (i) { return '<i class="' + (i < n ? "f" : "") + '"></i>'; }).join("") + '</span>' + n + ' models</span>') + '</span>' +
+        '<span class="m">' + esc((x.gpu || "GPU") + ", " + (x.input_type || "") + ", " + fmtNum(x.n_flows_per_session) + " flows, " + x.n_sessions + " session" + (x.n_sessions === 1 ? "" : "s")) + (x.demo ? ", demo" : "") + '</span>' +
+        '<span class="lead">' + (rk.length < 2 ? '<span class="muted">Only ' + esc(nick((x.rows[0] || {}).model || "")) + ' so far</span>'
+          : '<span class="trophy" aria-hidden="true">1</span><b>' + esc(nick(lead.model)) + '</b> ' + esc(colOf(LB.data.sort_metric)[2](lead[LB.data.sort_metric]))) +
+        (showOwners() ? avatars(gPeople(x.sessions)) : "") + '</span></button>';
+    }).join("") + '</div><div class="lpanel" id="lb-panel">' + setupPanel(g) + '</div></div>';
+  host.querySelectorAll("[data-setup]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      LBF.setup = b.getAttribute("data-setup"); renderBySetup(); lbUrl();
+      var p = $("lb-panel"); p.classList.add("swap");
+      if (window.matchMedia && window.matchMedia("(max-width: 900px)").matches) p.scrollIntoView({ block: "start" });
+    });
+  });
+  wirePanel(g);
+}
+function setupPanel(g) {
+  var key = LB.data.sort_metric, col = colOf(key), hi = LB.data.higher_is_better, rk = ranked(g), people = gPeople(g.sessions);
+  var vals = rk.map(function (r) { return r[key]; }), best = vals.length ? (hi ? Math.max.apply(null, vals) : Math.min.apply(null, vals)) : 0;
+  var w = function (v) { return v == null || !best ? 0 : Math.max(3, Math.min(100, hi ? 100 * v / best : 100 * best / v)); };
+  var mine = CP && !seesAll(), run = gRun(g);
+  var ne = rk.length < 2 ? '<div class="ne-box" id="lb-not-enough"><h3>Not enough to rank yet<span class="dots2" aria-hidden="true"><i class="f"></i><i class="' + (rk.length > 1 ? "f" : "") + '"></i></span></h3>' +
+    '<p style="margin:0">' + (mine ? "Your sessions on this setup measured " : "The sessions on this setup measured ") + '<b>' + (g.rows || []).length + ' model' + ((g.rows || []).length === 1 ? "" : "s") + '</b>' +
+    ((g.rows || []).length ? ", " + esc((g.rows || []).map(function (r) { return nick(r.model); }).join(", ")) : "") + '. A ranking needs <b>at least 2 models</b> on the same flows, GPU and settings.</p>' +
+    '<ol class="small"><li>Run another model on this data set. The setup stays the same, so it lands here.</li><li>Then open Compare models to see them side by side.</li></ol>' +
+    '<div class="actions" style="margin-top:12px"><a class="btn primary" id="lb-run-another" href="' + (run ? "#/new/models?set=" + enc(run) : "#/new") + '">Run another model on this set</a></div></div>' : "";
+  var rows = (g.rows || []).map(function (r, i) {
+    var sids = r.sessions || [], v = r[key];
+    return '<tr class="' + (r.rank === 1 ? "first" : "") + '" data-model="' + esc(r.model) + '"><td class="rn">' + (r.rank == null ? '<span class="muted small">not ranked</span>' : '<span>' + r.rank + '</span>') +
+      '</td><td class="nm">' + esc(nick(r.model)) + extraTag(r.model) + '</td><td class="bar-c" aria-hidden="true"><div class="rbar"><b style="width:' + w(v) + '%"></b></div></td>' +
+      '<td class="v">' + (v == null ? '<span class="muted">not measured</span>' : esc(col[2](v))) + '</td>' +
+      '<td>' + (showOwners() ? avatars(gPeople(sids)) + " " : "") + '<span class="small muted">' + r.n_sessions + ' run' + (r.n_sessions === 1 ? "" : "s") + '</span></td>' +
+      '<td style="width:36px"><button type="button" class="xbtn" data-open="' + i + '" aria-expanded="false" aria-label="Sessions behind ' + esc(nick(r.model)) + '">▾</button></td></tr>';
+  }).join("");
+  var gap = "";
+  if (rk.length >= 2 && rk[0][key] != null && rk[1][key] != null) {
+    var d = Math.abs(rk[0][key] - rk[1][key]), pts = key === "saw_eff_composite_100";
+    gap = '<p class="gap-note" id="lb-gap">' + ((pts ? d < 0.05 : d === 0) ? esc(nick(rk[0].model)) + ' and ' + esc(nick(rk[1].model)) + ' tie on ' + esc(col[1]) + '. More flows or another run can tell them apart.'
+      : esc(nick(rk[0].model)) + ' leads ' + esc(nick(rk[1].model)) + ' by <b>' + esc(pts ? fmtNum(d, 1) + " points" : col[2](d)) + '</b>.') + ' Click a model to see the sessions behind it.</p>';
+  }
+  return '<h2 id="lb-panel-h">' + esc(gName(g)) + '</h2><p class="sub">' + esc((g.gpu || "GPU") + ", " + (g.input_type || "") + ", " + fmtNum(g.n_flows_per_session) + " flows per session, " +
+      g.n_sessions + " session" + (g.n_sessions === 1 ? "" : "s")) + (showOwners() && people.length ? " by " + esc(people.map(meName).join(", ")) : "") + (g.demo ? ", demo runs" : "") + '.' + infoI(LB.data.rule || "") + '</p>' +
+    '<div class="seg" role="group" aria-label="Rank by" id="lb-sort">' + LB_MEASURES.map(function (m) {
+      return '<button type="button" data-sort="' + m[0] + '" aria-pressed="' + String(m[0] === LBF.sort) + '">' + esc(m[1]) + '</button>'; }).join("") + '</div>' + ne +
+    '<div class="table-wrap"><table class="lb-table rk" id="lb-table-0"><thead><tr><th class="num">Rank</th><th>Model</th><th><span class="sr-only">Bar</span></th><th class="num">' + esc(col[1]) +
+      (hi ? " (higher is better)" : " (lower is better)") + '</th><th>' + (showOwners() ? "Run by" : "Runs") + '</th><th><span class="sr-only">Sessions</span></th></tr></thead><tbody>' + rows + '</tbody></table></div>' + gap +
+    '<div class="actions" style="margin-top:16px">' + (g.n_sessions > 1 ? '<a class="btn lb-compare" href="#/compare?sessions=' + g.sessions.map(enc).join(",") + '">Compare these models</a>' : "") +
+      '<a class="btn" href="#/trends">Repeatability</a></div>';
+}
+function sessionsBehind(sids, model, key, col, extraCols) {
+  var hasV = sids.some(function (sid) { return gInfo(sid).metrics; });
+  return '<table><thead><tr><th>Session</th>' + (showOwners() ? "<th>Run by</th>" : "") + '<th>Finished</th>' + (hasV ? '<th class="num">' + esc(col[1]) + '</th>' : "") + '<th><span class="sr-only">Open</span></th></tr></thead><tbody>' +
+    sids.map(function (sid) {
+      var x = gInfo(sid), v = x.metrics && x.metrics[model] ? x.metrics[model][key] : null;
+      return '<tr><td>' + esc(x.title || shortId(sid)) + '</td>' + (showOwners() ? '<td>' + whoTag(x.owner) + '</td>' : "") + '<td>' + esc(x.finished_at ? fmtDate(x.finished_at) : "") + '</td>' +
+        (hasV ? '<td class="num">' + (v == null ? "" : esc(col[2](v))) + '</td>' : "") + '<td><a href="#/session/' + enc(sid) + '">Open</a></td></tr>';
+    }).join("") + '</tbody></table>' + (extraCols || "");
+}
+function wirePanel(g) {
+  var p = $("lb-panel");
+  p.querySelectorAll("[data-sort]").forEach(function (b) { b.addEventListener("click", function () { LBF.sort = b.getAttribute("data-sort"); loadLeaderboard(); }); });
+  p.querySelectorAll("[data-open]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var tr = b.closest("tr"), r = g.rows[+b.getAttribute("data-open")], open = tr.classList.contains("open");
+      p.querySelectorAll("tr.exp").forEach(function (x) { x.remove(); });
+      p.querySelectorAll("tr.open").forEach(function (x) { x.classList.remove("open"); x.querySelector("[data-open]").setAttribute("aria-expanded", "false"); x.querySelector("[data-open]").textContent = "▾"; });
+      if (open) return;
+      tr.classList.add("open"); b.setAttribute("aria-expanded", "true"); b.textContent = "▴";
+      var row = document.createElement("tr"); row.className = "exp";
+      row.innerHTML = '<td colspan="6">' + sessionsBehind(r.sessions || [], r.model, LB.data.sort_metric, colOf(LB.data.sort_metric)) + '</td>';
+      tr.after(row);
+    });
+  });
+  addExports(p);
+}
+// ---- Overall: places counted from the same per-setup ranking (by SAW score) ----
+function overallStats(gs) {
+  var st = {}, setups = gs.filter(function (g) { return ranked(g).length >= 2; });
+  gs.forEach(function (g, gi) {
+    var rk = ranked(g);
+    (g.rows || []).forEach(function (r) {
+      var s = st[r.model] = st[r.model] || { model: r.model, wins: 0, setups: 0, beaten: [], sessions: [], places: {} };
+      r.sessions.forEach(function (x) { if (s.sessions.indexOf(x) < 0) s.sessions.push(x); });
+      if (rk.length < 2) { s.places[gi] = { ne: true, v: r[LB.data.sort_metric], sessions: r.sessions }; return; }
+      if (r.rank == null) return;
+      s.setups++; if (r.rank === 1) s.wins++;
+      s.beaten.push((rk.length - r.rank) / (rk.length - 1));
+      s.places[gi] = { place: r.rank, of: rk.length, v: r[LB.data.sort_metric], sessions: r.sessions };
+    });
+  });
+  var rows = Object.keys(st).map(function (m) { var s = st[m]; s.rate = s.setups ? s.wins / s.setups : 0; s.rb = s.beaten.length ? s.beaten.reduce(function (a, b) { return a + b; }, 0) / s.beaten.length : 0; return s; })
+    .filter(function (s) { return s.setups > 0; })
+    .sort(function (a, b) { return (b.wins - a.wins) || (b.rate - a.rate) || (b.rb - a.rb) || (a.model < b.model ? -1 : a.model > b.model ? 1 : 0); });
+  rows.forEach(function (s, i) { s.rank = i + 1; });
+  return { rows: rows, n_setups: setups.length, single: gs.length - setups.length };
+}
+function placeStrip(s, gs) {
+  return '<span class="strip" aria-hidden="true">' + gs.map(function (g, gi) {
+    var p = s.places[gi], nm = gName(g) + ", " + (g.gpu || "");
+    if (!p) return '<i class="nr" title="' + esc(nm) + ': not run"></i>';
+    if (p.ne) return '<i class="ne" title="' + esc(nm) + ': not enough to rank">n</i>';
+    return '<i class="' + (p.place === 1 ? "p1" : "") + '" title="' + esc(nm) + ': ' + ordinal(p.place) + ' of ' + p.of + '">' + p.place + '</i>';
+  }).join("") + '</span>';
+}
+function ordinal(n) { return n + (n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"); }
+function renderOverall() {
+  var host = $("lb-overall"), gs = lbGroups();
+  if (!gs.length) { lbEmpty(host); return; }
+  var o = overallStats(gs), rows = o.rows;
+  if (!rows.length) {
+    var run = gRun(gs[0]);
+    host.innerHTML = '<div class="card empty" id="lb-overall-empty"><div class="ne-box" style="text-align:left;margin:0"><h3>Not enough to rank yet</h3><p style="margin:0">' +
+      (CP && !seesAll() ? "None of your setups" : "No setup") + ' has two or more models yet. A model is only ranked against others on the same flows, GPU and settings.</p>' +
+      '<div class="actions" style="margin-top:12px"><a class="btn primary" href="' + (run ? "#/new/models?set=" + enc(run) : "#/new") + '">Run another model on ' + esc(gName(gs[0])) + '</a></div></div></div>';
+    return;
+  }
+  var sel = rows.filter(function (s) { return s.model === LBF.model; })[0] || rows[0];
+  LBF.model = sel.model;
+  var top = rows.slice(0, 3), order = top.length === 3 ? [top[1], top[0], top[2]] : top.length === 2 ? [top[1], top[0]] : [top[0]];
+  var pct = function (x) { return Math.round(x * 100) + "%"; };
+  host.innerHTML = '<div class="ov-band" id="lb-podium"><div class="ov-band-h"><h2>Who wins most often</h2><p>A win is 1st place on a setup with 2 or more models. Ranked by SAW score (efficiency).' + infoI("Counted over " + o.n_setups + " setup" + (o.n_setups === 1 ? "" : "s") + " with 2 or more models" + (o.single ? ", " + o.single + " with one model left out" : "") + ". Rivals beaten is the share of the other models it placed above, averaged over its setups.") + '</p></div>' +
+    '<div class="pod3 n' + order.length + '">' + order.map(function (s) {
+      var w = s === top[0];
+      return '<div class="pcol' + (w ? " w" : "") + (s.rank === 3 ? " p3" : "") + '"><button type="button" class="pcard" data-model="' + esc(s.model) + '" aria-label="' + esc(nick(s.model) + ", " + ordinal(s.rank) + ", " + s.wins + " wins of " + s.setups + " setups") + '">' +
+        '<span class="nm">' + esc(nick(s.model)) + (w ? '<span class="crown">Top</span>' : "") + '</span>' +
+        '<span class="big" style="display:block">' + s.wins + ' <small>' + (s.wins === 1 ? "win" : "wins") + ' of ' + s.setups + ' setup' + (s.setups === 1 ? "" : "s") + '</small></span>' +
+        '<span class="psub" style="display:block">Beat ' + pct(s.rb) + ' of the models it met</span>' +
+        '<span class="row2">' + placeStrip(s, gs) + (showOwners() ? avatars(gPeople(s.sessions)) : "") + '</span></button>' +
+        '<div class="ped rise" aria-hidden="true">' + s.rank + '</div></div>';
+    }).join("") + '</div><div class="pbase"></div></div>' +
+    '<div class="md2"><div class="slist" id="lb-models"><div class="slist-h"><span>All models</span><span>Wins</span></div>' +
+    rows.map(function (s) {
+      return '<button type="button" class="sitem mrow" data-model="' + esc(s.model) + '" aria-current="' + String(s === sel) + '"><span class="rn">' + s.rank + '</span>' +
+        '<span><span class="t" style="display:block">' + esc(nick(s.model)) + '</span><span class="m" style="display:block">' + placeStrip(s, gs) + '</span></span>' +
+        '<span class="w">' + s.wins + '/' + s.setups + '<small>beat ' + pct(s.rb) + '</small></span></button>';
+    }).join("") +
+    '<div class="legend2" aria-hidden="true"><span><span class="strip"><i class="p1">1</i></span> won</span><span><span class="strip"><i>2</i></span> place</span><span><span class="strip"><i class="nr"></i></span> not run</span><span><span class="strip"><i class="ne">n</i></span> not enough</span></div>' +
+    '</div><div class="lpanel" id="lb-mpanel">' + modelPanel(sel, gs) + '</div></div>';
+  host.querySelectorAll("[data-model]").forEach(function (b) {
+    if (b.tagName !== "BUTTON") return;
+    b.addEventListener("click", function () {
+      LBF.model = b.getAttribute("data-model"); renderOverall(); lbUrl();
+      host.querySelectorAll(".ped").forEach(function (x) { x.classList.remove("rise"); });
+      $("lb-mpanel").classList.add("swap");
+    });
+  });
+  wireModelPanel(sel, gs);
+}
+function modelPanel(s, gs) {
+  var col = colOf(LB.data.sort_metric), pct = function (x) { return Math.round(x * 100) + "%"; };
+  return '<h2>' + esc(nick(s.model)) + '</h2><p class="sub">Ranked on ' + s.setups + ' setup' + (s.setups === 1 ? "" : "s") +
+      (showOwners() ? " from sessions by " + esc(gPeople(s.sessions).map(meName).join(", ")) : "") + '. Open a setup for the sessions behind it.</p>' +
+    '<div class="kpis"><div class="kpi"><b>' + s.wins + '</b><span>' + (s.wins === 1 ? "win" : "wins") + ', 1st place on a setup</span></div><div class="kpi"><b>' + pct(s.rate) + '</b><span>win rate</span></div>' +
+      '<div class="kpi"><b>' + pct(s.rb) + '</b><span>of the models it met, beaten</span></div></div>' +
+    '<div class="table-wrap"><table class="lb-table rk" id="lb-overall-table"><thead><tr><th>Setup</th><th>Place</th><th><span class="sr-only">Bar</span></th><th class="num">' + esc(col[1]) + '</th><th>' + (showOwners() ? "Run by" : "Runs") + '</th><th><span class="sr-only">Sessions</span></th></tr></thead><tbody>' +
+    gs.map(function (g, gi) {
+      var p = s.places[gi]; if (!p) return "";
+      var best = ranked(g)[0], w = p.v == null || !best || !best[LB.data.sort_metric] ? 0 : Math.max(3, Math.min(100, 100 * p.v / best[LB.data.sort_metric]));
+      return '<tr data-gi="' + gi + '"><td><b>' + esc(gName(g)) + '</b><br><span class="small muted">' + esc((g.gpu || "") + ", " + (g.input_type || "") + ", " + fmtNum(g.n_flows_per_session) + " flows") + '</span></td>' +
+        '<td><span class="place' + (p.ne ? " ne" : p.place === 1 ? " p1" : "") + '">' + (p.ne ? "not enough" : ordinal(p.place) + " of " + p.of) + '</span></td>' +
+        '<td class="bar-c" aria-hidden="true"><div class="rbar"><b style="width:' + (p.ne ? 60 : w) + '%"></b></div></td><td class="v">' + (p.v == null ? "" : esc(col[2](p.v))) + '</td>' +
+        '<td>' + (showOwners() ? avatars(gPeople(p.sessions)) + " " : "") + '<span class="small muted">' + p.sessions.length + ' run' + (p.sessions.length === 1 ? "" : "s") + '</span></td>' +
+        '<td style="width:36px"><button type="button" class="xbtn" data-open="' + gi + '" aria-expanded="false" aria-label="Sessions behind this place">▾</button></td></tr>';
+    }).join("") + '</tbody></table></div>';
+}
+function wireModelPanel(s, gs) {
+  var p = $("lb-mpanel"), key = LB.data.sort_metric, col = colOf(key);
+  p.querySelectorAll("[data-open]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var tr = b.closest("tr"), gi = +b.getAttribute("data-open"), pl = s.places[gi], g = gs[gi], open = tr.classList.contains("open");
+      p.querySelectorAll("tr.exp").forEach(function (x) { x.remove(); });
+      p.querySelectorAll("tr.open").forEach(function (x) { x.classList.remove("open"); x.querySelector("[data-open]").textContent = "▾"; x.querySelector("[data-open]").setAttribute("aria-expanded", "false"); });
+      if (open) return;
+      tr.classList.add("open"); b.textContent = "▴"; b.setAttribute("aria-expanded", "true");
+      var best = ranked(g)[0], note = "";
+      if (!pl.ne && pl.place > 1 && best && best[key] != null && pl.v != null)
+        note = '<p class="small" style="margin:6px 8px 0">' + esc(fmtNum(Math.abs(best[key] - pl.v), 1)) + ' points behind ' + esc(nick(best.model)) + ' here.</p>';
+      var row = document.createElement("tr"); row.className = "exp";
+      row.innerHTML = '<td colspan="6">' + sessionsBehind(pl.sessions || [], s.model, key, col, note) + '</td>';
+      tr.after(row);
+    });
+  });
+}
 document.querySelectorAll("#lb-tabs [data-lbtab]").forEach(function (b) {
   b.addEventListener("click", function () { lbTab(b.getAttribute("data-lbtab")); });
   b.addEventListener("keydown", function (ev) {

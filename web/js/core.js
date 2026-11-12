@@ -576,14 +576,15 @@ function dsGone(meta, key, names, lastIso) {
 }
 
 function sessionsTable(rows, id, actions) {
-  return '<table id="' + id + '"><thead><tr><th>Session</th><th>Input</th><th class="num">Flows</th><th>GPU</th><th>More efficient</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+  var own = seesAll();                               // admins: whose each session is
+  return '<table id="' + id + '"><thead><tr><th>Session</th>' + (own ? "<th>Owner</th>" : "") + '<th>Input</th><th class="num">Flows</th><th>GPU</th><th>More efficient</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
     rows.map(function (s) {
       var tags = (s.tags || []).map(function (t) { return '<button type="button" class="chip tag-chip" data-tag="' + esc(t) + '" title="Show sessions tagged ' + esc(t) + '">' + esc(t) + '</button>'; }).join("");
       var sid = esc(s.session_id), canDel = actions && s.can_edit && CP && s.status !== "Running";
       return '<tr><td>' + (s.title ? '<span class="row-name">' + esc(s.title) + '</span><span class="row-sub mono small muted" title="' + sid + '">' + esc(shortId(s.session_id)) + '</span>'
           : '<span class="mono" title="' + sid + '">' + esc(shortId(s.session_id)) + '</span>') + '<span class="muted small' + (s.title ? "" : " row-sub") + '">' + esc((s.models || []).map(short).join(" vs ")) +
         '</span>' + (tags ? '<div class="tag-row">' + tags + '</div>' : "") + (s.notes ? '<div class="small note-snip" title="' + esc(s.notes) + '">' + esc(s.notes.length > 90 ? s.notes.slice(0, 88) + "…" : s.notes) + '</div>' : "") +
-        '</td><td>' + esc(s.input_type || "—") + '</td><td class="num">' + fmtNum(s.n_flows) + '</td><td>' + esc(s.gpu || "—") +
+        '</td>' + (own ? '<td>' + whoTag(s.owner) + '</td>' : "") + '<td>' + esc(s.input_type || "—") + '</td><td class="num">' + fmtNum(s.n_flows) + '</td><td>' + esc(s.gpu || "—") +
         '</td><td>' + esc(s.more_efficient ? (s.more_efficient.indexOf("/") > 0 ? short(s.more_efficient) : s.more_efficient) : "—") +
         '</td><td>' + statusChip(s.status) + '</td><td class="row-acts">' + sessionLink(s) +
         (actions && s.can_edit ? rowMenu("More actions for session " + (s.title || shortId(s.session_id)), [
@@ -592,6 +593,42 @@ function sessionsTable(rows, id, actions) {
           canDel && { sep: true },
           canDel && { label: "Delete session", icon: "trash", attr: 'data-del="' + sid + '"', danger: true }]) : "") + '</td></tr>';
     }).join("") + '</tbody></table>';
+}
+// ---------- whose work it is (each user sees their own; an admin everyone's, with the owner shown) ----------
+function seesAll() { return !!(CP && typeof isAdmin === "function" && isAdmin()); }
+function isMe(name) { return !!(AUTH.user && name && AUTH.user.username === name); }
+function meName(name) { return isMe(name) ? "you" : (name || "no owner"); }
+var AV_COLORS = ["#1E4BB8", "#2D6D56", "#A2470D", "#6B4FA0", "#0F6E86", "#8A2D5C", "#4A5A1E"];
+function avatar(name) {
+  if (!name) return "";
+  var h = 0; for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  var me = isMe(name);
+  return '<span class="av" style="background:' + (me ? "#0F1B33" : AV_COLORS[h % AV_COLORS.length]) + '" title="' + esc(meName(name)) + '" aria-hidden="true">' +
+    esc((me ? "Y" : name.charAt(0)).toUpperCase()) + '</span>';
+}
+function avatars(names) {
+  var u = []; (names || []).forEach(function (n) { if (n && u.indexOf(n) < 0) u.push(n); });
+  return u.length ? '<span class="avs" aria-label="Run by ' + esc(u.map(meName).join(", ")) + '">' + u.slice(0, 4).map(avatar).join("") + '</span>' : "";
+}
+function whoTag(name) { return '<span class="who">' + avatar(name) + esc(meName(name)) + '</span>'; }
+// the admin's owner choices: Everyone, Only mine, then each user (control plane only)
+var OWNERS = null;
+function loadOwners() {
+  if (!seesAll()) return Promise.resolve([]);
+  if (OWNERS) return Promise.resolve(OWNERS);
+  return api("/api/admin/users").then(function (r) {
+    OWNERS = r.ok ? (r.data.users || []).map(function (u) { return u.username; }).filter(function (n) { return !isMe(n); }) : [];
+    return OWNERS;
+  });
+}
+// a filter pill: a real <select> drawn as "Label Value"; tinted when it is not on its default
+function fpill(id, label, opts, val, def) {
+  return '<label class="fpill' + (val !== (def || "") ? " on" : "") + '" for="' + id + '"><span class="fk">' + esc(label) + '</span><select id="' + id + '">' +
+    opts.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === val ? " selected" : "") + '>' + esc(o[1]) + '</option>'; }).join("") + '</select></label>';
+}
+function ftoggle(id, label, on) { return '<label class="ftog" for="' + id + '"><input type="checkbox" id="' + id + '"' + (on ? " checked" : "") + '>' + esc(label) + '</label>'; }
+function ownerOpts(owners, everyone) {
+  return [["", everyone || "Everyone"], ["me", "Only mine"]].concat((owners || []).map(function (n) { return [n, n]; }));
 }
 function hbars(title, rows, fmt, unitNote) {
   var vals = rows.map(function (r) { return r.v; }).filter(function (v) { return v != null; });

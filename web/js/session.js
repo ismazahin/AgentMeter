@@ -3,7 +3,21 @@
 // compare, settings, boot); they share the page's global scope, so a function defined in one is used by the others.
 "use strict";
 // ---------- SESSIONS ----------
-var FLT_TAG = "";
+var FLT_TAG = "", FLT_OWNER = "", FLT_GPU = "", FLT_GPUS = [];
+// filters: Search, Owner (admins), Status, GPU, Input. Owner is a permission the server applies
+// (a user only ever gets their own); GPU is filtered here from the GPUs in the list.
+function sessFilters() {
+  $("sess-admin-note").innerHTML = seesAll() ? '<p class="adminnote"><span class="tag-admin">Admin</span>You see everyone\'s sessions. Users see only their own.</p>' : "";
+  $("sessions-lede").textContent = seesAll() ? "Every benchmark run, from every user." : "All your benchmark runs.";
+  return loadOwners().then(function (owners) {
+    $("flt-owner-box").innerHTML = seesAll() ? fpill("flt-owner", "Owner", ownerOpts(owners), FLT_OWNER, "") : "";
+    if ($("flt-owner")) $("flt-owner").addEventListener("change", function () { FLT_OWNER = this.value; loadSessions(); });
+  });
+}
+function gpuPill() {
+  $("flt-gpu-box").innerHTML = FLT_GPUS.length > 1 || FLT_GPU ? fpill("flt-gpu", "GPU", [["", "All"]].concat(FLT_GPUS.map(function (g) { return [g, g]; })), FLT_GPU, "") : "";
+  if ($("flt-gpu")) $("flt-gpu").addEventListener("change", function () { FLT_GPU = this.value; loadSessions(); });
+}
 function loadSessions() {
   ALL.p = null;                                    // the list page always reads fresh
   var q = [], st = $("flt-status").value, it = $("flt-input").value, qs = $("flt-q").value.trim();
@@ -11,13 +25,18 @@ function loadSessions() {
   if (it) q.push("input=" + enc(it));
   if (qs) q.push("q=" + enc(qs));
   if (FLT_TAG) q.push("tag=" + enc(FLT_TAG));
+  if (FLT_OWNER && seesAll()) q.push("owner=" + enc(FLT_OWNER));
+  ["flt-status", "flt-input"].forEach(function (id) { $(id).closest(".fpill").classList.toggle("on", !!$(id).value); });
   $("flt-tag-row").hidden = !FLT_TAG; $("flt-tag").textContent = FLT_TAG + " ✕";
   var box = $("sessions-table-box");
   box.innerHTML = skel(6);
-  pagedSessions(q.join("&")).then(function (r) {
+  sessFilters().then(function () { return pagedSessions(q.join("&")); }).then(function (r) {
     if (!r.ok) { box.innerHTML = '<p class="notice error" style="margin:12px">' + esc(r.data.error) + '</p>'; return; }
-    var rows = r.data.sessions || [];
-    var any = st || it || qs || FLT_TAG;
+    var all = r.data.sessions || [];
+    FLT_GPUS = []; all.forEach(function (s) { if (s.gpu && FLT_GPUS.indexOf(s.gpu) < 0) FLT_GPUS.push(s.gpu); }); FLT_GPUS.sort();
+    gpuPill();
+    var rows = FLT_GPU ? all.filter(function (s) { return s.gpu === FLT_GPU; }) : all;
+    var any = st || it || qs || FLT_TAG || FLT_GPU || FLT_OWNER;
     box.innerHTML = rows.length ? sessionsTable(rows, "sessions-table", true)
       : '<div class="empty"><p>' + (any ? "No sessions match these filters." : "No sessions yet. Start one with New benchmark.") + '</p>' +
         (any ? "" : '<a class="btn primary" href="#/new">New benchmark</a>') + '</div>';

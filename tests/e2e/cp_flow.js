@@ -47,6 +47,12 @@ async function waitFor(fn, ms, step = 500) {
   while (Date.now() < end) { if (await fn()) return true; await sleep(step); }
   return false;
 }
+// Leaderboard: demo runs are hidden by default (this stack is a mock backend), so show them first
+async function lbOpen(p) {
+  await p.goto(APP + '/app.html#/leaderboard'); await p.waitForSelector('#lb-demo-only, #lb-slist, #lb-none', { timeout: 30000 });
+  if (await p.$('#lb-show-demo')) { await p.click('#lb-show-demo'); }
+  await p.waitForSelector('#lb-table-0', { timeout: 15000 });
+}
 async function login(p, u, pw, remember = false) {
   await p.goto(APP + '/app.html'); await p.waitForSelector('#login-form:not([hidden])');
   await p.fill('#login-user', u); await p.fill('#login-pass', pw);
@@ -254,8 +260,39 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.waitForSelector('#session-body:not([hidden])', { timeout: 60000 });
     await p.goto(APP + `/app.html#/compare?a=${job1}&b=${job2}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
     log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Compare: like-for-like (same prepared set, same settings)');
-    await p.goto(APP + '/app.html#/leaderboard'); await p.waitForSelector('.lb-table');
-    log(await p.$$eval('.lb-table tbody tr', r => r.length) >= 2, 'Leaderboard ranks the models');
+    await lbOpen(p);
+    log(await p.$$eval('#lb-table-0 tbody tr', r => r.length) >= 2, 'Leaderboard ranks the models');
+    log(/Your sessions only/.test(await p.textContent('#lb-count')) && !(await p.$('#lb-owner')), 'Leaderboard for a user: their own sessions, no owner choice');
+
+    // 6b. each user sees only their own work; the admin sees everyone's, with whose it is
+    const admTokB = (await loginApi('admin', 'admin-password-123')).access_token;
+    await fetch(WORKER + '/api/admin/users', { method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + admTokB },
+                                               body: JSON.stringify({ username: 'bob', password: 'bob-temporary-1', role: 'user' }) });
+    const bobTok = (await loginApi('bob', 'bob-temporary-1')).access_token;
+    log((await workerJson('/api/sessions', bobTok)).sessions.length === 0 && (await fetch(WORKER + '/api/sessions/' + job1, { headers: { Authorization: 'Bearer ' + bobTok } })).status === 404,
+        'bob sees none of alice\'s sessions, and her session address answers 404');
+    const bobLb = await workerJson('/api/leaderboard', bobTok);
+    log(bobLb.groups.length === 0 && bobLb.scope === 'mine', 'bob\'s leaderboard is built from his own sessions (none)');
+    const pb = await (await b.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+    await login(pb, 'bob', 'bob-temporary-1');
+    await pb.waitForSelector('#pwchange-form:not([hidden])');                      // a new account changes its password first
+    await pb.fill('#pwc-new', 'bob-password-1234'); await pb.click('#pwc-go'); await pb.waitForSelector('#view-home:not([hidden])');
+    await pb.goto(APP + '/app.html#/leaderboard'); await pb.waitForSelector('#lb-none', { timeout: 30000 });
+    log(/not finished a benchmark yet/.test(await pb.textContent('#lb-none')), 'bob\'s Leaderboard: You have not finished a benchmark yet, with New benchmark');
+    await pb.close();
+    const pa = await (await b.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+    await login(pa, 'admin', 'admin-password-123'); await pa.waitForSelector('#view-home:not([hidden])');
+    await pa.goto(APP + '/app.html#/sessions'); await pa.waitForSelector('#sessions-table');
+    log(/Owner/.test(await pa.textContent('#sessions-table thead')) && /alice/.test(await pa.textContent('#sessions-table tbody')) && !!(await pa.$('#flt-owner')),
+        'admin: Sessions has an Owner column and an Owner filter');
+    await pa.selectOption('#flt-owner', 'me'); await pa.waitForSelector('#sessions-table-box .empty');
+    log(true, 'admin: Only mine shows none (alice ran them)');
+    await pa.goto(APP + '/app.html#/leaderboard'); await pa.waitForSelector('#lb-demo-only, #lb-slist', { timeout: 30000 });
+    if (await pa.$('#lb-show-demo')) await pa.click('#lb-show-demo');
+    await pa.waitForSelector('#lb-table-0');
+    log(!!(await pa.$('#lb-owner')) && /from 1 person/.test(await pa.textContent('#lb-count')) && /Run by/.test(await pa.textContent('#lb-table-0 thead')),
+        'admin: the Leaderboard ranks everyone\'s sessions and shows whose (Run by)');
+    await pa.close();
     await p.goto(APP + '/app.html#/gpu'); await p.waitForSelector('#gq-state');
     log(/Free|Busy/.test(await p.textContent('#gq-state')) && !!(await p.$('#gq-recent-table')), 'GPU & Queue reads the GPU server through the control plane (read token)');
     await p.goto(APP + '/app.html#/datasets'); await p.waitForSelector('#ds-table');
@@ -272,7 +309,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.goto(APP + '/app.html#/session/' + job1); await p.waitForSelector('#session-body:not([hidden])', { timeout: 30000 });
     log(true, 'GPU off: a session opens with all its tabs');
     await p.goto(APP + `/app.html#/compare?a=${job1}&b=${job2}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
-    await p.goto(APP + '/app.html#/leaderboard'); await p.waitForSelector('.lb-table');
+    await lbOpen(p);
     log(true, 'GPU off: Compare and Leaderboard work');
     await p.goto(APP + '/app.html#/gpu'); await p.waitForSelector('#gq-state');
     log(/GPU offline/.test(await p.textContent('#gq-state')), 'GPU off: GPU & Queue says the GPU server is offline');
@@ -334,8 +371,8 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(s1.identity.prepared_set_sha256 === s3.identity.prepared_set_sha256, 'the restored set has the same prepared-set hash as on the first rental');
     await p.goto(APP + `/app.html#/compare?a=${job1}&b=${job3}`); await p.waitForSelector('#cmp-table', { state: 'attached' });
     log(/Like-for-like/.test(await p.textContent('#cmp-validity')), 'Compare: rental-1 session vs rental-2 session on the restored set is like-for-like');
-    await p.goto(APP + '/app.html#/leaderboard'); await p.waitForSelector('.lb-table');
-    log((await p.$$('.lb-group')).length === 1, 'Leaderboard keeps all three sessions in one group');
+    await lbOpen(p);
+    log((await p.$$('#lb-slist .sitem')).length === 1, 'Leaderboard keeps all three sessions in one setup');
 
     // 8c. Stop a running benchmark (a slow mock run): never scored, never stored as a session
     await stopBackend(); startBackend({ AGENTMETER_MOCK_LATENCY_S: '0.4' });

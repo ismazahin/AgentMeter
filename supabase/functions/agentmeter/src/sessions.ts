@@ -117,6 +117,8 @@ export async function listSessions(req: Request, env: Env): Promise<Response> {
   if (st) { where.push("LOWER(status)=LOWER(?)"); args.push(st); }
   const it = (q.get("input") || "").trim().toUpperCase();
   if (it) { where.push("input_type=?"); args.push(it); }
+  const gpu = (q.get("gpu") || "").trim();
+  if (gpu) { where.push("gpu=?"); args.push(gpu); }
   // search: every word must appear in the name, models, prepared set, notes, tags, owner or session id
   const like = (w: string) => "%" + w.replace(/[\\%_]/g, (c) => "\\" + c) + "%";
   for (const w of (q.get("q") || "").trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8)) {

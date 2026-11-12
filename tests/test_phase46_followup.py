@@ -273,7 +273,7 @@ def test_queue_cap_counts_sessions(tmp_path, monkeypatch):
 # UI + PDF labels
 # ---------------------------------------------------------------------------
 def test_ui_labels():
-    for hook in ("excludes model weights", "Total peak VRAM", "svc-memory-card", 'value="total_vram"',
+    for hook in ("excludes model weights", "Total peak VRAM", "svc-memory-card", '["total_vram", "Total VRAM"]',
                  "Agentic overhead (estimate)", "an estimate, not a tokenizer count", "net of idle",
                  "svc-energy-method", "body.after_prepare = WIZ.prep"):
         assert hook in WEB, hook

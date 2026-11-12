@@ -19,7 +19,7 @@ every request that starts work or lists/reads stored work needs a run token the 
   POST /api/jobs/<id>/stop                kind stop        (single use; job_id = the token's; the
                                           job's owner or an admin — checked by jobs_api)
   GET  /api/jobs, /api/sessions, /api/sessions/<id>, /api/compare, /api/leaderboard, /api/models/catalog, /api/gpu,
-       /api/jobs/<id>/result|report.pdf|constraints, /api/prepared/<kind>/<name>     kind read
+       /api/jobs/<id>/result|report.pdf|constraints|flows|telemetry|explanation, /api/prepared/<kind>/<name>     kind read
   GET  /api/prepared/<kind>/<name>/<file> kind files       (set = <kind>/<name>)
   POST /api/prepared/<kind>/<name>/delete kind delete_set  (set = <kind>/<name>; the handler checks the
                                           set's owner unless the token says admin)
@@ -60,7 +60,7 @@ _WRITE_KIND = {"/api/prepare": "prepare", "/api/prepared/import": "import", "/ap
 _READ_EXACT = {"/api/jobs", "/api/sessions", "/api/compare", "/api/compare/candidates", "/api/compare/merged",
                "/api/leaderboard", "/api/models/catalog", "/api/schedules", "/api/gpu",
                "/api/logs/recent"}
-_JOB_SUB = re.compile(r"^/api/jobs/([^/]+)(?:/(result|report\.pdf|constraints|flows|telemetry|resume|stop))?$")
+_JOB_SUB = re.compile(r"^/api/jobs/([^/]+)(?:/(result|report\.pdf|constraints|flows|telemetry|explanation|resume|stop))?$")
 _SESSION = re.compile(r"^/api/sessions/[^/]+$")
 _SCHEDULE_CANCEL = re.compile(r"^/api/schedules/sch_[0-9a-f]{12}/cancel$")
 _PREPARED = re.compile(r"^/api/prepared/([^/]+)/([^/]+)(?:/([^/]+))?$")

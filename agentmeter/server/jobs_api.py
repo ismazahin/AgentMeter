@@ -94,6 +94,14 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
     def fail(e: JobError):
         return jsonify({"error": str(e), "code": e.code}), e.status
 
+    def readable(job_id: str) -> dict:
+        """The job, when the caller may read it (a user's own, an admin any); otherwise 404 as if
+        it did not exist (runtoken.may_read; no control plane: always)."""
+        job = get_manager().get(job_id)
+        if not runtoken.may_read(job):
+            raise JobError(f"no such job: {job_id}", "not_found", 404)
+        return job
+
     def with_links(job: dict) -> dict:
         job = dict(job)
         job.pop("error_trace", None)               # server-side detail; the message is enough
@@ -109,7 +117,10 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
                 limit = int(request.args.get("limit", 20))
             except ValueError:
                 limit = 20
-            return jsonify({"jobs": mgr.list_jobs(limit=limit), "running": mgr.running_job()})
+            mine = mgr.running_job()
+            if mine and not runtoken.may_read(mgr.get(mine)):
+                mine = None                               # someone else's run: not named here
+            return jsonify({"jobs": mgr.list_jobs(limit=limit, visible=runtoken.may_read), "running": mine})
         body = request.get_json(silent=True) or {}
         run = body.get("run") or body.get("run_name")
         if run and str(run).startswith("/"):
@@ -172,6 +183,7 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
     @app.route("/api/jobs/<job_id>/result", methods=["GET"])
     def job_result(job_id):
         try:
+            readable(job_id)
             return jsonify(get_manager().result(job_id))
         except JobError as e:
             return fail(e)
@@ -182,6 +194,7 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
         from flask import send_file
         mgr = get_manager()
         try:
+            readable(job_id)
             res = mgr.result(job_id)
             p = flows_path(mgr.get(job_id), res)
             if p is None:
@@ -198,6 +211,7 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
         from ..session.explain import read as read_explanation
         mgr = get_manager()
         try:
+            readable(job_id)
             mgr.result(job_id)
             data = read_explanation(_Path(mgr.get(job_id).get("run_dir") or ""))
         except JobError as e:
@@ -214,6 +228,7 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
         mgr = get_manager()
         decision = None
         try:
+            readable(job_id)
             if any(request.args.get(k) for k in request.args):       # Phase 46: the user's limits
                 from ..session.constraints import ConstraintError, evaluate_constraints
                 try:
@@ -233,6 +248,7 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
         no score, rank or verdict."""
         from ..session.constraints import ConstraintError, evaluate_constraints
         try:
+            readable(job_id)
             res = get_manager().result(job_id)
         except JobError as e:
             return fail(e)
@@ -248,7 +264,7 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
         from .. import telemetry
         mgr = get_manager()
         try:
-            job = mgr.get(job_id)
+            job = readable(job_id)
         except JobError as e:
             return fail(e)
         try:
@@ -275,6 +291,13 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
 
         def brief(j: dict) -> dict:
             full = mgr.get(j["job_id"])
+            if not runtoken.may_read(full):
+                # another user's run: that the GPU is busy and where it is in the queue, nothing more
+                p = full.get("progress") or {}
+                return {"job_id": None, "kind": full.get("kind") or "benchmark", "status": full.get("status"), "other": True,
+                        "queue_position": full.get("queue_position"), "started_at": full.get("started_at"),
+                        "created_at": full.get("created_at"), "finished_at": full.get("finished_at"),
+                        "progress": {"percent": p.get("percent")}, "owner": None, "models": None, "run_name": None}
             u = full.get("user") if isinstance(full.get("user"), dict) else {}
             out = {k: full.get(k) for k in ("job_id", "kind", "status", "models", "run_name", "prepared", "created_at",
                                             "started_at", "finished_at", "message", "schedule_id", "queue_position",
@@ -288,7 +311,8 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
         jobs = mgr.list_jobs(limit=500)
         running = [brief(j) for j in jobs if j["status"] == "running"]
         queued = sorted((brief(j) for j in jobs if j["status"] == "queued"), key=lambda x: x.get("queue_position") or 0)
-        recent = [brief(j) for j in jobs if j["status"] not in ("running", "queued")][:8]
+        recent = [brief(j) for j in mgr.list_jobs(limit=500, visible=runtoken.may_read)
+                  if j["status"] not in ("running", "queued")][:8]          # finished: only the caller's own
         mock = provider == "mock" or env.get("provider") == "mock"
         gpu = None if mock else telemetry.gpu_sample()
         return jsonify({

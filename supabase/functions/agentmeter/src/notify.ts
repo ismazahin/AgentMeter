@@ -51,11 +51,12 @@ export async function notifyFinal(env: Env, id: string, status: string, stoppedB
 
 /** The session's results that moved beyond their usual spread against earlier runs on its setup. */
 async function movedFor(env: Env, id: string): Promise<Moved[]> {
-  const cur = await env.DB.prepare("SELECT summary_json, prepared_set_sha256 FROM sessions WHERE id=?").bind(id)
-    .first<{ summary_json: string | null; prepared_set_sha256: string | null }>();
-  if (!cur?.summary_json || !cur.prepared_set_sha256) return [];
-  const rows = await env.DB.prepare("SELECT summary_json FROM sessions WHERE prepared_set_sha256=? AND status='Done' AND deleted_at IS NULL AND id<>? AND summary_json IS NOT NULL")
-    .bind(cur.prepared_set_sha256, id).all<{ summary_json: string }>();
+  const cur = await env.DB.prepare("SELECT summary_json, prepared_set_sha256, owner_id FROM sessions WHERE id=?").bind(id)
+    .first<{ summary_json: string | null; prepared_set_sha256: string | null; owner_id: string | null }>();
+  if (!cur?.summary_json || !cur.prepared_set_sha256 || !cur.owner_id) return [];
+  // only the owner's own earlier runs: the alert never carries another user's results
+  const rows = await env.DB.prepare("SELECT summary_json FROM sessions WHERE prepared_set_sha256=? AND owner_id=? AND status='Done' AND deleted_at IS NULL AND id<>? AND summary_json IS NOT NULL")
+    .bind(cur.prepared_set_sha256, cur.owner_id, id).all<{ summary_json: string }>();
   try {
     return movedRuns(JSON.parse(cur.summary_json), rows.results.map((r) => JSON.parse(r.summary_json)));
   } catch {

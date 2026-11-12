@@ -366,10 +366,11 @@ export async function listAnalyses(req: Request, env: Env): Promise<Response> {
 /** Delete the stored files of every finished job that prepared this data set (found by its key: the
  *  fingerprint, or the set name of a name:<kind>/<name> key). Returns how many jobs, and whether an
  *  address file was among the files. Called by POST /api/datasets/delete after its owner check. */
-export async function deletePrepOutputs(env: Env, key: string): Promise<{ jobs: number; identity_file_deleted: boolean }> {
+export async function deletePrepOutputs(env: Env, key: string, ownerId: string): Promise<{ jobs: number; identity_file_deleted: boolean }> {
   const byName = key.startsWith("name:");
-  const r = await env.DB.prepare(`SELECT id, files_json FROM prep_jobs WHERE status='done' AND ${byName ? "set_name" : "prepared_sha256"}=?`)
-    .bind(byName ? key.slice(5) : key).all<{ id: string; files_json: string | null }>();
+  // one person's analyses only: removing a data set from your view never deletes someone else's files
+  const r = await env.DB.prepare(`SELECT id, files_json FROM prep_jobs WHERE status='done' AND owner_id=? AND ${byName ? "set_name" : "prepared_sha256"}=?`)
+    .bind(ownerId, byName ? key.slice(5) : key).all<{ id: string; files_json: string | null }>();
   let identity = false;
   for (const j of r.results) {
     const files = JSON.parse(j.files_json || "[]") as string[];

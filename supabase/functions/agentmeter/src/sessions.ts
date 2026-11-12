@@ -1,6 +1,8 @@
 // Persistent sessions: ONE database row per session (never one row per flow). The backend writes
-// them (job reports + results upload, HMAC-signed); every logged-in user reads them (5-person team);
-// only the owner or an admin deletes. session_results.json is stored and served UNPARSED (the
+// them (job reports + results upload, HMAC-signed). A user reads only the sessions they ran; an admin
+// reads everyone's, with the owner on every record, and can narrow to one owner (?owner=me|<username>).
+// A session someone may not see answers 404, so its existence is not revealed (see visible()).
+// Only the owner or an admin deletes. session_results.json is stored and served UNPARSED (the
 // function's CPU budget is 2 s): in the row up to RESULTS_INLINE_MAX bytes, otherwise in Storage.
 import { requireUser } from "./auth.ts";
 import { mapJobStatus as STATUS_FROM_JOB, parseBody, verifyBackend } from "./backend.ts";
@@ -26,11 +28,24 @@ interface Row {
 }
 
 const checkId = (id: string) => { if (!SESSION_ID.test(id)) fail(404, "not_found", "no such session"); return id; };
+type Viewer = { id: string; role: string; username?: string };
 
-async function getRow(env: Env, id: string, withResults = false): Promise<Row> {
+/** The sessions a user may read, as a SQL condition on the sessions table: a user, their own; an
+ *  admin, everyone's (sessions with no owner included), or one owner's with owner=me|<username>. */
+export function visible(user: Viewer, owner?: string | null): { sql: string; args: unknown[] } {
+  if (user.role !== "admin") return { sql: "owner_id=?", args: [user.id] };
+  const o = (owner || "").trim();
+  if (!o || o === "all") return { sql: "", args: [] };
+  if (o === "me") return { sql: "owner_id=?", args: [user.id] };
+  return { sql: "owner_username=?", args: [o] };
+}
+const sees = (user: Viewer, r: { owner_id: string | null }) => user.role === "admin" || (!!r.owner_id && r.owner_id === user.id);
+
+/** A session row; with `user`, one that user may read (otherwise 404, as if it did not exist). */
+async function getRow(env: Env, id: string, withResults = false, user?: Viewer): Promise<Row> {
   const cols = withResults ? "*" : "id, owner_id, owner_username, status, created_at, finished_at, input_type, n_flows, gpu, provider, models_json, more_efficient, prepared_set, summary_json, results_key, results_bytes, files_json, weights_json, deleted_at, notes, tags_json, title";
   const r = await env.DB.prepare(`SELECT ${cols} FROM sessions WHERE id=?`).bind(checkId(id)).first<Row>();
-  if (!r || r.deleted_at) fail(404, "not_found", "no such session");
+  if (!r || r.deleted_at || (user && !sees(user, r))) fail(404, "not_found", "no such session");
   return r!;
 }
 
@@ -81,12 +96,12 @@ export function cleanAnnotations(body: Record<string, unknown>): { title?: strin
 /** PATCH /api/sessions/:id {title?, notes?, tags?} — the owner or an admin. */
 export async function patchSession(req: Request, env: Env, id: string): Promise<Response> {
   const a = await requireUser(req, env);
-  const r = await getRow(env, id);
-  if (a.user.role !== "admin" && (!r.owner_id || r.owner_id !== a.user.id)) fail(403, "forbidden", "only the owner or an admin can rename a session or edit its notes and tags");
+  const r = await getRow(env, id, false, a.user);
+  if (!sees(a.user, r)) fail(403, "forbidden", "only the owner or an admin can rename a session or edit its notes and tags");
   const c = cleanAnnotations(await readJson(req, 16 * 1024));
   await env.DB.prepare("UPDATE sessions SET title=COALESCE(?, title), notes=COALESCE(?, notes), tags_json=COALESCE(?, tags_json), updated_at=? WHERE id=?")
     .bind(c.title ?? null, c.notes ?? null, c.tags ? JSON.stringify(c.tags) : null, nowIso(), id).run();
-  return json(view(await getRow(env, id)));
+  return json(view(await getRow(env, id, false, a.user)));
 }
 
 // --- users --------------------------------------------------------------------------------
@@ -96,6 +111,8 @@ export async function listSessions(req: Request, env: Env): Promise<Response> {
   const limit = Math.max(1, Math.min(200, intVar(q.get("limit") || "", 50)));
   const offset = Math.max(0, intVar(q.get("offset") || "", 0));        // pages: offset into the filtered, newest-first list
   const where = ["deleted_at IS NULL"], args: unknown[] = [];
+  const vis = visible(a.user, q.get("owner"));
+  if (vis.sql) { where.push(vis.sql); args.push(...vis.args); }
   const st = (q.get("status") || "").trim();
   if (st) { where.push("LOWER(status)=LOWER(?)"); args.push(st); }
   const it = (q.get("input") || "").trim().toUpperCase();
@@ -114,22 +131,23 @@ export async function listSessions(req: Request, env: Env): Promise<Response> {
   const more = r.results.length > limit;
   if (more) r.results = r.results.slice(0, limit);
   // can_edit: the owner or an admin may delete the session and edit its notes (the rows' buttons)
-  const mine = (x: Row) => a.user.role === "admin" || (!!x.owner_id && x.owner_id === a.user.id);
-  return json({ sessions: r.results.map((x) => ({ ...view(x), can_edit: mine(x) })), statuses: ["Done", "Demo", "Running", "Failed", "Interrupted", "Stopped"],
-                next_offset: more ? offset + limit : null });
+  const mine = (x: Row) => sees(a.user, x);
+  return json({ sessions: r.results.map((x) => ({ ...view(x), can_edit: mine(x), mine: !!x.owner_id && x.owner_id === a.user.id })),
+                statuses: ["Done", "Demo", "Running", "Failed", "Interrupted", "Stopped"],
+                next_offset: more ? offset + limit : null, scope: scopeOf(a.user, q.get("owner")) });
 }
 
 export async function getSession(req: Request, env: Env, id: string): Promise<Response> {
   const a = await requireUser(req, env);
-  const r = await getRow(env, id);
+  const r = await getRow(env, id, false, a.user);
   const s = view(r);
   return json({ ...s, identity: r.summary_json ? JSON.parse(r.summary_json).identity ?? null : null,
                 can_delete: a.user.role === "admin" || (!!r.owner_id && r.owner_id === a.user.id) });
 }
 
 export async function getResults(req: Request, env: Env, id: string): Promise<Response> {
-  await requireUser(req, env);
-  const r = await getRow(env, id, true);
+  const a = await requireUser(req, env);
+  const r = await getRow(env, id, true, a.user);
   if (r.results_json) return new Response(r.results_json, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
   if (r.results_key) {
     const o = await env.STORE.get(r.results_key);
@@ -139,9 +157,9 @@ export async function getResults(req: Request, env: Env, id: string): Promise<Re
 }
 
 export async function getFile(req: Request, env: Env, id: string, name: string): Promise<Response> {
-  await requireUser(req, env);
+  const a = await requireUser(req, env);
   if (!(FILES as readonly string[]).includes(name)) fail(404, "not_found", "no such file");
-  const r = await getRow(env, id);
+  const r = await getRow(env, id, false, a.user);
   const key = r.files_json ? JSON.parse(r.files_json)[name] : null;
   const o = key ? await env.STORE.get(key) : null;
   if (!o) fail(404, "not_found", `${name} is not stored for this session`);
@@ -151,8 +169,8 @@ export async function getFile(req: Request, env: Env, id: string, name: string):
 
 export async function deleteSession(req: Request, env: Env, id: string): Promise<Response> {
   const a = await requireUser(req, env);
-  const r = await getRow(env, id);
-  if (a.user.role !== "admin" && (!r.owner_id || r.owner_id !== a.user.id)) fail(403, "forbidden", "only the owner or an admin can delete a session");
+  const r = await getRow(env, id, false, a.user);
+  if (!sees(a.user, r)) fail(403, "forbidden", "only the owner or an admin can delete a session");
   const keys = [...Object.values(r.files_json ? JSON.parse(r.files_json) : {}), r.results_key].filter(Boolean) as string[];
   if (keys.length) await env.STORE.delete(keys);
   await env.DB.prepare("UPDATE sessions SET deleted_at=?, results_json=NULL, results_key=NULL, files_json=NULL, updated_at=? WHERE id=?")
@@ -161,21 +179,46 @@ export async function deleteSession(req: Request, env: Env, id: string): Promise
   return json({ ok: true });
 }
 
-async function summaries(env: Env, ids?: string[]): Promise<Summary[]> {
-  const base = "SELECT summary_json FROM sessions WHERE deleted_at IS NULL AND summary_json IS NOT NULL";
-  const r = ids
-    ? await env.DB.prepare(`${base} AND id IN (${ids.map(() => "?").join(",")})`).bind(...ids).all<{ summary_json: string }>()
-    : await env.DB.prepare(`${base} ORDER BY created_at DESC`).all<{ summary_json: string }>();
-  return r.results.map((x) => JSON.parse(x.summary_json));
+/** The finished sessions' summaries the viewer may read (`vis`, from visible()), newest first, each
+ *  with its owner and name. With `ids`, only those (a session outside `vis` is simply missing). */
+async function summaries(env: Env, vis: { sql: string; args: unknown[] }, ids?: string[]): Promise<Summary[]> {
+  let sql = "SELECT summary_json, owner_username, title FROM sessions WHERE deleted_at IS NULL AND summary_json IS NOT NULL";
+  const args: unknown[] = [];
+  if (vis.sql) { sql += ` AND ${vis.sql}`; args.push(...vis.args); }
+  if (ids) { sql += ` AND id IN (${ids.map(() => "?").join(",")})`; args.push(...ids); }
+  const r = await env.DB.prepare(`${sql} ORDER BY created_at DESC`).bind(...args).all<{ summary_json: string; owner_username: string | null; title: string | null }>();
+  return r.results.map((x) => {
+    const s = JSON.parse(x.summary_json);
+    ROW_OF.set(s, { owner: x.owner_username ?? null, title: x.title ?? "" });   // beside the summary, never in it
+    return s;
+  });
+}
+// a summary's owner and name, kept out of the summary itself so the rankings stay the reference's
+const ROW_OF = new WeakMap<Summary, { owner: string | null; title: string }>();
+
+/** Who the viewer is reading: "mine" for a user; for an admin "all", "me" or the owner's username. */
+function scopeOf(user: Viewer, owner?: string | null): string {
+  if (user.role !== "admin") return "mine";
+  const o = (owner || "").trim();
+  return !o || o === "all" ? "all" : o;
+}
+
+/** Per session listed in a ranking: whose it is, its name, when it finished and its measured rows,
+ *  so the page can show who ran what and open the sessions behind a model without another request. */
+function sessionsInfo(ss: Summary[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const s of ss) out[s.session_id] = { owner: ROW_OF.get(s)?.owner ?? null, title: ROW_OF.get(s)?.title || "", run_name: s.run_name ?? null,
+    finished_at: s.finished_at ?? s.created_at ?? null, gpu: s.gpu ?? (s.identity || {}).gpu_name ?? null, metrics: s.metrics || {} };
+  return out;
 }
 
 export async function compareRoute(req: Request, env: Env): Promise<Response> {
-  await requireUser(req, env);
+  const u = await requireUser(req, env);
   const q = new URL(req.url).searchParams;
   const a = q.get("a") || "", b = q.get("b") || "";
   if (!a || !b || a === b) fail(400, "bad_request", "pick two different sessions (?a=<id>&b=<id>)");
   checkId(a); checkId(b);
-  const ss = await summaries(env, [a, b]);
+  const ss = await summaries(env, visible(u.user), [a, b]);
   const sa = ss.find((s) => s.session_id === a), sb = ss.find((s) => s.session_id === b);
   if (!sa || !sb) fail(400, "bad_request", "both must be finished sessions");
   return json(compare(sa!, sb!));
@@ -183,10 +226,10 @@ export async function compareRoute(req: Request, env: Env): Promise<Response> {
 
 /** GET /api/compare/candidates?session=<id> — the finished sessions on the same setup. */
 export async function compareCandidatesRoute(req: Request, env: Env): Promise<Response> {
-  await requireUser(req, env);
-  const id = new URL(req.url).searchParams.get("session") || "";
+  const a = await requireUser(req, env);
+  const q = new URL(req.url).searchParams, id = q.get("session") || "";
   checkId(id);
-  const all = await withSaw(env, await summaries(env));
+  const all = await withSaw(env, await summaries(env, visible(a.user, q.get("owner"))));
   const target = all.find((s) => s.session_id === id);
   if (!target) fail(400, "bad_request", "pick a finished benchmark session");
   return json(comparable(target!, all));
@@ -194,16 +237,16 @@ export async function compareCandidatesRoute(req: Request, env: Env): Promise<Re
 
 /** GET /api/compare/merged?sessions=a,b,… — every model of those sessions side by side (same setup only). */
 export async function compareMergedRoute(req: Request, env: Env): Promise<Response> {
-  await requireUser(req, env);
+  const a = await requireUser(req, env);
   const ids = (new URL(req.url).searchParams.get("sessions") || "").split(",").filter(Boolean);
   if (ids.length < 2 || new Set(ids).size !== ids.length || ids.length > 20) fail(400, "bad_request", "pick 2 to 20 different sessions (?sessions=a,b,…)");
   ids.forEach(checkId);
-  const got = await withSaw(env, await summaries(env, ids));
+  const got = await withSaw(env, await summaries(env, visible(a.user), ids));
   const byId = new Map(got.map((s) => [s.session_id, s]));
   if (ids.some((i) => !byId.has(i))) fail(400, "bad_request", "every session must be a finished benchmark session");
   const out: any = compareMany(ids.map((i) => byId.get(i)!));
   if (out.error) return json({ error: "These sessions do not share the same flows, GPU and settings.", code: "not_same_setup", differs: out.differs }, 400);
-  return json(out);
+  return json({ ...out, sessions_info: sessionsInfo(got) });
 }
 
 /** Sessions stored before the summary carried the SAW score: copy it from their stored results (never recomputed). */
@@ -229,24 +272,27 @@ async function withSaw(env: Env, ss: Summary[]): Promise<Summary[]> {
 }
 
 export async function leaderboardRoute(req: Request, env: Env): Promise<Response> {
-  await requireUser(req, env);
+  const a = await requireUser(req, env);
   const q = new URL(req.url).searchParams;
   const view = q.get("view") || "per_setup";
-  // newest first — the same order the backend reference iterates its jobs in
+  // only the sessions the viewer may read (a user's own; an admin's choice of owner), newest first,
+  // the same order the backend reference iterates its jobs in; the ranking rules are unchanged
+  const ss = await withSaw(env, await summaries(env, visible(a.user, q.get("owner"))));
+  const extra = { scope: scopeOf(a.user, q.get("owner")), sessions_info: sessionsInfo(ss) };
   if (view === "overall") {
     const by = q.get("by") || "saw";
     if (!(by in OVERALL_BY)) fail(400, "bad_request", `by must be one of ${Object.keys(OVERALL_BY).sort().join(", ")}`);
-    return json(leaderboardOverall(await withSaw(env, await summaries(env)), by, q.get("demo") === "1"));
+    return json({ ...leaderboardOverall(ss, by, q.get("demo") === "1"), ...extra });
   }
   if (view !== "per_setup") fail(400, "bad_request", "view must be per_setup or overall");
   const sort = q.get("sort") || "latency";
   if (!(sort in LEADERBOARD_SORTS)) fail(400, "bad_request", `sort must be one of ${Object.keys(LEADERBOARD_SORTS).sort().join(", ")}`);
-  return json(leaderboard(await withSaw(env, await summaries(env)), sort));
+  return json({ ...leaderboard(ss, sort), ...extra });
 }
 
 export async function constraintsRoute(req: Request, env: Env, id: string): Promise<Response> {
-  await requireUser(req, env);
-  const r = await getRow(env, id);
+  const a = await requireUser(req, env);
+  const r = await getRow(env, id, false, a.user);
   if (!r.summary_json) fail(409, "not_ready", "the session has no results yet");
   const facts = JSON.parse(r.summary_json!).facts;
   if (!Array.isArray(facts)) fail(409, "not_available", "this session was stored without decision-helper facts");

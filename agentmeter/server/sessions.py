@@ -506,7 +506,10 @@ def leaderboard_overall(entries: list[tuple[dict, dict]], by: str = "saw", inclu
 # HTTP routes
 # ---------------------------------------------------------------------------
 def _benchmark_jobs(mgr) -> list[dict]:
-    return [j for j in reversed(mgr._all()) if (j.get("kind") or "benchmark") == "benchmark"]
+    """The benchmark jobs the caller may read, newest first (with a control plane: a user's own, an
+    admin everyone's; runtoken.may_read). The rankings and comparisons below use only these."""
+    from . import runtoken
+    return [j for j in reversed(mgr._all()) if (j.get("kind") or "benchmark") == "benchmark" and runtoken.may_read(j)]
 
 
 def _result(mgr, job: dict) -> Optional[dict]:
@@ -572,12 +575,13 @@ def register_sessions(app, get_manager) -> None:
     @app.route("/api/sessions/<job_id>", methods=["GET"])
     def session_one(job_id):
         mgr = get_manager()
+        from . import runtoken
         try:
             job = mgr.get(job_id)
         except JobError as e:
             return fail(e)
-        if (job.get("kind") or "benchmark") != "benchmark":
-            return fail(JobError(f"{job_id} is not a benchmark session", "not_found", 404))
+        if (job.get("kind") or "benchmark") != "benchmark" or not runtoken.may_read(job):
+            return fail(JobError(f"no such session: {job_id}", "not_found", 404))
         out = session_summary(job, _result(mgr, job))
         out["identity"] = identity(job, _result(mgr, job)) if job.get("status") == "done" else None
         out["can_delete"] = out["can_edit"] = True          # no control plane: one user (it checks owners)
@@ -605,8 +609,11 @@ def register_sessions(app, get_manager) -> None:
         a, b = request.args.get("a", ""), request.args.get("b", "")
         if not a or not b or a == b:
             return fail(JobError("pick two different sessions (?a=<id>&b=<id>)", "bad_request", 400))
+        from . import runtoken
         try:
             ja, jb = mgr.get(a), mgr.get(b)
+            if not (runtoken.may_read(ja) and runtoken.may_read(jb)):
+                raise JobError("no such session", "not_found", 404)
             ra, rb = mgr.result(a), mgr.result(b)
         except JobError as e:
             return fail(e)

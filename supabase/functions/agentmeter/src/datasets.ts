@@ -1,8 +1,9 @@
-// Data sets: names and removals. A data set has no row of its own — the web app builds the Data sets
-// page from the sessions and the GPU server's prepared sets — so the datasets table records only what
-// users changed. Rename and remove: the set's owner (whoever ran the first session on it) or an admin.
-// A set nobody has benchmarked yet has no session here to name its owner; the GPU server checks who
-// prepared it before it deletes the files (POST /api/prepared/<kind>/<name>/delete, a delete_set token).
+// Data sets: names and removals. A data set has no row of its own (the web app builds the Data sets
+// page from the sessions and the GPU server's prepared sets, each already limited to what the user may
+// see), so dataset_views records only what each user changed in their own view: its name and whether
+// they removed it. Two users who uploaded the same flows share a key, so a name or removal is per user
+// and never changes the set for anyone else, an admin's included. Deleting the files of a set on the
+// GPU server stays with the set's owner or an admin (runs.ts, a delete_set token; datasetOwner below).
 import { requireUser } from "./auth.ts";
 import { audit } from "./audit.ts";
 import { deletePrepOutputs, prepOwner } from "./prep.ts";
@@ -15,10 +16,10 @@ export const DS_LABEL_MAX = 80;
 interface Row { key: string; set_id: string | null; label: string | null; deleted_at: string | null }
 type User = { id: string; username: string; role: string };
 
-/** GET /api/datasets — every user: {datasets: [{key, set, label, deleted_at}]}. */
+/** GET /api/datasets: the caller's own names and removals, {datasets: [{key, set, label, deleted_at}]}. */
 export async function listDatasets(req: Request, env: Env): Promise<Response> {
-  await requireUser(req, env);
-  const r = await env.DB.prepare("SELECT key, set_id, label, deleted_at FROM datasets ORDER BY key").all<Row>();
+  const a = await requireUser(req, env);
+  const r = await env.DB.prepare("SELECT key, set_id, label, deleted_at FROM dataset_views WHERE user_id=? ORDER BY key").bind(a.user.id).all<Row>();
   return json({ datasets: r.results.map((x) => ({ key: x.key, set: x.set_id, label: x.label ?? "", deleted_at: x.deleted_at })) });
 }
 
@@ -44,44 +45,35 @@ export async function datasetOwner(env: Env, key: string): Promise<string | null
   return r ? r.owner_id : await prepOwner(env, key);
 }
 
-/** The owner or an admin. No session yet: not checked here (see the header). */
-async function checkOwner(env: Env, user: User, key: string, what: string): Promise<void> {
-  if (user.role === "admin") return;
-  const owner = await datasetOwner(env, key);
-  if (owner && owner !== user.id) fail(403, "forbidden", `only the person who first benchmarked this data set (or an admin) can ${what} it`);
-}
-
 async function upsert(env: Env, key: string, set: string | null, user: User, label: string | null, deleted: boolean): Promise<void> {
   const now = nowIso();
   await env.DB.prepare(
-    `INSERT INTO datasets (key, set_id, label, deleted_at, deleted_by, updated_at, updated_by) VALUES (?,?,?,?,?,?,?)
-     ON CONFLICT (key) DO UPDATE SET set_id=COALESCE(EXCLUDED.set_id, datasets.set_id), label=COALESCE(EXCLUDED.label, datasets.label),
-       deleted_at=COALESCE(EXCLUDED.deleted_at, datasets.deleted_at), deleted_by=COALESCE(EXCLUDED.deleted_by, datasets.deleted_by),
-       updated_at=EXCLUDED.updated_at, updated_by=EXCLUDED.updated_by`,
-  ).bind(key, set, label, deleted ? now : null, deleted ? user.username : null, now, user.username).run();
+    `INSERT INTO dataset_views (user_id, key, set_id, label, deleted_at, updated_at) VALUES (?,?,?,?,?,?)
+     ON CONFLICT (user_id, key) DO UPDATE SET set_id=COALESCE(EXCLUDED.set_id, dataset_views.set_id), label=COALESCE(EXCLUDED.label, dataset_views.label),
+       deleted_at=COALESCE(EXCLUDED.deleted_at, dataset_views.deleted_at), updated_at=EXCLUDED.updated_at`,
+  ).bind(user.id, key, set, label, deleted ? now : null, now).run();
 }
 
-/** POST /api/datasets/rename {key, set?, label} — "" label = back to the prepared set's own name. */
+/** POST /api/datasets/rename {key, set?, label}: the caller's own name for it ("" = the prepared set's own name). */
 export async function renameDataset(req: Request, env: Env): Promise<Response> {
   const a = await requireUser(req, env);
   const b = await readKey(req);
   if (typeof b.label !== "string") fail(400, "bad_request", "label must be text");
   const label = (b.label as string).trim().replace(/\s+/g, " ");
   if (label.length > DS_LABEL_MAX) fail(400, "bad_request", `a data set name is limited to ${DS_LABEL_MAX} characters`);
-  await checkOwner(env, a.user, b.key, "rename");
   await upsert(env, b.key, b.set, a.user, label, false);
   await audit(env, a.user, "dataset.rename", b.key, { set: b.set, label });
   return json({ key: b.key, set: b.set, label });
 }
 
-/** POST /api/datasets/delete {key, set?} — removes the set from Data sets; its sessions keep their results. */
+/** POST /api/datasets/delete {key, set?}: removes the set from the caller's Data sets; its sessions
+ *  keep their results, and nobody else's view changes. */
 export async function deleteDataset(req: Request, env: Env): Promise<Response> {
   const a = await requireUser(req, env);
   const b = await readKey(req);
-  await checkOwner(env, a.user, b.key, "delete");
   await upsert(env, b.key, b.set, a.user, null, true);
-  // the traffic analysis's stored files go too, the owner-only address file included
-  const removed = await deletePrepOutputs(env, b.key);
+  // the caller's own traffic analyses of it lose their stored files, the owner-only address file included
+  const removed = await deletePrepOutputs(env, b.key, a.user.id);
   await audit(env, a.user, "dataset.delete", b.key, { set: b.set, analysis_jobs: removed.jobs,
                                                        identity_file_deleted: removed.identity_file_deleted });
   return json({ ok: true, key: b.key });

@@ -637,11 +637,19 @@ class JobManager:
                 job["prepare"] = None
         return job
 
-    def list_jobs(self, limit: int = 20) -> list[dict[str, Any]]:
+    def list_jobs(self, limit: int = 20, visible: Optional[Callable[[dict[str, Any]], bool]] = None) -> list[dict[str, Any]]:
+        """The newest jobs; with `visible`, only those it accepts (runtoken.may_read: a user's own)."""
         keys = ("job_id", "kind", "status", "run_name", "models", "effective_provider", "prepared",
                 "created_at", "started_at", "finished_at", "message", "after_prepare")
         return [{**{k: j.get(k) for k in keys}, "kind": j.get("kind") or "benchmark"}
-                for j in reversed(self._all())][:max(1, int(limit))]
+                for j in reversed(self._all()) if visible is None or visible(j)][:max(1, int(limit))]
+
+    def set_visible(self, set_id: str, may_read: Callable[[dict[str, Any]], bool]) -> bool:
+        """A prepared set is someone's when they prepared or imported it, or ran a benchmark on it."""
+        g = self.set_grant(set_id)
+        if may_read({"user": (g or {}).get("user")}):
+            return True
+        return any((j.get("prepared") == set_id or j.get("run_name") == set_id) and may_read(j) for j in self._all())
 
     def result(self, job_id: str) -> dict[str, Any]:
         job = self._load(job_id)

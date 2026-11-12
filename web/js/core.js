@@ -143,7 +143,7 @@ function backendNeed(method, path) {
     return null;
   }
   if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog|schedules|gpu|logs\/recent)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
-  if ((m = /^\/api\/jobs\/([^/]+)(\/(result|report\.pdf|constraints|flows|telemetry))?$/.exec(p))) return m[2] || !STRONG_JOB.test(decodeURIComponent(m[1])) ? { kind: "read" } : null;
+  if ((m = /^\/api\/jobs\/([^/]+)(\/(result|report\.pdf|constraints|flows|telemetry|explanation))?$/.exec(p))) return m[2] || !STRONG_JOB.test(decodeURIComponent(m[1])) ? { kind: "read" } : null;
   if ((m = /^\/api\/prepared\/([^/]+)\/([^/]+)(\/[^/]+)?$/.exec(p)) && m[1] !== "import") return m[3] ? { kind: "files", set: decodeURIComponent(m[1]) + "/" + decodeURIComponent(m[2]) } : { kind: "read" };
   return null;
 }

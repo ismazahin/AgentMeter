@@ -269,9 +269,16 @@ def register_service(app, get_manager: Callable[[], JobManager]) -> None:
         job["status_url"] = f"/api/jobs/{job['job_id']}"
         return jsonify(job), 202
 
+    def readable_set(kind: str, name: str) -> None:
+        """A prepared set is the caller's when they prepared it or ran a benchmark on it (an admin:
+        any). Someone else's answers 404, as if it were not here."""
+        if not get_manager().set_visible(f"{kind}/{name}", runtoken.may_read):
+            raise ServiceError("this data set's files are not on this server", "not_found", 404)
+
     @app.route("/api/prepared/<kind>/<name>", methods=["GET"])
     def svc_prepared(kind, name):
         try:
+            readable_set(kind, name)
             return jsonify(summarize(run_dir(kind, name)))
         except (ServiceError, PrepareError) as e:
             return fail(e)
@@ -279,6 +286,7 @@ def register_service(app, get_manager: Callable[[], JobManager]) -> None:
     @app.route("/api/prepared/<kind>/<name>/<fname>", methods=["GET"])
     def svc_prepared_file(kind, name, fname):
         try:
+            readable_set(kind, name)
             p = prepared_file(run_dir(kind, name), fname)
         except (ServiceError, PrepareError) as e:
             return fail(e)

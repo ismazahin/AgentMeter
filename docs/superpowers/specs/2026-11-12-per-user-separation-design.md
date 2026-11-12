@@ -1,6 +1,6 @@
 # Each user sees their own work, admins see everyone's (with whose it is)
 
-Date: 2026-11-12 · Status: design, waiting for the owner's approval
+Date: 2026-11-12 · Status: approved 2026-11-12
 Mockups: `docs/superpowers/specs/2026-11-12-per-user-separation/` (leaderboard-admin.png,
 leaderboard-user.png, sessions-admin.png), drawn inside the real app page with its own styles.
 
@@ -138,8 +138,8 @@ Admins see the same notices when their chosen view (Only mine, or one user) is t
 - The chosen setup is in the address, so a link opens the same setup.
 - On a phone: the list first, a setup opens its ranking as its own screen, with a Back link.
 
-**Overall: podium, then list and panel** (owner asked for A and C combined without the setup cards;
-draft, mockup D-overall.png).
+**Overall: podium, then list and panel** (owner asked for A and C combined without the setup cards,
+approved 2026-11-12, mockup D-overall.png).
 - "Who wins most often": the top three on a low podium. Each card has the wins ("3 wins of 3
   setups"), the share of rivals beaten, a strip with one square per setup (its place there, lime for
   a win, dashed for not run, orange for not enough) and who ran it. The winner's pedestal is the

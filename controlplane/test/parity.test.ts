@@ -44,7 +44,9 @@ describe("parity with the Python reference (pure functions)", () => {
 
 describe("parity through the HTTP routes", () => {
   it("summaries uploaded by the backend -> /api/compare, /api/leaderboard, /api/sessions/:id/constraints", async () => {
-    const u = await user();
+    const u = await user("admin");              // summaries with no owner: an admin sees them all
+    // the routes add who may see what (scope) and per-session owners (sessions_info); the rankings are the reference's
+    const core = (d: any) => { const { scope, sessions_info, ...rest } = d; return rest; };
     await register();
     for (const s of F.summaries) {
       const r = await backendCall("PUT", `/api/backend/sessions/${s.session_id}/summary`, { summary: s });
@@ -55,15 +57,15 @@ describe("parity through the HTTP routes", () => {
       expect(r.data).toEqual(c.out);
     }
     for (const [sort, out] of Object.entries(F.leaderboard))
-      expect((await api(`/api/leaderboard?sort=${sort}`, { token: u.token })).data).toEqual(out);
+      expect(core((await api(`/api/leaderboard?sort=${sort}`, { token: u.token })).data)).toEqual(out);
     for (const c of F.leaderboard_overall)
-      expect((await api(`/api/leaderboard?view=overall&by=${c.by}${c.demo ? "&demo=1" : ""}`, { token: u.token })).data).toEqual(c.out);
+      expect(core((await api(`/api/leaderboard?view=overall&by=${c.by}${c.demo ? "&demo=1" : ""}`, { token: u.token })).data)).toEqual(c.out);
     for (const c of F.comparable.filter((x: any) => /^job_\d{8}_\d{6}_[0-9a-f]{32}$/.test(x.session)))
       expect((await api(`/api/compare/candidates?session=${c.session}`, { token: u.token })).data).toEqual(c.out);
     for (const c of F.merged) {
       const r = await api(`/api/compare/merged?sessions=${c.sessions.join(",")}`, { token: u.token });
       if (c.out.error || new Set(c.sessions).size !== c.sessions.length) expect(r.status).toBe(400);
-      else expect(r.data).toEqual(c.out);
+      else expect(core(r.data)).toEqual(c.out);
     }
     for (const c of F.constraints.filter((x: any) => x.limits && Object.values(x.limits).every((v) => typeof v === "string"))) {
       const q = new URLSearchParams(c.limits).toString();

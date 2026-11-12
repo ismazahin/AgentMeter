@@ -92,7 +92,7 @@ describe("session lifecycle (backend writes, users read)", () => {
   });
 
   it("files go to R2 and download with a login; unknown names are refused", async () => {
-    const u = await user();
+    const u = await user("admin");                                  // a session with no owner: admins only
     await register();
     const pdf = "%PDF-1.4 fake";
     expect((await backendCall("PUT", `/api/backend/sessions/${SID}/files/report.pdf`, null, { raw: pdf })).status).toBe(200);
@@ -105,13 +105,18 @@ describe("session lifecycle (backend writes, users read)", () => {
     expect((await api(`/api/sessions/${SID}`, { token: u.token })).data.files).toEqual(["report.pdf"]);
   });
 
-  it("every user can view; only the owner or an admin deletes (R2 objects go too)", async () => {
+  it("the owner and admins see it, another user gets 404 everywhere; only the owner or an admin deletes", async () => {
     const owner = await user(), other = await user(), admin = await user("admin");
     await register();
     await benchmarkFor(owner);
     await backendCall("PUT", `/api/backend/sessions/${SID}/files/manifest.json`, null, { raw: "{}" });
-    expect((await api(`/api/sessions/${SID}`, { token: other.token })).data.can_delete).toBe(false);
-    expect((await api(`/api/sessions/${SID}`, { method: "DELETE", token: other.token })).status).toBe(403);
+    await backendCall("PUT", `/api/backend/sessions/${SID}/results`, null, { raw: "{}" });
+    for (const path of [`/api/sessions/${SID}`, `/api/sessions/${SID}/results`, `/api/sessions/${SID}/files/manifest.json`, `/api/sessions/${SID}/constraints`])
+      expect((await api(path, { token: other.token })).status).toBe(404);
+    expect((await api(`/api/sessions/${SID}`, { method: "PATCH", body: { notes: "x" }, token: other.token })).status).toBe(404);
+    expect((await api(`/api/sessions/${SID}`, { method: "DELETE", token: other.token })).status).toBe(404);
+    expect((await api("/api/sessions", { token: other.token })).data.sessions).toHaveLength(0);
+    expect((await api(`/api/sessions/${SID}`, { token: owner.token })).data.can_delete).toBe(true);
     expect((await api(`/api/sessions/${SID}`, { token: admin.token })).data.can_delete).toBe(true);
     expect((await api(`/api/sessions/${SID}`, { method: "DELETE", token: owner.token })).status).toBe(200);
     expect((await api(`/api/sessions/${SID}`, { token: owner.token })).status).toBe(404);
@@ -130,7 +135,7 @@ describe("session lifecycle (backend writes, users read)", () => {
   });
 
   it("session browsing works with the backend offline (GPU off)", async () => {
-    const u = await user();
+    const u = await user("admin");                                  // summaries with no owner: admins only
     await register();
     for (const s of F.summaries.slice(0, 2)) await backendCall("PUT", `/api/backend/sessions/${s.session_id}/summary`, { summary: s });
     await E.DB.prepare("DELETE FROM backends").run();
@@ -144,7 +149,7 @@ describe("session lifecycle (backend writes, users read)", () => {
 
 describe("prepared-set hash migration (backend-signed)", () => {
   it("lists stored sessions, serves their stored copy, and replaces only the hash", async () => {
-    const u = await user();
+    const u = await user("admin");
     await register();
     const s = { ...F.summaries[0], session_id: SID, job_id: SID, identity: { ...F.summaries[0].identity, prepared_set_sha256: "1".repeat(64) } };
     delete s.identity.prepared_set_hash_version;
@@ -166,7 +171,7 @@ describe("prepared-set hash migration (backend-signed)", () => {
   });
 });
 
-describe("notes and tags (owner or admin edits, everyone searches)", () => {
+describe("notes and tags (owner or admin edits; each searches what they can see)", () => {
   it("the owner edits; another user cannot; an admin can; bad input is refused; a summary upload keeps them", async () => {
     const owner = await user(), other = await user(), admin = await user("admin");
     await register();
@@ -175,7 +180,7 @@ describe("notes and tags (owner or admin edits, everyone searches)", () => {
     const r = await patch(owner, { notes: "  rerun after the tokenizer fix ", tags: ["thesis ch4", "Thesis CH4", "rerun", " "] });
     expect(r.status).toBe(200);
     expect(r.data).toMatchObject({ notes: "rerun after the tokenizer fix", tags: ["thesis ch4", "rerun"] });   // trimmed, deduped
-    expect((await patch(other, { notes: "x" })).status).toBe(403);
+    expect((await patch(other, { notes: "x" })).status).toBe(404);                    // not theirs: not even there
     expect((await patch(admin, { tags: ["checked"] })).data).toMatchObject({ notes: "rerun after the tokenizer fix", tags: ["checked"] });
     expect((await patch(owner, { notes: "y".repeat(2001) })).status).toBe(400);
     expect((await patch(owner, { tags: ["<script>"] })).status).toBe(400);
@@ -183,7 +188,7 @@ describe("notes and tags (owner or admin edits, everyone searches)", () => {
     expect((await patch(owner, { tags: "rerun" })).status).toBe(400);
     const s = { ...F.summaries[0], session_id: SID, job_id: SID };
     await backendCall("PUT", `/api/backend/sessions/${SID}/summary`, { summary: s });
-    expect((await api(`/api/sessions/${SID}`, { token: other.token })).data).toMatchObject({ notes: "rerun after the tokenizer fix", tags: ["checked"] });
+    expect((await api(`/api/sessions/${SID}`, { token: owner.token })).data).toMatchObject({ notes: "rerun after the tokenizer fix", tags: ["checked"] });
   });
 
   it("search matches every word across models, notes, tags and owner; tag filter is exact; wildcards are literal", async () => {
@@ -205,20 +210,33 @@ describe("notes and tags (owner or admin edits, everyone searches)", () => {
 });
 
 describe("the session list says who may edit each row", () => {
-  it("can_edit: true for the owner and an admin, false for other users", async () => {
+  it("can_edit and mine for the owner and an admin; another user does not see the row at all", async () => {
     const owner = await user(), other = await user(), admin = await user("admin");
     await register();
     await benchmarkFor(owner);
     const row = async (u: { token: string }) => (await api("/api/sessions", { token: u.token })).data.sessions.find((x: any) => x.session_id === SID);
-    expect((await row(owner)).can_edit).toBe(true);
-    expect((await row(admin)).can_edit).toBe(true);
-    expect((await row(other)).can_edit).toBe(false);
+    expect(await row(owner)).toMatchObject({ can_edit: true, mine: true, owner: owner.name });
+    expect(await row(admin)).toMatchObject({ can_edit: true, mine: false, owner: owner.name });
+    expect(await row(other)).toBeUndefined();
+  });
+
+  it("an admin narrows to one owner (owner=me|<username>); a user's owner= is ignored", async () => {
+    const owner = await user(), other = await user(), admin = await user("admin");
+    await register();
+    await benchmarkFor(owner);
+    const ids = async (u: { token: string }, qs = "") => (await api(`/api/sessions${qs}`, { token: u.token })).data.sessions.map((x: any) => x.session_id);
+    expect(await ids(admin, "?owner=" + owner.name)).toEqual([SID]);
+    expect(await ids(admin, "?owner=me")).toEqual([]);
+    expect(await ids(admin, "?owner=all")).toEqual([SID]);
+    expect(await ids(other, "?owner=" + owner.name)).toEqual([]);
+    expect((await api("/api/sessions", { token: other.token })).data.scope).toBe("mine");
+    expect((await api("/api/sessions?owner=me", { token: admin.token })).data.scope).toBe("me");
   });
 });
 
 describe("the session list pages past 200", () => {
   it("offset + next_offset walk the whole list, newest first, without repeats", async () => {
-    const u = await user();
+    const u = await user("admin");          // past the hourly limit the later jobs have no owner: admins see those
     await register();
     const ids: string[] = [];
     for (let i = 0; i < 7; i++) {
@@ -240,5 +258,30 @@ describe("the session list pages past 200", () => {
     expect(new Set(seen).size).toBe(7);
     expect([...seen].sort()).toEqual([...ids].sort());
     expect((await api("/api/sessions?limit=50", { token: u.token })).data.next_offset).toBeNull();
+  });
+});
+
+describe("rankings and comparisons use only the sessions the viewer may read", () => {
+  it("a user ranks their own sessions; an admin ranks everyone's, sees whose, and narrows by owner", async () => {
+    const alice = await user(), bob = await user(), admin = await user("admin");
+    await register();
+    const [s1, s2] = F.summaries.filter((s: any) => /^job_\d{8}_\d{6}_[0-9a-f]{32}$/.test(s.session_id)).slice(0, 2);
+    for (const s of [s1, s2]) await backendCall("PUT", `/api/backend/sessions/${s.session_id}/summary`, { summary: s });
+    await E.DB.prepare("UPDATE sessions SET owner_id=?, owner_username=? WHERE id=?").bind(alice.id, alice.name, s1.session_id).run();
+    await E.DB.prepare("UPDATE sessions SET owner_id=?, owner_username=? WHERE id=?").bind(bob.id, bob.name, s2.session_id).run();
+    const lb = async (u: { token: string }, qs = "") => (await api(`/api/leaderboard?sort=latency${qs}`, { token: u.token })).data;
+    const sids = (d: any) => [...new Set(d.groups.flatMap((g: any) => g.sessions))].sort();
+    expect(sids(await lb(alice))).toEqual([s1.session_id]);
+    expect(Object.keys((await lb(alice)).sessions_info)).toEqual([s1.session_id]);
+    expect((await lb(alice)).scope).toBe("mine");
+    expect(sids(await lb(alice, "&owner=all"))).toEqual([s1.session_id]);            // a user cannot widen it
+    expect(sids(await lb(admin))).toEqual([s1.session_id, s2.session_id].sort());
+    expect((await lb(admin)).sessions_info[s2.session_id]).toMatchObject({ owner: bob.name });
+    expect(sids(await lb(admin, "&owner=" + bob.name))).toEqual([s2.session_id]);
+    const ov = (await api("/api/leaderboard?view=overall&demo=1", { token: alice.token })).data;
+    expect(Object.keys(ov.sessions_info)).toEqual([s1.session_id]);
+    // comparing with someone else's session: it does not exist for this user
+    expect((await api(`/api/compare?a=${s1.session_id}&b=${s2.session_id}`, { token: alice.token })).status).toBe(400);
+    expect((await api(`/api/compare/merged?sessions=${s1.session_id},${s2.session_id}`, { token: alice.token })).status).toBe(400);
   });
 });

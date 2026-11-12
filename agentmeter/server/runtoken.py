@@ -127,6 +127,18 @@ def user_of(payload: Optional[dict[str, Any]]) -> Optional[dict[str, str]]:
     return {"sub": str(payload.get("sub")), "uname": str(payload.get("uname") or "")}
 
 
+def may_read(job: Optional[dict[str, Any]], tok: Optional[dict[str, Any]] = "current") -> bool:  # type: ignore[assignment]
+    """Each user sees only their own work, an admin everyone's. True without a control plane (one
+    operator, no accounts), for an admin's token, or when the job was started by the token's user.
+    A job with no recorded user (started before accounts) is an admin's only."""
+    if tok == "current":
+        tok = current()
+    if not tok or tok.get("admin"):
+        return True
+    u = (job or {}).get("user") if isinstance((job or {}).get("user"), dict) else {}
+    return bool(u.get("sub")) and str(u.get("sub")) == str(tok.get("sub"))
+
+
 def current() -> Optional[dict[str, Any]]:
     """The verified run token of the current Flask request (control-plane mode), else None."""
     try:

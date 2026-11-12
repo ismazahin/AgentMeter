@@ -23,11 +23,12 @@ describe("session names", () => {
     const r = await patch(owner, { title: "  Qwen vs Llama \n  baseline " });
     expect(r.status).toBe(200);
     expect(r.data.title).toBe("Qwen vs Llama baseline");
-    expect((await patch(other, { title: "mine now" })).status).toBe(403);
+    expect((await patch(other, { title: "mine now" })).status).toBe(404);              // not theirs: not even there
     expect((await patch(owner, { title: "x".repeat(81) })).status).toBe(400);
     expect((await patch(owner, { title: 5 })).status).toBe(400);
     expect((await patch(admin, { notes: "checked" })).data).toMatchObject({ title: "Qwen vs Llama baseline", notes: "checked" });
-    const list = await api("/api/sessions?q=baseline", { token: other.token });
+    expect((await api("/api/sessions?q=baseline", { token: other.token })).data.sessions).toEqual([]);
+    const list = await api("/api/sessions?q=baseline", { token: owner.token });
     expect(list.data.sessions.map((s: { session_id: string }) => s.session_id)).toEqual([SID]);
     expect(list.data.sessions[0].title).toBe("Qwen vs Llama baseline");
     await backendCall("PUT", `/api/backend/sessions/${SID}/summary`, { summary: { session_id: SID, status: "Done", models: ["m/a", "m/b"], run_name: "csv_runs/x_1", title: "from the backend" } });
@@ -37,47 +38,43 @@ describe("session names", () => {
 });
 
 describe("data sets: names and removal", () => {
-  it("the first session's owner or an admin renames and removes; others cannot; everyone sees the result", async () => {
+  it("each user names and removes a data set in their own view only; nobody else's view changes", async () => {
     const owner = await user(), other = await user(), admin = await user("admin");
     await register();
     await sessionOn(owner);
     const post = (u: { token: string }, what: string, body: unknown) => api(`/api/datasets/${what}`, { body, token: u.token });
-    expect((await api("/api/datasets", { token: other.token })).data).toEqual({ datasets: [] });
-    expect((await post(other, "rename", { key: SHA, set: "csv_runs/x_1", label: "theirs" })).status).toBe(403);
+    const rows = async (u: { token: string }) => (await api("/api/datasets", { token: u.token })).data.datasets;
+    expect(await rows(other)).toEqual([]);
     let r = await post(owner, "rename", { key: SHA, set: "csv_runs/x_1", label: "  Monday   traffic " });
     expect(r.status).toBe(200);
     expect(r.data).toEqual({ key: SHA, set: "csv_runs/x_1", label: "Monday traffic" });
-    // the owner is found by name too, before a fingerprint exists
-    expect((await post(other, "rename", { key: "name:csv_runs/x_1", label: "nope" })).status).toBe(403);
     expect((await post(owner, "rename", { key: SHA, label: "x".repeat(81) })).status).toBe(400);
     expect((await post(owner, "rename", { key: "../etc", label: "x" })).status).toBe(400);
     expect((await post(owner, "rename", { key: SHA, set: "other_runs/x", label: "x" })).status).toBe(400);
-    expect((await post(other, "delete", { key: SHA, set: "csv_runs/x_1" })).status).toBe(403);
+    // another user (who uploaded the same flows) names it for themselves; the owner's name stays
+    expect((await post(other, "rename", { key: SHA, set: "csv_runs/x_1", label: "Their copy" })).status).toBe(200);
+    expect((await rows(owner))[0]).toMatchObject({ key: SHA, label: "Monday traffic", deleted_at: null });
+    expect((await rows(other))[0]).toMatchObject({ key: SHA, label: "Their copy" });
+    // an admin's removal hides it from the admin's view only
     expect((await post(admin, "delete", { key: SHA, set: "csv_runs/x_1" })).status).toBe(200);
-    const rows = (await api("/api/datasets", { token: other.token })).data.datasets;
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ key: SHA, set: "csv_runs/x_1", label: "Monday traffic" });   // removal keeps the name
-    expect(rows[0].deleted_at).toBeTruthy();
-    expect((await api(`/api/sessions/${SID}`, { token: other.token })).status).toBe(200);      // its session stays
+    expect((await rows(admin))[0].deleted_at).toBeTruthy();
+    expect((await rows(owner))[0].deleted_at).toBeNull();
+    expect((await post(owner, "delete", { key: SHA, set: "csv_runs/x_1" })).status).toBe(200);
+    expect((await rows(owner))[0]).toMatchObject({ label: "Monday traffic" });               // removal keeps the name
+    expect((await rows(owner))[0].deleted_at).toBeTruthy();
+    expect((await api(`/api/sessions/${SID}`, { token: owner.token })).status).toBe(200);    // its session stays
     const audit = await E.DB.prepare("SELECT action FROM audit_log WHERE target=? ORDER BY id").bind(SHA).all();
-    expect(audit.results.map((x: { action: string }) => x.action)).toEqual(["dataset.rename", "dataset.delete"]);
+    expect(audit.results.map((x: { action: string }) => x.action)).toEqual(["dataset.rename", "dataset.rename", "dataset.delete", "dataset.delete"]);
   });
 
-  it("ownership comes from the key alone: naming a set of your own does not make you the owner of another", async () => {
+  it("the GPU files of a set: only its owner (the first finished session's user) or an admin gets a delete token", async () => {
     const alice = await user(), bob = await user();
     await register();
     await sessionOn(alice, "csv_runs/alices_1", SHA, SID, "2026-11-09T10:00:00Z");
     await sessionOn(bob, "csv_runs/bobs_old_1", "f".repeat(64), "job_20261109_080000_" + "a".repeat(32), "2026-11-01T08:00:00Z");
-    for (const what of ["rename", "delete"]) {
-      const r = await api(`/api/datasets/${what}`, { body: { key: SHA, set: "csv_runs/bobs_old_1", label: "mine" }, token: bob.token });
-      expect(r.status).toBe(403);
-    }
-    expect((await api("/api/datasets", { token: bob.token })).data.datasets).toEqual([]);
-    // a failed or running session does not make its user the owner (only finished ones count)
-    await E.DB.prepare("UPDATE sessions SET status='Failed', finished_at='2026-01-01T00:00:00Z' WHERE id=?").bind("job_20261109_080000_" + "a".repeat(32)).run();
-    await E.DB.prepare("UPDATE sessions SET prepared_set_sha256=? WHERE id=?").bind(SHA, "job_20261109_080000_" + "a".repeat(32)).run();
-    expect((await api("/api/datasets/rename", { body: { key: SHA, label: "x" }, token: bob.token })).status).toBe(403);
-    expect((await api("/api/datasets/rename", { body: { key: SHA, label: "Alice's" }, token: alice.token })).status).toBe(200);
+    const ask = (u: { token: string }, set: string) => api("/api/runs/authorize", { body: { kind: "delete_set", set }, token: u.token });
+    expect((await ask(bob, "csv_runs/alices_1")).status).toBe(403);
+    expect((await ask(alice, "csv_runs/alices_1")).status).toBe(200);
   });
 
   it("only the owner (or an admin) gets a token to delete a benchmarked set's files", async () => {
@@ -138,12 +135,15 @@ describe("traffic analyses", () => {
     expect((await api("/api/analyses", { token: admin.token })).data.analyses.some((x: any) => x.job_id === id)).toBe(true);
   });
 
-  it("the uploader owns an unbenchmarked analysis; deleting it removes its files and is audited", async () => {
+  it("removing it removes only the remover's own analysis files, and is audited", async () => {
     const u = await user(), other = await user(), admin = await user("admin");
     const sha = "2".repeat(64);
     const id = await analysisBy(u, "csv_runs/flows_a2", sha, "b".repeat(31) + "2");
-    expect((await api("/api/datasets/rename", { body: { key: sha, label: "theirs" }, token: other.token })).status).toBe(403);
-    expect((await api("/api/datasets/delete", { body: { key: sha }, token: other.token })).status).toBe(403);
+    // someone else removing the same flows from their view leaves the uploader's files alone
+    expect((await api("/api/datasets/delete", { body: { key: sha }, token: other.token })).status).toBe(200);
+    for (const f of FILES) expect(await E.STORE.get(`prep/${id}/out/${f}`)).not.toBeNull();
+    expect((await api("/api/datasets/delete", { body: { key: sha }, token: admin.token })).status).toBe(200);
+    for (const f of FILES) expect(await E.STORE.get(`prep/${id}/out/${f}`)).not.toBeNull();
     expect((await api("/api/datasets/rename", { body: { key: sha, label: "Tuesday capture" }, token: u.token })).status).toBe(200);
     expect((await api("/api/datasets/delete", { body: { key: sha, set: "csv_runs/flows_a2" }, token: u.token })).status).toBe(200);
     for (const f of FILES) expect(await E.STORE.get(`prep/${id}/out/${f}`)).toBeNull();

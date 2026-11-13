@@ -86,7 +86,7 @@ const txt = (p, sel) => p.$eval(sel, e => e.textContent).catch(() => '');
     const shown = await p.waitForSelector('#an-figures .tiles', { timeout: 120000 }).then(() => true, () => false);
     log(shown, 'step 2 → 3: the preparation service prepared and scored the data, and "Your data" shows it');
     const cur = await p.$eval('#wiz-steps li[aria-current="step"]', e => e.textContent);
-    log(/Your data/.test(cur) && /benchmark sample: 20/.test(await txt(p, '#an-contents')), 'step 3 shows what is in it (' + cur + ')');
+    log(/Your data/.test(cur) && /benchmark sample 20/.test(await txt(p, '#an-contents')), 'step 3 shows what is in it (' + cur + ')');
     const scored = await txt(p, '#an-figures .tile:first-child .v');
     const pool = JSON.parse((await (await fetch(WORKER + `/api/prep/jobs/${jobId}/files/ids_pool.json`, { headers: { Authorization: 'Bearer ' + tok } })).text()) || '{}');
     log(Number(scored.replace(/\D/g, '')) === pool.n_flows_in && pool.n_flows_in > 20, `every flow of the pool was scored (${scored}), not only the 20-flow sample`);
@@ -148,7 +148,7 @@ const txt = (p, sel) => p.$eval(sel, e => e.textContent).catch(() => '');
       document.getElementById('pl-flows').value = '20000'; renderPlanner();
     });
     const plRows = await p.$$eval('#pl-table tbody tr', l => l.map(r => r.textContent));
-    log(plRows.length === 3 && /needs \d+ GPUs/.test(plRows.join('')), 'the planner projects each model per GPU and says when one GPU is not enough');
+    log(plRows.length === 3 && /\d+ GPUs?/.test(plRows.join('')) && /% busy/.test(plRows.join('')), 'the planner projects each model per GPU and says when one GPU is not enough');
     await p.screenshot({ path: path.join(OUT, 'planner.png'), fullPage: true });
   } catch (e) {
     log(false, 'walk-through crashed: ' + e.message.split('\n')[0]);

@@ -3,57 +3,164 @@
 // compare, settings, boot); they share the page's global scope, so a function defined in one is used by the others.
 "use strict";
 // ---------- SETTINGS ----------
+// Tabs (#/settings/<tab>); every control saves on change (PUT /api/settings merges a partial patch)
+// and says "Saved" next to its section. The Account tab is what the Profile page was.
 var TZS = (function () { try { return Intl.supportedValuesOf("timeZone"); } catch (e) { return ["UTC", "Asia/Kuala_Lumpur", "Europe/London", "America/New_York"]; } })();
-// default models: study models + the extra models offered here; `chosen` stays ticked
+var ST_TABS = ["notify", "defaults", "weights", "look", "account", "backend"];
+var ST = { tab: "notify", link: null };
+function stTab(t) {
+  var tabs = ST_TABS.filter(function (x) { return !$("settab-" + x).hidden; });
+  if (tabs.indexOf(t) < 0) t = tabs[0];
+  ST.tab = t;
+  tabs.concat(["backend"]).forEach(function (x) {
+    var on = x === t;
+    $("settab-" + x).setAttribute("aria-selected", String(on)); $("settab-" + x).tabIndex = on ? 0 : -1;
+    $("setp-" + x).hidden = !on;
+  });
+  if (t === "account") loadProfile();
+}
+$("set-tabs").addEventListener("click", function (ev) {
+  var b = ev.target.closest("[data-settab]"); if (!b) return;
+  history.replaceState(null, "", "#/settings/" + b.getAttribute("data-settab")); stTab(b.getAttribute("data-settab"));
+});
+$("set-tabs").addEventListener("keydown", function (ev) {
+  if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return;
+  var tabs = ST_TABS.filter(function (x) { return !$("settab-" + x).hidden; }), i = tabs.indexOf(ST.tab);
+  var n = tabs[(i + (ev.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+  history.replaceState(null, "", "#/settings/" + n); stTab(n); $("settab-" + n).focus(); ev.preventDefault();
+});
+// a section's save: the patch, then "Saved" (or the error) next to that section's heading
+function stSave(where, patch) {
+  var el = $("sv-" + where);
+  if (el) { el.className = "saved"; el.textContent = "Saving…"; }
+  return saveSettings(patch).then(function (r) {
+    if (el) { el.className = "saved" + (r.ok ? "" : " err"); el.textContent = r.ok ? "Saved" : ((r.data || {}).error || "Not saved"); }
+    return r;
+  });
+}
+// default models: the study models (always known), plus extra models offered here; `chosen` stays ticked
 function renderSetModels(chosen) {
-  var models = (CONFIG && CONFIG.canonical_models && CONFIG.canonical_models.length ? CONFIG.canonical_models : []).slice();
+  var models = (CONFIG && CONFIG.canonical_models && CONFIG.canonical_models.length ? CONFIG.canonical_models : STUDY_MODELS).slice();
   ((CATALOG && CATALOG.extra) || []).forEach(function (x) { if (x.available && models.indexOf(x.id) < 0) models.push(x.id); });
   chosen.forEach(function (m) { if (models.indexOf(m) < 0) models.push(m); });
-  $("set-models").innerHTML = models.length ? models.map(function (m, i) {
+  $("set-models").innerHTML = models.map(function (m, i) {
     return '<label class="model"><input type="checkbox" value="' + esc(m) + '" id="set-model-' + i + '"' + (chosen.indexOf(m) >= 0 ? " checked" : "") + '><span class="mono">' + esc(m) + '</span>' + extraTag(m) + '</label>';
-  }).join("") : '<p class="muted small">The model list comes from the GPU backend, which is offline now.</p>';
+  }).join("");
   var sync = function () {
     var on = $("set-models").querySelectorAll("input:checked").length;
     $("set-models").querySelectorAll("input").forEach(function (x) { x.disabled = !x.checked && on >= ((CONFIG && CONFIG.max_models) || 4); });
   };
-  $("set-models").querySelectorAll("input").forEach(function (inp) { inp.addEventListener("change", sync); });
+  $("set-models").querySelectorAll("input").forEach(function (inp) { inp.addEventListener("change", function () { sync(); stSave("defaults", { default_models: pickedDefaults() }); }); });
   sync();
 }
-function loadSettings() {
-  // the extra models arrive later: refresh ONLY the model list, keeping what is ticked (never the form)
+function pickedDefaults() { return Array.prototype.map.call($("set-models").querySelectorAll("input:checked"), function (i) { return i.value; }); }
+function loadSettings(tab) {
+  // the extra models arrive later: refresh ONLY the model list, keeping what is ticked
   if (ONLINE && !CATALOG) loadCatalog().then(function (c) {
-    if (c && !$("view-settings").hidden) renderSetModels(Array.prototype.map.call($("set-models").querySelectorAll("input:checked"), function (i) { return i.value; }));
+    if (c && !$("view-settings").hidden && CP) renderSetModels(pickedDefaults());
   });
   var t = (SETTINGS && SETTINGS.theme) || themePref();
   ($("set-theme-" + t) || $("set-theme-system")).checked = true;
   var h = HEALTH || {};
-  $("set-backend").innerHTML = '<dt>Address</dt><dd class="mono">' + esc(API || (CP ? "none (GPU offline)" : location.origin)) + '</dd><dt>Mode</dt><dd>' +
+  $("set-backend").innerHTML = '<dt>Address</dt><dd class="mono">' + esc(API || location.origin) + '</dd><dt>Mode</dt><dd>' +
     (!ONLINE ? "offline" : h.provider === "real" ? "Real GPU: " + esc((h.gpu || {}).name || "unknown") : "Demo (mock), no GPU") + '</dd>' +
-    (CP ? '<dt>Control plane</dt><dd class="mono">' + esc(CP) + '</dd><dt>Access</dt><dd>logged in as ' + esc(AUTH.user.username) + ' (' + esc(AUTH.user.role) + ')</dd>'
-        : '<dt>Access</dt><dd>' + (h.auth_required ? "run tokens from a control plane" : "open (local development)") + '</dd>');
-  $("set-backend-note").hidden = !!CP;
-  $("set-account").hidden = !CP;
-  $("set-intro").textContent = CP ? "Saved to your account." : "Saved in this browser only.";
+    '<dt>Access</dt><dd>' + (h.auth_required ? "run tokens from a control plane" : "open (local development)") + '</dd>';
+  // without a control plane (one GPU server, no accounts) only Appearance and Backend exist, kept in this browser
+  ["notify", "defaults", "weights", "account"].forEach(function (x) { $("settab-" + x).hidden = !CP; });
+  $("settab-backend").hidden = !!CP;
+  $("set-intro").textContent = CP ? "Your preferences. Changes save as you make them." : "Saved in this browser only.";
+  $("set-error").hidden = true;
+  stTab(tab || (CP ? ST.tab : "look"));
   if (!CP) return;
   var S = SETTINGS || {};
-  $("set-tg").value = S.telegram_chat_id || ""; $("set-notify").value = S.notify_on || "none"; $("set-drift").checked = S.alert_on_drift !== false;
+  $("set-tg").value = S.telegram_chat_id || "";
+  var nv = document.querySelector('#set-notify input[value="' + (S.notify_on || "none") + '"]'); if (nv) nv.checked = true;
+  $("set-drift").checked = S.alert_on_drift !== false;
   $("set-flows").value = S.default_flows || 50; $("set-tz").value = S.timezone || "UTC";
   $("set-tz-list").innerHTML = TZS.map(function (z) { return '<option value="' + esc(z) + '">'; }).join("");
   renderSetModels(S.default_models || []);
   renderPresets(S.weight_presets || []);
-  $("set-saved").textContent = ""; $("set-error").hidden = true; $("set-tg-status").textContent = "";
+  ["sv-notify", "sv-defaults", "sv-weights"].forEach(function (id) { $(id).textContent = ""; });
+  $("set-tg-status").textContent = "";
+  tgSteps();
+  if (!ST.link) api("/api/settings/telegram-link").then(function (r) {   // the bot's Start link, with this user's one-time code
+    if (r.ok) { ST.link = r.data; tgSteps(); }
+  });
 }
+// ---- Telegram: three steps (open the bot, connect the chat, test) ----
+function tgSteps() {
+  var id = ((SETTINGS || {}).telegram_chat_id || "").trim(), connected = !!id, l = ST.link;
+  $("set-tg-chip").className = "chip " + (connected ? "ok" : "warn");
+  $("set-tg-chip").textContent = connected ? "Connected" : "Not set up";
+  $("settab-notify-n").hidden = connected;
+  var o = $("set-tg-open");
+  if (l && l.url) { o.href = l.url; o.removeAttribute("aria-disabled"); } else { o.removeAttribute("href"); o.setAttribute("aria-disabled", "true"); }
+  ["1", "2", "3"].forEach(function (n) { $("set-step-" + n).className = ""; });
+  if (connected) { $("set-step-1").className = "done"; $("set-step-2").className = "done"; $("set-step-3").className = "now"; }
+  else $("set-step-1").className = "now";
+  $("set-tg-test").disabled = !connected;
+}
+$("set-tg-open").addEventListener("click", function (ev) {
+  if (!ST.link || !ST.link.url) { ev.preventDefault(); $("set-tg-status").textContent = "The bot is not set up yet. Ask the admin to add the Telegram bot token."; return; }
+  $("set-step-1").className = "done"; $("set-step-2").className = "now";
+  $("set-tg-status").textContent = "In Telegram, press Start. Then come back and press Find my chat.";
+});
+$("set-tg-find").addEventListener("click", function () {
+  var st = $("set-tg-status"), go = function () {
+    st.textContent = "Looking for your chat…";
+    api("/api/settings/telegram-link", { method: "POST" }).then(function (r) {
+      if (!r.ok) { st.textContent = r.data.error; return; }
+      var d = r.data;
+      if (d.linked) {
+        SETTINGS = SETTINGS || {}; SETTINGS.telegram_chat_id = d.chat_id; $("set-tg").value = d.chat_id;
+        ST.link = null; tgSteps();
+        st.textContent = "Connected" + (d.name ? " to " + d.name : "") + ". Now send a test message.";
+        return;
+      }
+      st.textContent = d.reason === "expired" ? "That link has expired. Press Open in Telegram again, then Start."
+        : d.reason === "not_found" ? "No Start found yet. Open the bot with the button above and press Start, then try again."
+        : d.reason === "webhook" ? "The bot is connected to another service (a webhook), so AgentMeter cannot read its messages. Paste your chat ID instead."
+        : "Telegram did not answer. Try again in a moment.";
+      if (d.reason === "expired") api("/api/settings/telegram-link").then(function (x) { if (x.ok) { ST.link = x.data; tgSteps(); } });
+    });
+  };
+  go();
+});
+$("set-tg").addEventListener("change", function () {
+  var v = $("set-tg").value.trim();
+  saveSettings({ telegram_chat_id: v }).then(function (r) {
+    $("set-tg-status").textContent = r.ok ? (v ? "Chat ID saved." : "Telegram disconnected.") : r.data.error;
+    tgSteps();
+  });
+});
+$("set-tg-test").addEventListener("click", function () {
+  $("set-tg-status").textContent = "Sending…";
+  api("/api/settings/telegram-test", { method: "POST" }).then(function (t) {
+    $("set-tg-status").textContent = t.ok ? (t.data.ok ? "Sent. Check Telegram." : "Telegram refused the message. Check that you pressed Start in the bot, and the chat ID.") : t.data.error;
+    if (t.ok && t.data.ok) { $("set-step-3").className = "done"; }
+  });
+});
+$("set-notify").addEventListener("change", function (ev) { if (ev.target.name === "notify_on") stSave("notify", { notify_on: ev.target.value }); });
+$("set-drift").addEventListener("change", function () { stSave("notify", { alert_on_drift: $("set-drift").checked }); });
+$("set-flows").addEventListener("change", function () {
+  var n = parseInt($("set-flows").value, 10);
+  if (!(n >= 1 && n <= 500)) { $("sv-defaults").className = "saved err"; $("sv-defaults").textContent = "Flows: a number from 1 to 500"; return; }
+  stSave("defaults", { default_flows: n });
+});
+$("set-tz").addEventListener("change", function () { stSave("defaults", { timezone: $("set-tz").value.trim() || "UTC" }); });
+// ---- Ranking weights (SAW presets) ----
 function renderPresets(list) {
   $("set-presets").innerHTML = list.map(function (p, i) {
     var w = p.weights || {};
     return '<div class="preset" data-i="' + i + '"><div class="field name"><label for="pre-name-' + i + '">Name</label><input type="text" id="pre-name-' + i + '" data-k="name" value="' + esc(p.name || "") + '" maxlength="40"></div>' +
-      ["latency", "vram", "tokens"].map(function (k) {
-        return '<div class="field"><label for="pre-' + k + '-' + i + '">' + k + '</label><input id="pre-' + k + '-' + i + '" data-k="' + k + '" type="number" min="0" max="1" step="0.05" value="' + esc(w[k] != null ? w[k] : 0.25) + '"></div>';
+      [["latency", "Speed"], ["vram", "GPU memory"], ["tokens", "Tokens"]].map(function (k) {
+        return '<div class="field"><label for="pre-' + k[0] + '-' + i + '">' + k[1] + '</label><input id="pre-' + k[0] + '-' + i + '" data-k="' + k[0] + '" type="number" min="0" max="1" step="0.05" value="' + esc(w[k[0]] != null ? w[k[0]] : 0.25) + '"></div>';
       }).join("") + '<button type="button" class="btn small-btn" data-rm="' + i + '">Remove</button></div>';
-  }).join("") || '<p class="muted small">No presets yet.</p>';
+  }).join("") || '<p class="muted small">No weight mixes yet. Every page ranks with the default weights until you add one.</p>';
   $("set-presets").querySelectorAll("[data-rm]").forEach(function (b) { b.addEventListener("click", function () {
-    var l = readPresets(); l.splice(+b.getAttribute("data-rm"), 1); renderPresets(l);
+    var l = readPresets(); l.splice(+b.getAttribute("data-rm"), 1); renderPresets(l); savePresets();
   }); });
+  $("set-presets").querySelectorAll("input").forEach(function (inp) { inp.addEventListener("change", savePresets); });
 }
 function readPresets() {
   return Array.prototype.map.call($("set-presets").querySelectorAll(".preset"), function (row) {
@@ -62,11 +169,12 @@ function readPresets() {
     return o;
   });
 }
+function savePresets() { return stSave("weights", { weight_presets: readPresets() }); }
 $("set-preset-add").addEventListener("click", function () {
   var l = readPresets();
   if (l.length >= 5) return;
-  l.push({ name: "Preset " + (l.length + 1), weights: { accuracy: 0, latency: 0.35, vram: 0.35, tokens: 0.3 } });
-  renderPresets(l);
+  l.push({ name: "Mix " + (l.length + 1), weights: { accuracy: 0, latency: 0.35, vram: 0.35, tokens: 0.3 } });
+  renderPresets(l); savePresets();
 });
 function saveSettings(patch) {
   return api("/api/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) }).then(function (r) {
@@ -74,23 +182,6 @@ function saveSettings(patch) {
     return r;
   });
 }
-$("set-account").addEventListener("submit", function (ev) {
-  ev.preventDefault();
-  $("set-error").hidden = true;
-  saveSettings({ theme: themePref(), telegram_chat_id: $("set-tg").value.trim(), notify_on: $("set-notify").value, alert_on_drift: $("set-drift").checked, default_flows: +$("set-flows").value || 50,
-                 timezone: $("set-tz").value.trim() || "UTC", weight_presets: readPresets(),
-                 default_models: Array.prototype.map.call($("set-models").querySelectorAll("input:checked"), function (i) { return i.value; }) })
-    .then(function (r) { if (!r.ok) showError($("set-error"), r.data); else $("set-saved").textContent = "Saved."; });
-});
-$("set-tg-test").addEventListener("click", function () {
-  $("set-tg-status").textContent = "Saving and sending…";
-  saveSettings({ telegram_chat_id: $("set-tg").value.trim() }).then(function (r) {
-    if (!r.ok) { $("set-tg-status").textContent = r.data.error; return; }
-    api("/api/settings/telegram-test", { method: "POST" }).then(function (t) {
-      $("set-tg-status").textContent = t.ok ? (t.data.ok ? "Sent. Check Telegram." : "Telegram refused the message (check the chat ID).") : t.data.error;
-    });
-  });
-});
 $("set-password").addEventListener("submit", function (ev) {
   ev.preventDefault();
   var m = $("set-pw-msg");
@@ -98,9 +189,71 @@ $("set-password").addEventListener("submit", function (ev) {
                             body: JSON.stringify({ current_password: $("set-pw-cur").value, new_password: $("set-pw-new").value }) }).then(function (r) {
     m.hidden = false; m.className = "notice " + (r.ok ? "" : "error");
     m.textContent = r.ok ? "Password changed. Your other devices were logged out." : r.data.error;
-    if (r.ok) { $("set-pw-cur").value = ""; $("set-pw-new").value = ""; }
+    if (r.ok) { $("set-pw-cur").value = ""; $("set-pw-new").value = ""; loadProfile(); }
   });
 });
+
+// ---------- ADMIN: tabs (#/admin/<tab>) and the Overview (tiles + setup checklist + system) ----------
+var AT_TABS = ["overview", "users", "models", "limits", "audit"];
+var ADM = { tab: "overview", creds: null, ids: undefined, users: null, health: null };
+function atTab(t) {
+  if (AT_TABS.indexOf(t) < 0) t = "overview";
+  ADM.tab = t;
+  AT_TABS.forEach(function (x) {
+    var on = x === t;
+    $("atab-" + x).setAttribute("aria-selected", String(on)); $("atab-" + x).tabIndex = on ? 0 : -1;
+    $("at-" + x).hidden = !on;
+  });
+}
+$("adm-tabs").addEventListener("click", function (ev) {
+  var b = ev.target.closest("[data-atab]"); if (!b) return;
+  history.replaceState(null, "", "#/admin/" + b.getAttribute("data-atab")); atTab(b.getAttribute("data-atab"));
+});
+$("adm-tabs").addEventListener("keydown", function (ev) {
+  if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return;
+  var i = AT_TABS.indexOf(ADM.tab), n = AT_TABS[(i + (ev.key === "ArrowRight" ? 1 : AT_TABS.length - 1)) % AT_TABS.length];
+  history.replaceState(null, "", "#/admin/" + n); atTab(n); $("atab-" + n).focus(); ev.preventDefault();
+});
+function admTiles() {
+  var us = ADM.users, B = BACKEND || {}, h = ADM.health;
+  var since = Date.now() - 7 * 864e5, week = ADM.week;
+  var gpu = ONLINE ? ((HEALTH && HEALTH.gpu && HEALTH.gpu.name) || (HEALTH && HEALTH.provider === "real" ? "a GPU" : "demo mode")) : null;
+  var tile = function (v, cls, label, href, link) { return '<div><div class="v' + (cls ? " " + cls : "") + '">' + v + '</div><div class="l">' + label + '</div><a href="' + href + '">' + link + '</a></div>'; };
+  $("adm-tiles").innerHTML =
+    tile(us ? fmtNum(us.length) : "…", "", us ? (us.filter(function (u) { return !u.disabled; }).length === us.length ? "users, all active" : "users, " + us.filter(function (u) { return u.disabled; }).length + " disabled") : "users", "#/admin/users", "Manage users") +
+    tile(week == null ? "…" : fmtNum(week), "", "benchmarks in the last 7 days", "#/sessions", "See sessions") +
+    tile(ONLINE ? "Online" : "Offline", ONLINE ? "ok" : "bad", ONLINE ? "GPU server, " + esc(gpu) : "GPU server" + (B.last_heartbeat_at ? ", last seen " + esc(fmtDate(B.last_heartbeat_at)) : ", never connected"), "#/help", "How to start it") +
+    tile(h == null ? "…" : h.offline ? "–" : fmtNum(h.n), h && !h.offline && h.n ? "bad" : "", h && h.offline ? "problems (the GPU server is offline)" : "problems in 24 hours", "#/admin/overview", "See below");
+  void since;
+}
+function admCheck() {
+  var c = ADM.creds || {}, items = [], st = function (k) { return (c[k] || {}).status; };
+  var tg = st("telegram_bot_token");
+  items.push([tg === "set" ? "ok" : "no", "Telegram bot token", tg === "set" ? "Alerts can be sent." : "Not set. Add TELEGRAM_BOT_TOKEN as a Supabase secret.", "cred-telegram_bot_token"]);
+  items.push(["ok", "Control plane", "Connected. Accounts, sessions and settings are stored.", "cred-control-plane"]);
+  var B = BACKEND || {}, ps = B.prep_service;
+  items.push([B.cloud_prep || (ps && ps.online) ? "ok" : "idk", "Preparation service", B.cloud_prep ? "Running." : ps && ps.online ? "Running on a computer." : "Not running now. Continue in New benchmark starts it.", "cred-prep"]);
+  var ids = ADM.ids;
+  items.push([ids === undefined ? "idk" : ids && !ids.demo ? "ok" : "no", "IDS model", ids === undefined ? "Checking…" : ids ? (ids.demo ? "A demo model is stored. Upload a real one for real results." : "Stored: " + (ids.version || ids.name) + ".") : "None stored. New GPUs use the small demo IDS.", "cred-ids", ids && !ids.demo ? "" : '<a class="btn small-btn" href="#/admin/models">Upload</a>']);
+  ["hf_token", "vast_api_key"].forEach(function (k) {
+    var s = st(k), name = k === "hf_token" ? "Hugging Face token" : "Vast API key";
+    items.push([s === "set" ? "ok" : s === "not set" ? "no" : "idk", name,
+      s === "set" ? "Set on the GPU server." : s === "not set" ? "Not set on the GPU server." : "Checked when the GPU server starts.", "cred-" + k]);
+  });
+  var ready = items.filter(function (x) { return x[0] === "ok"; }).length;
+  $("adm-check-chip").className = "chip " + (ready === items.length ? "ok" : "warn");
+  $("adm-check-chip").textContent = ready + " of " + items.length + " ready";
+  $("adm-creds").innerHTML = items.map(function (x) {
+    return '<li class="' + x[0] + '" id="' + x[3] + '"><span class="dot" aria-hidden="true">' + (x[0] === "ok" ? "✓" : x[0] === "no" ? "!" : "?") + '</span><div><b>' + esc(x[1]) + '</b><span class="d">' + esc(x[2]) + '</span></div>' + (x[4] || "<span></span>") + '</li>';
+  }).join("");
+}
+function admSystem() {
+  var B = BACKEND || {};
+  $("adm-system").innerHTML = '<dt>Control plane</dt><dd class="mono">' + esc(CP || "none") + '</dd>' +
+    '<dt>GPU server</dt><dd>' + (ONLINE ? '<span class="mono">' + esc(API || B.url || "") + '</span> (' + esc(B.mode || ((HEALTH || {}).provider === "real" ? "real GPU" : "demo")) + ')' : "none registered, offline") + '</dd>' +
+    '<dt>Website</dt><dd class="mono">' + esc(location.origin) + '</dd>' +
+    '<dt>You</dt><dd>' + esc(AUTH.user.username) + ' (admin)</dd>';
+}
 
 // ---------- ADMIN ----------
 function isAdmin() { return !!(AUTH.user && AUTH.user.role === "admin"); }
@@ -218,10 +371,11 @@ $("adm-model-add").addEventListener("submit", function (ev) {
 function loadAdminHealth() {
   var host = $("adm-health");
   if (!host) return;
-  if (CP && !ONLINE) { host.innerHTML = '<h2>Problems in the last 24 hours</h2><p class="muted" style="margin-bottom:0">The GPU server is offline. Its logs are on it and can be read when it is back.</p>'; return; }
+  if (CP && !ONLINE) { ADM.health = { offline: true }; admTiles(); host.innerHTML = '<h2>Problems in the last 24 hours</h2><p class="muted" style="margin-bottom:0">The GPU server is offline. Its logs are on it and can be read when it is back.</p>'; return; }
   api("/api/logs/recent?hours=24").then(function (r) {
     if (!r.ok) { host.innerHTML = '<h2>Problems in the last 24 hours</h2><p class="notice error small">' + esc(r.data.error || "Could not read the server's problems.") + '</p>'; return; }
     var d = r.data, c = d.counts, ok = !c.errors && !c.failed_jobs;
+    ADM.health = { n: (c.errors || 0) + (c.failed_jobs || 0) }; admTiles();
     host.innerHTML = '<div class="row" style="margin-top:0;justify-content:space-between"><h2>Problems in the last 24 hours</h2><span class="chip ' + (ok ? (c.warnings ? "" : "ok") : "bad") + '" id="adm-health-chip">' +
       (ok && !c.warnings ? "all clear" : c.errors + " error" + (c.errors === 1 ? "" : "s") + ", " + c.warnings + " warning" + (c.warnings === 1 ? "" : "s") + ", " + c.failed_jobs + " failed run" + (c.failed_jobs === 1 ? "" : "s")) + '</span></div>' +
       '<p class="muted small" style="margin-top:0">From the GPU server, kept in its memory since it started (a restart clears them). Newest first.</p>' +
@@ -270,7 +424,16 @@ function loadAudit(before) {
     }
   });
 }
-function loadAdmin() {
+function loadAdmin(tab) {
+  atTab(tab || ADM.tab);
+  ADM.creds = null; ADM.users = null; ADM.health = null; ADM.week = null;
+  admTiles(); admCheck(); admSystem();
+  allSessions().then(function (r) {
+    var since = Date.now() - 7 * 864e5;
+    ADM.week = r.ok ? (r.data.sessions || []).filter(function (x) { return Date.parse(x.created_at || "") >= since; }).length : 0;
+    admTiles();
+  });
+  if (CP) cpFetch("/api/backend").then(function (r) { if (r && r.ok) { BACKEND = r.data; admTiles(); admCheck(); admSystem(); } });
   loadAdminHealth(); loadAudit();
   loadAdminModels();
   loadAdminIds();
@@ -278,6 +441,7 @@ function loadAdmin() {
   api("/api/admin/users").then(function (r) {
     if (!r.ok) { showError($("adm-error"), r.data); return; }
     var us = r.data.users || [];
+    ADM.users = us; admTiles();
     $("adm-count").textContent = us.length + " of " + r.data.max_users + " accounts";
     $("adm-new-go").disabled = us.length >= r.data.max_users;
     $("adm-users").innerHTML = '<table id="adm-users-table"><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody>' +
@@ -295,11 +459,7 @@ function loadAdmin() {
   });
   api("/api/admin/credentials").then(function (r) {
     if (!r.ok) return;
-    var c = r.data.credentials || {};
-    $("adm-creds").innerHTML = Object.keys(c).map(function (k) {
-      var st = c[k].status;
-      return '<dt>' + esc({ hf_token: "Hugging Face token", vast_api_key: "Vast API key", telegram_bot_token: "Telegram bot token" }[k] || k) + '</dt><dd id="cred-' + esc(k) + '"><span class="chip ' + (st === "set" ? "ok" : st === "not set" ? "warn" : "") + '">' + esc(st) + '</span> <span class="muted small">' + esc(c[k].where || "") + '</span></dd>';
-    }).join("");
+    ADM.creds = r.data.credentials || {}; admCheck();
   });
   api("/api/admin/limits").then(function (r) {
     if (!r.ok) return;
@@ -314,6 +474,7 @@ function loadAdminIds() {
   api("/api/admin/ids-model").then(function (r) {
     if (!r.ok) { $("adm-ids-now").innerHTML = '<dt>Stored</dt><dd class="muted">' + esc((r.data || {}).error || "unavailable") + '</dd>'; return; }
     var m = r.data.model;
+    ADM.ids = m || null; admCheck();
     $("adm-ids-del").hidden = !m;
     if (!m) { $("adm-ids-now").innerHTML = '<dt>Stored</dt><dd><span class="chip warn">none</span> <span class="muted">new GPUs offer the bundled demo IDS only</span></dd>'; return; }
     var h = m.holdout || {};
@@ -402,7 +563,7 @@ function showLogin() {
   $("login-form").hidden = false; $("pwchange-form").hidden = true; $("login-error").hidden = true;
   $("login-go").disabled = false;                                // disabled in the markup until the app is ready
   $("cp-profile").hidden = true; $("nav-admin").hidden = true;
-  $("side-profile").hidden = true; $("side-admin").hidden = true;
+  $("side-admin").hidden = true;
   if (LOGOUT_REASON) { $("login-info").hidden = false; $("login-info").textContent = LOGOUT_REASON; LOGOUT_REASON = ""; }
   setTimeout(function () { $("login-user").focus(); }, 0);
 }
@@ -470,9 +631,9 @@ function fillProfileMenu() {
   $("cp-menu-name").textContent = u.username; $("cp-menu-role").textContent = admin ? "Admin" : "User";
   $("cp-profile-btn").setAttribute("aria-label", "Account menu: " + u.username + " (" + (admin ? "admin" : "user") + ")");
   $("nav-admin").hidden = !admin;
-  $("side-profile").hidden = false; $("side-admin").hidden = !admin;
+  $("side-admin").hidden = !admin;
 }
-// ---------- PROFILE ----------
+// ---------- ACCOUNT (Settings › Account; was the Profile page) ----------
 function deviceName(ua) {
   ua = ua || "";
   var b = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "";
@@ -480,33 +641,40 @@ function deviceName(ua) {
   return (b && o) ? b + " on " + o : (b || o || "Unknown device");
 }
 function loadProfile() {
-  $("prof-error").hidden = true; $("set-pw-msg").hidden = true; $("prof-devices").innerHTML = ""; $("prof-account").innerHTML = "";
+  $("prof-error").hidden = true; $("set-pw-msg").hidden = true;
   api("/api/me").then(function (r) {
     if (!r.ok) { showError($("prof-error"), r.data); return; }
     var u = r.data.user, s = r.data.session || {}, admin = u.role === "admin";
-    $("prof-account").innerHTML = '<dt>Username</dt><dd class="mono" id="prof-username">' + esc(u.username) + '</dd>' +
-      '<dt>Role</dt><dd id="prof-role"><span class="role-chip' + (admin ? " admin" : "") + '">' + (admin ? "Admin" : "User") + '</span> <span class="muted small">' + esc(ROLE_TEXT[u.role] || "") + '</span></dd>' +
-      '<dt>Account created</dt><dd>' + esc(fmtDate(u.created_at)) + '</dd>' +
-      '<dt>This login</dt><dd>' + esc(fmtDate(s.logged_in_at)) + ', ' + (s.remember ? "remembered on this device" : "until the browser closes" +
-        (s.idle_minutes ? ", or " + s.idle_minutes + " min without activity" : "")) + '</dd>' +
-      '<dt>Previous login</dt><dd>' + esc(r.data.previous_login_at ? fmtDate(r.data.previous_login_at) : "—") + '</dd>';
+    $("prof-account").innerHTML = '<span class="av" aria-hidden="true">' + esc(u.username.charAt(0).toUpperCase()) + '</span><div>' +
+      '<h2 id="prof-username" style="margin:0">' + esc(u.username) + '</h2>' +
+      '<p class="st-sub" style="margin:4px 0 0"><span id="prof-role"><span class="role-chip' + (admin ? " admin" : "") + '">' + (admin ? "Admin" : "User") + '</span></span> ' +
+      esc(ROLE_TEXT[u.role] || "") + '</p>' +
+      '<p class="small muted" style="margin:6px 0 0">Member since ' + esc(fmtDate(u.created_at)) + '. This login ' + esc(fmtDate(s.logged_in_at)) + ', ' +
+      (s.remember ? "remembered on this device" : "until the browser closes" + (s.idle_minutes ? " or " + s.idle_minutes + " min without activity" : "")) + '.' +
+      (r.data.previous_login_at ? ' Previous login ' + esc(fmtDate(r.data.previous_login_at)) + '.' : "") + '</p></div>';
   });
   api("/api/me/devices").then(function (r) {
     if (!r.ok) { showError($("prof-error"), r.data); return; }
-    var ds = r.data.devices || [];
-    $("prof-devices").innerHTML = '<table id="prof-devices-table"><thead><tr><th>Device</th><th>Logged in</th><th>Last active</th><th>Kept</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
-      ds.map(function (d) {
-        return '<tr data-device="' + esc(d.id) + '"><td>' + esc(deviceName(d.user_agent)) + (d.current ? ' <span class="chip ok">this device</span>' : "") + '</td>' +
-          '<td class="small">' + esc(fmtDate(d.created_at)) + '</td><td class="small">' + esc(fmtDate(d.last_used_at)) + '</td>' +
-          '<td class="small">' + (d.remember ? "Remember me" : "Until the browser closes") + '</td>' +
-          '<td><button type="button" class="btn small-btn" data-revoke="' + esc(d.id) + '"' + (d.current ? ' data-current="1"' : "") + '>Log out</button></td></tr>';
-      }).join("") + '</tbody></table>';
+    var ds = r.data.devices || [], others = ds.filter(function (d) { return !d.current; });
+    $("prof-revoke-others").hidden = !others.length;
+    $("prof-devices").innerHTML = '<div id="prof-devices-table">' + ds.map(function (d) {
+      return '<div class="st-dev" data-device="' + esc(d.id) + '"><div><b>' + esc(deviceName(d.user_agent)) + '</b>' + (d.current ? ' <span class="chip ok">this device</span>' : "") +
+        '<div class="m">Logged in ' + esc(fmtDate(d.created_at)) + '. Last active ' + esc(fmtDate(d.last_used_at)) + '. ' + (d.remember ? "Remembered on this device." : "Kept until the browser closes.") + '</div></div>' +
+        '<button type="button" class="btn small-btn" data-revoke="' + esc(d.id) + '"' + (d.current ? ' data-current="1"' : "") + '>Log out</button></div>';
+    }).join("") + '</div>';
     $("prof-devices").querySelectorAll("[data-revoke]").forEach(function (b) { b.addEventListener("click", function () {
       if (b.getAttribute("data-current")) { logout(); return; }
       api("/api/me/devices/" + b.getAttribute("data-revoke"), { method: "DELETE" }).then(function (x) {
         if (!x.ok) showError($("prof-error"), x.data); else loadProfile();
       });
     }); });
+    $("prof-revoke-others").onclick = function () {
+      Promise.all(others.map(function (d) { return api("/api/me/devices/" + d.id, { method: "DELETE" }); })).then(function (xs) {
+        var bad = xs.filter(function (x) { return !x.ok; })[0];
+        if (bad) showError($("prof-error"), bad.data);
+        loadProfile();
+      });
+    };
   });
 }
 function afterLogin() {

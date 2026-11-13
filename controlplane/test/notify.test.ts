@@ -72,4 +72,38 @@ describe("Telegram notifications (sent by the control plane, per user settings)"
     const s = await api(`/api/sessions/${SID}`, { token: u.token });
     expect((s.data.session || s.data).status).toBe("Stopped");
   });
+
+  it("connects a chat without outside tools: a one-time Start code, matched in the bot's updates", async () => {
+    const updates: any[] = [];
+    const real = globalThis.fetch;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: any, init?: any) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (url.startsWith("https://telegram.test/")) {
+        if (url.includes("/getMe")) return new Response('{"ok":true,"result":{"username":"agentmeter_test_bot"}}');
+        if (url.includes("/getUpdates")) return new Response(JSON.stringify({ ok: true, result: updates }));
+        return new Response('{"ok":true}');
+      }
+      return real(input, init);
+    });
+    const u = await user(), v = await user();
+    const g = await api("/api/settings/telegram-link", { token: u.token });
+    expect(g.data.url).toBe(`https://t.me/agentmeter_test_bot?start=${g.data.code}`);
+    expect((await api("/api/settings", { token: u.token })).text).not.toMatch(/_tg_link|am[0-9a-f]{20}/);   // the code stays internal
+    // nothing pressed yet, then someone else's /start (no code / another code) never matches
+    expect((await api("/api/settings/telegram-link", { method: "POST", token: u.token })).data).toEqual({ linked: false, reason: "not_found" });
+    updates.push({ message: { text: "/start", chat: { id: 111, type: "private" } } },
+                 { message: { text: "/start amdeadbeef00", chat: { id: 222, type: "private" } } });
+    expect((await api("/api/settings/telegram-link", { method: "POST", token: u.token })).data.linked).toBe(false);
+    // the caller presses Start with their own code
+    updates.push({ message: { text: `/start ${g.data.code}`, chat: { id: 4242, type: "private", first_name: "Isma" } } });
+    const c = await api("/api/settings/telegram-link", { method: "POST", token: u.token });
+    expect(c.data).toEqual({ linked: true, chat_id: "4242", name: "Isma" });
+    expect((await api("/api/settings", { token: u.token })).data.settings.telegram_chat_id).toBe("4242");
+    // the code is used up, and another user's check never picks up this chat
+    expect((await api("/api/settings/telegram-link", { method: "POST", token: u.token })).data.reason).toBe("expired");
+    expect((await api("/api/settings/telegram-link", { method: "POST", token: v.token })).data.reason).toBe("expired");
+    expect((await api("/api/settings", { token: v.token })).data.settings.telegram_chat_id).toBe("");
+    // the internal key cannot be set through the normal settings route
+    expect((await api("/api/settings", { method: "PUT", token: u.token, body: { _tg_link: { code: "x" } } })).data.code).toBe("unknown_setting");
+  });
 });

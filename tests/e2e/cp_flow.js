@@ -87,8 +87,8 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.waitForSelector('#view-home:not([hidden])');
     log(/admin/i.test(await p.textContent('#cp-role')) && /admin/.test(await p.textContent('#cp-user')), 'the header shows a profile button with the name and an Admin badge');
     await menu(p);
-    log(await p.isVisible('#nav-admin') && await p.isVisible('#cp-menu a[href="#/profile"]') && await p.isVisible('#cp-menu a[href="#/settings"]'),
-        'the profile menu has Profile, Settings and (for the admin) Admin');
+    log(await p.isVisible('#nav-admin') && await p.isVisible('#cp-menu a[href="#/settings/account"]') && await p.isVisible('#cp-menu a[href="#/settings"]'),
+        'the profile menu has Account, Settings and (for the admin) Admin');
     await p.screenshot({ path: path.join(OUT, 'profile-menu.png') });
     await p.keyboard.press('Escape');
     log(await p.isHidden('#cp-menu'), 'Escape closes the profile menu');
@@ -96,36 +96,45 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(!(await p.evaluate(() => localStorage.getItem('agentmeter.refresh'))) && !!(await p.evaluate(() => sessionStorage.getItem('agentmeter.refresh'))),
         'Remember me off (default): the login is kept only for this browser session (sessionStorage)');
     await p.goto(APP + '/app.html#/profile'); await p.waitForSelector('#prof-devices-table');
-    log(/Admin/.test(await p.textContent('#prof-role')) && /admin/.test(await p.textContent('#prof-username')), 'Profile shows the username and the Admin role');
-    log((await p.$$('#prof-devices-table tbody tr')).length >= 1 && /this device/.test(await p.textContent('#prof-devices-table')), 'Profile lists the logged-in devices, this one marked');
-    log(await p.isVisible('#set-password'), 'Change password lives on the Profile page');
+    log(/#\/settings\/account$/.test(p.url()) && await p.isVisible('#setp-account'), 'the old Profile link opens Settings › Account');
+    log(/Admin/.test(await p.textContent('#prof-role')) && /admin/.test(await p.textContent('#prof-username')), 'Account shows the username and the Admin role');
+    log((await p.$$('#prof-devices-table .st-dev')).length >= 1 && /this device/.test(await p.textContent('#prof-devices-table')), 'Account lists the logged-in devices, this one marked');
+    log(await p.isVisible('#set-password') && !(await p.$('#side-profile')), 'Change password lives on the Account tab; no separate Profile page in the sidebar');
     await p.screenshot({ path: path.join(OUT, 'profile.png'), fullPage: true });
     const extra = await loginApi('admin', 'admin-password-123');                     // another "device"
     const extraSid = JSON.parse(Buffer.from(extra.access_token.split('.')[1], 'base64url').toString()).sid;
-    await p.goto(APP + '/app.html#/'); await p.goto(APP + '/app.html#/profile'); await p.waitForSelector(`tr[data-device="${extraSid}"]`);
-    const before = (await p.$$('#prof-devices-table tbody tr')).length;
+    await p.goto(APP + '/app.html#/'); await p.goto(APP + '/app.html#/settings/account'); await p.waitForSelector(`.st-dev[data-device="${extraSid}"]`);
+    const before = (await p.$$('#prof-devices-table .st-dev')).length;
+    log(await p.isVisible('#prof-revoke-others'), 'Account: "Log out everywhere else" is offered when another device is logged in');
     await p.click(`#prof-devices-table button[data-revoke="${extraSid}"]`);
-    await p.waitForFunction(n => document.querySelectorAll('#prof-devices-table tbody tr').length === n - 1, before);
+    await p.waitForFunction(n => document.querySelectorAll('#prof-devices-table .st-dev').length === n - 1, before);
     const gone = await fetch(WORKER + '/api/auth/refresh', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ refresh_token: extra.refresh_token }) });
-    log(gone.status === 401, 'Profile: "Log out" on another device ends that login');
+    log(gone.status === 401, 'Account: "Log out" on another device ends that login');
     // a new tab of the same browser (fresh sessionStorage) asks to log in again
     const p2 = await ctx.newPage(); await p2.goto(APP + '/app.html'); await p2.waitForSelector('#login-form:not([hidden])');
     log(true, 'a new tab without Remember me starts at the login page'); await p2.close();
 
     // 2. admin creates a user
-    await p.goto(APP + '/app.html#/admin'); await p.waitForSelector('#adm-users-table');
+    await p.goto(APP + '/app.html#/admin'); await p.waitForSelector('#adm-check-card');
+    await p.waitForFunction(() => /of 6 ready/.test(document.getElementById('adm-check-chip').textContent));
+    log(await p.isVisible('#adm-tiles') && /users/.test(await p.textContent('#adm-tiles')) && /GPU server/.test(await p.textContent('#adm-tiles')),
+        'Admin opens on Overview: users, benchmarks, GPU server and problems at a glance');
+    await p.screenshot({ path: path.join(OUT, '02-admin-overview.png'), fullPage: true });
+    await p.click('#atab-users'); await p.waitForSelector('#adm-users-table');
+    log(/#\/admin\/users$/.test(p.url()), 'the Users tab is in the address, so a link opens it');
     log(/1 of 5/.test(await p.textContent('#adm-count')), 'Admin: 1 of 5 accounts');
     await p.fill('#adm-new-user', 'alice'); await p.fill('#adm-new-pass', 'temporary-pass-1'); await p.click('#adm-new-go');
     await p.waitForSelector('tr[data-user="alice"]');
     log(/2 of 5/.test(await p.textContent('#adm-count')) && /must change password/.test(await p.textContent('tr[data-user="alice"]')), 'user alice created (must change the temporary password)');
     const creds = await p.textContent('#adm-creds');
-    log(/Hugging Face token\s*not set/.test(creds) && /Telegram bot token\s*not set/.test(creds) && !/dev-/.test(creds), 'credential status shows set / not set only');
+    log(/Hugging Face token\s*Not set/.test(creds) && /Telegram bot token\s*Not set/.test(creds) && !/dev-/.test(creds), 'the setup checklist shows set / not set only, never a secret');
+    await p.click('#atab-limits');
     await p.fill('#lim-sph', '20'); await p.click('#lim-save');
     await p.waitForFunction(() => /Saved/.test(document.getElementById('lim-saved').textContent));
     log(true, 'admin saved the system limits');
 
     // 2b. admin: model catalog (demo mode: no 4-bit verification needed)
-    await p.waitForSelector('#adm-models-table');
+    await p.click('#atab-models'); await p.waitForSelector('#adm-models-table');
     log((await p.$$('#adm-models-table tbody tr')).length === 16 && /demo/.test(await p.textContent('#adm-models-mode')),
         'Admin: Model catalog lists the 16 extra models (demo: no verification)');
     log(/licence verification required/.test(await p.textContent('tr[data-model="google/gemma-2-2b-it"]')), 'Admin: a gated model is labelled "licence verification required"');
@@ -164,7 +173,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     const idsNow = await p.textContent('#adm-ids-now');
     log(/demo_ids-/.test(idsNow) && /Threshold/.test(idsNow) && await p.isHidden('#adm-ids-error'), 'Admin › IDS model: the three files upload, are checked and listed');
     await p.screenshot({ path: path.join(OUT, '02b-admin-models.png'), fullPage: true });
-    await p.goto(APP + '/app.html#/'); await p.goto(APP + '/app.html#/admin'); await p.waitForSelector('#adm-audit-table');
+    await p.goto(APP + '/app.html#/'); await p.goto(APP + '/app.html#/admin/audit'); await p.waitForSelector('#adm-audit-table');
     // the table from the first visit is still in the page until the new one arrives: wait for it
     await p.waitForFunction(() => /changed the model catalog/.test((document.getElementById('adm-audit-table') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => {});
     const audit = await p.textContent('#adm-audit-table');
@@ -189,19 +198,31 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.goto(APP + '/app.html#/admin'); await p.waitForTimeout(500);
     log(await p.isVisible('#view-home'), 'a user cannot open the Admin page');
 
-    // 4. settings saved to the account
-    await p.goto(APP + '/app.html#/settings'); await p.waitForSelector('#set-account:not([hidden])');
-    await p.fill('#set-tg', '123456789'); await p.selectOption('#set-notify', 'done');
+    // 4. settings save as you go (no Save button), each section says "Saved"
+    await p.goto(APP + '/app.html#/settings'); await p.waitForSelector('#setp-notify:not([hidden])');
+    log(!(await p.$('#set-save')) && /Not set up/.test(await p.textContent('#set-tg-chip')) && await p.isDisabled('#set-tg-test'),
+        'Settings opens on Notifications: Telegram not set up yet, the test waits for a chat, and there is no Save button');
+    await p.fill('#set-tg', '123456789'); await p.locator('#set-tg').dispatchEvent('change');
+    await p.waitForFunction(() => /Connected/.test(document.getElementById('set-tg-chip').textContent));
+    await p.check('#set-notify input[value="done"]');
+    await p.waitForFunction(() => document.getElementById('sv-notify').textContent === 'Saved');
+    log(!(await p.isDisabled('#set-tg-test')), 'pasting a chat ID saves it at once: Connected, and the test can be sent');
+    await p.click('#settab-defaults');
     await p.check('#set-models input[value="microsoft/Phi-3-mini-4k-instruct"]'); await p.check('#set-models input[value="Qwen/Qwen2.5-7B-Instruct"]');
-    await p.fill('#set-flows', '4'); await p.fill('#set-tz', 'Asia/Kuala_Lumpur');
-    await p.click('#set-preset-add');
+    await p.fill('#set-flows', '4'); await p.locator('#set-flows').dispatchEvent('change');
+    await p.fill('#set-tz', 'Asia/Kuala_Lumpur'); await p.locator('#set-tz').dispatchEvent('change');
+    await p.waitForFunction(() => document.getElementById('sv-defaults').textContent === 'Saved');
+    await p.click('#settab-weights'); await p.click('#set-preset-add');
     await p.fill('#pre-name-0', 'speed first'); await p.fill('#pre-latency-0', '0.7'); await p.fill('#pre-vram-0', '0.2'); await p.fill('#pre-tokens-0', '0.1');
-    await p.check('#set-theme-dark');
-    await p.click('#set-save'); await p.waitForFunction(() => /Saved/.test(document.getElementById('set-saved').textContent));
-    await p.reload(); await p.waitForSelector('#view-settings:not([hidden])'); await p.waitForSelector('#set-account:not([hidden])');
-    await p.waitForTimeout(500);
-    log(await p.inputValue('#set-tg') === '123456789' && await p.inputValue('#set-flows') === '4' && await p.inputValue('#set-tz') === 'Asia/Kuala_Lumpur',
-        'settings persist in the account across a reload (still logged in via the refresh token)');
+    await p.locator('#pre-tokens-0').dispatchEvent('change');
+    await p.waitForFunction(() => document.getElementById('sv-weights').textContent === 'Saved');
+    await p.click('#settab-look'); await p.check('#set-theme-dark');
+    await p.waitForTimeout(600);
+    await p.reload(); await p.waitForSelector('#view-settings:not([hidden])');
+    await p.waitForTimeout(800);
+    log(await p.inputValue('#set-tg') === '123456789' && await p.inputValue('#set-flows') === '4' && await p.inputValue('#set-tz') === 'Asia/Kuala_Lumpur' &&
+        await p.isChecked('#set-notify input[value="done"]') && await p.inputValue('#pre-name-0') === 'speed first',
+        'every change saved by itself and persists in the account across a reload (still logged in via the refresh token)');
     log(await p.evaluate(() => document.documentElement.getAttribute('data-theme')) === 'dark', 'theme from the account applied');
     const tg = await p.evaluate(async (w) => (await fetch(w + '/api/settings/telegram-test', { method: 'POST' })).status, WORKER);
     log(tg === 401, 'Telegram test needs a login');

@@ -3,7 +3,8 @@
 // are each user's settings. Once per session (sessions.notified_status). Best effort: a
 // Telegram failure never fails the backend's upload.
 import { requireUser } from "./auth.ts";
-import { loadSettings } from "./settings.ts";
+import { loadSettings, storeSettings } from "./settings.ts";
+import { randomHex } from "./crypto.ts";
 import { type Moved, movedLines, movedRuns } from "./trends.ts";
 import { type Env, fail, json } from "./util.ts";
 
@@ -72,4 +73,60 @@ export async function telegramTest(req: Request, env: Env): Promise<Response> {
   if (!s.telegram_chat_id) fail(400, "bad_setting", "set your Telegram chat ID first");
   const ok = await sendTelegram(env, s.telegram_chat_id, "AgentMeter: test notification — your Telegram alerts are working.");
   return json({ ok });
+}
+
+// ---- connecting a chat without outside tools -----------------------------------------------
+// GET gives the caller a one-time link code and the bot's t.me link (https://t.me/<bot>?start=<code>):
+// pressing Start there sends "/start <code>" to the bot. POST then reads the bot's recent updates
+// and saves the private chat whose /start carried the caller's own code. The code is per user and
+// expires, so a message from anyone else never matches.
+const LINK_TTL_MS = 15 * 60 * 1000;
+let BOT: { name: string | null; at: number } | null = null;
+
+async function botUsername(env: Env): Promise<string | null> {
+  if (BOT && Date.now() - BOT.at < 3600_000) return BOT.name;
+  try {
+    const r = await fetch(`${API(env)}/bot${env.TELEGRAM_BOT_TOKEN}/getMe`);
+    const d = r.ok ? await r.json() as { result?: { username?: string } } : null;
+    BOT = { name: d?.result?.username || null, at: Date.now() };
+  } catch {
+    BOT = { name: null, at: Date.now() };
+  }
+  return BOT.name;
+}
+
+/** GET /api/settings/telegram-link: a fresh one-time code and the bot's Start link. */
+export async function telegramLinkStart(req: Request, env: Env): Promise<Response> {
+  const a = await requireUser(req, env);
+  if (!env.TELEGRAM_BOT_TOKEN) fail(409, "not_configured", "the admin has not set the Telegram bot token (control-plane secret TELEGRAM_BOT_TOKEN)");
+  const code = "am" + randomHex(10);
+  const s = await loadSettings(env, a.user.id) as Record<string, unknown>;
+  await storeSettings(env, a.user.id, { ...s, _tg_link: { code, exp: Date.now() + LINK_TTL_MS } });
+  const bot = await botUsername(env);
+  return json({ bot, code, url: bot ? `https://t.me/${bot}?start=${code}` : null, expires_in_s: LINK_TTL_MS / 1000 });
+}
+
+/** POST /api/settings/telegram-link: find the chat that pressed Start with the caller's code. */
+export async function telegramLinkCheck(req: Request, env: Env): Promise<Response> {
+  const a = await requireUser(req, env);
+  if (!env.TELEGRAM_BOT_TOKEN) fail(409, "not_configured", "the admin has not set the Telegram bot token (control-plane secret TELEGRAM_BOT_TOKEN)");
+  const s = await loadSettings(env, a.user.id) as Record<string, unknown>;
+  const link = s._tg_link as { code?: string; exp?: number } | undefined;
+  if (!link?.code || !link.exp || link.exp < Date.now()) return json({ linked: false, reason: "expired" });
+  let updates: { message?: { text?: string; chat?: { id?: number; type?: string; first_name?: string; username?: string } } }[] = [];
+  try {
+    const r = await fetch(`${API(env)}/bot${env.TELEGRAM_BOT_TOKEN}/getUpdates?allowed_updates=%5B%22message%22%5D&limit=100`);
+    if (!r.ok) return json({ linked: false, reason: r.status === 409 ? "webhook" : "telegram_error" });
+    updates = ((await r.json()) as { result?: typeof updates }).result || [];
+  } catch {
+    return json({ linked: false, reason: "telegram_error" });
+  }
+  const want = `/start ${link.code}`;
+  const hit = updates.map((u) => u.message).reverse()
+    .find((m) => m?.chat?.type === "private" && m.chat.id != null && (m.text || "").trim() === want);
+  if (!hit) return json({ linked: false, reason: "not_found" });
+  const chatId = String(hit.chat!.id);
+  const { _tg_link: _drop, ...rest } = s;
+  await storeSettings(env, a.user.id, { ...rest, telegram_chat_id: chatId });
+  return json({ linked: true, chat_id: chatId, name: hit.chat!.first_name || hit.chat!.username || "" });
 }

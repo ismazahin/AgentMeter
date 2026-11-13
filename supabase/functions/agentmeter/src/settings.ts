@@ -96,17 +96,27 @@ export async function loadSettings(env: Env, userId: string): Promise<Settings> 
   return { ...DEFAULT_SETTINGS, ...(r ? JSON.parse(r.json) : {}) };
 }
 
+/** Settings without the internal keys (a leading "_", such as the Telegram link code). */
+export function publicSettings(s: Settings): Settings {
+  return Object.fromEntries(Object.entries(s).filter(([k]) => !k.startsWith("_"))) as Settings;
+}
+
+/** Write settings as they are (internal keys included), bypassing the user allow-list. */
+export async function storeSettings(env: Env, userId: string, s: Record<string, unknown>): Promise<void> {
+  await env.DB.prepare("INSERT INTO settings (user_id,json,updated_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET json=excluded.json, updated_at=excluded.updated_at")
+    .bind(userId, JSON.stringify(s), nowIso()).run();
+}
+
 export async function getSettings(req: Request, env: Env): Promise<Response> {
   const a = await requireUser(req, env);
-  return json({ settings: await loadSettings(env, a.user.id) });
+  return json({ settings: publicSettings(await loadSettings(env, a.user.id)) });
 }
 
 export async function putSettings(req: Request, env: Env): Promise<Response> {
   const a = await requireUser(req, env);
   const merged = mergeSettings(await loadSettings(env, a.user.id), await readJson(req));
-  await env.DB.prepare("INSERT INTO settings (user_id,json,updated_at) VALUES (?,?,?) ON CONFLICT(user_id) DO UPDATE SET json=excluded.json, updated_at=excluded.updated_at")
-    .bind(a.user.id, JSON.stringify(merged), nowIso()).run();
-  return json({ settings: merged });
+  await storeSettings(env, a.user.id, merged);
+  return json({ settings: publicSettings(merged) });
 }
 
 // --- system limits (admin) ---------------------------------------------------------------

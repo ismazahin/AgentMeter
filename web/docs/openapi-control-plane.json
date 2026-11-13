@@ -3100,6 +3100,62 @@
     }
    }
   },
+  "/api/settings/telegram-link": {
+   "get": {
+    "operationId": "get__api_settings_telegram_link",
+    "tags": [
+     "Settings"
+    ],
+    "summary": "A one-time code and the bot's Start link (t.me/<bot>?start=<code>)",
+    "security": [
+     {
+      "userToken": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "operationId": "post__api_settings_telegram_link",
+    "tags": [
+     "Settings"
+    ],
+    "summary": "Find the chat that pressed Start with the caller's code and save it as the Telegram chat ID",
+    "security": [
+     {
+      "userToken": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/settings/telegram-test": {
    "post": {
     "operationId": "post__api_settings_telegram_test",

@@ -355,7 +355,7 @@ document.addEventListener("focusin", function (ev) {
 function hoverTip(el) { openTip(el, el.getAttribute("data-hover")); if (TIP) { TIP._for = el; TIP._hover = true; } }
 
 // ---------- routing ----------
-var VIEWS = ["home", "planner", "new", "sessions", "session", "gpu", "leaderboard", "trends", "settings", "profile", "admin", "help", "login"];
+var VIEWS = ["home", "planner", "new", "sessions", "session", "gpu", "leaderboard", "trends", "settings", "admin", "help", "login"];
 function parseHash() {
   var h = location.hash.replace(/^#\/?/, ""), q = {}, qi = h.indexOf("?");
   if (qi >= 0) { new URLSearchParams(h.slice(qi + 1)).forEach(function (v, k) { q[k] = v; }); h = h.slice(0, qi); }
@@ -415,7 +415,8 @@ function route() {
     if (LB.focus) { LBF.gpu = LBF.set = LBF.input = ""; }
     location.replace("#/leaderboard?tab=setup"); return;
   }
-  if (VIEWS.indexOf(v) < 0 || v === "login" || (v === "admin" && !isAdmin()) || (v === "profile" && !CP)) v = "home";
+  if (v === "profile") { location.replace(CP ? "#/settings/account" : "#/settings"); return; }   // Profile is Settings › Account now
+  if (VIEWS.indexOf(v) < 0 || v === "login" || (v === "admin" && !isAdmin())) v = "home";
   show(v);
   if (v === "home") loadHome();
   else if (v === "planner") loadPlanner(r.q);
@@ -425,9 +426,8 @@ function route() {
   else if (v === "leaderboard") lbTab(r.q.tab === "overall" || r.q.tab === "setup" ? r.q.tab : LB.tab === "compare" ? "setup" : LB.tab);
   else if (v === "trends") loadTrends(r.q);
   else if (v === "gpu") loadGpu();
-  else if (v === "settings") loadSettings();
-  else if (v === "profile") loadProfile();
-  else if (v === "admin") loadAdmin();
+  else if (v === "settings") loadSettings(p[1]);
+  else if (v === "admin") loadAdmin(p[1]);
   if (!/^session$/.test(v) || !p[2]) window.scrollTo(0, 0);
 }
 function legacyJob(id) {

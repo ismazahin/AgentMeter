@@ -69,6 +69,8 @@ op(CP, "get", "/api/settings", "Settings", "My settings", USER)
 op(CP, "put", "/api/settings", "Settings", "Change my settings", USER, body={"theme": "string", "default_models": "array", "default_flows": "integer",
                                                                             "notify_on": "string", "telegram_chat_id": "string", "alert_on_drift": "boolean", "weight_presets": "array"})
 op(CP, "post", "/api/settings/telegram-test", "Settings", "Send a Telegram test message", USER)
+op(CP, "get", "/api/settings/telegram-link", "Settings", "A one-time code and the bot's Start link (t.me/<bot>?start=<code>)", USER)
+op(CP, "post", "/api/settings/telegram-link", "Settings", "Find the chat that pressed Start with the caller's code and save it as the Telegram chat ID", USER)
 # ------------------------------------------------------------------ control plane: admin
 op(CP, "get", "/api/admin/users", "Admin", "List users", ADMIN)
 op(CP, "post", "/api/admin/users", "Admin", "Create a user", ADMIN, body={"username": "string", "password": "string", "role": "admin | user"}, ok="201",

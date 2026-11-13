@@ -622,6 +622,64 @@
   #tr-once .card { margin-top: 16px; }
   #tr-once ul { margin: 6px 0 0; padding-left: 18px; }
   #tr-schedules { margin-top: 18px; }
+  /* Settings / Admin (2026-11-13): tabs, sections that save by themselves, Telegram steps, checklist */
+  .settab-n { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px; background: var(--accent-soft); color: var(--accent-text); }
+  .st-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
+  .st-grid[hidden] { display: none; }
+  .st-sec { padding: 22px 24px; }
+  .st-sec h2 { margin: 0; }
+  .st-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+  .st-sub { color: var(--muted-2); font-size: 14px; margin: 4px 0 16px; max-width: 660px; }
+  .saved { font-size: 12.5px; color: var(--success); display: inline-flex; align-items: center; gap: 6px; min-height: 18px; }
+  .saved:not(:empty)::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .saved.err { color: var(--danger); }
+  .st-steps { list-style: none; margin: 0; padding: 0; }
+  .st-steps li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px 0; border-top: 1px solid var(--border); }
+  .st-steps li:first-child { border-top: 0; }
+  .st-steps .k { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; border: 1px solid var(--border-2); color: var(--muted-2); }
+  .st-steps li.done .k { background: var(--success-soft); color: var(--success); border-color: transparent; }
+  .st-steps li.now .k { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent); }
+  .st-steps b { display: block; font-size: 14.5px; }
+  .st-steps .d { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .st-steps .act { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .st-steps input { width: 170px; }
+  .st-switch { display: flex; gap: 14px; align-items: flex-start; margin-top: 18px; cursor: pointer; }
+  .st-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .st-switch .tg { flex: none; width: 40px; height: 22px; border-radius: 999px; background: var(--border-2); position: relative; margin-top: 2px; transition: background-color .15s ease-out; }
+  .st-switch .tg::after { content: ""; position: absolute; left: 3px; top: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .15s ease-out; }
+  .st-switch input:checked + .tg { background: var(--accent); }
+  .st-switch input:checked + .tg::after { transform: translateX(18px); }
+  .st-switch input:focus-visible + .tg { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .st-switch > span:last-child { flex: 1; min-width: 0; }
+  .st-switch b { display: block; font-size: 14.5px; } .st-switch .d { display: block; color: var(--muted); font-size: 13px; }
+  .side-h { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin: 2px 0 10px; }
+  .tg-preview { border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); padding: 14px; font-size: 13px; line-height: 1.5; }
+  .tg-preview .bub { background: var(--surface); border: 1px solid var(--border); border-radius: 10px 10px 10px 2px; padding: 10px 12px; }
+  .tg-preview .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 6px; }
+  .tg-preview .btns span { text-align: center; border: 1px solid var(--border-2); border-radius: 8px; padding: 6px; font-size: 12.5px; color: var(--accent-text); }
+  .st-acct { display: flex; gap: 16px; align-items: center; }
+  .st-acct .av { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 20px; background: var(--accent-soft); color: var(--accent-text); flex: none; }
+  .st-dev { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 12px 0; border-top: 1px solid var(--border); }
+  .st-dev:first-child { border-top: 0; }
+  .st-dev .m { color: var(--muted); font-size: 13px; }
+  .st-pw { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+  .st-pw .field { margin: 0; }
+  .adm-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .adm-tiles > div { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; background: var(--surface); }
+  .adm-tiles .v { font-family: var(--serif); font-size: 30px; line-height: 1.1; }
+  .adm-tiles .v.bad { color: var(--danger); } .adm-tiles .v.ok { color: var(--success); }
+  .adm-tiles .l { color: var(--muted); font-size: 13px; margin: 4px 0 2px; }
+  .adm-tiles a { font-size: 13px; }
+  .adm-check { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .adm-check li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-2); }
+  .adm-check .dot { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; }
+  .adm-check li.ok .dot { background: var(--success-soft); color: var(--success); }
+  .adm-check li.no .dot { background: var(--danger-soft); color: var(--danger); }
+  .adm-check li.idk .dot { background: var(--surface); color: var(--muted); border: 1px solid var(--border-2); }
+  .adm-check b { display: block; font-size: 14px; } .adm-check .d { display: block; color: var(--muted); font-size: 12.5px; margin-top: 1px; }
+  @media (max-width: 980px) { .st-grid { grid-template-columns: 1fr; } .adm-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 640px) { .adm-check, .st-pw { grid-template-columns: 1fr; } .st-steps li { grid-template-columns: 34px minmax(0, 1fr); } .st-steps .act { grid-column: 2; justify-content: flex-start; } }
+  @media (prefers-reduced-motion: reduce) { .st-switch .tg, .st-switch .tg::after { transition: none; } }
   /* Cost planner */
   .pl-form { display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-start; padding: 18px 22px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; }
   .pl-form label { display: block; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
@@ -1215,7 +1273,6 @@
     <nav class="sidenav-account" id="side-account" aria-label="Account">
       <span class="nav-group" aria-hidden="true">Account</span>
       <a href="#/settings" data-nav="settings" title="Settings"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="nl">Settings</span></a>
-      <a href="#/profile" data-nav="profile" id="side-profile" title="Profile" hidden><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg><span class="nl">Profile</span></a>
       <a href="#/admin" data-nav="admin" id="side-admin" title="Admin" hidden><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><span class="nl">Admin</span></a>
       <span class="nav-group" aria-hidden="true">Help</span>
       <a href="#/help" data-nav="help" title="How to use"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg><span class="nl">How to use</span></a>
@@ -1228,7 +1285,7 @@
         </button>
         <div class="profile-menu" id="cp-menu" role="menu" hidden>
           <div class="who"><b id="cp-menu-name"></b><div class="small muted" id="cp-menu-role"></div></div>
-          <a href="#/profile" role="menuitem" data-nav="profile">Profile</a>
+          <a href="#/settings/account" role="menuitem" data-nav="settings">Account</a>
           <a href="#/settings" role="menuitem" data-nav="settings">Settings</a>
           <a href="#/admin" role="menuitem" data-nav="admin" id="nav-admin" hidden>Admin</a>
           <hr>
@@ -1776,84 +1833,148 @@
     <div class="card" id="tr-schedules"><h2>Repeat a run automatically</h2><p class="muted">Loading…</p></div>
   </section>
 
-  <!-- SETTINGS -->
+  <!-- SETTINGS: tabs; every change saves by itself. Account (was Profile) is the last tab. -->
   <section id="view-settings" class="view" hidden aria-labelledby="h-settings">
     <div class="page-head"><div><h1 id="h-settings">Settings</h1>
-      <p id="set-intro">Theme is saved in this browser.</p></div></div>
-    <div class="card">
-      <fieldset style="border:0;padding:0;margin:0">
-        <legend><h2>Theme</h2></legend>
-        <div class="seg-opts" style="margin-top:10px">
-          <label><input type="radio" name="theme" value="system" id="set-theme-system"> System</label>
-          <label><input type="radio" name="theme" value="dark" id="set-theme-dark"> Dark</label>
-          <label><input type="radio" name="theme" value="light" id="set-theme-light"> Light</label>
-        </div>
-      </fieldset>
+      <p id="set-intro">Your preferences. Changes save as you make them.</p></div></div>
+    <div class="tabs" role="tablist" aria-label="Settings" id="set-tabs">
+      <button type="button" role="tab" id="settab-notify" data-settab="notify" aria-controls="setp-notify" aria-selected="true">Notifications<span class="settab-n" id="settab-notify-n" hidden>Set up</span></button>
+      <button type="button" role="tab" id="settab-defaults" data-settab="defaults" aria-controls="setp-defaults" aria-selected="false" tabindex="-1">Benchmark defaults</button>
+      <button type="button" role="tab" id="settab-weights" data-settab="weights" aria-controls="setp-weights" aria-selected="false" tabindex="-1">Ranking weights</button>
+      <button type="button" role="tab" id="settab-look" data-settab="look" aria-controls="setp-look" aria-selected="false" tabindex="-1">Appearance</button>
+      <button type="button" role="tab" id="settab-account" data-settab="account" aria-controls="setp-account" aria-selected="false" tabindex="-1">Account</button>
+      <button type="button" role="tab" id="settab-backend" data-settab="backend" aria-controls="setp-backend" aria-selected="false" tabindex="-1" hidden>Backend</button>
     </div>
-    <form class="card" id="set-account" hidden novalidate>
-      <h2>Notifications</h2>
-      <div class="row" style="margin-top:8px">
-        <div class="field"><label for="set-tg">Telegram chat ID <span class="hint">(message the bot, then /getUpdates)</span></label>
-          <input type="text" id="set-tg" inputmode="numeric" autocomplete="off" placeholder="e.g. 123456789"></div>
-        <div class="field"><label for="set-notify">Notify me when a session</label>
-          <select id="set-notify"><option value="none">never</option><option value="done">is done</option><option value="failed">failed</option><option value="both">is done or failed</option></select></div>
-        <button type="button" class="btn" id="set-tg-test" style="align-self:flex-end">Send a test message</button>
-      </div>
-      <label class="check"><input type="checkbox" id="set-drift"> <span>Alert me when a finished run got worse than its usual range <span class="muted small">It is compared with earlier runs of the same model on the same flows, GPU and settings (the Consistency rule), and sent even when "Notify me" is set to never.</span></span></label>
-      <p class="small muted" id="set-tg-status"></p>
-      <hr class="sep">
-      <h2>New benchmark defaults</h2>
-      <div class="field" style="margin-top:8px"><span class="small" style="font-weight:600">Default models (up to four)</span>
-        <div class="models" id="set-models" role="group" aria-label="Default models"></div></div>
-      <div class="row">
-        <div class="field"><label for="set-flows">Default flows</label><input id="set-flows" type="number" min="1" max="500"></div>
-        <div class="field"><label for="set-tz">Time zone</label><input type="text" id="set-tz" list="set-tz-list" autocomplete="off"><datalist id="set-tz-list"></datalist></div>
-      </div>
-      <hr class="sep">
-      <h2>SAW weight presets</h2>
-      <p class="muted small">Presets re-rank in the view only, and stored scores never change.<span class="info-i" tabindex="0" role="button" data-tip="Every view shows which weights it uses. The weights are latency, VRAM and tokens, scaled to sum to 1. Agreement with reference labels is a validity check, not a weight.">i</span></p>
-      <div id="set-presets"></div>
-      <div class="actions"><button type="button" class="btn" id="set-preset-add">Add a preset</button></div>
-      <div id="set-error" class="notice error" role="alert" hidden></div>
-      <div class="actions"><button type="submit" class="btn primary" id="set-save">Save settings</button>
-        <span class="small muted" id="set-saved" role="status" aria-live="polite"></span></div>
-    </form>
-    <div class="card">
-      <h2>Backend</h2>
-      <dl class="kv small" id="set-backend"></dl>
-      <p class="muted small" id="set-backend-note">Advanced<span class="info-i" tabindex="0" role="button" data-tip="A new backend address can be given once with ?api=<url> (remembered in this browser; ?api=reset forgets it).">i</span></p>
-    </div>
-  </section>
 
-  <!-- PROFILE (control plane): who am I, my role, where am I logged in -->
-  <section id="view-profile" class="view" hidden aria-labelledby="h-profile">
-    <div class="page-head"><div><h1 id="h-profile">Profile</h1></div></div>
-    <div class="card">
-      <h2>Account</h2>
-      <dl class="kv" id="prof-account"></dl>
-    </div>
-    <div class="card">
-      <h2>Logged-in devices</h2>
-      <div class="table-wrap" style="margin-top:10px" id="prof-devices"></div>
-      <div id="prof-error" class="notice error" role="alert" hidden></div>
-    </div>
-    <form class="card" id="set-password" novalidate>
-      <h2>Change password</h2>
-      <div class="row" style="margin-top:8px">
-        <div class="field"><label for="set-pw-cur">Current password</label><input id="set-pw-cur" type="password" autocomplete="current-password"></div>
-        <div class="field"><label for="set-pw-new">New password <span class="hint">(10+ characters)</span></label><input id="set-pw-new" type="password" autocomplete="new-password"></div>
-        <button type="submit" class="btn" id="set-pw-go" style="align-self:flex-end">Change password</button>
+    <!-- Notifications -->
+    <div role="tabpanel" id="setp-notify" aria-labelledby="settab-notify" class="st-grid">
+      <div>
+        <section class="card st-sec" id="set-tg-card">
+          <div class="st-head"><h2>Telegram alerts</h2><span class="chip" id="set-tg-chip"></span></div>
+          <p class="st-sub">Get a message on your phone when a benchmark finishes. Three steps, about a minute.</p>
+          <ol class="st-steps">
+            <li id="set-step-1"><span class="k">1</span><div><b>Open the AgentMeter bot</b><span class="d">Press Start in Telegram so the bot is allowed to message you.</span></div>
+              <div class="act"><a class="btn" id="set-tg-open" href="#" target="_blank" rel="noopener">Open in Telegram</a></div></li>
+            <li id="set-step-2"><span class="k">2</span><div><b>Connect your chat</b><span class="d">After pressing Start, AgentMeter finds your chat by itself. Or paste the number.</span></div>
+              <div class="act"><button type="button" class="btn primary" id="set-tg-find">Find my chat</button>
+                <label class="sr-only" for="set-tg">Telegram chat ID</label><input type="text" id="set-tg" inputmode="numeric" autocomplete="off" placeholder="or paste chat ID"></div></li>
+            <li id="set-step-3"><span class="k">3</span><div><b>Send a test message</b><span class="d">Checks the whole chain.</span></div>
+              <div class="act"><button type="button" class="btn" id="set-tg-test">Send test</button></div></li>
+          </ol>
+          <p class="small" id="set-tg-status" role="status" aria-live="polite"></p>
+        </section>
+        <section class="card st-sec">
+          <div class="st-head"><h2>When to message you</h2><span class="saved" id="sv-notify" role="status" aria-live="polite"></span></div>
+          <p class="st-sub">Applies to your own benchmarks.</p>
+          <div class="seg-opts" role="radiogroup" aria-label="When to message you" id="set-notify">
+            <label><input type="radio" name="notify_on" value="none"> Never</label>
+            <label><input type="radio" name="notify_on" value="done"> When one finishes</label>
+            <label><input type="radio" name="notify_on" value="failed"> When one fails</label>
+            <label><input type="radio" name="notify_on" value="both"> Either</label>
+          </div>
+          <label class="st-switch"><input type="checkbox" id="set-drift" role="switch"><span class="tg" aria-hidden="true"></span>
+            <span><b>Also warn me when a result gets worse</b><span class="d">When a run is slower or uses more memory than your earlier runs of the same model on the same data and GPU. Sent even when the setting above is Never.</span></span></label>
+        </section>
       </div>
-      <p class="small muted">Changing it logs out your other devices.</p>
-      <div id="set-pw-msg" class="notice" role="status" hidden></div>
-    </form>
+      <aside class="st-aside">
+        <p class="side-h">What you will get</p>
+        <div class="tg-preview" aria-label="An example alert"><div class="bub"><b>✅ Benchmark finished</b> · 2 models · 40 flows<br><span class="muted">cicids2017_sample · RTX 3090 · 14 min</span><br><br>🥇 <b>Qwen2.5 7B</b> score 68.2<br>🥈 <b>Phi-3 mini</b> score 61.0<br><br>⚠️ Qwen gave usable answers on only 82%.</div>
+          <div class="btns"><span>Open results</span><span>Leaderboard</span></div></div>
+        <p class="small muted">An example. Yours shows your own models and numbers.</p>
+      </aside>
+    </div>
+
+    <!-- Benchmark defaults -->
+    <div role="tabpanel" id="setp-defaults" aria-labelledby="settab-defaults" hidden>
+      <section class="card st-sec">
+        <div class="st-head"><h2>New benchmark defaults</h2><span class="saved" id="sv-defaults" role="status" aria-live="polite"></span></div>
+        <p class="st-sub">What New benchmark starts with. You can still change it for each run.</p>
+        <div class="field"><span class="small" style="font-weight:600">Default models (up to four)</span>
+          <div class="models" id="set-models" role="group" aria-label="Default models"></div></div>
+        <div class="row">
+          <div class="field"><label for="set-flows">Default flows</label><input id="set-flows" type="number" min="1" max="500"></div>
+          <div class="field"><label for="set-tz">Time zone</label><input type="text" id="set-tz" list="set-tz-list" autocomplete="off"><datalist id="set-tz-list"></datalist></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Ranking weights (was SAW weight presets) -->
+    <div role="tabpanel" id="setp-weights" aria-labelledby="settab-weights" hidden>
+      <section class="card st-sec">
+        <div class="st-head"><h2>Ranking weights</h2><span class="saved" id="sv-weights" role="status" aria-live="polite"></span></div>
+        <p class="st-sub">Save your own mix of speed, GPU memory and tokens, then rank any session with it. It only changes how a page sorts the models. Stored scores never change.<span class="info-i" tabindex="0" role="button" data-tip="The score is a weighted sum (SAW). Every view shows which weights it uses. The weights are latency, GPU memory (VRAM) and tokens, scaled to sum to 1. Agreement with reference labels is a validity check, not a weight.">i</span></p>
+        <div id="set-presets"></div>
+        <div class="actions"><button type="button" class="btn" id="set-preset-add">Add a weight mix</button></div>
+      </section>
+    </div>
+
+    <!-- Appearance -->
+    <div role="tabpanel" id="setp-look" aria-labelledby="settab-look" hidden>
+      <section class="card st-sec">
+        <fieldset style="border:0;padding:0;margin:0">
+          <legend><h2>Theme</h2></legend>
+          <div class="seg-opts" style="margin-top:10px">
+            <label><input type="radio" name="theme" value="system" id="set-theme-system"> System</label>
+            <label><input type="radio" name="theme" value="dark" id="set-theme-dark"> Dark</label>
+            <label><input type="radio" name="theme" value="light" id="set-theme-light"> Light</label>
+          </div>
+        </fieldset>
+      </section>
+    </div>
+
+    <!-- Account (was the Profile page) -->
+    <div role="tabpanel" id="setp-account" aria-labelledby="settab-account" hidden>
+      <section class="card st-sec"><div class="st-acct" id="prof-account"></div></section>
+      <section class="card st-sec">
+        <div class="st-head"><h2>Where you are logged in</h2><button type="button" class="btn" id="prof-revoke-others" hidden>Log out everywhere else</button></div>
+        <div id="prof-devices"></div>
+        <div id="prof-error" class="notice error" role="alert" hidden></div>
+      </section>
+      <form class="card st-sec" id="set-password" novalidate>
+        <h2>Change password</h2>
+        <p class="st-sub">At least 10 characters. Your other devices are logged out.</p>
+        <div class="st-pw">
+          <div class="field"><label for="set-pw-cur">Current password</label><input id="set-pw-cur" type="password" autocomplete="current-password"></div>
+          <div class="field"><label for="set-pw-new">New password</label><input id="set-pw-new" type="password" autocomplete="new-password"></div>
+          <button type="submit" class="btn" id="set-pw-go">Change password</button>
+        </div>
+        <div id="set-pw-msg" class="notice" role="status" hidden></div>
+      </form>
+    </div>
+
+    <!-- Backend: only without a control plane (single GPU server); with one, it is in Admin -->
+    <div role="tabpanel" id="setp-backend" aria-labelledby="settab-backend" hidden>
+      <section class="card st-sec">
+        <h2>Backend</h2>
+        <dl class="kv small" id="set-backend"></dl>
+        <p class="muted small" id="set-backend-note">Advanced<span class="info-i" tabindex="0" role="button" data-tip="A new backend address can be given once with ?api=<url> (remembered in this browser; ?api=reset forgets it).">i</span></p>
+      </section>
+    </div>
+    <div id="set-error" class="notice error" role="alert" hidden></div>
   </section>
 
   <!-- ADMIN (control plane, admins only) -->
   <section id="view-admin" class="view" hidden aria-labelledby="h-admin">
     <div class="page-head"><div><h1 id="h-admin">Admin</h1>
-      <p>Users, credentials and limits. Secrets are never shown.</p></div></div>
-    <div class="card" id="adm-health"><h2>Problems in the last 24 hours</h2><p class="muted">Loading…</p></div>
+      <p>Keep AgentMeter running for everyone. Secrets are never shown, only whether they are there.</p></div></div>
+    <div class="tabs" role="tablist" aria-label="Admin" id="adm-tabs">
+      <button type="button" role="tab" id="atab-overview" data-atab="overview" aria-controls="at-overview" aria-selected="true">Overview</button>
+      <button type="button" role="tab" id="atab-users" data-atab="users" aria-controls="at-users" aria-selected="false" tabindex="-1">Users</button>
+      <button type="button" role="tab" id="atab-models" data-atab="models" aria-controls="at-models" aria-selected="false" tabindex="-1">Models</button>
+      <button type="button" role="tab" id="atab-limits" data-atab="limits" aria-controls="at-limits" aria-selected="false" tabindex="-1">Limits</button>
+      <button type="button" role="tab" id="atab-audit" data-atab="audit" aria-controls="at-audit" aria-selected="false" tabindex="-1">Audit log</button>
+    </div>
+    <div role="tabpanel" id="at-overview" aria-labelledby="atab-overview">
+      <div class="adm-tiles" id="adm-tiles"></div>
+      <section class="card st-sec" id="adm-check-card">
+        <div class="st-head"><h2>Setup checklist</h2><span class="chip" id="adm-check-chip"></span></div>
+        <p class="st-sub">What AgentMeter needs to work fully.</p>
+        <ul class="adm-check" id="adm-creds"></ul>
+      </section>
+      <div class="card" id="adm-health"><h2>Problems in the last 24 hours</h2><p class="muted">Loading…</p></div>
+      <section class="card st-sec"><h2>System</h2><dl class="kv small" id="adm-system"></dl></section>
+    </div>
+    <div role="tabpanel" id="at-users" aria-labelledby="atab-users" hidden>
     <div class="card">
       <div class="row" style="margin-top:0;justify-content:space-between"><h2>Users</h2><span class="chip" id="adm-count"></span></div>
       <div class="table-wrap" style="margin-top:10px" id="adm-users"></div>
@@ -1865,11 +1986,8 @@
       </form>
       <div id="adm-error" class="notice error" role="alert" hidden></div>
     </div>
-    <div class="card">
-      <h2>Credentials</h2>
-      <p class="muted small">Status only.<span class="info-i" tabindex="0" role="button" data-tip="Set on the GPU backend (Hugging Face token, Vast API key) or as a control-plane secret in Supabase (Telegram bot token).">i</span></p>
-      <dl class="kv" id="adm-creds"></dl>
     </div>
+    <div role="tabpanel" id="at-models" aria-labelledby="atab-models" hidden>
     <div class="card" id="adm-models-card">
       <div class="row" style="margin-top:0;justify-content:space-between"><h2>Model catalog</h2><span class="chip" id="adm-models-mode"></span></div>
       <p class="muted small">Extra models users may pick next to the 5 study models. Every model is quantized to 4-bit NF4 at load, like the study models. A model is offered to users only when its suitability is <b>ok</b> and it is enabled and, on the real GPU, verified. Licence and download notices (ℹ) do not change the suitability, and gated models are labelled "licence verification required".<span class="info-i" tabindex="0" role="button" data-tip="Suitable means it passes the rules in configs/model_rules.yaml (original weights, fits this GPU at 4-bit, no remote code…). A warning (tight GPU memory, not enough disk) means it is not offered. Verify runs a test-load in 4-bit NF4 plus a short generation on the GPU, and checks that at least 95 % of the weights really are 4-bit. It downloads the model first if needed. Download at start-up means it is fetched with the study models when a rental starts.">i</span></p>
@@ -1884,7 +2002,7 @@
     </div>
     <div class="card" id="adm-ids">
       <h2>IDS model</h2>
-      <p class="muted small">The IDS gate's Random Forest (<span class="mono">scripts/train_ids.py</span>). Stored here, every newly rented GPU downloads it at start-up, so there is nothing to copy by hand. Upload the three files of one training run from <span class="mono">models\ids\</span>: <span class="mono">ids_rf.joblib</span>, <span class="mono">ids_rf.json</span>, <span class="mono">ids_rf.hashes.npy</span> (each up to 50 MB). The upload is checked, and the .joblib must match the sha256 in its .json.</p>
+      <p class="muted small">AgentMeter ships with a small demo IDS trained on its 300 sample flows, for trying the IDS gate only. For real results, train one on your data with <span class="mono">scripts/train_ids.py</span> and upload it here. Stored here, every newly rented GPU downloads it at start-up, so there is nothing to copy by hand. Upload the three files of one training run from <span class="mono">models\ids\</span>: <span class="mono">ids_rf.joblib</span>, <span class="mono">ids_rf.json</span>, <span class="mono">ids_rf.hashes.npy</span> (each up to 50 MB). The upload is checked, and the .joblib must match the sha256 in its .json.</p>
       <dl class="kv small" id="adm-ids-now"><dt>Stored</dt><dd>Loading…</dd></dl>
       <form class="row" id="adm-ids-form" novalidate>
         <div class="field"><label for="adm-ids-files">Model files</label><input type="file" id="adm-ids-files" multiple accept=".joblib,.json,.npy"></div>
@@ -1894,6 +2012,8 @@
       <div id="adm-ids-error" class="notice error" role="alert" hidden></div>
       <p class="small muted" id="adm-ids-status" role="status"></p>
     </div>
+    </div>
+    <div role="tabpanel" id="at-limits" aria-labelledby="atab-limits" hidden>
     <form class="card" id="adm-limits" novalidate>
       <h2>System limits</h2>
       <div class="row" style="margin-top:8px">
@@ -1907,7 +2027,10 @@
       <div id="lim-error" class="notice error" role="alert" hidden></div>
       <div class="actions"><button type="submit" class="btn primary" id="lim-save">Save limits</button><span class="small muted" id="lim-saved" role="status"></span></div>
     </form>
+    </div>
+    <div role="tabpanel" id="at-audit" aria-labelledby="atab-audit" hidden>
     <div class="card" id="adm-audit"><h2>Audit log</h2><p class="muted">Loading…</p></div>
+    </div>
   </section>
 </main>
 

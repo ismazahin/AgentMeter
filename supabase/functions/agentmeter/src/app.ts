@@ -6,7 +6,7 @@ import { changePassword, errorResponse, listDevices, login, logout, me, refresh,
 import { getBackend, heartbeat, register } from "./backend.ts";
 import { authorize } from "./runs.ts";
 import { backendGetFile, backendListSessions, backendSetIdentity, compareCandidatesRoute, compareMergedRoute, compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus, commitUpload, leaderboardRoute, listSessions, patchSession, putFile, putResults, putSummary, uploadUrl } from "./sessions.ts";
-import { telegramTest } from "./notify.ts";
+import { telegramLinkCheck, telegramLinkStart, telegramTest } from "./notify.ts";
 import { createPrepJob, getPrepFile, getPrepJob, listAnalyses, prepEvents, prepRegister, startPrepJob, wakePrep } from "./prep.ts";
 import { getLimits, getSettings, putLimits, putSettings } from "./settings.ts";
 import { backendModelState, backendModelVerified, getAdminModels, putAdminModels } from "./models.ts";
@@ -32,6 +32,8 @@ const ROUTES: [string, RegExp, Handler][] = [
   ["GET", /^\/api\/settings$/, getSettings],
   ["PUT", /^\/api\/settings$/, putSettings],
   ["POST", /^\/api\/settings\/telegram-test$/, telegramTest],
+  ["GET", /^\/api\/settings\/telegram-link$/, telegramLinkStart],
+  ["POST", /^\/api\/settings\/telegram-link$/, telegramLinkCheck],
   // admin
   ["GET", /^\/api\/admin\/users$/, listUsers],
   ["POST", /^\/api\/admin\/users$/, postUser],

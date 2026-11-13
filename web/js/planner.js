@@ -57,11 +57,11 @@ function renderPlanner() {
     '<th class="num">GPUs needed</th><th class="num">Usable answers</th><th class="num">Cost per day</th><th class="num">Energy per day</th></tr></thead><tbody>' +
     rows.map(function (x) {
       var h = x.gpu_hours || 0, gpus = x.gpus_all_day || 1, busy = h / (24 * gpus), tight = busy > PL_TIGHT, v = x.valid_rate, low = v != null && v < PL_USABLE;
-      return '<tr><td><span class="pl-nm">' + esc(nick(x.model)) + '</span>' + extraTag(x.model) + (x === cheapest ? '<span class="pl-tag c">Cheapest</span>' : "") +
+      return '<tr><td><span class="pl-nm">' + mdot(x.model) + esc(nick(x.model)) + '</span>' + extraTag(x.model) + (x === cheapest ? '<span class="pl-tag c">Cheapest</span>' : "") +
           (x === fastest ? '<span class="pl-tag f">Fastest</span>' : "") +
           '<span class="pl-sub">' + (many ? esc(plGpuName(x.gpu)) + ", from" : "from") + ' the benchmark of <a href="#/session/' + enc(x.source_session) + '">' + esc(plDay(x.measured_at)) + '</a></span></td>' +
         '<td class="num">' + fmtNum(x.latency_s_per_flow, 2) + ' s</td>' +
-        '<td class="num"><span class="pl-day' + (h > 24 ? " over" : "") + '" aria-hidden="true"><i style="width:' + Math.min(100, h / 24 * 100) + '%"></i></span>' + plHours(h) +
+        '<td class="num"><span class="pl-day' + (h > 24 ? " over" : "") + '" aria-hidden="true"><i style="width:' + Math.min(100, h / 24 * 100) + '%;background:' + modelVar(x.model) + '"></i></span>' + plHours(h) +
           '<span class="pl-sub">' + (h > 24 ? "over one GPU-day" : "of 24 hours") + '</span></td>' +
         '<td class="num pl-gp' + (tight ? " tight" : gpus === 1 ? " ok" : "") + '">' + gpus + ' GPU' + (gpus === 1 ? "" : "s") +
           '<span class="pl-sub">' + Math.round(100 * busy) + '% busy' + (tight ? ", tight" : "") + '</span></td>' +

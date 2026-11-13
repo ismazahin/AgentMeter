@@ -95,7 +95,7 @@ function trCard(x, s) {
   var titles = ts.points.map(function (p) { return fmtDate(p.at) + ": " + (p.v == null ? "not measured" : trFmt(key, p.v)); });
   var lastSid = s.points[s.points.length - 1].session_id;
   return '<div class="cs-card' + (TR.series === s.id ? " sel" : "") + '" data-series="' + esc(s.id) + '">' +
-    '<div class="cs-card-h"><div><h3>' + esc(nick(x.model)) + extraTag(x.model) + '</h3><div class="sub">' + esc(name + ", " + (s.setup.gpu || "GPU") + ", " + x.runs + " runs") + '</div></div>' +
+    '<div class="cs-card-h"><div><h3>' + mdot(x.model) + esc(nick(x.model)) + extraTag(x.model) + '</h3><div class="sub">' + esc(name + ", " + (s.setup.gpu || "GPU") + ", " + x.runs + " runs") + '</div></div>' +
       '<span class="cs-chip ' + v[1] + '"><span class="cs-dot ' + v[1] + '"></span>' + esc(v[0]) + '</span></div>' +
     trStrip(vals, m[2], { moved: x.status === "moved", focus: focus >= 0 ? focus : null, titles: titles, label: m[1] + " of each run, oldest first" }) +
     '<div class="cs-axis" aria-hidden="true"><span>first run</span><span>' + esc(m[1].toLowerCase()) + ', each dot one run</span><span>latest</span></div>' +

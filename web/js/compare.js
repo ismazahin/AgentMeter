@@ -467,7 +467,7 @@ function setupPanel(g) {
   var rows = (g.rows || []).map(function (r, i) {
     var sids = r.sessions || [], v = r[key];
     return '<tr class="' + (r.rank === 1 ? "first" : "") + '" data-model="' + esc(r.model) + '"><td class="rn">' + (r.rank == null ? '<span class="muted small">not ranked</span>' : '<span>' + r.rank + '</span>') +
-      '</td><td class="nm">' + esc(nick(r.model)) + extraTag(r.model) + '</td><td class="bar-c" aria-hidden="true"><div class="rbar"><b style="width:' + w(v) + '%"></b></div></td>' +
+      '</td><td class="nm">' + mdot(r.model) + esc(nick(r.model)) + extraTag(r.model) + '</td><td class="bar-c" aria-hidden="true"><div class="rbar"><b style="width:' + w(v) + '%;--mc:' + modelVar(r.model) + '"></b></div></td>' +
       '<td class="v">' + (v == null ? '<span class="muted">not measured</span>' : esc(col[2](v))) + '</td>' +
       '<td>' + (showOwners() ? avatars(gPeople(sids)) + " " : "") + '<span class="small muted">' + r.n_sessions + ' run' + (r.n_sessions === 1 ? "" : "s") + '</span></td>' +
       '<td style="width:36px"><button type="button" class="xbtn" data-open="' + i + '" aria-expanded="false" aria-label="Sessions behind ' + esc(nick(r.model)) + '">▾</button></td></tr>';
@@ -638,7 +638,7 @@ function renderOverall() {
     '<div class="pod3 n' + order.length + '">' + order.map(function (s) {
       var w = s === top[0];
       return '<div class="pcol' + (w ? " w" : "") + (s.rank === 3 ? " p3" : "") + '"><button type="button" class="pcard" data-model="' + esc(s.model) + '" aria-label="' + esc(nick(s.model) + ", " + ordinal(s.rank) + ", " + s.wins + " wins of " + s.setups + " setups") + '">' +
-        '<span class="nm">' + esc(nick(s.model)) + extraTag(s.model) + (w ? '<span class="crown">Top</span>' : "") + '</span>' +
+        '<span class="nm">' + mdot(s.model) + esc(nick(s.model)) + extraTag(s.model) + (w ? '<span class="crown">Top</span>' : "") + '</span>' +
         '<span class="big" style="display:block">' + s.wins + ' <small>' + (s.wins === 1 ? "win" : "wins") + ' of ' + s.setups + ' setup' + (s.setups === 1 ? "" : "s") + '</small></span>' +
         '<span class="psub" style="display:block">Beat ' + pct(s.rb) + ' of the models it met</span>' +
         '<span class="row2">' + placeStrip(s, gs) + (showOwners() ? avatars(gPeople(s.sessions)) : "") + '</span></button>' +
@@ -647,7 +647,7 @@ function renderOverall() {
     '<div class="md2"><div class="slist" id="lb-models"><div class="slist-h"><span>All models</span><span>Wins</span></div>' +
     rows.map(function (s) {
       return '<button type="button" class="sitem mrow" data-model="' + esc(s.model) + '" aria-current="' + String(s === sel) + '"><span class="rn">' + s.rank + '</span>' +
-        '<span><span class="t" style="display:block">' + esc(nick(s.model)) + extraTag(s.model) + '</span><span class="m" style="display:block">' + placeStrip(s, gs) + '</span></span>' +
+        '<span><span class="t" style="display:block">' + mdot(s.model) + esc(nick(s.model)) + extraTag(s.model) + '</span><span class="m" style="display:block">' + placeStrip(s, gs) + '</span></span>' +
         '<span class="w">' + s.wins + '/' + s.setups + '<small>beat ' + pct(s.rb) + '</small></span></button>';
     }).join("") +
     '<div class="legend2" aria-hidden="true"><span><span class="strip"><i class="p1">1</i></span> won</span><span><span class="strip"><i>2</i></span> place</span><span><span class="strip"><i class="nr"></i></span> not run</span><span><span class="strip"><i class="ne">n</i></span> not enough</span></div>' +
@@ -673,9 +673,9 @@ function modelPanel(s, gs) {
     gs.map(function (g, gi) {
       var p = s.places[gi]; if (!p) return "";
       var best = ranked(g)[0], w = p.v == null || !best || !best[LB.data.sort_metric] ? 0 : Math.max(3, Math.min(100, 100 * p.v / best[LB.data.sort_metric]));
-      return '<tr data-gi="' + gi + '"><td><b>' + esc(gName(g)) + '</b><br><span class="small muted">' + esc((g.gpu || "") + ", " + (g.input_type || "") + ", " + fmtNum(g.n_flows_per_session) + " flows") + '</span></td>' +
+      return '<tr data-gi="' + gi + '"' + (!p.ne && p.place === 1 ? ' class="first"' : "") + '><td><b>' + esc(gName(g)) + '</b><br><span class="small muted">' + esc((g.gpu || "") + ", " + (g.input_type || "") + ", " + fmtNum(g.n_flows_per_session) + " flows") + '</span></td>' +
         '<td><span class="place' + (p.ne ? " ne" : p.place === 1 ? " p1" : "") + '">' + (p.ne ? "not enough" : ordinal(p.place) + " of " + p.of) + '</span></td>' +
-        '<td class="bar-c" aria-hidden="true"><div class="rbar"><b style="width:' + (p.ne ? 60 : w) + '%"></b></div></td><td class="v">' + (p.v == null ? "" : esc(col[2](p.v))) + '</td>' +
+        '<td class="bar-c" aria-hidden="true"><div class="rbar"><b style="width:' + (p.ne ? 60 : w) + '%;--mc:' + modelVar(s.model) + '"></b></div></td><td class="v">' + (p.v == null ? "" : esc(col[2](p.v))) + '</td>' +
         '<td>' + (showOwners() ? avatars(gPeople(p.sessions)) + " " : "") + '<span class="small muted">' + p.sessions.length + ' run' + (p.sessions.length === 1 ? "" : "s") + '</span></td>' +
         '<td style="width:36px"><button type="button" class="xbtn" data-open="' + gi + '" aria-expanded="false" aria-label="Sessions behind this place">▾</button></td></tr>';
     }).join("") + '</tbody></table></div>';

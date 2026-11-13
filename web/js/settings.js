@@ -12,7 +12,7 @@ function stTab(t) {
   var tabs = ST_TABS.filter(function (x) { return !$("settab-" + x).hidden; });
   if (tabs.indexOf(t) < 0) t = tabs[0];
   ST.tab = t;
-  tabs.concat(["backend"]).forEach(function (x) {
+  ST_TABS.forEach(function (x) {                       // every panel, including those of hidden tabs
     var on = x === t;
     $("settab-" + x).setAttribute("aria-selected", String(on)); $("settab-" + x).tabIndex = on ? 0 : -1;
     $("setp-" + x).hidden = !on;

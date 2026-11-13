@@ -38,6 +38,15 @@ function nick(m) { return window.INSIGHTS ? INSIGHTS.nick(m) : short(m); }
 var STUDY_MODELS = ["mistralai/Mistral-7B-Instruct-v0.3", "meta-llama/Meta-Llama-3-8B-Instruct", "Qwen/Qwen2.5-7B-Instruct",
                     "microsoft/Phi-3-mini-4k-instruct", "google/gemma-2-9b-it"];
 function isStudy(m) { return STUDY_MODELS.indexOf(m) >= 0; }
+// one colour per study model on every page (Path A); extra models share the neutral grey
+var MODEL_VARS = [["mistral", "--m-mistral"], ["llama", "--m-llama"], ["qwen", "--m-qwen"], ["phi", "--m-phi"], ["gemma", "--m-gemma"]];
+function modelVar(m) {
+  if (!isStudy(m)) return "var(--m-extra)";
+  var s = String(m).toLowerCase();
+  for (var i = 0; i < MODEL_VARS.length; i++) if (s.indexOf(MODEL_VARS[i][0]) >= 0) return "var(" + MODEL_VARS[i][1] + ")";
+  return "var(--m-extra)";
+}
+function mdot(m) { return '<span class="mdot" style="--mc:' + modelVar(m) + '" aria-hidden="true"></span>'; }
 function extraTag(m) { return isStudy(m) ? "" : ' <span class="chip warn extra-tag" title="Extra model, not in the validated baseline. Quantized to 4-bit NF4 like the study models.">extra</span>'; }
 // 128-bit job ids are long: show the date part + the first random hex digits (full id on hover)
 function shortId(id) { id = String(id || ""); var m = /^(job_\d{8}_\d{6}_)([0-9a-f]{32})$/.exec(id); return m ? m[1] + m[2].slice(0, 8) + "…" : id; }

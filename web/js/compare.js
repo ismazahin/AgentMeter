@@ -638,7 +638,7 @@ function renderOverall() {
     '<div class="pod3 n' + order.length + '">' + order.map(function (s) {
       var w = s === top[0];
       return '<div class="pcol' + (w ? " w" : "") + (s.rank === 3 ? " p3" : "") + '"><button type="button" class="pcard" data-model="' + esc(s.model) + '" aria-label="' + esc(nick(s.model) + ", " + ordinal(s.rank) + ", " + s.wins + " wins of " + s.setups + " setups") + '">' +
-        '<span class="nm">' + esc(nick(s.model)) + (w ? '<span class="crown">Top</span>' : "") + '</span>' +
+        '<span class="nm">' + esc(nick(s.model)) + extraTag(s.model) + (w ? '<span class="crown">Top</span>' : "") + '</span>' +
         '<span class="big" style="display:block">' + s.wins + ' <small>' + (s.wins === 1 ? "win" : "wins") + ' of ' + s.setups + ' setup' + (s.setups === 1 ? "" : "s") + '</small></span>' +
         '<span class="psub" style="display:block">Beat ' + pct(s.rb) + ' of the models it met</span>' +
         '<span class="row2">' + placeStrip(s, gs) + (showOwners() ? avatars(gPeople(s.sessions)) : "") + '</span></button>' +
@@ -647,7 +647,7 @@ function renderOverall() {
     '<div class="md2"><div class="slist" id="lb-models"><div class="slist-h"><span>All models</span><span>Wins</span></div>' +
     rows.map(function (s) {
       return '<button type="button" class="sitem mrow" data-model="' + esc(s.model) + '" aria-current="' + String(s === sel) + '"><span class="rn">' + s.rank + '</span>' +
-        '<span><span class="t" style="display:block">' + esc(nick(s.model)) + '</span><span class="m" style="display:block">' + placeStrip(s, gs) + '</span></span>' +
+        '<span><span class="t" style="display:block">' + esc(nick(s.model)) + extraTag(s.model) + '</span><span class="m" style="display:block">' + placeStrip(s, gs) + '</span></span>' +
         '<span class="w">' + s.wins + '/' + s.setups + '<small>beat ' + pct(s.rb) + '</small></span></button>';
     }).join("") +
     '<div class="legend2" aria-hidden="true"><span><span class="strip"><i class="p1">1</i></span> won</span><span><span class="strip"><i>2</i></span> place</span><span><span class="strip"><i class="nr"></i></span> not run</span><span><span class="strip"><i class="ne">n</i></span> not enough</span></div>' +
@@ -665,7 +665,7 @@ function renderOverall() {
 }
 function modelPanel(s, gs) {
   var col = colOf(LB.data.sort_metric), pct = function (x) { return Math.round(x * 100) + "%"; };
-  return '<h2>' + esc(nick(s.model)) + '</h2><p class="sub">Ranked on ' + s.setups + ' setup' + (s.setups === 1 ? "" : "s") +
+  return '<h2>' + esc(nick(s.model)) + extraTag(s.model) + '</h2><p class="sub">Ranked on ' + s.setups + ' setup' + (s.setups === 1 ? "" : "s") +
       (showOwners() ? " from sessions by " + esc(gPeople(s.sessions).map(meName).join(", ")) : "") + '. Open a setup for the sessions behind it.</p>' +
     '<div class="kpis"><div class="kpi"><b>' + s.wins + '</b><span>' + (s.wins === 1 ? "win" : "wins") + ', 1st place on a setup</span></div><div class="kpi"><b>' + pct(s.rate) + '</b><span>win rate</span></div>' +
       '<div class="kpi"><b>' + pct(s.rb) + '</b><span>of the models it met, beaten</span></div></div>' +

@@ -57,7 +57,7 @@ function renderPlanner() {
     '<th class="num">GPUs needed</th><th class="num">Usable answers</th><th class="num">Cost per day</th><th class="num">Energy per day</th></tr></thead><tbody>' +
     rows.map(function (x) {
       var h = x.gpu_hours || 0, gpus = x.gpus_all_day || 1, busy = h / (24 * gpus), tight = busy > PL_TIGHT, v = x.valid_rate, low = v != null && v < PL_USABLE;
-      return '<tr><td><span class="pl-nm">' + esc(nick(x.model)) + '</span>' + (x === cheapest ? '<span class="pl-tag c">Cheapest</span>' : "") +
+      return '<tr><td><span class="pl-nm">' + esc(nick(x.model)) + '</span>' + extraTag(x.model) + (x === cheapest ? '<span class="pl-tag c">Cheapest</span>' : "") +
           (x === fastest ? '<span class="pl-tag f">Fastest</span>' : "") +
           '<span class="pl-sub">' + (many ? esc(plGpuName(x.gpu)) + ", from" : "from") + ' the benchmark of <a href="#/session/' + enc(x.source_session) + '">' + esc(plDay(x.measured_at)) + '</a></span></td>' +
         '<td class="num">' + fmtNum(x.latency_s_per_flow, 2) + ' s</td>' +

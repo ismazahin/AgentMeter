@@ -95,7 +95,7 @@ function trCard(x, s) {
   var titles = ts.points.map(function (p) { return fmtDate(p.at) + ": " + (p.v == null ? "not measured" : trFmt(key, p.v)); });
   var lastSid = s.points[s.points.length - 1].session_id;
   return '<div class="cs-card' + (TR.series === s.id ? " sel" : "") + '" data-series="' + esc(s.id) + '">' +
-    '<div class="cs-card-h"><div><h3>' + esc(nick(x.model)) + '</h3><div class="sub">' + esc(name + ", " + (s.setup.gpu || "GPU") + ", " + x.runs + " runs") + '</div></div>' +
+    '<div class="cs-card-h"><div><h3>' + esc(nick(x.model)) + extraTag(x.model) + '</h3><div class="sub">' + esc(name + ", " + (s.setup.gpu || "GPU") + ", " + x.runs + " runs") + '</div></div>' +
       '<span class="cs-chip ' + v[1] + '"><span class="cs-dot ' + v[1] + '"></span>' + esc(v[0]) + '</span></div>' +
     trStrip(vals, m[2], { moved: x.status === "moved", focus: focus >= 0 ? focus : null, titles: titles, label: m[1] + " of each run, oldest first" }) +
     '<div class="cs-axis" aria-hidden="true"><span>first run</span><span>' + esc(m[1].toLowerCase()) + ', each dot one run</span><span>latest</span></div>' +
@@ -134,7 +134,7 @@ function renderTrends() {
   }
   $("tr-once").innerHTML = !once.length ? "" : '<div class="card" id="tr-once-card"><p style="margin:0"><b>' + once.length + ' model' + (once.length === 1 ? " has" : "s have") +
     ' only one run so far.</b> Run ' + (once.length === 1 ? "it" : "them") + ' again to check.</p><ul class="small">' + once.map(function (x) {
-      return '<li><a href="#/session/' + enc(x.s.points[0].session_id) + '">' + esc(nick(x.model)) + '</a> on ' + esc(x.set + ", " + x.gpu) + '</li>';
+      return '<li><a href="#/session/' + enc(x.s.points[0].session_id) + '">' + esc(nick(x.model)) + '</a>' + extraTag(x.model) + ' on ' + esc(x.set + ", " + x.gpu) + '</li>';
     }).join("") + '</ul></div>';
   if (TR.series && bySeries[TR.series]) {
     TR.metric = TRF.measure;
@@ -148,7 +148,7 @@ function trOpen(id) {
 }
 function historyCard(s, ts, t) {
   var pts = ts.points.filter(function (p) { return p.v != null; });
-  var head = '<div class="card" id="tr-chart-card"><div class="row" style="margin-top:0;justify-content:space-between"><h2>Every run of ' + esc(nick(s.model)) + ': ' + esc(ts.label.toLowerCase()) + '</h2>' +
+  var head = '<div class="card" id="tr-chart-card"><div class="row" style="margin-top:0;justify-content:space-between"><h2>Every run of ' + esc(nick(s.model)) + ': ' + esc(ts.label.toLowerCase()) + extraTag(s.model) + '</h2>' +
     '<button type="button" class="btn small-btn" data-tr-close>Close</button></div><p class="muted small" style="margin-top:0">' +
     esc((s.setup.gpu || "GPU") + ", " + (s.setup.input_type || "") + ", " + (s.setup.n_flows == null ? "" : s.setup.n_flows + " flows") + ", prepared set " + String(s.setup.prepared_set_sha256).slice(0, 12) +
         ", settings " + String(s.setup.settings_fingerprint).slice(0, 8)) + ', ' + (ts.lower_is_better ? "lower is better" : "higher is better") + '</p>';

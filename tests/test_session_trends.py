@@ -158,63 +158,6 @@ def test_power_sampler_records_utilisation(monkeypatch):
     assert [t for t, _ in r["util_samples"]] == [t for t, _ in r["samples"]][:len(r["util_samples"])]
 
 
-# --- load scaling (opt-in) -------------------------------------------------------------------
-def test_load_test_runs_each_level_and_writes_its_own_file(golden, tmp_path):
-    from agentmeter.data.dataset import DatasetLoader
-    from agentmeter.providers import get_provider
-    from agentmeter.run.load_test import flows_for, run_load_test
-    cfg = load_config(golden["plan"]["config_path"])
-    cfg.data.setdefault("model", {})["name"] = "mock-a"
-    scen = DatasetLoader(cfg).load()
-    out = tmp_path / "ls.json"
-    r = run_load_test(cfg, get_provider(cfg), scen, "mock:mock-a", out)
-    assert json.loads(out.read_text()) == r
-    assert [lv["concurrency"] for lv in r["levels"]] == [1, 2, 4]
-    assert [lv["n"] for lv in r["levels"]] == [flows_for(c, len(scen)) for c in (1, 2, 4)] == [8, 8, 10]
-    for lv in r["levels"]:
-        assert lv["error"] is None and lv["throughput_flows_per_s"] == pytest.approx(lv["n"] / lv["wall_s"])
-        assert lv["p50_latency_s"] <= lv["p95_latency_s"] and lv["efficiency"] == pytest.approx(lv["speedup_vs_1"] / lv["concurrency"])
-    assert r["levels"][0]["speedup_vs_1"] == 1
-
-
-def test_load_test_records_a_failing_level_and_stops(golden, tmp_path):
-    from agentmeter.data.dataset import DatasetLoader
-    from agentmeter.providers import get_provider
-    from agentmeter.run.load_test import run_load_test
-    cfg = load_config(golden["plan"]["config_path"])
-    prov = get_provider(cfg)
-    real_gen, calls = prov.generate, {"n": 0}
-
-    def gen(*a, **k):                        # fails once the second level is running
-        calls["n"] += 1
-        if calls["n"] > 8 * 4:
-            raise RuntimeError("CUDA out of memory")
-        return real_gen(*a, **k)
-    prov.generate = gen
-    r = run_load_test(cfg, prov, DatasetLoader(cfg).load(), "mock:x", tmp_path / "x.json")
-    assert [lv["concurrency"] for lv in r["levels"]] == [1, 2]
-    assert r["levels"][1]["error"].startswith("RuntimeError: CUDA out of memory") and "throughput_flows_per_s" not in r["levels"][1]
-
-
-def test_load_scaling_is_opt_in_per_job(tmp_path):
-    from agentmeter.ingest.run import process_csv
-    from agentmeter.config import PROJECT_ROOT
-    from agentmeter.server.jobs import JobManager
-    process_csv(PROJECT_ROOT / "data" / "sample_csv" / "cicids2017_sample.csv", out_root=tmp_path / "results" / "csv_runs", max_flows=6)
-    mgr = JobManager(jobs_dir=tmp_path / "jobs", results_root=tmp_path / "results")
-    off = mgr.create_job("csv_runs/cicids2017_sample", ["mock-a"], provider="mock")
-    on = mgr.create_job("csv_runs/cicids2017_sample", ["mock-a", "mock-b"], provider="mock", load_test=True)
-    assert mgr.wait(off["job_id"])["status"] == "done" and mgr.wait(on["job_id"])["status"] == "done"
-    a, b = mgr.result(off["job_id"]), mgr.result(on["job_id"])
-    assert a["load_scaling"]["measured"] is False and "not requested" in a["load_scaling"]["reason"]
-    ls = b["load_scaling"]
-    assert ls["measured"] and [m["model"] for m in ls["per_model"]] == ["mock-a", "mock-b"]
-    assert all([lv["concurrency"] for lv in m["levels"]] == [1, 2, 4] for m in ls["per_model"])
-    # the measured flows are the same with or without the extra step (6 flows, none from the load step)
-    assert b["per_model"][0]["efficiency"]["n_flows"] == a["per_model"][0]["efficiency"]["n_flows"] == 6
-    assert b["session_identity"]["settings_fingerprint"] == a["session_identity"]["settings_fingerprint"]
-
-
 def test_decide_failure_rate_counts_each_failing_flow_once():
     # flows 1-2: Decide replied nothing, so the label is also Unparseable; flow 3 is fine
     sr = [{"model": "m", "scenario_id": f"s{i}", "predicted_label": "Unparseable" if i < 3 else "Benign",

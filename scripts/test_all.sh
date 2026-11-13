@@ -50,11 +50,9 @@ python3 scripts/csp_headers.py > /dev/null      # web/_headers must match the in
 
 if [ "$WHAT" = all ] || [ "$WHAT" = e2e ]; then
   flow insights_flow
-  flow pipeline_flow
   flow service_flow AGENTMETER_MAX_UPLOAD_MB=1 AGENTMETER_MAX_CSV_ROWS=100000
   flow session_analysis
   flow app_flow
-  flow compare_many_flow
   flow datasets_gpu_flow AGENTMETER_MOCK_LATENCY_S=0.2
   flow workflow_flow
   flow telemetry_flow AGENTMETER_MOCK_LATENCY_S=0.05

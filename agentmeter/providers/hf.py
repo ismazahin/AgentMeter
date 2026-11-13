@@ -29,9 +29,8 @@ class HFProvider(ModelProvider):
 
         self._torch = torch
         self.config = config
-        # The fast tokenizer is not safe to share across threads ("Already borrowed"): the
-        # opt-in load-scaling step (run/load_test.py) calls generate() concurrently. Uncontended
-        # in the measured, one-flow-at-a-time run.
+        # The fast tokenizer is not safe to share across threads ("Already borrowed"), so
+        # generate() holds this lock. Uncontended in the measured, one-flow-at-a-time run.
         self._tok_lock = threading.Lock()
         self.name: str = config.get("model.name")
         hf = config.get("model.hf", {}) or {}

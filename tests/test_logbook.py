@@ -41,7 +41,7 @@ def test_the_endpoint_lists_problems_and_failed_runs(tmp_path, monkeypatch):
     import time
     process_csv(PROJECT_ROOT / "data" / "sample_csv" / "cicids2017_sample.csv", out_root=tmp_path / "results" / "csv_runs", max_flows=4)
     mgr = JobManager(jobs_dir=tmp_path / "jobs", results_root=tmp_path / "results", gpu_available=lambda: False, autostart=False)
-    j = mgr.create_job("csv_runs/cicids2017_sample", ["mock-a"], provider="mock", pipeline=None)["job_id"]
+    j = mgr.create_job("csv_runs/cicids2017_sample", ["mock-a"], provider="mock")["job_id"]
     mgr._update(j, status="failed", error="worker for model 'mock-a' made no progress for 900 s twice", error_code="flow_timeout",
                 finished_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
     app = Flask("t")

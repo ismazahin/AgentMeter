@@ -90,8 +90,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log((await p.$$('#agents-composition .cat-row')).length === 8 && /cacheable \d/.test(await p.textContent('#agents-composition')), 'agents: what the prompts are made of (2 models x 4 agents), cacheable share');
     log((await p.$$('#agents-remove .remove-table tbody tr')).length === 8 && /cannot be removed/.test(await p.textContent('#agents-remove')), 'agents: what removing each agent saves; the label agent cannot be removed');
     log((await p.$$('#agents-budget-table tbody tr')).length === 8 && /can be lower|fits|raise it/.test(await p.textContent('#agents-budget-table')), 'agents: token budget advice per agent');
-    await p.waitForSelector('#agents-pipelines');
-    log(/No other session ran a different pipeline/.test(await p.textContent('#agents-pipelines')), 'agents: other pipelines on these flows (none yet, says how)');
+    log(!(await p.$('#agents-pipelines')) && !/Build my own/.test(await p.textContent('#agents-remove')), 'agents: no other-pipelines card and no Build my own hint');
 
     // Analysis expansion, phase 5 — energy efficiency, provider prices, idle cost, best-model picker
     await tab(p, csv, 'cost', '#cost-prices');
@@ -124,8 +123,8 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
         'reliability: table with failures, Decide/Act agreement and the reference-label check');
     log((await p.$$('#rel-failures-table tbody tr')).length === 8 && !/F1|precision|recall|confusion/i.test(await p.textContent('#spanel-reliability')),
         'reliability: failures per agent (2 models x 4 agents); no detection metrics');
-    log((await p.$$('#rel-consistency-table tbody tr')).length === 2 && /repeat check/.test(await p.textContent('#rel-consistency')),
-        'reliability: consistency of answers (format, repeat, technique); says how to get the repeat check');
+    log((await p.$$('#rel-consistency-table tbody tr')).length === 2 && !/repeat/i.test(await p.textContent('#rel-consistency')),
+        'reliability: consistency of answers (format, technique), nothing about a repeat check');
     await tab(p, pcap, 'reliability', '#rel-table');
     log(!/Reference-label check/.test(await p.textContent('#rel-table thead')), 'reliability (PCAP): works without labels, no reference-label check');
 
@@ -184,11 +183,11 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log(/flow \d+: .*rolling median/.test(await p.textContent('.tip-pop').catch(() => '')), 'latency over the run: crosshair shows the flow, its time and the rolling median');
     await tab(p, csv, 'cost', '#gpu-timeline');
     log(/Not sampled \(mock\/CPU run/.test(await p.textContent('#gpu-timeline')), 'GPU over the run (mock): says it was not sampled and why');
-    await tab(p, csv, 'performance/gpu', '#load-card');
-    log(/so it was not measured|Not measured in this session/.test(await p.textContent('#load-card')), 'load scaling: not measured unless asked for');
+    await tab(p, csv, 'performance/gpu', '#svc-memory-card');
+    log(!(await p.$('#load-card')), 'performance: no load scaling section');
     await tab(p, csv, 'performance/statistics', '#svc-repeat');
     log(/No other session ran on these flows/.test(await p.textContent('#svc-repeat')), 'repeatability: no other run yet, offers to benchmark the flows again');
-    // run the same flows again, this time with load scaling
+    // run the same flows again
     await p.click('#svc-repeat a.btn[href^="#/new/models?set="]');
     await p.waitForFunction(() => /Ready/.test(document.querySelector('#wiz-data-chip').textContent), null, { timeout: 60000 });
     await p.locator('#svc-models input').nth(1).check();            // never benchmarked: no estimate
@@ -198,11 +197,9 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     for (const i of [0, 3]) await p.locator('#svc-models input').nth(i).check();
     log(/Estimate\s*about \d+ s of model time \(from earlier sessions in demo mode, plus model loading/.test(await p.textContent('#wiz-settings')),
         'estimate: time before Run from the earlier session of the same models');
-    await p.click('#svc-extras > summary'); await p.check('#svc-load-test'); await p.click('#svc-run');
+    await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/session\//.test(location.hash), null, { timeout: 180000 });
     const again = decodeURIComponent(p.url().split('#/session/')[1].split('/')[0]);
-    await tab(p, again, 'performance/gpu', '#load-table');
-    log((await p.$$('#load-table tbody tr')).length === 6 && (await p.$$('#load-card .lc')).length === 2, 'load scaling: 2 models x 3 levels, throughput and p95 charts');
     await tab(p, csv, 'performance/statistics', '#svc-repeat .rep-row');
     log(/2 sessions on this setup/.test(await p.textContent('#svc-repeat')) && (await p.$$('#svc-repeat .dot.cur')).length > 0,
         'repeatability: the first session now sees the re-run, ringed dot marks itself');

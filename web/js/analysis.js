@@ -384,38 +384,6 @@ function repeatCard(rp, head, again, id) {
       return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(d.label) + '</td><td class="num">' + d.n + '</td><td class="num">' + f(d.mean) + '</td><td class="num">' + (d.sd == null ? "—" : f(d.sd)) + '</td><td class="num">' + (d.cov == null ? "—" : fmtPct(d.cov)) + '</td><td class="num">' + f(d.min) + ' to ' + f(d.max) + '</td></tr>'; }).join(""); }).join("") +
     '</tbody></table></div></details><div class="actions"><a class="btn" href="#/compare?a=' + enc(id) + '">Open on the Leaderboard</a>' + again + '</div></div>';
 }
-// Performance -> GPU & Throughput: throughput and p95 latency with 1, 2, 4 flows in flight (opt-in step)
-function loadCard(res) {
-  var ls = window.INSIGHTS && INSIGHTS.loadScaling(res);
-  if (!ls) return "";
-  var head = '<h2>Load scaling</h2>';
-  if (!ls.measured) return '<div class="card" id="load-card">' + head + '<p class="muted">' + (/^not requested/.test(ls.reason || "") ? "This session did not ask for it, so it was not measured." : "Not measured in this session (" + esc(ls.reason) + ").") + ' Tick "Also measure load scaling" when you start a benchmark to see it.</p></div>';
-  var pos = function (c) { return ls.levels.indexOf(c); }, xFmt = function (v) { var c = ls.levels[Math.round(v)]; return c == null ? "" : c + " at once"; };
-  var rows = ls.levels.map(function (c) {
-    return { x: pos(c), text: c + " in flight. " + ls.models.map(function (m) {
-      var l = m.levels.filter(function (x) { return x.concurrency === c; })[0];
-      return short(m.model) + ": " + (!l ? "not run" : l.error ? "failed" : fmtNum(l.throughput_flows_per_s, 2) + " flows/s, p95 " + fmtTime(l.p95_latency_s));
-    }).join(", ") };
-  });
-  var series = function (key) {
-    return [].concat.apply([], ls.models.map(function (m) {
-      var pts = m.levels.filter(function (l) { return !l.error; }).map(function (l) { return [pos(l.concurrency), l[key]]; });
-      return [{ kind: "line", color: modelColor(m.model), points: pts }, { kind: "dots", r: 5, color: modelColor(m.model), points: pts }];
-    }));
-  };
-  var chart = function (id, key, yMax, yFmt, label) {
-    return lineChart({ id: id, w: 440, h: 170, xMin: 0, xMax: Math.max(1, ls.levels.length - 1), yMax: yMax, xFmt: xFmt, yFmt: yFmt, label: label, rows: rows, series: series(key) });
-  };
-  return '<div class="card" id="load-card">' + head + '<p class="muted small" style="margin-top:0">' + esc(ls.note || "") + '</p>' + legendHtml(ls.models.map(function (m) { return m.model; })) +
-    '<div class="load-grid"><div><h3 class="lc-h">Throughput (flows per second, higher is better)</h3>' + chart("load-tp", "throughput_flows_per_s", ls.max_throughput, function (v) { return fmtNum(v, 2); }, "Throughput by concurrency") + '</div>' +
-    '<div><h3 class="lc-h">p95 latency per flow (lower is better)</h3>' + chart("load-p95", "p95_latency_s", ls.max_p95, fmtTime, "p95 latency by concurrency") + '</div></div>' +
-    ls.models.filter(function (m) { return m.error; }).map(function (m) { return '<div class="notice warn" role="note">' + esc(short(m.model)) + ' failed with ' + m.failed_at + ' in flight (' + esc(m.error) + ').' + '</div>'; }).join("") +
-    '<div class="table-wrap"><table id="load-table"><thead><tr><th>Model</th><th class="num">In flight</th><th class="num">Flows</th><th class="num">Throughput</th><th class="num">Speed-up vs 1</th><th class="num">Scaling efficiency</th><th class="num">p50</th><th class="num">p95</th></tr></thead><tbody>' +
-    ls.models.map(function (m) { return m.levels.map(function (l) {
-      return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + l.concurrency + '</td><td class="num">' + l.n + '</td>' + (l.error ? '<td colspan="5" class="muted">failed: ' + esc(l.error) + '</td>' :
-        '<td class="num">' + fmtNum(l.throughput_flows_per_s, 2) + ' /s</td><td class="num">' + fmtNum(l.speedup_vs_1, 2) + '×</td><td class="num">' + fmtPct(l.efficiency) + '</td><td class="num">' + fmtTime(l.p50_latency_s) + '</td><td class="num">' + fmtTime(l.p95_latency_s) + '</td>') + '</tr>';
-    }).join(""); }).join("") + '</tbody></table></div><details class="info"><summary>Method</summary><p class="muted small">' + esc(ls.method || "") + ' Scaling efficiency = speed-up ÷ flows in flight (100% = perfect scaling).</p></details></div>';
-}
 // Cost & Energy: project the measured per-flow numbers onto a daily workload
 function projectionCard(res) {
   if (!window.INSIGHTS || !(res.per_model || []).length) return "";
@@ -626,23 +594,12 @@ function setAgentSlots(res) {
   AG_ORDER = ag.agent_order || ["perceive", "reason", "decide", "act"]; AG_TITLE = {};
   (ag.pipeline || []).forEach(function (a) { if (!a.builtin) AG_TITLE[a.name] = a.title; });
 }
-function pipelineCard(ag) {
-  return '<div class="card" id="agents-pipeline"><h2>This session\'s pipeline</h2><p class="muted small" style="margin-top:0">A custom pipeline of ' + ag.pipeline.length +
-    ' agents, run one after another on every flow. Compare and the Leaderboard treat it as its own setup, never like-for-like with the default four.</p><ol class="pl-view">' +
-    ag.pipeline.map(function (a) {
-      var reads = (a.reads || []).map(agName).concat(a.features === false ? [] : ["the flow features"]);
-      return '<li><div><span class="legend"><span style="--c:' + agColor(a.name) + '"><b>' + esc(agName(a.name)) + '</b></span></span> <span class="chip">' + esc(PL_KIND_LABEL[a.kind] || a.kind) + '</span>' +
-        (a.builtin ? ' <span class="muted small">built-in</span>' : "") + '</div><p class="small muted">Reads ' + esc(reads.join(", ") || "nothing") + '.</p>' +
-        (a.instructions ? '<details class="info"><summary>Instructions</summary><p class="small pl-instr">' + esc(a.instructions) + '</p></details>' : "") + '</li>';
-    }).join("") + '</ol></div>';
-}
 function agColor(a) { var i = AG_ORDER.indexOf(a); return i < 0 ? "var(--muted)" : "var(--ag-" + (i % 8 + 1) + ")"; }
 function agName(a) { return AG_TITLE[a] || a; }
 function agentsTab(res) {
   var ag = res.agents;
   if (!ag) return '<div class="card"><p class="muted">This session predates the per-agent breakdown.</p></div>';
   var h = [];
-  if (ag.pipeline) h.push(pipelineCard(ag));
   ag.per_model.forEach(function (m, mi) {
     var o = m.overhead || {};
     h.push('<div class="card agents-model"><h2>' + esc(m.model) + extraTag(m.model) + '</h2><div class="table-wrap"><table class="agents-table" id="agents-table-' + mi + '"><thead><tr><th>Agent</th><th class="num">Latency</th><th>Share of flow time</th><th class="num">Tokens in</th><th class="num">Tokens out</th><th class="num">Token share</th><th class="num">Working VRAM<br><span class="small">(excludes model weights)</span></th><th>Failures</th></tr></thead><tbody>' +
@@ -666,7 +623,7 @@ function agentsTab(res) {
     flows.map(function (f) { return '<option>' + esc(f) + '</option>'; }).join("") + '</select></div></div><div id="agents-gantt" class="gantt" style="margin-top:14px"></div>' +
     '<div class="legend">' + ag.agent_order.map(function (a) { return '<span style="--c:' + agColor(a) + '">' + esc(agName(a)) + '</span>'; }).join("") + '</div>' +
     '<p class="muted small">' + esc(ag.notes.timeline) + '</p></div>');
-  h.push(handoffCard(res), compositionCard(res), removeAgentCard(res), budgetCard(res), '<div id="agents-pipelines-host"></div>', classAgentCard(res), '<div class="card" id="flows-card"><h2>Flow explorer</h2><p class="muted small" id="flows-status">Loading the flows…</p><div id="flows-body"></div></div>');
+  h.push(handoffCard(res), compositionCard(res), removeAgentCard(res), budgetCard(res), classAgentCard(res), '<div class="card" id="flows-card"><h2>Flow explorer</h2><p class="muted small" id="flows-status">Loading the flows…</p><div id="flows-body"></div></div>');
   h.push('<div class="card flat"><h2>How these are measured</h2><ul class="list">' +
     ["latency", "vram", "overhead", "failures"].map(function (k) { return '<li>' + esc(ag.notes[k]) + '</li>'; }).join("") + '</ul></div>');
   return h.join("");
@@ -936,7 +893,7 @@ function reproPackage(res, job, btn) {
     got = got.filter(Boolean);
     var run = { session_id: id, created_at: job.created_at || null, finished_at: job.finished_at || null, owner: job.owner || (job.user || {}).uname || null,
                 models: job.models || (res.session || {}).models || [], prepared_set: job.run_name || null, n_flows: (res.session || {}).n_flows,
-                pipeline: job.pipeline || null, load_test: !!job.load_test, repeat_check: !!job.repeat_check, provider: env.provider || null,
+                pipeline: job.pipeline || null, provider: env.provider || null,
                 quantization: "4-bit NF4", settings: ident.settings || null };
     var again = location.origin + location.pathname + "#/new/models?set=" + enc(job.run_name || "") + "&models=" + (run.models || []).map(enc).join(",") + "&again=" + enc(id);
     var readme = "# AgentMeter reproducibility package\n\nSession: " + id + "\nCreated: " + new Date().toISOString() + "\n\n" +

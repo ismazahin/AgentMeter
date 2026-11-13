@@ -425,8 +425,8 @@ def test_rank_stability_bootstrap():
     assert again == rs                                                            # seeded: reproducible
 
 
-# --- phase 2: format, MITRE consistency, repeat check; cold start ----------------------------
-def test_reliability_format_mitre_and_repeat_check():
+# --- phase 2: format, MITRE consistency; cold start ----------------------------------------
+def test_reliability_format_and_mitre():
     from agentmeter.session.analyses import reliability_block
     sr = [{"model": "m", "scenario_id": f"s{i}", "predicted_label": lab, "correct": None}
           for i, lab in enumerate(["Brute Force", "Brute Force", "Benign", "Brute Force"])]
@@ -437,17 +437,15 @@ def test_reliability_format_mitre_and_repeat_check():
              ("m", "s1", "act"): "MITRE ATT&CK: T1110.001", ("m", "s2", "act"): "No technique (benign)",
              ("m", "s3", "act"): "T1110 again"}
     mitre = {"Brute Force": "T1110 - Brute Force", "Benign": "N/A - No adversary technique"}
-    repeat = {"m": {"flows": [{"scenario_id": "s0", "predicted": "Brute Force"}, {"scenario_id": "s2", "predicted": "Port Scanning"},
-                              {"scenario_id": "s3", "predicted": None, "error": "boom"}]}}
     r = reliability_block(sr, am, {"m": "m"}, {}, "decide", "act", ["Brute Force", "Benign", "Port Scanning"], texts, False,
-                          mitre=mitre, repeat=repeat)["per_model"][0]
+                          mitre=mitre)["per_model"][0]
     assert r["format"] == {"checked": 4, "exact": 3, "exact_rate": 0.75, "cleaned": 1, "unparseable": 0,
                            "mean_chars": r["format"]["mean_chars"]}
     mt = r["mitre"]
     assert mt["checked"] == 4 and mt["named"] == 3
     assert mt["consistent"] == 3                      # Brute Force: T1110 twice + T1110.001 once -> 2 modal; Benign: 1
     assert mt["matches_reference_map"] == 3            # 2x T1110 + Benign without a technique
-    assert r["answer_stability"] == {"checked": 2, "same": 1, "rate": 0.5}      # the errored repeat is not counted
+    assert "answer_stability" not in r
 
 
 def test_cold_start_block():
@@ -460,11 +458,10 @@ def test_cold_start_block():
     assert b["load_s"] is None and b["first_flow_s"] is None and cs["measured"] is True
 
 
-def test_repeat_check_runs_end_to_end(tmp_path):
+def test_cold_start_is_recorded_end_to_end(tmp_path):
     process_csv(SAMPLE, out_root=tmp_path, max_flows=6)
-    p = run_session(tmp_path / "cicids2017_sample", ["mock-a"], provider="mock", repeat_check=True)
-    r = p["output_reliability"]["per_model"][0]
-    assert r["answer_stability"] == {"checked": 6, "same": 6, "rate": 1.0}           # the mock is deterministic
+    p = run_session(tmp_path / "cicids2017_sample", ["mock-a"], provider="mock")
+    assert not (tmp_path / "cicids2017_sample" / "repeat_check").exists()           # the repeat check is gone
     assert p["cold_start"]["per_model"][0]["load_s"] is not None and p["cold_start"]["per_model"][0]["engine"] == "mock"
 
 

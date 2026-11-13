@@ -454,27 +454,6 @@
     return { n_sessions: sessions.length, models: out, leader: leader };
   }
 
-  // ---- Performance -> GPU & Throughput: the opt-in load-scaling step (stored load_scaling) ----
-  function loadScaling(res) {
-    var ls = res.load_scaling;
-    if (!ls) return null;
-    if (!ls.measured) return { measured: false, reason: ls.reason };
-    var levels = [], tp = 0, p95 = 0;
-    var models = (ls.per_model || []).map(function (m) {
-      var lv = (m.levels || []).map(function (l) {
-        if (levels.indexOf(l.concurrency) < 0) levels.push(l.concurrency);
-        if (!l.error) { tp = Math.max(tp, l.throughput_flows_per_s || 0); p95 = Math.max(p95, l.p95_latency_s || 0); }
-        return l;
-      });
-      var ok = lv.filter(function (l) { return !l.error; });
-      var top = ok.reduce(function (b, l) { return !b || (l.speedup_vs_1 || 0) > (b.speedup_vs_1 || 0) ? l : b; }, null);   // highest speed-up
-      return { model: bare(m.model), levels: lv, failed_at: (lv.filter(function (l) { return l.error; })[0] || {}).concurrency || null,
-               error: (lv.filter(function (l) { return l.error; })[0] || {}).error || null,
-               best_speedup: top ? top.speedup_vs_1 : null, best_concurrency: top ? top.concurrency : null };
-    });
-    levels.sort(function (a, b) { return a - b; });
-    return { measured: true, levels: levels, max_throughput: tp, max_p95: p95, models: models, method: ls.method, note: ls.note };
-  }
 
   // ---- New benchmark: time and cost estimate before Run ------------------------------------
   // From earlier finished sessions of the same model on the same GPU (demo runs only for a demo
@@ -701,25 +680,6 @@
     });
   }
 
-  // ---- Agent Analysis: the same flows with another pipeline (other sessions) -----------------
-  function pipelineCompare(sessions, sessionId) {
-    var cur = (sessions || []).filter(function (s) { return s.session_id === sessionId; })[0];
-    if (!cur || !cur.prepared_set_sha256) return { current: null, others: [] };
-    var key = function (s) { return (s.pipeline || ["perceive", "reason", "decide", "act"]).join(">"); };
-    var others = (sessions || []).filter(function (s) {
-      return s.session_id !== sessionId && s.prepared_set_sha256 === cur.prepared_set_sha256 && s.gpu === cur.gpu && key(s) !== key(cur) &&
-        (s.status === "Done" || s.status === "Demo");
-    }).map(function (s) {
-      var models = Object.keys(s.metrics || {}).filter(function (m) { return (cur.metrics || {})[m]; }).map(function (m) {
-        var a = cur.metrics[m], b = s.metrics[m], rel = function (k) { return num(a[k]) && num(b[k]) != null ? (num(b[k]) - num(a[k])) / num(a[k]) : null; };
-        return { model: bare(m), latency_s: num(b.mean_latency_s), tokens: num(b.mean_tokens_per_flow), valid_rate: num(b.valid_rate),
-                 latency_vs_this: rel("mean_latency_s"), tokens_vs_this: rel("mean_tokens_per_flow"),
-                 valid_vs_this: num(a.valid_rate) != null && num(b.valid_rate) != null ? num(b.valid_rate) - num(a.valid_rate) : null };
-      });
-      return { session_id: s.session_id, created_at: s.created_at, pipeline: s.pipeline || ["perceive", "reason", "decide", "act"], models: models };
-    }).filter(function (o) { return o.models.length; });
-    return { current: { pipeline: cur.pipeline || ["perceive", "reason", "decide", "act"] }, others: others };
-  }
 
   // ---- Cost & Energy: energy efficiency (work per unit of energy) -----------------------------
   function energyEfficiency(res) {
@@ -1518,9 +1478,9 @@
   var api = { CRIT: CRIT, socProjection: socProjection, trafficAnalysis: trafficAnalysis, measuredModels: measuredModels, projectCost: projectCost, bare: bare, short: short, criteriaProfile: criteriaProfile, keyFindings: keyFindings,
               weightStability: weightStability, stabilitySentence: stabilitySentence, classMetrics: classMetrics,
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
-              workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, energyEfficiency: energyEfficiency, priceCompare: priceCompare, idleCost: idleCost, recommend: recommend, removeAgent: removeAgent, budgetTuning: budgetTuning, pipelineCompare: pipelineCompare, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
+              workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, energyEfficiency: energyEfficiency, priceCompare: priceCompare, idleCost: idleCost, recommend: recommend, removeAgent: removeAgent, budgetTuning: budgetTuning, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, runningAt: runningAt, repeatability: repeatability,
-              loadScaling: loadScaling, trends: trends, trendSeries: trendSeries, setupKey: setupKey, compareSetups: compareSetups, excludedFrom: excludedFrom, repeatSummary: repeatSummary, STABLE_WITHIN: STABLE_WITHIN, STABLE_BY: STABLE_BY, envChanges: envChanges, changeText: changeText, runStats: runStats, welch: welch, compareRuns: compareRuns, tTwoSided: tTwoSided, runEstimate: runEstimate, flowGuidance: flowGuidance, sampleSize: sampleSize, tabSummaries: tabSummaries, nick: nick, plainText: plainText, sectionAnswers: sectionAnswers };
+              trends: trends, trendSeries: trendSeries, setupKey: setupKey, compareSetups: compareSetups, excludedFrom: excludedFrom, repeatSummary: repeatSummary, STABLE_WITHIN: STABLE_WITHIN, STABLE_BY: STABLE_BY, envChanges: envChanges, changeText: changeText, runStats: runStats, welch: welch, compareRuns: compareRuns, tTwoSided: tTwoSided, runEstimate: runEstimate, flowGuidance: flowGuidance, sampleSize: sampleSize, tabSummaries: tabSummaries, nick: nick, plainText: plainText, sectionAnswers: sectionAnswers };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

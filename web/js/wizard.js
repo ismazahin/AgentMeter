@@ -521,7 +521,7 @@ function tickWanted() {
   if (hit && $("svc-extra") && document.querySelector("#svc-extra-models input:checked")) $("svc-extra").open = true;
   syncRun();
 }
-// run presets: models + options + pipeline under a name, kept in this browser
+// run presets: models + options under a name, kept in this browser
 function runPresets() { try { return JSON.parse(localStorage.getItem("agentmeter.runPresets") || "[]") || []; } catch (e) { return []; } }
 function saveRunPresets(list) { try { localStorage.setItem("agentmeter.runPresets", JSON.stringify(list)); return true; } catch (e) { return false; } }
 function fillPresets(sel) {
@@ -537,19 +537,16 @@ $("wiz-preset").addEventListener("change", function () {
   if (!p) return;
   modelInputs().forEach(function (inp) { if (!inp.dataset.locked) inp.checked = p.models.indexOf(inp.value) >= 0; });
   WIZ.want = p.models.slice(); tickWanted();
-  $("svc-load-test").checked = !!p.load_test; $("svc-repeat-check").checked = !!p.repeat_check;
-  extrasOpen();
   if (!$("svc-ids").disabled) { $("svc-ids").checked = !!p.ids; $("svc-ids-box").hidden = !p.ids; $("svc-ids-tau").value = p.ids && p.ids.threshold ? p.ids.threshold : ""; }
-  if (p.pipeline && Array.isArray(p.pipeline.agents)) { PL = JSON.parse(JSON.stringify(p.pipeline)); plRender(); }
   syncRun();
 });
 $("wiz-preset-save").addEventListener("click", function () {
   var models = picked();
   if (!models.length) { alert("Tick at least one model first."); return; }
-  var name = (prompt("Name this preset (models, options and pipeline):", models.map(short).join(" + ")) || "").trim().slice(0, 60);
+  var name = (prompt("Name this preset (models and options):", models.map(short).join(" + ")) || "").trim().slice(0, 60);
   if (!name) return;
   var list = runPresets().filter(function (p) { return p.name !== name; });
-  list.unshift({ name: name, models: models, load_test: $("svc-load-test").checked, repeat_check: $("svc-repeat-check").checked, ids: idsBody(), pipeline: PL });
+  list.unshift({ name: name, models: models, ids: idsBody() });
   if (!saveRunPresets(list.slice(0, 20))) { alert("This browser does not allow saving presets."); return; }
   fillPresets(name);
 });
@@ -560,27 +557,15 @@ $("wiz-preset-del").addEventListener("click", function () {
     if (yes) { list.splice(i, 1); saveRunPresets(list); fillPresets(); }
   });
 });
-// Run again: the pipeline and options of an earlier session (models come from the link)
-function plFromJob(spec) {
-  return spec.map(function (a) {
-    if (typeof a === "string") return { builtin: a };
-    if (a.builtin) return { builtin: a.name };
-    return { name: a.name, title: a.title || a.name, kind: a.kind, instructions: a.instructions || "", reads: a.reads || [], features: !!a.features, tokens: a.max_new_tokens == null ? null : a.max_new_tokens };
-  });
-}
+// Run again: the options of an earlier session (models come from the link)
 function applyAgain(id) {
   api("/api/jobs/" + enc(id)).then(function (r) {
     var j = r.ok ? r.data : null, note = $("wiz-again");
     if (j) {
-      $("svc-load-test").checked = !!j.load_test; $("svc-repeat-check").checked = !!j.repeat_check;
-      extrasOpen();
       if (!$("svc-ids").disabled) { $("svc-ids").checked = !!j.ids; $("svc-ids-box").hidden = !j.ids; $("svc-ids-tau").value = j.ids && j.ids.threshold ? j.ids.threshold : ""; }
-      if (Array.isArray(j.pipeline) && j.pipeline.length) PL = { custom: true, agents: plFromJob(j.pipeline) };
-      else PL = { custom: false, agents: PL_DEFAULT.map(function (n) { return { builtin: n }; }) };
-      plRender();
     }
     note.innerHTML = '<b>Run again</b> of <a class="mono" href="#/session/' + enc(id) + '">' + esc(shortId(id)) + '</a>: the same data set and models' +
-      (j ? ', pipeline (' + esc(plChain()) + ') and options' : '; its pipeline and options were not found on this GPU server, so check them below') +
+      (j ? ' and options' : '; its options were not found on this GPU server, so check them below') +
       '. Running it again on the same GPU adds a run to <a href="#/trends">Consistency</a>.';
     note.hidden = false;
     syncRun();
@@ -659,8 +644,7 @@ function syncRun() {
   modelInputs().forEach(function (inp) { inp.disabled = !!inp.dataset.locked || (!inp.checked && n >= max); });
   if ($("wiz-settings")) renderSettings();
   var failed = $("wiz-data-chip").textContent === "Failed", off = !ONLINE;
-  var plBad = typeof PL !== "undefined" && PL.custom && plProblems().length > 0;
-  $("svc-run").disabled = n < 1 || n > max || failed || off || plBad;
+  $("svc-run").disabled = n < 1 || n > max || failed || off;
   $("svc-run").textContent = off ? "GPU offline" : WIZ.set || failed ? "Run benchmark" : "Run when data is ready";
   $("svc-model-hint").textContent = n >= max ? "Maximum of " + max + " models selected. Deselect one to change."
     : n === 1 ? "1 model selected. Add another to compare, or run it alone." : n > 1 ? n + " models selected, up to " + max + ". Each runs on its own, one after another." : "Select 1 to " + max + " models.";
@@ -688,8 +672,7 @@ function estimateLine() {
   var where = real ? "on " + (e.gpu || "this GPU") : "in demo mode";
   if (!e.complete) return [["Estimate", "no earlier session of " + e.unknown.map(short).join(" or ") + " " + where + " yet, so no estimate"]];
   var src = Math.max.apply(null, e.models.map(function (m) { return m.sessions; }));
-  var own = PL.custom && !plIsDefault();
-  var out = [["Estimate", (own ? "for the default pipeline (yours will differ), " : "") + "about " + fmtDur(e.seconds) + " of model time" + (e.cost_usd != null ? ", about $" + fmtNum(e.cost_usd, 2) : "") +
+  var out = [["Estimate", "about " + fmtDur(e.seconds) + " of model time" + (e.cost_usd != null ? ", about $" + fmtNum(e.cost_usd, 2) : "") +
     " (from earlier sessions " + where + ", plus model loading and first-use downloads)" + (src < 2 ? ", from one earlier session only" : "")]];
   var fg = models.length > 1 && INSIGHTS.flowGuidance ? INSIGHTS.flowGuidance(WIZ.history, { models: models, n_flows: n, demo: !real, gpu: real && HEALTH.gpu ? HEALTH.gpu.name : null }) : null;
   if (fg) out.push(["Precision", "with " + fmtNum(n) + " flows, a latency difference of about " + fmtNum(100 * fg.detectable, 0) + "% or more between these models can be told apart" +
@@ -707,196 +690,10 @@ function renderSettings() {
     ["Provider", HEALTH && HEALTH.provider === "real" ? "Real GPU, 4-bit NF4" + (HEALTH.engine === "vllm" ? ", vLLM engine" : "") : "Demo (no GPU)"],
     ["Flows", s ? fmtNum(s.rows_selected) : "from step 1 (" + ($("svc-max-flows").value || 50) + " max)"],
     ["Evaluation", s ? (s.accuracy_available ? "efficiency, with a reference-label validity check" : "efficiency (no reference labels)") : "known when the data is ready"],
-    ["Agents", PL.custom && !plIsDefault() ? plChain() + " (your own pipeline, " + PL.agents.length + " agents)" : "Perceive → Reason → Decide → Act (default)"]
+    ["Agents", "Perceive → Reason → Decide → Act"]
   ].concat(estimateLine()).concat(downloadLine()).map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("");
 }
-// ---------- Agents: the default pipeline or the user's own (agentmeter/pipeline/spec.py) ----------
-var PL_MAX = 8, PL_NAME = /^[a-z][a-z0-9_]{1,23}$/, PL_RESERVED = ["scenario_id", "feature_prompt", "predicted_class", "verdict", "outputs"];
-var PL_DEFAULT = ["perceive", "reason", "decide", "act"];
-var PL_BUILTIN = {
-  perceive: { kind: "text", reads: [], about: "Summarises the raw flow features in a few sentences." },
-  reason: { kind: "text", reads: ["perceive"], about: "Reasons about which threat behaviours the flow fits." },
-  decide: { kind: "label", reads: ["reason", "perceive"], about: "Picks exactly one attack class, which is the pipeline's answer." },
-  act: { kind: "verdict", reads: ["reason"], about: "Writes the verdict with the class, its MITRE technique and one line on why." }
-};
-var PL_BUDGET = { text: 192, label: 16, verdict: 160 };
-var PL_KIND_LABEL = { text: "text", label: "label (the answer)", verdict: "verdict" };
-var PL_TEMPLATES = [
-  ["verify", { title: "Verify", kind: "text", features: true, tokens: 160,
-    instructions: "Check the earlier reasoning against the flow features. Point out any mistake or contradiction in one or two sentences, or say that it holds." }],
-  ["priority", { title: "Priority", kind: "text", features: true, tokens: 64,
-    instructions: "Rate how urgent this flow is for a SOC analyst: low, medium or high, followed by a one-line reason." }],
-  ["summary", { title: "Analyst summary", kind: "text", features: false, tokens: 128,
-    instructions: "Write a two-sentence note for the SOC analyst handling this alert: what the flow looks like and what to check first." }],
-  ["classify", { title: "Classify", kind: "label", features: true, tokens: 16,
-    instructions: "Decide which attack class this network flow belongs to." }],
-  ["report", { title: "Report", kind: "verdict", features: false, tokens: 160,
-    instructions: "Write the final verdict for the analyst." }],
-  ["agent", { title: "", kind: "text", features: true, tokens: 192, instructions: "" }]
-];
-var PL_TPL = {}; PL_TEMPLATES.forEach(function (t) { PL_TPL[t[0]] = t[1]; });
-var PL = { custom: false, agents: PL_DEFAULT.map(function (n) { return { builtin: n }; }) };
-try { var plSaved = JSON.parse(localStorage.getItem("agentmeter.pipeline") || "null"); if (plSaved && Array.isArray(plSaved.agents)) PL = plSaved; } catch (e) { /* the default */ }
-function plSave() { try { localStorage.setItem("agentmeter.pipeline", JSON.stringify(PL)); } catch (e) { /* this browser only */ } }
-function plName(a) { return a.builtin || a.name; }
-function plTitle(a) { return a.builtin ? a.builtin.charAt(0).toUpperCase() + a.builtin.slice(1) : (a.title || a.name || "New agent"); }
-function plKind(a) { return a.builtin ? PL_BUILTIN[a.builtin].kind : a.kind; }
-function plFreeName(base) {
-  var used = PL.agents.map(plName), n = base, i = 2;
-  while (used.indexOf(n) >= 0 || PL_DEFAULT.indexOf(n) >= 0) n = base + "_" + i++;
-  return n;
-}
-// the same rules the server applies (spec.normalize); the server stays the authority
-function plProblems() {
-  var p = [], names = [], ag = PL.agents, first = [];
-  if (!ag.length) return ["Add at least one agent."];
-  if (ag.length > PL_MAX) p.push("At most " + PL_MAX + " agents.");
-  ag.forEach(function (a, i) {
-    var n = plName(a), t = plTitle(a);
-    if (!a.builtin) {
-      if (!PL_NAME.test(n || "") || PL_RESERVED.indexOf(n) >= 0) p.push("Agent " + (i + 1) + ": the name must be 2 to 24 lowercase letters, digits or _, starting with a letter.");
-      else if (PL_DEFAULT.indexOf(n) >= 0) p.push("Agent " + (i + 1) + " is named “" + n + "”, which is a built-in agent's name. Pick another.");
-      if (!(a.title || "").trim() || a.title.length > 40) p.push(t + ": give it a title (up to 40 characters).");
-      var len = (a.instructions || "").trim().length;
-      if (len < 10 || len > 1500) p.push(t + " needs instructions of 10 to 1,500 characters.");
-      var before = ag.slice(0, i).map(plName), reads = (a.reads || []).filter(function (r) { return before.indexOf(r) >= 0; });
-      if (!a.features && !reads.length) p.push(t + " has no input. Tick the flow features or an earlier agent.");
-      if (!(a.tokens >= 8 && a.tokens <= 1024 && Math.round(a.tokens) === a.tokens)) p.push(t + " needs max output tokens as a whole number from 8 to 1,024.");
-    }
-    if (names.indexOf(n) >= 0) p.push("Two agents are called “" + n + "”.");
-    names.push(n);
-  });
-  var kinds = ag.map(plKind), nl = kinds.filter(function (k) { return k === "label"; }).length;
-  if (nl !== 1) first.push(nl ? "Only one agent can give the answer (a label agent), but there are " + nl + "." : "Add an agent that gives the answer, such as Decide, Classify or your own label agent.");
-  if (kinds.filter(function (k) { return k === "verdict"; }).length > 1) first.push("Only one verdict agent.");
-  if (kinds.indexOf("verdict") >= 0 && kinds.indexOf("label") >= 0 && kinds.indexOf("verdict") < kinds.indexOf("label")) first.push("The verdict agent must come after the label agent.");
-  return first.concat(p);
-}
-function plIsDefault() { return PL.agents.map(function (a) { return a.builtin || "-"; }).join() === PL_DEFAULT.join(); }
-function plSpec() {
-  if (!PL.custom || plIsDefault()) return null;
-  return PL.agents.map(function (a, i) {
-    if (a.builtin) return a.builtin;
-    var earlier = PL.agents.slice(0, i).map(plName);
-    return { name: a.name, title: a.title.trim(), kind: a.kind, instructions: a.instructions.trim(),
-             reads: (a.reads || []).filter(function (r) { return earlier.indexOf(r) >= 0; }), features: !!a.features, max_new_tokens: a.tokens };
-  });
-}
-function plChain() { return PL.agents.map(plTitle).join(" → "); }
-function plOptions() {
-  var used = PL.agents.map(plName);
-  var b = PL_DEFAULT.filter(function (n) { return used.indexOf(n) < 0; }).map(function (n) { return '<option value="b:' + n + '">' + esc(n.charAt(0).toUpperCase() + n.slice(1)) + ' (built-in, ' + PL_BUILTIN[n].kind + ')</option>'; });
-  var t = PL_TEMPLATES.map(function (x) { return '<option value="t:' + x[0] + '">' + esc(x[0] === "agent" ? "Your own agent (blank)" : x[1].title + " (template, " + x[1].kind + ")") + '</option>'; });
-  $("pl-add-kind").innerHTML = (b.length ? '<optgroup label="Built-in">' + b.join("") + '</optgroup>' : "") + '<optgroup label="Templates">' + t.join("") + '</optgroup>';
-}
-function plItem(a, i) {
-  var n = PL.agents.length, t = plTitle(a), id = "pl-" + i;
-  var tools = '<span class="pl-tools">' +
-    '<button type="button" class="btn small-btn" data-pl="up"' + (i ? "" : " disabled") + ' aria-label="Move ' + esc(t) + ' up">↑</button>' +
-    '<button type="button" class="btn small-btn" data-pl="down"' + (i < n - 1 ? "" : " disabled") + ' aria-label="Move ' + esc(t) + ' down">↓</button>' +
-    '<button type="button" class="btn small-btn" data-pl="del" aria-label="Remove ' + esc(t) + '">Remove</button></span>';
-  var head = '<div class="pl-head"><b data-head="' + i + '">' + (i + 1) + '. ' + esc(t) + '</b><span class="chip">' + esc(PL_KIND_LABEL[plKind(a)]) + '</span>' + (a.builtin ? '<span class="muted small">built-in</span>' : "") + tools + '</div>';
-  if (a.builtin) {
-    var bi = PL_BUILTIN[a.builtin], present = PL.agents.slice(0, i).map(plName);
-    var reads = bi.reads.filter(function (r) { return present.indexOf(r) >= 0; }).map(function (r) { return r.charAt(0).toUpperCase() + r.slice(1); }).concat(["the flow features"]);
-    return '<li class="pl-item" data-i="' + i + '" style="--c:var(--ag-' + (i % 8 + 1) + ')">' + head + '<p class="small muted">' + esc(bi.about) + ' Reads ' + esc(reads.join(", ")) + '. Its prompt is fixed, so it measures the same as in the default pipeline.</p></li>';
-  }
-  var earlier = PL.agents.slice(0, i);
-  return '<li class="pl-item" data-i="' + i + '" style="--c:var(--ag-' + (i % 8 + 1) + ')">' + head + '<div class="pl-fields">' +
-    '<div class="field"><label for="' + id + '-title">Title</label><input id="' + id + '-title" data-f="title" maxlength="40" value="' + esc(a.title || "") + '"></div>' +
-    '<div class="field"><label for="' + id + '-name">Name <span class="hint">(id)</span></label><input id="' + id + '-name" data-f="name" maxlength="24" spellcheck="false" autocapitalize="off" value="' + esc(a.name || "") + '"></div>' +
-    '<div class="field"><label for="' + id + '-kind">Type</label><select id="' + id + '-kind" data-f="kind">' + ["text", "label", "verdict"].map(function (k) { return '<option value="' + k + '"' + (a.kind === k ? " selected" : "") + '>' + esc(PL_KIND_LABEL[k]) + '</option>'; }).join("") + '</select></div>' +
-    '<div class="field"><label for="' + id + '-tok">Max output tokens</label><input id="' + id + '-tok" data-f="tokens" type="number" min="8" max="1024" step="1" value="' + esc(a.tokens) + '"></div>' +
-    '<div class="field pl-wide"><label for="' + id + '-ins">Instructions <span class="hint">(its role, sent to the model as written)</span></label><textarea id="' + id + '-ins" data-f="instructions" maxlength="1500" rows="3">' + esc(a.instructions || "") + '</textarea></div>' +
-    '<fieldset class="pl-reads"><legend>Reads</legend><label class="check"><input type="checkbox" data-f="features"' + (a.features ? " checked" : "") + '> <span>The flow features</span></label>' +
-      earlier.map(function (e, j) { return '<label class="check"><input type="checkbox" data-read="' + j + '"' + ((a.reads || []).indexOf(plName(e)) >= 0 ? " checked" : "") + '> <span data-read-label="' + j + '">' + esc(plTitle(e)) + '’s answer</span></label>'; }).join("") +
-    '</fieldset></div></li>';
-}
-// a title shows in its own header and in later agents' "Reads": updated in place, focus untouched
-function plLabels() {
-  PL.agents.forEach(function (a, i) {
-    var h = document.querySelector('#pl-list [data-head="' + i + '"]'); if (h) h.textContent = (i + 1) + ". " + plTitle(a);
-    document.querySelectorAll('#pl-list [data-read-label="' + i + '"]').forEach(function (x) { x.textContent = plTitle(a) + "’s answer"; });
-  });
-}
-function plStatus() {
-  var p = PL.custom ? plProblems() : [];
-  $("pl-check").innerHTML = !PL.custom ? "" : p.length ? '<span class="chip bad">Fix before running</span> ' + esc(p[0]) + (p.length > 1 ? ' <span class="muted">(+' + (p.length - 1) + ' more)</span>' : "")
-    : '<span class="chip ok">Ready</span> ' + esc(plChain()) + (plIsDefault() ? ", the default pipeline." : ".");
-  $("pl-add").disabled = PL.agents.length >= PL_MAX;
-  plSave();
-  syncRun();
-}
-function plRender() {
-  var f = document.activeElement, li = f && f.closest && f.closest("#pl-list .pl-item"), keep = null;
-  if (li) keep = { i: li.getAttribute("data-i"), sel: f.getAttribute("data-f") ? '[data-f="' + f.getAttribute("data-f") + '"]' : f.getAttribute("data-read") ? '[data-read="' + f.getAttribute("data-read") + '"]' : f.getAttribute("data-pl") ? '[data-pl="' + f.getAttribute("data-pl") + '"]' : null };
-  $("pl-mode-custom").checked = PL.custom; $("pl-mode-default").checked = !PL.custom;
-  $("pl-editor").hidden = !PL.custom; $("pl-default-line").hidden = PL.custom;
-  $("pl-list").innerHTML = PL.agents.map(plItem).join("");
-  plOptions();
-  if (keep && keep.sel) {
-    var el = document.querySelector('#pl-list .pl-item[data-i="' + keep.i + '"] ' + keep.sel);
-    if (el && !el.disabled) el.focus(); else if (el) { var b = document.querySelector('#pl-list .pl-item[data-i="' + keep.i + '"] [data-pl="del"]'); if (b) b.focus(); }
-  }
-  plStatus();
-}
-$("pl-mode").addEventListener("change", function () { PL.custom = $("pl-mode-custom").checked; plRender(); });
-$("pl-reset").addEventListener("click", function () { PL.agents = PL_DEFAULT.map(function (n) { return { builtin: n }; }); plRender(); });
-$("pl-add").addEventListener("click", function () {
-  if (PL.agents.length >= PL_MAX) return;
-  var v = $("pl-add-kind").value, a;
-  if (v.indexOf("b:") === 0) a = { builtin: v.slice(2) };
-  else {
-    var t = PL_TPL[v.slice(2)], last = PL.agents[PL.agents.length - 1];
-    a = { name: plFreeName(v.slice(2)), title: t.title || "", kind: t.kind, instructions: t.instructions, features: t.features, tokens: t.tokens,
-          reads: last ? [plName(last)] : [] };
-    if (!last) a.features = true;
-  }
-  PL.agents.push(a); plRender();
-  var items = document.querySelectorAll("#pl-list .pl-item"), it = items[items.length - 1];
-  if (it) { it.scrollIntoView({ block: "nearest" }); (it.querySelector('[data-f="title"]') || it.querySelector('[data-pl="del"]')).focus(); }
-});
-$("pl-list").addEventListener("click", function (e) {
-  var b = e.target.closest("[data-pl]"); if (!b) return;
-  var i = +b.closest(".pl-item").getAttribute("data-i"), ag = PL.agents, act = b.getAttribute("data-pl");
-  if (act === "del") {
-    var gone = plName(ag[i]); ag.splice(i, 1);
-    ag.forEach(function (a) { if (a.reads) a.reads = a.reads.filter(function (r) { return r !== gone; }); });
-  } else {
-    var j = act === "up" ? i - 1 : i + 1; if (j < 0 || j >= ag.length) return;
-    var x = ag[i]; ag[i] = ag[j]; ag[j] = x;
-    b = null;
-  }
-  plRender();
-  if (act !== "del") { var mv = document.querySelector('#pl-list .pl-item[data-i="' + (act === "up" ? i - 1 : i + 1) + '"] [data-pl="' + act + '"]'); if (mv && !mv.disabled) mv.focus(); }
-});
-$("pl-list").addEventListener("input", function (e) {
-  var el = e.target, li = el.closest(".pl-item"); if (!li) return;
-  var a = PL.agents[+li.getAttribute("data-i")], f = el.getAttribute("data-f");
-  if (!f || a.builtin) return;
-  if (f === "name") {
-    var old = a.name, nu = el.value.trim();
-    PL.agents.forEach(function (o) { if (o.reads) o.reads = o.reads.map(function (r) { return r === old ? nu : r; }); });
-    a.name = nu;
-  } else if (f === "tokens") a.tokens = el.value === "" ? null : +el.value;
-  else if (f === "features") a.features = el.checked;
-  else if (f === "kind") a.kind = el.value;
-  else a[f] = el.value;
-  if (f === "title") plLabels();
-  plStatus();
-});
-$("pl-list").addEventListener("change", function (e) {
-  var el = e.target, li = el.closest(".pl-item"); if (!li) return;
-  var a = PL.agents[+li.getAttribute("data-i")], r = el.getAttribute("data-read");
-  if (r) r = plName(PL.agents[+r]);
-  if (r) { a.reads = (a.reads || []).filter(function (x) { return x !== r; }); if (el.checked) a.reads.push(r); plStatus(); return; }
-  var f = el.getAttribute("data-f");
-  if (f === "kind") { if (a.tokens === PL_BUDGET.text || a.tokens === PL_BUDGET.label || a.tokens === PL_BUDGET.verdict) a.tokens = PL_BUDGET[a.kind]; plRender(); }
-});
-plRender();
 
-// The optional extras fold opens by itself when a preset or Run again turns one of them on.
-function extrasOpen() { if ($("svc-load-test").checked || $("svc-repeat-check").checked) $("svc-extras").open = true; }
 // The IDS gate option: offered when the GPU server has an IDS model (GET /health "ids").
 function idsOptionSync() {
   var ids = (HEALTH || {}).ids, cb = $("svc-ids"), box = $("svc-ids-box");
@@ -922,10 +719,7 @@ $("svc-run").addEventListener("click", function () {
   // The wizard's own preparation: always after_prepare (one session, counted once; the
   // server uses the prepared set directly when it is already done). Reused sets: run.
   if (WIZ.prep) body.after_prepare = WIZ.prep; else body.run = WIZ.set;
-  if ($("svc-load-test").checked) body.load_test = true;
-  if ($("svc-repeat-check").checked) body.repeat_check = true;
   var ids = idsBody(); if (ids) body.ids = ids;
-  var spec = plSpec(); if (spec) body.pipeline = spec;
   $("svc-run").disabled = true;
   api("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
     if (!r.ok) { showError(err, r.data); syncRun(); return; }

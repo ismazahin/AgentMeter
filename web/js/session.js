@@ -309,9 +309,9 @@ var SECTION_Q = {
   "Where answers fail": "Where do answers fail?", "What makes a flow slow?": "Which flows are slow, and why?",
   "Which classes each model mixes up": "Which classes does each model mix up?", "What this would look like in a real SOC": "What would this look like in a real SOC?",
   "Prepared set": "Which flows were used?", "Report and results": "Download the report and results",
-  "Since the last run on these flows": "What changed since the last run?", "Other pipelines on these flows": "How do other pipelines compare on these flows?",
+  "Since the last run on these flows": "What changed since the last run?",
   "Best model for my priority": "Which model is best for my priority?", "What the prompts are made of": "What are the prompts made of?",
-  "Load scaling": "Does it scale with parallel flows?", "How many flows do you need?": "How many flows are needed to tell models apart?",
+  "How many flows do you need?": "How many flows are needed to tell models apart?",
   "Consistency across runs": "Is each model's result the same every time?", "Consistency": "Is it the same every time?",
   "Head-to-head": "Which model is faster, and by how much?"
 };
@@ -462,7 +462,7 @@ function renderSession(res, job) {
       'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", rankStabilityCard(res) + stabilityCard(res)) + pane("tradeoffs", frontierCard(res)) + pane("guide", "");
   $("spanel-reliability").innerHTML = lead("reliability") + pane("main", idsCard(res) + reliabilityCard(res) + accuracyStatsCard(res) + confusionCard(res) +
     triageCard(res) + socCard(res) + consistencyCard(res) + agreementCard(res) + failureCard(res));
-  $("spanel-performance").innerHTML = lead("performance") + pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("capacity", capacityCard(res) + coldStartCard(res)) + pane("drivers", driversCard(res) + scalingCard(res)) + pane("gpu", memoryCard(res) + loadCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
+  $("spanel-performance").innerHTML = lead("performance") + pane("comparison", h2hCard(res)) + pane("latency", latencyCard(res) + trendCard(res)) + pane("capacity", capacityCard(res) + coldStartCard(res)) + pane("drivers", driversCard(res) + scalingCard(res)) + pane("gpu", memoryCard(res)) + pane("statistics", effectsCard(res) + sampleSizeCard(res) + '<div id="svc-repeat-host"></div>');
   $("spanel-agents").innerHTML = lead("agents") + pane("main", agentsTab(res));
   $("spanel-cost").innerHTML = lead("cost") + pane("main", costCard(res) + energyEffCard(res) + gpuTimelineCard(res) + idleCard(res) + projectionCard(res) + priceCard(res) + correctCard(res));
   $("spanel-recommendations").innerHTML = lead("recommendations") + pane("limits", recLimitsTab(res)) + pane("context", recContextTab(res)) + pane("guidance", "");
@@ -470,7 +470,7 @@ function renderSession(res, job) {
   ["overview", "ranking", "reliability", "performance", "agents", "cost", "recommendations", "data"].forEach(function (t) { reportify(t, res); });
   resetEmbed();
   wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); SAME_SETUP = {};       // fresh per render: a later session on these flows must show up
-  wireRepeat(res, job); wireRepLine(job); wireNotes(job); wireSchedule(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePipelineCompare(job); wirePrices(res); wirePicker(res);
+  wireRepeat(res, job); wireRepLine(job); wireNotes(job); wireSchedule(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePrices(res); wirePicker(res);
   addExports($("session-body")); paintLimits($("session-body"));
   loadExplanation(job);
 }
@@ -899,7 +899,7 @@ function drawCapacity(res) {
       return '<tr data-keeps="' + m.keeps_up + '"><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtNum(m.capacity_per_min, 1) + '</td><td class="num">' + fmtPct(Math.min(1, m.utilisation)) +
         '</td><td>' + (m.keeps_up ? '<span class="chip ok">✓ yes</span>' : '<span class="chip bad">✗ no</span> <span class="small">backlog grows by ' + fmtNum(m.backlog_per_hour) + ' flows/hour</span>') +
         '</td><td class="num">' + fmtTime(m.mean_wait_s) + '</td><td class="num">' + fmtTime(m.p95_wait_s) + '</td><td class="num">' + fmtNum(m.max_queue) + ' flows</td></tr>';
-    }).join("") + '</tbody></table></div><p class="small muted">' + esc(q.method) + ' Above about 80% busy, waits grow quickly. A real deployment may batch flows (see load scaling under GPU &amp; Throughput).</p>';
+    }).join("") + '</tbody></table></div><p class="small muted">' + esc(q.method) + ' Above about 80% busy, waits grow quickly. A real deployment may batch flows.</p>';
 }
 function wireCapacity(res) {
   var inp = $("cap-rate");
@@ -967,7 +967,7 @@ function scalingCard(res) {
 function removeAgentCard(res) {
   if (!window.INSIGHTS || !res.agents) return "";
   var ra = INSIGHTS.removeAgent(res);
-  return '<div class="card" id="agents-remove"><h2>What if one agent were removed?</h2><p class="muted small" style="margin-top:0">This is an estimate from this session\'s measurements. Removing an agent saves its own call and the hand-off tokens later agents read again. It says nothing about whether the answers stay as useful, so run the pipeline again without it (Build my own) to measure that.</p>' +
+  return '<div class="card" id="agents-remove"><h2>What if one agent were removed?</h2><p class="muted small" style="margin-top:0">This is an estimate from this session\'s measurements. Removing an agent saves its own call and the hand-off tokens later agents read again. It says nothing about whether the answers would stay as useful.</p>' +
     ra.per_model.map(function (m) {
       return '<h3><i class="sw" style="--c:' + modelColor(m.model) + '"></i>' + esc(short(m.model)) + ' <span class="muted small">' + fmtTime(m.flow_s) + ' per flow</span></h3>' +
         '<div class="table-wrap"><table class="remove-table"><thead><tr><th>Remove</th><th class="num">Time saved / flow</th><th class="num">Share of flow time</th><th class="num">Tokens saved / flow</th><th>Who loses its answer</th></tr></thead><tbody>' +
@@ -1016,26 +1016,6 @@ function compositionCard(res) {
     pc.per_model.map(function (m) { return m.agents.map(function (a) { return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td>' + esc(agName(a.agent)) + '</td><td class="num">' + fmtNum(a.input_tokens) + '</td><td class="num">' + fmtNum(a.system_tokens) + '</td><td class="num">' + fmtNum(a.feature_tokens) +
       '</td><td class="num">' + fmtNum(a.handoff_tokens) + '</td><td class="num">' + fmtNum(a.other_tokens) + '</td><td class="num">' + fmtPct(a.cacheable_share) + '</td></tr>'; }).join(""); }).join("") +
     '</tbody></table></div></details><p class="small muted">' + esc(pc.note) + '</p></div>';
-}
-function wirePipelineCompare(job) {
-  var host = $("agents-pipelines-host"), id = job.job_id;
-  if (!host || !window.INSIGHTS) return;
-  allSessions().then(function (r) {
-    if (SESSION.id !== id || !r.ok) return;
-    var pc = INSIGHTS.pipelineCompare(r.data.sessions || [], id), name = function (l) { return l.map(agName).join(" → "); };
-    host.innerHTML = '<div class="card" id="agents-pipelines"><h2>Other pipelines on these flows</h2>' + (!pc.current ? '<p class="muted small">This session has no prepared-set fingerprint.</p>'
-      : !pc.others.length ? '<p class="muted small" style="margin-bottom:0">No other session ran a different pipeline on these flows and this GPU. Use <b>Build my own</b> in a new benchmark on the same prepared set (for example drop or add an agent) to see whether more agents are worth their cost.</p>'
-      : '<p class="muted small" style="margin-top:0">This session: <b>' + esc(name(pc.current.pipeline)) + '</b>. The same models on the same flows and GPU with another pipeline (change against this session):</p>' +
-        '<div class="table-wrap"><table id="agents-pipelines-table"><thead><tr><th>Pipeline</th><th>Model</th><th class="num">Latency / flow</th><th class="num">Tokens / flow</th><th class="num">Valid answers</th></tr></thead><tbody>' +
-        pc.others.map(function (o) {
-          return o.models.map(function (m, i) {
-            var d = function (v) { return v == null ? "" : ' <span class="muted small">(' + (v > 0 ? "+" : v < 0 ? "−" : "") + fmtNum(Math.abs(v) * 100, 0) + '%)</span>'; };
-            return '<tr>' + (i ? '<td></td>' : '<td><a href="#/session/' + enc(o.session_id) + '/agents">' + esc(name(o.pipeline)) + '</a></td>') + '<td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + fmtTime(m.latency_s) + d(m.latency_vs_this) +
-              '</td><td class="num">' + fmtNum(m.tokens) + d(m.tokens_vs_this) + '</td><td class="num">' + fmtPct(m.valid_rate) + (m.valid_vs_this == null ? "" : ' <span class="muted small">(' + (m.valid_vs_this >= 0 ? "+" : "−") + fmtNum(Math.abs(m.valid_vs_this) * 100, 1) + ' pts)</span>') + '</td></tr>';
-          }).join("");
-        }).join("") + '</tbody></table></div>') + '</div>';
-    addExports(host);
-  });
 }
 // ---------- Analysis expansion, phase 5: energy, provider prices, idle cost, best-model picker ----------
 function energyEffCard(res) {
@@ -1332,22 +1312,20 @@ function agreementCard(res) {
         return '<tr><td class="mono small">' + esc(short(x[0])) + '</td><td class="mono small">' + esc(e.scenario_id) + '</td><td>' + esc(e.label) + '</td><td><b>' + esc(e.verdict_class) + '</b></td><td class="small">' + esc(e.verdict_text) + '</td></tr>';
       }).join("") + '</tbody></table></div></details>' : '<p class="small muted">Every checked explanation names the chosen class.</p>') + '</div>';
 }
-// Output Reliability: are the answers consistent (format, repeat, MITRE)?
+// Output Reliability: are the answers consistent (format, MITRE)?
 function consistencyCard(res) {
   var r = res.output_reliability;
-  if (!r || !r.per_model.some(function (m) { return m.format || m.mitre || m.answer_stability; })) return "";
-  var pm = r.per_model, rep = pm.some(function (m) { return m.answer_stability; });
+  if (!r || !r.per_model.some(function (m) { return m.format || m.mitre; })) return "";
+  var pm = r.per_model;
   var cell = function (x, rate, a, b) { return !x ? '<span class="muted">—</span>' : fmtPct(x[rate]) + ' <span class="muted small">(' + x[a] + '/' + x[b] + ')</span>'; };
-  return '<div class="card" id="rel-consistency"><h2>Consistency of answers</h2><p class="muted small" style="margin-top:0">Does the pipeline answer in the expected form, give the same answer twice, and name the same ATT&amp;CK technique for the same label? Usable, repeatable output is what makes the timings meaningful.</p>' +
-    '<div class="table-wrap"><table id="rel-consistency-table"><thead><tr><th>Model</th><th class="num">Reply is just a label</th><th class="num">Same answer when repeated</th><th class="num">Same technique per label</th><th class="num">Technique as configured</th></tr></thead><tbody>' +
+  return '<div class="card" id="rel-consistency"><h2>Consistency of answers</h2><p class="muted small" style="margin-top:0">Does the pipeline answer in the expected form, and name the same ATT&amp;CK technique for the same label? Usable output is what makes the timings meaningful.</p>' +
+    '<div class="table-wrap"><table id="rel-consistency-table"><thead><tr><th>Model</th><th class="num">Reply is just a label</th><th class="num">Same technique per label</th><th class="num">Technique as configured</th></tr></thead><tbody>' +
     pm.map(function (m) {
-      return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + cell(m.format, "exact_rate", "exact", "checked") + '</td><td class="num">' + cell(m.answer_stability, "rate", "same", "checked") +
+      return '<tr><td class="mono">' + esc(short(m.model)) + '</td><td class="num">' + cell(m.format, "exact_rate", "exact", "checked") +
         '</td><td class="num">' + cell(m.mitre, "consistent_rate", "consistent", "checked") + '</td><td class="num">' + cell(m.mitre, "match_rate", "matches_reference_map", "checked") + '</td></tr>';
     }).join("") + '</tbody></table></div>' +
-    (rep ? "" : '<p class="small muted">“Same answer when repeated” needs the <b>repeat check</b> option when you start a benchmark (it answers the first 10 flows a second time).</p>') +
     '<details class="info"><summary>What each column means</summary><ul class="small list">' +
       '<li><b>Reply is just a label.</b> ' + esc(r.definitions.format) + '. Extra text costs tokens and needs cleaning before an analyst tool can use it.</li>' +
-      '<li><b>Same answer when repeated.</b> ' + esc(r.definitions.answer_stability) + '.</li>' +
       '<li><b>Technique.</b> ' + esc(r.definitions.mitre) + '. It is empty when there is no verdict agent or its text was not recorded.</li></ul></details></div>';
 }
 // per agent: where the pipeline's answers go wrong (from the per-agent breakdown)

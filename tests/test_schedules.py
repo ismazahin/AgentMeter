@@ -41,7 +41,7 @@ def mgr(tmp_path):
 
 def done_job(mgr, user=None):
     j = mgr.create_job("csv_runs/cicids2017_sample", ["mock-a", "mock-b"], provider="mock",
-                       meta={"user": user} if user else None, pipeline=None)
+                       meta={"user": user} if user else None)
     mgr._update(j["job_id"], status="done")
     while not mgr._queue.empty():
         mgr._queue.get_nowait()

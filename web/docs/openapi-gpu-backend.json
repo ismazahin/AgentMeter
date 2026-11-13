@@ -393,16 +393,6 @@
           "type": "array",
           "description": "array (1–4)"
          },
-         "pipeline": {
-          "type": "array",
-          "description": "array"
-         },
-         "load_test": {
-          "type": "boolean"
-         },
-         "repeat_check": {
-          "type": "boolean"
-         },
          "ids": {
           "type": "boolean",
           "description": "boolean | object {threshold: number}"

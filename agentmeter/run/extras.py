@@ -5,21 +5,18 @@ session DB (never into the measured tables, never part of a score):
   flow_times/<run>__<model>.json    when each flow started (unix seconds) and each agent's wall time,
                                     recorded between flows (outside every timed call) so the GPU
                                     timeline can mark each agent's turn
-  repeat_check/<run>__<model>.json  opt-in: the first flows answered a second time, after the
-                                    measured flows, to see whether the answers repeat
 
-The repeat check uses a plain pipeline (no instrumentation hook), in the same worker with the
-model still loaded, like the load-scaling step (load_test.py).
+Sessions recorded before the repeat check was removed may also hold repeat_check/ files. They
+are kept on disk but no longer read.
 """
 from __future__ import annotations
 
 import json
 import re
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Optional
 
-REPEAT_FLOWS = 10
-KINDS = ("model_load", "repeat_check", "flow_times")
+KINDS = ("model_load", "flow_times")
 
 
 def out_path(db_path: str | Path, run_id: str, label: str, kind: str) -> Path:
@@ -45,23 +42,3 @@ def read_all(db_path: str | Path, run_id: str, labels: dict[str, str], kind: str
         except (OSError, ValueError):
             out[model] = None
     return out
-
-
-def run_repeat_check(cfg, provider, scenarios: Sequence, label: str, db_path: str | Path, run_id: str,
-                     n: int = REPEAT_FLOWS) -> dict[str, Any]:
-    from ..pipeline import Pipeline
-
-    pipeline = Pipeline(cfg, provider)                      # plain: no instrumentation hook
-    rows = []
-    for s in list(scenarios)[:n]:
-        try:
-            st = pipeline.run(s.scenario_id, s.feature_prompt)
-            rows.append({"scenario_id": s.scenario_id, "predicted": (st.get("verdict") or {}).get("predicted_class", "Unparseable")})
-        except Exception as e:  # noqa: BLE001 — recorded; the measured flows are already safe
-            rows.append({"scenario_id": s.scenario_id, "predicted": None, "error": f"{type(e).__name__}: {e}"[:200]})
-    data = {"model": label, "n": len(rows), "flows": rows,
-            "method": f"After the measured flows, the first {n} flows answered again by the same loaded model "
-                      "(plain pipeline, same prompts and settings); compared with the measured answers."}
-    write(db_path, run_id, label, "repeat_check", data)
-    print(f"    repeat check: {len(rows)} flows answered again")
-    return data

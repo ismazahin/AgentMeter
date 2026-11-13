@@ -1,6 +1,6 @@
 # Remove load scaling, repeat check and custom pipelines (design)
 
-Date: 2026-11-13. Status: waiting for approval.
+Date: 2026-11-13. Status: approved and built.
 
 ## Why
 
@@ -89,8 +89,9 @@ the whole system, the GPU server included, not only to hide them on the website.
 - A session recorded with **load scaling** or the **repeat check** opens with all its main
   measurements. The extra section is simply not shown any more (its files stay on disk, unread).
 - A session recorded with a **custom pipeline** opens with its timings, tokens and answers per
-  agent. Anything that needed the custom agents' definitions, such as the hand-offs between agents,
-  is left out for that session. It keeps its own Leaderboard setup group.
+  agent. As built, `pipeline/spec.py` keeps a small read-only `describe()` of a stored config, so
+  its agent names and hand-offs still show. It keeps its own Leaderboard setup group. Nothing can
+  run a custom agent any more (`Pipeline` refuses one).
 
 ## Left to the builder
 

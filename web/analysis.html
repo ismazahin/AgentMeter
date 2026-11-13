@@ -2722,7 +2722,7 @@
     if (flow && sw / flow >= 0.3)
       steps.push("<b>Consider a smaller model for that one step.</b> " + esc(dsAgent(slow.agent_name)) + " takes " + Math.round(100 * sw / flow) +
         "% of every flow, so a faster model there would cut the most time. Its answers may change, so run the benchmark again to measure both speed and output validity.");
-    steps.push("<b>Measure the change.</b> Build the adjusted pipeline under New benchmark (Build my own) and run it on the same prepared set. The new session compares like for like with this one. None of these suggestions changes a stored score.");
+    steps.push("<b>These are estimates.</b> They come from this session's measurements, and none of them changes a stored score.");
     box.innerHTML = "<div><h3>Where each step spends its time</h3><p class='ds-lede'>Mean per flow for " + esc(everyday(top)) + ". The " + esc(dsAgent(slow.agent_name)) + " step takes the longest" +
       (heavy ? ", and " + esc(dsAgent(heavy.agent_name)) + " needs the most working memory" : "") + (heavy && heavy !== slow ? ". Both are highlighted.</p>" : ". It is highlighted.</p>") + table + "</div>" +
       "<div><h3>What you can change, and what it would save</h3><ol class='ds-steps'>" + steps.map(function (s) { return "<li><span>" + s + "</span></li>"; }).join("") + "</ol></div>";

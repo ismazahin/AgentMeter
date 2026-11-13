@@ -706,21 +706,6 @@
   .help-dl dd { margin: 0; color: var(--muted-2); }
   @media (max-width: 640px) { .help-dl { grid-template-columns: 1fr; } .help-dl dd { margin-bottom: 6px; } }
   #view-help .card { scroll-margin-top: 80px; }
-  .pl-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; counter-reset: pl; }
-  .pl-item { border: 1px solid var(--border-2); border-left: 4px solid var(--c); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); }
-  .pl-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .pl-head b { font-size: 14px; }
-  .pl-tools { margin-left: auto; display: flex; gap: 6px; }
-  .pl-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 12px; margin-top: 10px; }
-  .pl-fields .field { min-width: 0; }
-  .pl-fields .field input, .pl-fields .field select { width: 100%; }
-  .pl-fields .pl-wide { grid-column: 1 / -1; }
-  .pl-fields textarea { width: 100%; min-height: 64px; resize: vertical; font: inherit; }
-  .pl-reads { grid-column: 1 / -1; border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
-  .pl-reads legend { font-weight: 600; font-size: 13px; padding: 0; margin-bottom: 4px; }
-  .pl-item p { margin: 4px 0 0; }
-  @media (max-width: 720px) { .pl-fields { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 420px) { .pl-fields { grid-template-columns: 1fr; } .pl-tools { margin-left: 0; } }
   svg.frontier { width: 100%; height: auto; max-width: 720px; display: block; }
   svg.frontier .grid { stroke: var(--border); stroke-width: 1; }
   svg.frontier .ax { fill: var(--muted-2); font-size: 11px; }
@@ -759,9 +744,6 @@
   svg.trend .base { stroke: var(--muted-2); stroke-width: 1.5; stroke-dasharray: 6 4; }
   svg.trend circle.sched { stroke: var(--text); }
   .tr-drift-list { margin: 0; padding-left: 18px; } .tr-drift-list li { margin: 6px 0; }
-  .pl-view { margin: 8px 0 0; padding-left: 22px; display: grid; gap: 10px; }
-  .pl-view p { margin: 2px 0 0; }
-  .pl-instr { white-space: pre-wrap; }
   .note-snip { margin-top: 4px; color: var(--muted-2); max-width: 46ch; }
   .notes-text { white-space: pre-wrap; }
   .flow-detail { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
@@ -1362,7 +1344,7 @@
       <ol class="guide-steps">
         <li><b>Data.</b> Upload a CSV (CIC-IDS2017 flows, with labels) or a PCAP. AgentMeter samples the flows you ask for and keeps them as a <i>prepared set</i> you can reuse. The GPU server does the sampling when it is free. While it is busy with another benchmark, AgentMeter does it in the cloud instead, or in your browser when there is no cloud preparation, so a new dataset never waits in the queue. Every route runs the same Python code, so the prepared flows are identical.</li>
         <li><b>Models.</b> Pick one to four open models (4-bit). The wizard estimates the time and cost from earlier runs.</li>
-        <li><b>Run.</b> Each flow goes through the agents, one model at a time, on the same GPU. By default the agents are Perceive, Reason, Decide and Act, or you can use your own pipeline.</li>
+        <li><b>Run.</b> Each flow goes through the agents, one model at a time, on the same GPU. The agents are Perceive, Reason, Decide and Act.</li>
         <li><b>Read.</b> Each session tab opens with a one-line summary. Tables download as CSV, and line charts and diagrams as PNG. Reference labels only check that the output is valid, because AgentMeter measures efficiency.</li>
       </ol>
     </div>
@@ -1394,8 +1376,6 @@
         <li><b>Upload.</b> Open <a href="#/new">New Benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for the reference-label check) or a PCAP, and choose how many flows the benchmark samples. No GPU is needed, because the preparation service on your computer does it. If it is not running, click <b>Start the preparation service</b>.</li>
         <li><b>Preparing and your data.</b> The data is prepared and the IDS scores every flow. Then you see what is in it, the alerts, what the IDS caught and missed (labelled CSV), a threshold to try, and the projected LLM cost. <b>Continue</b> when the GPU server is running.</li>
         <li><b>Models.</b> Pick one to four open models. Every model runs in 4-bit NF4 on the same GPU, one at a time, so the numbers are comparable. The wizard estimates time and cost from earlier runs.</li>
-        <li><b>Agents.</b> Keep the default pipeline (Perceive → Reason → Decide → Act) or build your own with up to 8 agents, from the built-ins, ready-made templates or agents you write. Exactly one agent gives the answer (a <i>label</i> agent). Each agent reads the flow, earlier agents' answers or both.</li>
-        <li><b>Options.</b> Tick <b>Load test</b> to also measure how throughput scales with 1, 2 and 4 flows in parallel, and <b>repeat check</b> to answer the first 10 flows twice (does the model give the same answer?).</li>
         <li><b>Run.</b> The session page shows live progress. If the GPU is busy, your run is queued and starts by itself. With a Telegram chat in Settings you get a message when it finishes. You can leave the page, and the run continues on the GPU server. Stop it from the same page if needed.</li>
       </ol>
       <p class="muted small">No GPU connected? The app says so in the sidebar. Uploading and preparing data, the IDS results and old sessions still work. To run a benchmark, the GPU server must be running first.</p>
@@ -1618,24 +1598,6 @@
           <button type="button" class="btn small-btn danger-lite" id="wiz-preset-del" hidden>Delete preset</button>
         </div>
         <hr class="sep">
-        <h2>Agents</h2>
-        <div class="seg-opts" role="radiogroup" aria-label="Agent pipeline" id="pl-mode">
-          <label><input type="radio" name="pl-mode" value="default" id="pl-mode-default" checked> Default pipeline</label>
-          <label><input type="radio" name="pl-mode" value="custom" id="pl-mode-custom"> Build my own</label>
-        </div>
-        <p class="muted small" id="pl-default-line">Perceive → Reason → Decide → Act is the study pipeline, comparable with every default session.</p>
-        <div id="pl-editor" hidden>
-          <p class="muted small">Up to 8 agents run one after another on every flow, each one model call. Exactly one <b>label</b> agent gives the answer (an attack class), and a <b>verdict</b> agent after it may add the MITRE technique. Each agent reads the flow features, earlier agents' answers or both. Your instructions are sent to the model as written, and AgentMeter adds only the format line a label or verdict needs.</p>
-          <ol class="pl-list" id="pl-list"></ol>
-          <div class="row">
-            <div class="field"><label for="pl-add-kind">Add an agent</label>
-              <select id="pl-add-kind"></select></div>
-            <button type="button" class="btn" id="pl-add">Add</button>
-            <button type="button" class="btn" id="pl-reset">Start again from the default</button>
-          </div>
-          <p class="small" id="pl-check" role="status" aria-live="polite"></p>
-        </div>
-        <hr class="sep">
         <h2>Settings</h2>
         <p class="small" id="svc-run-mode"></p>
         <dl class="kv small" id="wiz-settings"></dl>
@@ -1646,13 +1608,6 @@
           <div class="field"><label for="svc-ids-tau">IDS threshold (blank = the model's own)</label>
             <input type="number" id="svc-ids-tau" min="0.01" max="1" step="0.01" placeholder="model default"></div>
         </div>
-        <details class="extra-models" id="svc-extras">
-          <summary>Optional extras <span class="muted small">They add time and never change a score</span></summary>
-          <label class="check"><input type="checkbox" id="svc-load-test">
-            <span>Also measure load scaling (1, 2 and 4 flows at once)</span></label><span class="info-i" tabindex="0" role="button" data-tip="After the measured flows, each model runs a few extra flows with 1, 2 and 4 in flight at once, to show whether throughput grows with concurrency. It adds time, is reported separately and never changes a score, rank or verdict.">i</span>
-          <br><label class="check"><input type="checkbox" id="svc-repeat-check">
-            <span>Also answer the first 10 flows a second time (repeat check)</span></label><span class="info-i" tabindex="0" role="button" data-tip="After the measured flows, each model answers its first 10 flows again with the same prompts and settings. Output Reliability then shows how often it gave the same answer. It adds a little time and never changes a score, rank or verdict.">i</span>
-        </details>
         <div class="row">
           <a class="btn" id="wiz-back" href="#/new">Back</a>
           <button type="button" class="btn primary" id="svc-run" disabled>Run benchmark</button>

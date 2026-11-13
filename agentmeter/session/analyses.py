@@ -16,8 +16,6 @@ back into any score, SAW value, rank or verdict (tests/test_scored_keys_golden.p
   memory                working VRAM (excludes weights) vs total peak (weights + working)
   cost_energy           B. cost per 1,000 flows (measured time x GPU $/h) and energy
                            (sampled GPU board power) — "not measured" on mock/CPU
-  load_scaling          the opt-in load-scaling step (run/load_test.py): throughput and latency
-                           with 1, 2, 4 flows in flight, read from its own files
   gpu_timeline          the sampled board power, GPU utilisation and device memory over the
                            session (thinned), with each model's measured window and idle window
   decision_helper       C. constraint rules (configs/constraint_rules.yaml), evaluated
@@ -650,8 +648,7 @@ def _technique(text: Optional[str]) -> Optional[str]:
 def reliability_block(sr: list[dict], am: list[dict], label_of: dict[str, str], budgets: dict[str, int],
                       label_agent: str, verdict_agent: Optional[str], classes: list[str],
                       texts: dict[tuple, Optional[str]], labelled: bool,
-                      mitre: Optional[dict[str, str]] = None,
-                      repeat: Optional[dict[str, Optional[dict]]] = None) -> dict[str, Any]:
+                      mitre: Optional[dict[str, str]] = None) -> dict[str, Any]:
     """Per model, per flow: did the pipeline produce a usable answer?
       valid      the label agent's reply is one of the allowed labels AND no agent returned nothing
       truncated  some agent stopped at its token budget (its text may be cut; the answer can still be valid)
@@ -719,22 +716,12 @@ def reliability_block(sr: list[dict], am: list[dict], label_of: dict[str, str], 
                        "matches_reference_map": match, "match_rate": match / got,
                        "per_label": {lab: {"n": len(v), "techniques": {str(x): v.count(x) for x in set(v)}}
                                      for lab, v in sorted(by_label.items())}}
-        # repeat check (opt-in): the same flows answered a second time by the same loaded model
-        stab = None
-        rc = (repeat or {}).get(model)
-        if rc and rc.get("flows"):
-            measured = {f["scenario_id"]: f["predicted_label"] for f in flows}
-            pairs = [(measured.get(r["scenario_id"]), r.get("predicted")) for r in rc["flows"]
-                     if r.get("predicted") is not None and r["scenario_id"] in measured]
-            if pairs:
-                same = sum(1 for a, b in pairs if a == b)
-                stab = {"checked": len(pairs), "same": same, "rate": same / len(pairs)}
         per.append({"model": model, "n_flows": n,
                     "valid": len(valid), "valid_rate": (len(valid) / n) if n else None,
                     "unparseable": len(unparseable), "empty": len(empty), "truncated": len(capped),
                     "truncated_rate": (len(capped) / n) if n else None,
                     "verdict_consistency": cons, "reference_agreement": ref,
-                    "format": fmt, "mitre": mit, "answer_stability": stab})
+                    "format": fmt, "mitre": mit})
     return {
         "label_agent": label_agent, "verdict_agent": verdict_agent, "labelled": labelled,
         "per_model": per,
@@ -746,7 +733,6 @@ def reliability_block(sr: list[dict], am: list[dict], label_of: dict[str, str], 
             "format": f"the {label_agent} agent's reply is exactly one allowed label (else AgentMeter had to clean it up)",
             "mitre": ("the verdict agent names an ATT&CK technique (T####); consistent = the same technique for the "
                       "same label; reference map = the configured technique for that label"),
-            "answer_stability": "opt-in repeat check: the first flows answered again by the same model, same answer",
             "reference_agreement": ("share of answers equal to the data set's reference label — a check that the "
                                     "output is meaningful, not a detection score; AgentMeter does not rank detectors"
                                     if labelled else "the flows have no reference labels"),
@@ -1187,20 +1173,6 @@ def timeline_markers(flow_times: dict[str, Optional[dict]], t0: float) -> dict[s
 LOW_UTIL_PCT = 10.0     # GPU utilisation below this counts as "nearly idle"
 
 
-def load_scaling_block(db_path: str | Path, run_id: str, label_of: dict[str, str]) -> dict[str, Any]:
-    """The opt-in load-scaling results of this run (one file per model), or why there are none."""
-    from ..run.load_test import read_results
-    found = read_results(db_path, run_id, label_of)
-    per = [{**r, "model": m} for m, r in found.items() if r]
-    if not per:
-        return {"measured": False, "reason": "not requested for this session (opt-in: \"Also measure load scaling\")",
-                "per_model": []}
-    return {"measured": True, "method": per[0].get("method"), "per_model": per,
-            "note": ("Separate from the measured flows: uninstrumented, run after them in the same worker. "
-                     "On one GPU, flows in flight share it; throughput that does not grow with concurrency "
-                     "means the model is already using the GPU fully one flow at a time.")}
-
-
 def read_model_memory(db: str | Path, run_id: str) -> dict[str, dict]:
     """model_memory rows (Phase 46 follow-up) by DB model label; {} for older sessions."""
     con = sqlite3.connect(f"file:{Path(db)}?mode=ro", uri=True)
@@ -1336,7 +1308,7 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     payload["output_reliability"] = reliability_block(
         sr, am, label_of, budgets, label_agent(pl) or "decide", verdict, list(config_data.get("classes") or []),
         read_texts(db_path, run_id), bool((payload.get("session") or {}).get("accuracy_available")),
-        mitre=dict(config_data.get("mitre") or {}), repeat=read_extras(db_path, run_id, labels, "repeat_check"))
+        mitre=dict(config_data.get("mitre") or {}))
     payload["drivers"] = drivers_block(sr, am, label_of, run_dir)
     payload["prompt_composition"] = prompt_composition_block(am, read_parts(db_path, run_id), label_of)
     payload["cold_start"] = cold_start_block(sr, label_of, read_extras(db_path, run_id, labels, "model_load"))
@@ -1370,7 +1342,6 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     payload["gpu_health"] = gpu_health_block(sr, label_of, real=real, energy=energy)
     payload["gpu_timeline"] = gpu_timeline_block(sr, label_of, real=real, energy=energy,
                                                  flow_times=read_extras(db_path, run_id, labels, "flow_times"))
-    payload["load_scaling"] = load_scaling_block(db_path, run_id, label_of)
     payload["memory"] = memory_block(payload, read_model_memory(db_path, run_id), label_of, real=real,
                                      agents=payload["agents"], sr=sr, energy=energy)
     payload["session_identity"] = identity_block(run_dir, config_data, env)

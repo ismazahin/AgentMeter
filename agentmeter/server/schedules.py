@@ -110,7 +110,7 @@ class Schedules:
                                "too_many_schedules", 409)
             s = {"schedule_id": "sch_" + secrets.token_hex(6), "source_job_id": job_id,
                  "run_name": job.get("run_name"), "models": list(job.get("models") or []),
-                 "pipeline": job.get("pipeline"), "provider": job.get("provider"),
+                 "provider": job.get("provider"),
                  "base_config": job.get("base_config"), "every_hours": every_hours, "runs_total": runs,
                  "runs_done": 0, "jobs": [], "active": True, "ended": None, "last_error": None, "waiting": None,
                  "user": user, "created_at": _iso(now), "created_ts": now, "next_ts": now + every_hours * 3600}
@@ -173,7 +173,7 @@ class Schedules:
             job = mgr.create_job(s["run_name"], s["models"], provider=s.get("provider"),
                                  base_config=self.base_config or s.get("base_config"),
                                  environment=self.environment() if self.environment else None,
-                                 meta=meta, pipeline=s.get("pipeline"))
+                                 meta=meta)
         except JobError as e:
             s.update(last_error=str(e), waiting=None)
             if e.code in ("run_missing", "bad_models", "too_many_models"):    # will never succeed

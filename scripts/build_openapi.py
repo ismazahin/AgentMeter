@@ -171,7 +171,7 @@ op(BE, "post", "/api/prepared/{kind}/{name}/delete", "Data sets", "Delete a prep
    desc="Refused while a queued or running benchmark uses the set. Sessions that ran on it keep their results. " + RT)
 op(BE, "get", "/api/jobs", "Benchmarks", "Jobs on this server, newest first", RUN("read"), [p("limit", schema={"type": "integer"})])
 op(BE, "post", "/api/jobs", "Benchmarks", "Start a benchmark", RUN("benchmark"),
-   body={"run": "string", "after_prepare": "string", "models": "array (1–4)", "pipeline": "array", "load_test": "boolean", "repeat_check": "boolean", "ids": "boolean | object {threshold: number}"}, ok="202", desc=RT)
+   body={"run": "string", "after_prepare": "string", "models": "array (1–4)", "ids": "boolean | object {threshold: number}"}, ok="202", desc=RT)
 op(BE, "get", "/api/jobs/{job_id}", "Benchmarks", "A job's status and progress", NONE, [JOB], desc="Open for 128-bit job ids (the id is the secret); older short ids need a read token.")
 op(BE, "get", "/api/jobs/{job_id}/result", "Benchmarks", "A finished job's results", RUN("read"), [JOB], errors=["409 not_ready"])
 op(BE, "get", "/api/jobs/{job_id}/report.pdf", "Benchmarks", "The PDF report", RUN("read"), [JOB])

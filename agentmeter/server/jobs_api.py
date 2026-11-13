@@ -2,8 +2,9 @@
 Flask app (scripts/serve.py); access.py (run tokens, CORS, rate limits)
 covers them like every other route.
 
-  POST /api/jobs                {run | after_prepare, models[<=4], provider?, base_config?, load_test?,
-                                repeat_check?, pipeline?} -> 202 {job}   (pipeline: pipeline/spec.py)
+  POST /api/jobs                {run | after_prepare, models[<=4], provider?, base_config?, ids?}
+                                -> 202 {job}   (the removed load_test, repeat_check and pipeline
+                                fields are ignored, so an old client or schedule still runs)
   GET  /api/jobs                ?limit=N  -> recent jobs, newest first
   GET  /api/jobs/<id>           status + live progress + result_ready / result_url
   GET  /api/jobs/<id>/result    session_results.json once done (409 until then)
@@ -129,12 +130,6 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
         after = body.get("after_prepare")                 # Phase 46: queue behind a prepare job
         if after is not None and not isinstance(after, str):
             return fail(JobError("'after_prepare' must be a prepare job id", "bad_request", 400))
-        load_test = body.get("load_test", False)          # opt-in load-scaling step (run/load_test.py)
-        if not isinstance(load_test, bool):
-            return fail(JobError("'load_test' must be true or false", "bad_request", 400))
-        repeat_check = body.get("repeat_check", False)    # opt-in: answer the first flows again (run/extras.py)
-        if not isinstance(repeat_check, bool):
-            return fail(JobError("'repeat_check' must be true or false", "bad_request", 400))
         ids = body.get("ids")                             # the IDS gate before the LLM triage (agentmeter/ids)
         try:
             from ..ids.stage import normalize_ids_option
@@ -167,8 +162,7 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
                                  base_config=base_config if provider is not None and base_config
                                  else body.get("base_config"),
                                  environment=environment() if environment else None,
-                                 after_prepare=after, meta=runtoken.job_meta(), load_test=load_test,
-                                 pipeline=body.get("pipeline"), repeat_check=repeat_check, ids=ids)
+                                 after_prepare=after, meta=runtoken.job_meta(), ids=ids)
         except JobError as e:
             return fail(e)
         return jsonify(with_links(job)), 202

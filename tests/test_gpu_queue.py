@@ -20,7 +20,7 @@ def _app(tmp_path, provider="mock", env=None):
 
 def test_queue_order_running_and_recent(tmp_path):
     app, mgr = _app(tmp_path)
-    ids = [mgr.create_job("csv_runs/cicids2017_sample", [m], provider="mock", meta={"user": {"sub": "u1", "uname": "alice"}}, pipeline=None)["job_id"]
+    ids = [mgr.create_job("csv_runs/cicids2017_sample", [m], provider="mock", meta={"user": {"sub": "u1", "uname": "alice"}})["job_id"]
            for m in ("mock-a", "mock-b", "mock-c", "mock-d")]
     mgr._update(ids[0], status="done", finished_at="2026-11-02T10:00:00Z")
     mgr._update(ids[1], status="running", started_at="2026-11-02T10:01:00Z")

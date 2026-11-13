@@ -485,22 +485,6 @@ def test_budget_tuning_advice():
     assert bt["decide"]["advice"] == "fits" and bt["act"]["advice"] == "no_budget"
 
 
-def test_pipeline_compare_finds_other_pipelines_on_the_same_flows():
-    met = lambda lat, tok, v: {A: {"mean_latency_s": lat, "mean_tokens_per_flow": tok, "valid_rate": v}}
-    sessions = [
-        {"session_id": "cur", "status": "Done", "prepared_set_sha256": "h", "gpu": "L4", "pipeline": None, "metrics": met(2.0, 1000, 1.0)},
-        {"session_id": "short", "status": "Done", "prepared_set_sha256": "h", "gpu": "L4", "pipeline": ["perceive", "decide"], "metrics": met(1.0, 600, 0.9)},
-        {"session_id": "same", "status": "Done", "prepared_set_sha256": "h", "gpu": "L4", "pipeline": ["perceive", "reason", "decide", "act"], "metrics": met(2.1, 1000, 1.0)},
-        {"session_id": "othergpu", "status": "Done", "prepared_set_sha256": "h", "gpu": "A100", "pipeline": ["decide"], "metrics": met(1.0, 1, 1)},
-        {"session_id": "otherset", "status": "Done", "prepared_set_sha256": "x", "gpu": "L4", "pipeline": ["decide"], "metrics": met(1.0, 1, 1)}]
-    pc = call("pipelineCompare", sessions, "cur")
-    assert pc["current"]["pipeline"] == ["perceive", "reason", "decide", "act"]
-    assert [o["session_id"] for o in pc["others"]] == ["short"]
-    m = pc["others"][0]["models"][0]
-    assert m["latency_vs_this"] == -0.5 and m["tokens_vs_this"] == -0.4 and abs(m["valid_vs_this"] + 0.1) < 1e-9
-
-
-# ---------------------------------------------------------------- analysis expansion, phase 5
 def test_energy_efficiency_price_compare_idle_and_recommend():
     s = _card()
     s["cost_energy"]["per_model"] = [{"model": A, "wh_per_flow": 0.5}, {"model": B, "wh_per_flow": None, "energy_reason": "mock run"}]

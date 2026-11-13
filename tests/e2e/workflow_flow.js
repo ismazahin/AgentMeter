@@ -43,7 +43,7 @@ async function grab(p, click) {
   try {
     const models = ((await getJson('/api/models/catalog')).study || []).map(m => m.id);
     const set = await prepare(path.join(REPO, 'data', 'sample_csv', 'cicids2017_sample.csv'), 8);
-    const j1 = await bench(set, models.slice(0, 2), { repeat_check: true });
+    const j1 = await bench(set, models.slice(0, 2));
     const j2 = await bench(set, models.slice(2, 4));
     log(await waitDone(j1) === 'done' && await waitDone(j2) === 'done', 'two sessions on one prepared set');
 
@@ -53,7 +53,6 @@ async function grab(p, click) {
     await p.waitForFunction(() => document.querySelector('#wiz-data-chip').textContent === 'Ready', null, { timeout: 30000 });
     const ticked = await p.$$eval('#svc-models input:checked', x => x.map(i => i.value).sort());
     log(JSON.stringify(ticked) === JSON.stringify(models.slice(0, 2).sort()), 'Run again: the same models are ticked (' + ticked.map(m => m.split('/').pop()).join(', ') + ')');
-    log(await p.isChecked('#svc-repeat-check') && !(await p.isChecked('#svc-load-test')), 'Run again: the same options (repeat check on, load test off)');
     log(/Run again/.test(await p.textContent('#wiz-again')) && /same data set and models/.test(await p.textContent('#wiz-again')), 'Run again: says what is reused');
 
     // presets: save these choices, change them, bring them back
@@ -61,14 +60,14 @@ async function grab(p, click) {
     await p.click('#wiz-preset-save');
     await p.waitForFunction(() => /Pair A/.test(document.querySelector('#wiz-preset').textContent));
     for (const inp of await p.$$('#svc-models input:checked')) await inp.uncheck();
-    await p.uncheck('#svc-repeat-check');
     await p.selectOption('#wiz-preset', { label: await p.$eval('#wiz-preset', s => [...s.options].find(o => /Pair A/.test(o.textContent)).textContent) });
     const back = await p.$$eval('#svc-models input:checked', x => x.map(i => i.value).sort());
-    log(JSON.stringify(back) === JSON.stringify(models.slice(0, 2).sort()) && await p.isChecked('#svc-repeat-check'), 'Presets: a saved preset brings back its models and options');
+    log(JSON.stringify(back) === JSON.stringify(models.slice(0, 2).sort()), 'Presets: a saved preset brings back its models');
 
     // run it, with "tell me when it finishes" (headless: no notification permission -> a message in the page)
-    log(!(await p.$('#svc-notify')) && await p.$eval('#svc-extras', d => d.open) && await p.isVisible('#svc-repeat-check'),
-        'no "Tell me when it finishes" box (always on), and load scaling and repeat check sit in Optional extras, opened here by Run again');
+    log(!(await p.$('#svc-notify')) && !(await p.$('#svc-load-test')) && !(await p.$('#svc-repeat-check')) && !(await p.$('#pl-mode')) &&
+        /Perceive → Reason → Decide → Act/.test(await p.textContent('#wiz-settings')),
+        'no notify box (always on), no load scaling, repeat check or Build my own, and the default agents in Settings');
     await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/new\/run\//.test(location.hash), null, { timeout: 30000 });
     const j3 = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[3]);
@@ -103,7 +102,7 @@ async function grab(p, click) {
     log(['README.md', 'identity.json', 'prepared_set/features.csv', 'prepared_set/manifest.json', 'run.json', 'session_results.json'].every(n => names.includes(n)),
         'Reproducibility package: a valid .zip with README, run, identity, results and the prepared flows (' + names.length + ' files)');
     const run = JSON.parse(cp.execFileSync(process.env.PYTHON || 'python', ['-c', 'import sys,zipfile;print(zipfile.ZipFile(sys.argv[1]).read("run.json").decode())', zip]).toString());
-    log(run.repeat_check === true && run.quantization === '4-bit NF4' && run.models.length === 2, 'run.json records the models, options and 4-bit NF4');
+    log(!('repeat_check' in run) && !('load_test' in run) && run.quantization === '4-bit NF4' && run.models.length === 2, 'run.json records the models and 4-bit NF4');
 
     // Ctrl+K: search pages, sessions, data sets and models
     await p.goto(BASE + '/app.html#/'); await p.waitForSelector('#gs-open');

@@ -634,16 +634,19 @@
   .pl-picks button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .pl-lede { font-size: 13.5px; color: var(--muted-2); margin: 0 0 10px; }
   table.pl-table td { vertical-align: middle; white-space: nowrap; }
+  table.pl-table th, table.pl-table td { padding-left: 8px; padding-right: 8px; }
+  table.pl-table th { white-space: normal; }
   .pl-nm { font-weight: 700; }
   .pl-sub { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; font-weight: 400; }
   .pl-tag { font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
   .pl-tag.c { background: var(--cta); color: var(--cta-ink); } .pl-tag.f { background: var(--accent-soft); color: var(--accent-text); }
-  .pl-day { display: inline-block; width: 90px; height: 8px; border-radius: 4px; background: var(--surface-2); vertical-align: middle; margin-right: 10px; overflow: hidden; }
+  .pl-day { display: inline-block; width: 56px; height: 8px; border-radius: 4px; background: var(--surface-2); vertical-align: middle; margin-right: 10px; overflow: hidden; }
   .pl-day i { display: block; height: 100%; background: var(--accent); }
   .pl-day.over i { background: #E8742A; }
+  .pl-ua.low { color: var(--warn-text); font-weight: 700; } .pl-cost b { font-size: 15px; }
   .pl-gp { font-weight: 700; } .pl-gp.ok { color: var(--success); } .pl-gp.tight { color: var(--warn-text); }
   .pl-foot { font-size: 12.5px; color: var(--muted); margin: 12px 0 0; }
-  @media (max-width: 640px) { .pl-day { display: none; } }
+  @media (max-width: 1340px) { .pl-day { display: none; } }
   .vars-row { gap: 12px; align-items: flex-end; flex-wrap: wrap; padding-top: 12px; padding-bottom: 12px; }
   .vars-row .field { margin: 0; min-width: 0; flex: 1 1 220px; }
   .gpu-zoom { gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0 4px; }
@@ -1773,8 +1776,8 @@
   <!-- COST PLANNER (route #/planner): measured cost per flow -> a daily volume, no GPU -->
   <section id="view-planner" class="view" hidden aria-labelledby="h-planner">
     <div class="page-head"><div><h1 id="h-planner">Cost planner</h1>
-      <p>What would it take to triage your alerts with each model? Enter how many alerts a day. The time, cost and energy
-        come from your latest benchmark of each model. No GPU needed.</p></div></div>
+      <p>What would it take to triage your alerts with each model? Enter how many alerts a day. The time, answers, cost
+        and energy come from your latest benchmark of each model. No GPU needed.</p></div></div>
     <form class="pl-form" id="pl-form" novalidate>
       <div><label for="pl-flows">Alerts to triage per day</label>
         <input type="text" inputmode="numeric" id="pl-flows" value="10,000" class="pl-num" autocomplete="off">

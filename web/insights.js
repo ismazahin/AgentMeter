@@ -1470,7 +1470,8 @@
         var x = s.metrics[m] || {}, k = m + "||" + s.gpu, at = s.finished_at || s.created_at || "";
         if (num(x.mean_latency_s) == null) return;
         if (!by[k] || at > by[k].at) by[k] = { model: m, gpu: s.gpu, at: at, session_id: s.session_id, n_flows: x.n_flows,
-          latency_s: num(x.mean_latency_s), cost_per_1k_usd: num(x.cost_per_1k_flows_usd), wh_per_flow: num(x.wh_per_flow) };
+          latency_s: num(x.mean_latency_s), cost_per_1k_usd: num(x.cost_per_1k_flows_usd), wh_per_flow: num(x.wh_per_flow),
+          valid_rate: num(x.valid_rate) };
       });
     });
     return Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return a.latency_s - b.latency_s; });
@@ -1485,7 +1486,10 @@
                latency_s_per_flow: m.latency_s, gpu_hours: n == null ? null : n * m.latency_s / 3600,
                cost_usd: n == null || m.cost_per_1k_usd == null ? null : n / 1000 * m.cost_per_1k_usd,
                energy_wh: n == null || m.wh_per_flow == null ? null : n * m.wh_per_flow,
-               fits_in_a_day: n == null ? null : n * m.latency_s <= 86400 };
+               fits_in_a_day: n == null ? null : n * m.latency_s <= 86400, valid_rate: m.valid_rate,
+               // the GPU price per hour that benchmark paid: its cost per flow over its GPU time per flow
+               usd_per_gpu_hour: m.cost_per_1k_usd == null || !m.latency_s ? null : m.cost_per_1k_usd / (1000 * m.latency_s / 3600),
+               gpus_all_day: n == null ? null : Math.max(1, Math.ceil(n * m.latency_s / 86400)) };
     });
   }
 

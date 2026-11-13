@@ -76,6 +76,10 @@ def test_the_projection_uses_the_latest_real_session_per_model_and_gpu():
     assert q["gpu_hours"] == pytest.approx(2000 * 6 / 3600) and q["cost_usd"] == pytest.approx(3.0)
     assert q["energy_wh"] == pytest.approx(800) and q["fits_in_a_day"] is True
     assert p[0]["cost_usd"] is None                                                       # no price measured: no cost
+    assert q["usd_per_gpu_hour"] == pytest.approx(1.5 / (1000 * 6 / 3600))                # the price that benchmark paid
+    assert q["gpus_all_day"] == 1 and p[0]["usd_per_gpu_hour"] is None
+    big = call("projectCost", SUMMARIES, {"gpu": "NVIDIA L4", "flows": 20000})
+    assert [x["gpus_all_day"] for x in big] == [1, 2]                                     # 16.7 h fits one GPU, 33.3 h needs two
 
 
 def test_the_projection_filters_models_and_spans_gpus_when_none_is_chosen():

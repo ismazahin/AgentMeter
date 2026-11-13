@@ -141,14 +141,21 @@ const txt = (p, sel) => p.$eval(sel, e => e.textContent).catch(() => '');
     await p.evaluate(() => {            // two measured real sessions (synthetic numbers) -> the table
       const s = (id, at, gpu, m) => ({ session_id: id, status: 'Done', demo: false, gpu, pipeline: null, finished_at: at, metrics: m });
       PLAN.sessions = [s('job_20261105_100000_' + 'a'.repeat(32), '20261105_100000', 'NVIDIA L4',
-                       { 'Qwen/Qwen2.5-7B-Instruct': { mean_latency_s: 6.2, cost_per_1k_flows_usd: 1.38, wh_per_flow: 0.12, n_flows: 80 },
-                         'microsoft/Phi-3-mini-4k-instruct': { mean_latency_s: 3.1, cost_per_1k_flows_usd: 0.69, wh_per_flow: 0.06, n_flows: 80 } }),
+                       { 'Qwen/Qwen2.5-7B-Instruct': { mean_latency_s: 6.2, cost_per_1k_flows_usd: 1.38, wh_per_flow: 0.12, n_flows: 80, valid_rate: 0.82 },
+                         'microsoft/Phi-3-mini-4k-instruct': { mean_latency_s: 3.1, cost_per_1k_flows_usd: 0.69, wh_per_flow: 0.06, n_flows: 80, valid_rate: 1 } }),
                      s('job_20261106_100000_' + 'b'.repeat(32), '20261106_100000', 'NVIDIA GeForce RTX 3090',
                        { 'Qwen/Qwen2.5-7B-Instruct': { mean_latency_s: 7.9, cost_per_1k_flows_usd: 0.48, wh_per_flow: 0.5, n_flows: 100 } })];
       document.getElementById('pl-flows').value = '20000'; renderPlanner();
     });
     const plRows = await p.$$eval('#pl-table tbody tr', l => l.map(r => r.textContent));
     log(plRows.length === 3 && /\d+ GPUs?/.test(plRows.join('')) && /% busy/.test(plRows.join('')), 'the planner projects each model per GPU and says when one GPU is not enough');
+    // 20,000 alerts at 3.1 s = 17.2 h: one GPU all day at the $0.80 an hour the benchmark paid, $19.23.
+    // The RTX 3090 needs two GPUs but at $0.22 an hour: $10.50 a day, the cheapest
+    const phi = plRows.filter(r => /Phi/.test(r))[0] || '', qwen = plRows.filter(r => /Qwen/.test(r) && /L4/.test(r))[0] || '';
+    log(/\$19\.23/.test(phi) && /1 × 24 h/.test(phi) && /busy hours only/.test(phi) && !/Cheapest/.test(phi) && /Cheapest/.test(plRows.filter(r => /3090/.test(r))[0] || ''), 'the cost per day is the GPUs needed rented all day, with the busy hours only cost under it');
+    log(/2 × 24 h/.test(qwen) && /\$38\.46/.test(qwen), 'a model that needs two GPUs pays for both all day');
+    log(/82%/.test(qwen) && /often unusable/.test(qwen) && /100%/.test(phi) && /answered/.test(phi), 'the usable answers come from the benchmark and a low share is flagged');
+    log(/4-bit/.test(await p.$eval('#pl-body .pl-lede', e => e.textContent)), 'the planner says the models are at 4-bit as benchmarked');
     await p.screenshot({ path: path.join(OUT, 'planner.png'), fullPage: true });
   } catch (e) {
     log(false, 'walk-through crashed: ' + e.message.split('\n')[0]);

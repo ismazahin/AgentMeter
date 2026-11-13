@@ -1,0 +1,70 @@
+/* ==================================================================================
+   Path A (2026-11-13): navy / blue / lime kept. Cards lifted from the background, one sans family
+   (Inter Tight for headings and big numbers, Inter for text), fixed per-model colours, lime only for
+   primary actions and the best result. Layout: content starts beside the sidebar at any width (no
+   empty band), and the sidebar footer has no framed boxes.
+   ================================================================================== */
+:root:root {
+  --font-head: "Inter Tight", "Inter", -apple-system, "Segoe UI", sans-serif;
+  --serif: var(--font-head);                  /* every former serif spot now uses the heading sans */
+  --radius-card: 12px;
+  --m-mistral: #F5A35C; --m-llama: #7FA3F5; --m-qwen: #46C8E8; --m-phi: #B79CF7; --m-gemma: #F27FB2; --m-extra: #9AA6BE;
+}
+@media (prefers-color-scheme: dark) { :root:root:not([data-theme="light"]) { --bg: #0A1020; --surface: #121C33; --surface-2: #192643; --border: #24324F; --border-2: #34466C; } }
+:root:root[data-theme="dark"] { --bg: #0A1020; --surface: #121C33; --surface-2: #192643; --border: #24324F; --border-2: #34466C; }
+body { background: var(--bg); }
+
+/* type: one family */
+h1 { font-family: var(--font-head); font-weight: 700; letter-spacing: -.035em; }
+h2, .lpanel h2, .cs-q h2, .ov-band-h h2 { font-family: var(--font-head); font-weight: 600; font-size: 20px; letter-spacing: -.015em; }
+.headline { font-family: var(--font-head); font-weight: 650; font-size: clamp(26px, 2.6vw, 34px); letter-spacing: -.03em; }
+.verdict, .takeaway .tk-h { font-family: var(--font-head); font-weight: 600; letter-spacing: -.02em; }
+.pcard .big, .ped, .kpi b, .tile .v, .adm-tiles .v, .pl-form input.pl-num { font-family: var(--font-head); font-weight: 650; letter-spacing: -.03em; }
+
+/* sections are cards again */
+.card, .card.flat, .page-head + .card, .page-head + * > .card:first-child, .notice + .card, .cta + .card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 20px 22px; margin: 0 0 16px; }
+.cta { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 20px 22px; margin: 0 0 16px; }
+.page-head { border-bottom: 0; padding-bottom: 12px; }
+.slist, .lpanel, .pl-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); }
+.md2 { gap: 16px; }
+.tiles { border: 0; gap: 12px; margin: 8px 0 18px; }
+.tile, .tile + .tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-card); padding: 14px 16px; }
+.table-wrap { border-radius: 8px; }
+.notice { border-radius: var(--radius-card); }
+
+/* per-model colour (set as --mc on a row by the page); lime only for the best result */
+.mdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; background: var(--mc, var(--m-extra)); }
+.rbar b { background: var(--mc, var(--accent)); }
+tr.best .rbar b, .pcol.w .rbar b { background: var(--cta) !important; }
+
+@media (min-width: 1024px) {
+  /* (1)(2) no empty band: content always starts beside the sidebar, at a fixed gutter, expanded or collapsed */
+  main.wrap, footer .wrap, main.wrap:has(> #view-session:not([hidden])) { max-width: 1560px; margin-left: 0; margin-right: auto; padding: 0 40px; }
+
+  /* (3) sidebar footer: plain rows, no framed boxes */
+  .top-right { gap: 2px; flex-direction: column; align-items: stretch; padding-top: 12px; }
+  .top-right #svc-backend-badge { border: 0; background: none; border-radius: 8px; padding: 8px 10px; text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 600;
+    text-decoration: none; color: var(--muted-2); flex: none; white-space: nowrap; }
+  .top-right #svc-backend-badge.off { color: var(--danger); }
+  .profile-btn { border: 0; background: none; border-radius: 8px; padding: 6px 10px; min-height: 40px; }
+  .avatar { border-radius: 50%; }
+  #theme-toggle { border: 0; background: none; border-radius: 8px; width: 40px; height: 40px; }
+  .side-collapse { border: 0; background: none; border-radius: 8px; }
+  .foot-row { display: flex; align-items: center; gap: 4px; }
+  @media (hover: hover) { .top-right #svc-backend-badge:hover, .profile-btn:hover, #theme-toggle:hover, .side-collapse:hover { background: var(--surface-2); } }
+
+  /* collapsed rail: the same rows as icons, still no frames */
+  :root.side-collapsed .top-right { align-items: center; }
+  :root.side-collapsed .top-right #svc-backend-badge { width: 40px; height: 32px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
+  :root.side-collapsed #svc-backend-badge::before { display: block; width: 9px; height: 9px; }
+  :root.side-collapsed #svc-backend-badge::after { content: none !important; }
+  :root.side-collapsed .profile-btn { padding: 4px; width: 40px; justify-content: center; }
+}
+/* the role next to the name is plain text, not a framed pill */
+.profile-btn .role-chip { border: 0; padding: 0; background: none; font-size: 12px; font-weight: 600; color: var(--muted); }
+.profile-btn .role-chip.admin { color: var(--accent-text); }
+@media (min-width: 1024px) {
+  :root.side-collapsed .gs-btn { border: 0; background: none; border-radius: 8px; }
+  @media (hover: hover) { :root.side-collapsed .gs-btn:hover { background: var(--surface-2); } }
+}

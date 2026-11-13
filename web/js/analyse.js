@@ -13,14 +13,17 @@ var AN = { src: "file", job: null, rows: null, pool: null, ident: null, tau: nul
 var AN_PAGE = 50;
 
 function anCloud() { return !!(CP && BACKEND && BACKEND.cloud_prep); }
-// ---------- the preparation service: Start / Stop (scripts/prep_local.py on the owner's PC) ----------
-// The buttons open agentmeter-prep://start|stop, which `python scripts/prep_local.py install` registered
-// on that PC; the browser asks once ("Open AgentMeter prep?"). The page then watches /api/backend
-// until the service has registered (or gone), and enables the upload.
-var AN_SVC = { waiting: null, until: 0 };
+// ---------- the preparation service (scripts/prep_local.py on the owner's PC) ----------
+// Continue starts it when it is not running: the click opens agentmeter-prep://start, which
+// `python scripts/prep_local.py install` registered on that PC (the browser asks once, "Open
+// AgentMeter prep?"). The page then watches /api/backend until the service has registered and
+// carries on with the upload by itself. The Stop link opens agentmeter-prep://stop the same way.
+var AN_SVC = { waiting: null, until: 0, hintAt: 0, then: null };
+var AN_SVC_HINT_MS = 20000, AN_SVC_WAIT_MS = 120000;
+var AN_INSTALL_HINT = 'First time on this PC? Run <code>python scripts/prep_local.py install</code> once in the AgentMeter folder, then press Continue again.';
 function anServiceNotice() {
   var un = $("an-unavailable"), svc = BACKEND && BACKEND.prep_service, w = AN_SVC.waiting;
-  if ($("svc-upload-btn")) $("svc-upload-btn").disabled = !anCloud();
+  if ($("svc-upload-btn") && viaService()) $("svc-upload-btn").disabled = w === "start";
   if (!CP) { un.hidden = false; un.className = "notice warn"; un.innerHTML = "Analyse traffic needs the control plane on the hosted site. On a single GPU server, use New benchmark."; return; }
   if (anCloud()) {
     un.hidden = !(svc && svc.online);
@@ -29,37 +32,52 @@ function anServiceNotice() {
       (w === "stop" ? ' <span class="muted" id="an-svc-wait">Stopping…</span>' : "");
     return;
   }
-  un.hidden = false; un.className = "notice warn";
-  un.innerHTML = '<b>The preparation service is not running.</b> Analyses run on your computer (no GPU needed).' +
-    '<div class="actions" style="margin-top:8px"><a class="btn primary" href="agentmeter-prep://start" id="an-svc-start">Start the preparation service</a>' +
-    (w === "start" ? '<span class="small" id="an-svc-wait" role="status">Starting… your browser may ask to open AgentMeter prep (tick <i>Always allow</i>).</span>' : "") + '</div>' +
-    (w === "late" ? '<p class="small" id="an-svc-late" role="alert">It did not start. Check <code>results/prep_local.log</code>, or run <code>python scripts/prep_local.py</code> in a terminal to see why.</p>' : "") +
-    '<p class="small muted" style="margin-bottom:0">First time on this PC? Run <code>python scripts/prep_local.py install</code> once in the AgentMeter folder. The button works from then on.</p>';
+  if (w === "start") {
+    un.hidden = false; un.className = "notice small";
+    un.innerHTML = '<span id="an-svc-wait" role="status">Starting the preparation service on your computer… Your browser may ask to open AgentMeter prep. Tick <i>Always allow</i>.</span>' +
+      (Date.now() > AN_SVC.hintAt ? '<p class="small" id="an-svc-hint" style="margin:6px 0 0">' + AN_INSTALL_HINT + '</p>' : "");
+    return;
+  }
+  if (w === "late") {
+    un.hidden = false; un.className = "notice warn";
+    un.innerHTML = '<p id="an-svc-late" role="alert" style="margin:0"><b>The preparation service did not start.</b> ' + AN_INSTALL_HINT +
+      ' If it is installed, check <code>results/prep_local.log</code>, or run <code>python scripts/prep_local.py</code> in a terminal to see why.</p>';
+    return;
+  }
+  un.hidden = true; un.innerHTML = "";              // not running: Continue starts it
 }
-function anWatchService(what) {
-  AN_SVC.waiting = what; AN_SVC.until = Date.now() + 120000;
+// open agentmeter-prep://start from the Continue click (a user action, so the browser allows it)
+function anLaunchService() {
+  var a = document.createElement("a");
+  a.href = "agentmeter-prep://start"; a.id = "an-svc-start"; a.hidden = true;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function anWatchService(what, then) {
+  AN_SVC.waiting = what; AN_SVC.until = Date.now() + AN_SVC_WAIT_MS; AN_SVC.hintAt = Date.now() + AN_SVC_HINT_MS; AN_SVC.then = then || null;
   anServiceNotice();
   var token = pollToken;
   (function tick() {
-    if (token !== pollToken) return;
+    if (token !== pollToken) { AN_SVC.waiting = null; AN_SVC.then = null; return; }
     cpFetch("/api/backend").then(function (r) {
       if (token !== pollToken) return;
       if (r.ok) BACKEND = r.data;
       var up = anCloud();
       if ((what === "start" && up) || (what === "stop" && !up)) {
-        AN_SVC.waiting = null; anServiceNotice();
+        var then = AN_SVC.then;
+        AN_SVC.waiting = null; AN_SVC.then = null; anServiceNotice();
         if (up) cpFetch("/api/prep/wake", { method: "POST" }).then(function () { /* best effort */ });
+        if (then) then();
         return;
       }
-      if (Date.now() > AN_SVC.until) { AN_SVC.waiting = what === "start" ? "late" : null; anServiceNotice(); return; }
+      if (Date.now() > AN_SVC.until) { AN_SVC.waiting = what === "start" ? "late" : null; AN_SVC.then = null; anServiceNotice(); return; }
+      anServiceNotice();                             // shows the install hint once 20 seconds have passed
       setTimeout(tick, 3000);
     });
   })();
 }
 document.addEventListener("click", function (ev) {
-  var a = ev.target.closest && ev.target.closest("#an-svc-start, #an-svc-stop");
-  if (!a) return;
-  anWatchService(a.id === "an-svc-start" ? "start" : "stop");     // the link itself opens (the browser asks)
+  var a = ev.target.closest && ev.target.closest("#an-svc-stop");
+  if (a) anWatchService("stop");                     // the link itself opens (the browser asks)
 });
 
 // ---------- the list of analyses ----------
@@ -84,14 +102,19 @@ function anList() {
 function startAnalysis(src) {
   var err = $("svc-upload-error"), btn = $("svc-upload-btn"), busy = $("svc-upload-busy");
   err.hidden = true;
-  if (!anCloud()) { anServiceNotice(); showError(err, { error: "The preparation service is not running. Start it above first." }); return; }
+  if (!anCloud()) {                                  // not running: start it, then carry on with this upload
+    if (AN_SVC.waiting === "start") return;
+    anLaunchService();
+    anWatchService("start", function () { startAnalysis(src); });
+    return;
+  }
   var maxB = ((BACKEND && BACKEND.cloud_prep_max_mb) || 50) * 1024 * 1024;
   if (src.file && src.file.size > maxB) {
     showError(err, { error: "This file is " + fmtSize(src.file.size) + "; uploads are limited to " + fmtSize(maxB) + ". Use Import from a link for larger files.", code: "too_large" });
     return;
   }
   var body = { max_flows: Math.max(1, Math.min(500, parseInt($("svc-max-flows").value || "50", 10) || 50)),
-               other_attack: $("svc-other-attack").checked, limits: (CONFIG && CONFIG.limits) || {} };
+               other_attack: false, limits: (CONFIG && CONFIG.limits) || {} };
   if (src.file) { body.filename = src.file.name; body.size = src.file.size; } else body.url = src.url;
   btn.disabled = true; busy.hidden = false; busy.textContent = "Sending to the preparation service…";
   var fail = function (d) { btn.disabled = false; busy.hidden = true; showError(err, d); };

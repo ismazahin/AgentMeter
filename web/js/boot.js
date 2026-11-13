@@ -64,7 +64,6 @@ function goOnline(h) {
     $("svc-demo").hidden = !CONFIG.demo_mode;
     $("svc-demo").innerHTML = '<b>Demo mode.</b> There is no GPU, so results are simulated, not model measurements.' + infoI(CONFIG.note || "");
     $("svc-max-flows").value = (SETTINGS && SETTINGS.default_flows) || CONFIG.default_max_flows || 50;
-    if (SETTINGS) $("svc-other-attack").checked = !!SETTINGS.default_other_attack;
     var L = CONFIG.limits;
     if (L) {
       $("svc-limits").innerHTML = "Maximum upload " + esc(L.max_upload_label) + ". Use Import from a link for bigger files." +

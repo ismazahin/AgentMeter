@@ -87,7 +87,7 @@ async function frameOf(p) {
   log(steps.join('|') === '1Upload|2Models and settings|3Run', 'wizard has 3 steps without a control plane: ' + steps.join(', '));
   const tabs = await p.$$eval('#wiz-step-data [role=tab]', ts => ts.map(t => t.textContent.trim()));
   log(tabs.join('|') === 'Upload a file|Import from a link|Reuse a prepared set', 'data tabs: ' + tabs.join(', '));
-  log(await p.isVisible('#svc-other-attack'), 'Other Attack opt-in on the data step');
+  log(!(await p.$('#svc-other-attack')), 'no Other Attack option on the data step');
   await p.screenshot({ path: S + '/02-wizard-data.png', fullPage: true });
   await p.setInputFiles('#svc-file', REPO + '/data/sample_csv/cicids2017_sample.csv');
   await p.fill('#svc-max-flows', '10');

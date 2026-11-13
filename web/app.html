@@ -1373,7 +1373,7 @@
     <div class="card" id="help-run">
       <h2>1. Run a benchmark</h2>
       <ol class="guide-steps">
-        <li><b>Upload.</b> Open <a href="#/new">New Benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for the reference-label check) or a PCAP, and choose how many flows the benchmark samples. No GPU is needed, because the preparation service on your computer does it. If it is not running, click <b>Start the preparation service</b>.</li>
+        <li><b>Upload.</b> Open <a href="#/new">New Benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for the reference-label check) or a PCAP, and choose how many flows the benchmark samples. No GPU is needed, because the preparation service on your computer does it. If it is not running, <b>Continue</b> starts it. The first time on a PC, run <span class="mono">python scripts/prep_local.py install</span> once.</li>
         <li><b>Preparing and your data.</b> The data is prepared and the IDS scores every flow. Then you see what is in it, the alerts, what the IDS caught and missed (labelled CSV), a threshold to try, and the projected LLM cost. <b>Continue</b> when the GPU server is running.</li>
         <li><b>Models.</b> Pick one to four open models. Every model runs in 4-bit NF4 on the same GPU, one at a time, so the numbers are comparable. The wizard estimates time and cost from earlier runs.</li>
         <li><b>Run.</b> The session page shows live progress. If the GPU is busy, your run is queued and starts by itself. With a Telegram chat in Settings you get a message when it finishes. You can leave the page, and the run continues on the GPU server. Stop it from the same page if needed.</li>
@@ -1509,8 +1509,6 @@
             <label for="svc-max-flows">Flows to benchmark</label>
             <input type="number" id="svc-max-flows" name="max_flows" min="1" max="500" value="50">
           </div>
-          <label class="check"><input type="checkbox" id="svc-other-attack" name="other_attack" value="1">
-            <span>Group other attacks as <b>Other Attack</b></span></label><span class="info-i" tabindex="0" role="button" data-tip="Attacks outside the 5 study classes. This works for CSV only, otherwise those rows are left out.">i</span>
         </div>
         <div class="row">
           <button type="submit" class="btn primary" id="svc-upload-btn">Continue</button>
@@ -1809,7 +1807,6 @@
         <div class="models" id="set-models" role="group" aria-label="Default models"></div></div>
       <div class="row">
         <div class="field"><label for="set-flows">Default flows</label><input id="set-flows" type="number" min="1" max="500"></div>
-        <label class="check" style="align-self:flex-end"><input type="checkbox" id="set-other"> Add the "Other Attack" class by default</label>
         <div class="field"><label for="set-tz">Time zone</label><input type="text" id="set-tz" list="set-tz-list" autocomplete="off"><datalist id="set-tz-list"></datalist></div>
       </div>
       <hr class="sep">

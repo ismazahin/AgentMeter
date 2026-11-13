@@ -37,7 +37,7 @@ function loadSettings() {
   if (!CP) return;
   var S = SETTINGS || {};
   $("set-tg").value = S.telegram_chat_id || ""; $("set-notify").value = S.notify_on || "none"; $("set-drift").checked = S.alert_on_drift !== false;
-  $("set-flows").value = S.default_flows || 50; $("set-other").checked = !!S.default_other_attack; $("set-tz").value = S.timezone || "UTC";
+  $("set-flows").value = S.default_flows || 50; $("set-tz").value = S.timezone || "UTC";
   $("set-tz-list").innerHTML = TZS.map(function (z) { return '<option value="' + esc(z) + '">'; }).join("");
   renderSetModels(S.default_models || []);
   renderPresets(S.weight_presets || []);
@@ -78,7 +78,7 @@ $("set-account").addEventListener("submit", function (ev) {
   ev.preventDefault();
   $("set-error").hidden = true;
   saveSettings({ theme: themePref(), telegram_chat_id: $("set-tg").value.trim(), notify_on: $("set-notify").value, alert_on_drift: $("set-drift").checked, default_flows: +$("set-flows").value || 50,
-                 default_other_attack: $("set-other").checked, timezone: $("set-tz").value.trim() || "UTC", weight_presets: readPresets(),
+                 timezone: $("set-tz").value.trim() || "UTC", weight_presets: readPresets(),
                  default_models: Array.prototype.map.call($("set-models").querySelectorAll("input:checked"), function (i) { return i.value; }) })
     .then(function (r) { if (!r.ok) showError($("set-error"), r.data); else $("set-saved").textContent = "Saved."; });
 });

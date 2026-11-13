@@ -26,7 +26,8 @@ function routeWizard(p, q) {
   var off = !ONLINE;
   $("wiz-offline").hidden = !off;
   // with a control plane, uploading and preparing need no GPU (the preparation service does it)
-  if ($("svc-upload-btn")) $("svc-upload-btn").disabled = viaService() ? !anCloud() : off;
+  // (via the preparation service, Continue starts the service itself when it is not running)
+  if ($("svc-upload-btn")) $("svc-upload-btn").disabled = viaService() ? AN_SVC.waiting === "start" : off;
   if ($("svc-import-btn")) $("svc-import-btn").disabled = off;
   if (p[1] === "models") { wizStep("models"); wizModels(q); }
   else if (p[1] === "run" && p[2]) { wizStep("run"); watchRun(p[2]); }
@@ -119,7 +120,6 @@ function prepRoute(src) {
 function prepareOnServer(fd) {
   var err = $("svc-upload-error");
   fd.append("max_flows", $("svc-max-flows").value || "50");
-  if ($("svc-other-attack").checked) fd.append("other_attack", "1");
   $("svc-upload-btn").disabled = true; $("svc-upload-busy").hidden = false;
   $("svc-upload-busy").textContent = WIZ.src === "url" ? "Checking the link…" : "Uploading…";
   api("/api/prepare", { method: "POST", body: fd }).then(function (r) {
@@ -165,7 +165,7 @@ function prepareLocally(file) {
     });
   };
   PREP_WORKER.postMessage({ type: "prepare", base: PYODIDE_BASE, file: file, max_flows: parseInt($("svc-max-flows").value || "50", 10),
-                            other_attack: $("svc-other-attack").checked, limits: lim });
+                            other_attack: false, limits: lim });
 }
 // ---------- prepared in the cloud (while the GPU benchmarks) ----------
 var CLOUD_KEY = "agentmeter.cloudPrepJob", CLOUD_POLL = null;
@@ -185,7 +185,7 @@ function prepareInCloud(src) {
   var ui = prepLogUi(), err = $("svc-upload-error");
   ui.start();
   ui.line("The GPU is busy with a benchmark, so " + (src.file ? src.file.name + " (" + fmtSize(src.file.size) + ")" : "the linked file") + " is prepared in the cloud.");
-  var body = { max_flows: parseInt($("svc-max-flows").value || "50", 10), other_attack: $("svc-other-attack").checked, limits: (CONFIG && CONFIG.limits) || {} };
+  var body = { max_flows: parseInt($("svc-max-flows").value || "50", 10), other_attack: false, limits: (CONFIG && CONFIG.limits) || {} };
   if (src.file) { body.filename = src.file.name; body.size = src.file.size; } else body.url = src.url;
   cpFetch("/api/prep/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
     if (!r.ok) {

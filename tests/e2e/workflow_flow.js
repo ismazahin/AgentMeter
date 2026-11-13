@@ -67,7 +67,8 @@ async function grab(p, click) {
     log(JSON.stringify(back) === JSON.stringify(models.slice(0, 2).sort()) && await p.isChecked('#svc-repeat-check'), 'Presets: a saved preset brings back its models and options');
 
     // run it, with "tell me when it finishes" (headless: no notification permission -> a message in the page)
-    log(await p.isChecked('#svc-notify'), '"Tell me when it finishes" is on by default');
+    log(!(await p.$('#svc-notify')) && await p.$eval('#svc-extras', d => d.open) && await p.isVisible('#svc-repeat-check'),
+        'no "Tell me when it finishes" box (always on), and load scaling and repeat check sit in Optional extras, opened here by Run again');
     await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/new\/run\//.test(location.hash), null, { timeout: 30000 });
     const j3 = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[3]);

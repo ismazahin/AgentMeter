@@ -1639,19 +1639,20 @@
         <h2>Settings</h2>
         <p class="small" id="svc-run-mode"></p>
         <dl class="kv small" id="wiz-settings"></dl>
-        <label class="check" style="margin-top:10px"><input type="checkbox" id="svc-load-test">
-          <span>Also measure load scaling (1, 2 and 4 flows at once)</span></label><span class="info-i" tabindex="0" role="button" data-tip="After the measured flows, each model runs a few extra flows with 1, 2 and 4 in flight at once, to show whether throughput grows with concurrency. It adds time, is reported separately and never changes a score, rank or verdict.">i</span>
-        <br><label class="check"><input type="checkbox" id="svc-notify" checked>
-          <span>Tell me when it finishes</span></label><span class="info-i" tabindex="0" role="button" data-tip="A notification from this browser (it asks for permission once) while AgentMeter is open in a tab, even on another page. Telegram alerts are set up in Settings.">i</span>
-        <br><label class="check"><input type="checkbox" id="svc-repeat-check">
-          <span>Also answer the first 10 flows a second time (repeat check)</span></label><span class="info-i" tabindex="0" role="button" data-tip="After the measured flows, each model answers its first 10 flows again with the same prompts and settings. Output Reliability then shows how often it gave the same answer. It adds a little time and never changes a score, rank or verdict.">i</span>
-        <br><label class="check"><input type="checkbox" id="svc-ids">
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="svc-ids">
           <span>IDS gate. The IDS detects, and the LLM agents triage only the flows it flags</span></label><span class="info-i" tabindex="0" role="button" data-tip="A Random Forest IDS (scripts/train_ids.py) scores every selected flow first. Flows at or above the threshold become alerts and go to the LLM agents for triage, and the others are dismissed without an LLM call. The session then reports the IDS's detection, the LLM's triage of its alerts, and the time, cost and energy per 1,000 incoming flows.">i</span>
         <div id="svc-ids-box" class="small" hidden>
           <p class="muted" id="svc-ids-note" style="margin:4px 0"></p>
           <div class="field"><label for="svc-ids-tau">IDS threshold (blank = the model's own)</label>
             <input type="number" id="svc-ids-tau" min="0.01" max="1" step="0.01" placeholder="model default"></div>
         </div>
+        <details class="extra-models" id="svc-extras">
+          <summary>Optional extras <span class="muted small">They add time and never change a score</span></summary>
+          <label class="check"><input type="checkbox" id="svc-load-test">
+            <span>Also measure load scaling (1, 2 and 4 flows at once)</span></label><span class="info-i" tabindex="0" role="button" data-tip="After the measured flows, each model runs a few extra flows with 1, 2 and 4 in flight at once, to show whether throughput grows with concurrency. It adds time, is reported separately and never changes a score, rank or verdict.">i</span>
+          <br><label class="check"><input type="checkbox" id="svc-repeat-check">
+            <span>Also answer the first 10 flows a second time (repeat check)</span></label><span class="info-i" tabindex="0" role="button" data-tip="After the measured flows, each model answers its first 10 flows again with the same prompts and settings. Output Reliability then shows how often it gave the same answer. It adds a little time and never changes a score, rank or verdict.">i</span>
+        </details>
         <div class="row">
           <a class="btn" id="wiz-back" href="#/new">Back</a>
           <button type="button" class="btn primary" id="svc-run" disabled>Run benchmark</button>

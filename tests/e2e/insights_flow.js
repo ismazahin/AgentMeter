@@ -198,7 +198,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     for (const i of [0, 3]) await p.locator('#svc-models input').nth(i).check();
     log(/Estimate\s*about \d+ s of model time \(from earlier sessions in demo mode, plus model loading/.test(await p.textContent('#wiz-settings')),
         'estimate: time before Run from the earlier session of the same models');
-    await p.check('#svc-load-test'); await p.click('#svc-run');
+    await p.click('#svc-extras > summary'); await p.check('#svc-load-test'); await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/session\//.test(location.hash), null, { timeout: 180000 });
     const again = decodeURIComponent(p.url().split('#/session/')[1].split('/')[0]);
     await tab(p, again, 'performance/gpu', '#load-table');

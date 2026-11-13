@@ -538,6 +538,7 @@ $("wiz-preset").addEventListener("change", function () {
   modelInputs().forEach(function (inp) { if (!inp.dataset.locked) inp.checked = p.models.indexOf(inp.value) >= 0; });
   WIZ.want = p.models.slice(); tickWanted();
   $("svc-load-test").checked = !!p.load_test; $("svc-repeat-check").checked = !!p.repeat_check;
+  extrasOpen();
   if (!$("svc-ids").disabled) { $("svc-ids").checked = !!p.ids; $("svc-ids-box").hidden = !p.ids; $("svc-ids-tau").value = p.ids && p.ids.threshold ? p.ids.threshold : ""; }
   if (p.pipeline && Array.isArray(p.pipeline.agents)) { PL = JSON.parse(JSON.stringify(p.pipeline)); plRender(); }
   syncRun();
@@ -572,6 +573,7 @@ function applyAgain(id) {
     var j = r.ok ? r.data : null, note = $("wiz-again");
     if (j) {
       $("svc-load-test").checked = !!j.load_test; $("svc-repeat-check").checked = !!j.repeat_check;
+      extrasOpen();
       if (!$("svc-ids").disabled) { $("svc-ids").checked = !!j.ids; $("svc-ids-box").hidden = !j.ids; $("svc-ids-tau").value = j.ids && j.ids.threshold ? j.ids.threshold : ""; }
       if (Array.isArray(j.pipeline) && j.pipeline.length) PL = { custom: true, agents: plFromJob(j.pipeline) };
       else PL = { custom: false, agents: PL_DEFAULT.map(function (n) { return { builtin: n }; }) };
@@ -893,6 +895,8 @@ $("pl-list").addEventListener("change", function (e) {
 });
 plRender();
 
+// The optional extras fold opens by itself when a preset or Run again turns one of them on.
+function extrasOpen() { if ($("svc-load-test").checked || $("svc-repeat-check").checked) $("svc-extras").open = true; }
 // The IDS gate option: offered when the GPU server has an IDS model (GET /health "ids").
 function idsOptionSync() {
   var ids = (HEALTH || {}).ids, cb = $("svc-ids"), box = $("svc-ids-box");
@@ -925,7 +929,7 @@ $("svc-run").addEventListener("click", function () {
   $("svc-run").disabled = true;
   api("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
     if (!r.ok) { showError(err, r.data); syncRun(); return; }
-    if ($("svc-notify").checked) watchForFinish(r.data.job_id, picked());
+    watchForFinish(r.data.job_id, picked());             // always: a notification when it finishes
     location.hash = "#/new/run/" + enc(r.data.job_id);
   });
 });

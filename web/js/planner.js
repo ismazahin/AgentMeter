@@ -20,6 +20,7 @@ function loadPlanner(q) {
     sel.innerHTML = (list.length === 1 ? "" : '<option value="">Every GPU measured</option>') +
       list.map(function (g) { return '<option value="' + esc(g) + '">' + esc(plGpuName(g)) + '</option>'; }).join("");
     if (cur && gpus[cur]) sel.value = cur;
+    $("pl-gpu-field").hidden = list.length < 2;      // one GPU measured: nothing to choose (the table names it)
     renderPlanner();
   });
   // the alerts of the latest traffic analysis (control plane): one click fills the volume with them

@@ -113,7 +113,7 @@ function renderTrends() {
   var opts = function (vals, fmt) { return [["", "All"]].concat(vals.map(function (v) { return [v, fmt ? fmt(v) : v]; })); };
   $("tr-fbar").innerHTML = fpill("tr-f-model", "Model", opts(uniq(function (x) { return x.model; }), nick), TRF.model, "") +
     fpill("tr-f-set", "Data set", opts(uniq(function (x) { return x.set; })), TRF.set, "") +
-    fpill("tr-f-gpu", "GPU", opts(uniq(function (x) { return x.gpu; })), TRF.gpu, "") +
+    (uniq(function (x) { return x.gpu; }).length > 1 || TRF.gpu ? fpill("tr-f-gpu", "GPU", opts(uniq(function (x) { return x.gpu; })), TRF.gpu, "") : "") +
     fpill("tr-f-measure", "Measure", TR_MEASURES.map(function (m) { return [m[0], m[1]]; }), TRF.measure, "mean_latency_s");
   var shown = rows.filter(function (x) { return (!TRF.model || x.model === TRF.model) && (!TRF.set || x.set === TRF.set) && (!TRF.gpu || x.gpu === TRF.gpu); });
   var multi = shown.filter(function (x) { return x.runs >= 2; }), once = shown.filter(function (x) { return x.runs === 1; });

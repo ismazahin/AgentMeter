@@ -380,7 +380,7 @@ function lbBar(owners) {
   var count = !seesAll() && CP ? "Your sessions only, " + sids.length + " session" + (sids.length === 1 ? "" : "s")
     : shown.length + " setup" + (shown.length === 1 ? "" : "s") + ", " + sids.length + " session" + (sids.length === 1 ? "" : "s") + (showOwners() && people ? " from " + people + (people === 1 ? " person" : " people") : "");
   $("lb-fbar").innerHTML = (seesAll() ? fpill("lb-owner", "Sessions", ownerOpts(owners), LBF.owner, "") : "") +
-    fpill("lb-gpu", "GPU", opts(uniq(function (g) { return g.gpu; })), LBF.gpu, "") +
+    (uniq(function (g) { return g.gpu; }).length > 1 || LBF.gpu ? fpill("lb-gpu", "GPU", opts(uniq(function (g) { return g.gpu; })), LBF.gpu, "") : "") +
     fpill("lb-set", "Data set", opts(uniq(gName)), LBF.set, "") +
     fpill("lb-input", "Input", opts(uniq(function (g) { return g.input_type; })), LBF.input, "") +
     (any ? '<button type="button" class="fclear" id="lb-clear">Clear filters</button>' : "") +

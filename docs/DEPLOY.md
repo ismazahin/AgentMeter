@@ -271,7 +271,11 @@ the browser instead. Re-run the script after a change to the preparation code.
 gcloud auth login                                      # opens the browser once
 gcloud projects create agentmeter-prep-<suffix> && gcloud config set project agentmeter-prep-<suffix>
 gcloud billing projects link agentmeter-prep-<suffix> --billing-account <ACCOUNT_ID>   # gcloud billing accounts list
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com billingbudgets.googleapis.com
+
+# a $1 budget: an email at 50% and 100% of one dollar, so nothing is ever charged unnoticed
+gcloud billing budgets create --billing-account <ACCOUNT_ID> --display-name "agentmeter-1usd" \
+  --budget-amount 1USD --threshold-rule percent=0.5 --threshold-rule percent=1.0
 
 SECRET=$(python -c "import secrets; print(secrets.token_urlsafe(48))")
 CLOUD_PREP_SECRET=$SECRET bash scripts/deploy_cloudprep.sh     # builds and deploys; prints the URL
@@ -281,9 +285,24 @@ npx supabase db push --remote                               # the prep_jobs tabl
 npx supabase functions deploy agentmeter --no-verify-jwt --use-api
 ```
 After a change to the preparation code, run `scripts/deploy_cloudprep.sh` again (it rebuilds the
-bundle first). The service runs 2 vCPU / 4 GB, scales to zero when idle and keeps working after
-answering (`--no-cpu-throttling`); a dataset takes seconds to a few minutes, well inside the free
-tier. Uploads prepared in the cloud are capped at 50 MB (one Supabase Storage file on the free
+bundle first). The service runs 1 vCPU / 4 GB, at most one machine, none while idle, and keeps
+working after answering (`--no-cpu-throttling`).
+
+**Staying at $0.** Everything here is sized for Google Cloud's free tier, and the card is only
+for identity:
+- *Cloud Run.* Each preparation keeps one machine up for the job plus a few idle minutes, roughly
+  20 minutes in all. The free monthly allowance (vCPU-seconds and GiB-seconds of memory) covers
+  about 70 preparations a month at this size. Check it in the console under Billing › Reports.
+- *Stored images.* Every deploy stores a new image (about 0.3 GB). The script keeps only the
+  newest one, because only 0.5 GB is free, and deletes each source upload after a day.
+- *The budget.* The $1 budget above emails you at $0.50 and $1. A budget warns, it does not stop
+  anything: if it ever emails you, run `gcloud run services delete agentmeter-prep --region
+  asia-southeast1` (and `python scripts/prep_local.py` on your computer covers preparation until
+  next month).
+- New accounts usually start with free trial credit as well, which covers any cents.
+
+The tier and prices are Google's and change. Check the current Cloud Run, Artifact Registry and
+Cloud Storage free-tier pages before relying on these numbers. Uploads prepared in the cloud are capped at 50 MB (one Supabase Storage file on the free
 plan; `CLOUD_PREP_MAX_MB` lowers it); a larger file falls back to the browser. A linked file is
 downloaded by the service up to 2 GB (`CLOUD_PREP_MAX_URL_MB`; Cloud Run keeps files in memory). Optional:
 `gcloud billing budgets create` with a small amount to be emailed before anything is charged.

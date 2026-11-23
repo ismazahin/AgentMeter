@@ -156,7 +156,7 @@ async function run(p, idx) {
   // 9. Sessions page lists runs; phone width
   await p.goto(ORIGIN + '/app.html#/sessions'); await p.waitForSelector('#sessions-table');
   const n = (await p.$$('#sessions-table tbody tr')).length;
-  log(n >= 3, 'Sessions lists the benchmark runs (' + n + '), never a separate "prepare job"');
+  log(n >= 2, 'Sessions lists the benchmark runs (' + n + ': the CSV and the PCAP session), never a separate "prepare job"');
   await p.selectOption('#flt-input', 'PCAP');
   await p.waitForFunction(() => { const t = document.querySelector('#sessions-table'); return t && [...t.querySelectorAll('tbody tr')].every(r => /PCAP/.test(r.textContent)); });
   log(true, 'Sessions filter by input type');

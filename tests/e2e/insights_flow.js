@@ -187,9 +187,13 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
     log(!(await p.$('#load-card')), 'performance: no load scaling section');
     await tab(p, csv, 'performance/statistics', '#svc-repeat');
     log(/No other session ran on these flows/.test(await p.textContent('#svc-repeat')), 'repeatability: no other run yet, offers to benchmark the flows again');
-    // run the same flows again
-    await p.click('#svc-repeat a.btn[href^="#/new/models?set="]');
-    await p.waitForFunction(() => /Ready/.test(document.querySelector('#wiz-data-chip').textContent), null, { timeout: 60000 });
+    // run the same flows again: New benchmark, a fresh upload of the same file with the same flow count
+    log(/upload the same file/i.test(await p.textContent('#svc-repeat')), 'repeatability: says to upload the same file with the same number of flows');
+    await p.click('#svc-repeat a.btn[href="#/new"]');
+    await p.waitForSelector('#svc-upload-form:not([hidden])');
+    await p.setInputFiles('#svc-file', REPO + '/data/sample_csv/cicids2017_sample.csv'); await p.fill('#svc-max-flows', '40');
+    await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');
+    await p.waitForFunction(() => /Ready/.test(document.querySelector('#wiz-data-chip').textContent), null, { timeout: 90000 });
     await p.locator('#svc-models input').nth(1).check();            // never benchmarked: no estimate
     await p.waitForFunction(() => /Estimate/.test(document.querySelector('#wiz-settings').textContent), null, { timeout: 15000 });
     log(/no earlier session of .* in demo mode yet/.test(await p.textContent('#wiz-settings')), 'estimate: a model never run before gets no estimate, and says so');

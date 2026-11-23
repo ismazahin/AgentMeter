@@ -288,7 +288,7 @@ async function frameOf(p) {
 
   // 9. Leaderboard (By setup: setup list + ranking panel; Overall: podium + model list). Demo runs are
   // ranked only when there are no real runs, as on this demo server.
-  await p.click('.mainnav a[data-nav="leaderboard"]'); await p.waitForSelector('#lb-slist');
+  await p.click('.mainnav a[data-nav="leaderboard"]'); await p.waitForSelector('#lb-slist .sitem');
   const groups = await p.$$('#lb-slist .sitem');
   log(groups.length === 2, 'Leaderboard: 2 setups (CSV set, PCAP set) listed, ' + groups.length);
   log(/2 sessions/.test(await p.textContent('#lb-slist .sitem')), 'Leaderboard: the CSV setup pools its 2 sessions');
@@ -348,7 +348,7 @@ async function frameOf(p) {
   const bgLight = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
   await p.check('#set-theme-dark');
   const bgDark = await p.evaluate(() => getComputedStyle(document.body).backgroundColor);
-  log(bgLight === 'rgb(244, 246, 251)' && bgDark === 'rgb(11, 18, 34)',   // the blue palette (landing page)
+  log(bgLight === 'rgb(244, 246, 251)' && bgDark === 'rgb(10, 16, 32)',   // Path A: --bg #0A1020 on the dark theme
       'Settings: tokens switch (' + bgLight + ' -> ' + bgDark + ')');
   await p.check('#set-theme-system');
   log(await p.evaluate(() => !document.documentElement.hasAttribute('data-theme')), 'Settings: System follows the OS');

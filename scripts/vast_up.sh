@@ -151,15 +151,25 @@ if [ -n "${CF_TUNNEL_TOKEN:-}" ]; then
   URL="https://$CF_TUNNEL_HOSTNAME"
 else
   # (b) QUICK tunnel: no account needed; a NEW random https://*.trycloudflare.com URL each time.
-  nohup cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$PORT" > "$LOGS/tunnel.log" 2>&1 &
-  echo $! > "$LOGS/tunnel.pid"
+  # Vast's own portal opens several quick tunnels at start-up, and Cloudflare answers a burst of
+  # them with "429 Too Many Requests": try again, waiting longer each time, before giving up.
   URL=""
-  for _ in $(seq 1 60); do
-    URL="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOGS/tunnel.log" | head -n1 || true)"
+  for attempt in 1 2 3 4 5 6 7 8; do
+    nohup cloudflared tunnel --no-autoupdate --url "http://127.0.0.1:$PORT" > "$LOGS/tunnel.log" 2>&1 &
+    echo $! > "$LOGS/tunnel.pid"
+    for _ in $(seq 1 60); do
+      URL="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOGS/tunnel.log" | grep -v 'api\.trycloudflare' | head -n1 || true)"
+      [ -n "$URL" ] && break
+      kill -0 "$(cat "$LOGS/tunnel.pid")" 2>/dev/null || break        # cloudflared gave up (e.g. 429)
+      sleep 1
+    done
     [ -n "$URL" ] && break
-    sleep 1
+    kill "$(cat "$LOGS/tunnel.pid")" 2>/dev/null || true
+    wait_s=$((attempt * 30))
+    echo "no tunnel address yet (attempt $attempt: $(grep -oE 'status [0-9]+' "$LOGS/tunnel.log" | tail -n1 || echo 'no answer')); trying again in ${wait_s}s"
+    sleep "$wait_s"
   done
-  [ -n "$URL" ] || { tail -n 20 "$LOGS/tunnel.log" >&2; die "no trycloudflare URL appeared."; }
+  [ -n "$URL" ] || { tail -n 20 "$LOGS/tunnel.log" >&2; die "no trycloudflare URL appeared after 8 tries (Cloudflare may be limiting quick tunnels: rent again later, or use a named tunnel, CF_TUNNEL_TOKEN)."; }
 fi
 echo "$URL" > "$AGENTMETER_PUBLIC_URL_FILE"
 

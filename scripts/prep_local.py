@@ -280,6 +280,7 @@ class Supervisor:
             self.open_tunnel()
             last_beat = last_check = time.monotonic()
             misses = 0
+            tunnel_fails, next_tunnel = (0 if self.public else 1), (time.monotonic() if self.public else time.monotonic() + 30)
             while not self.stop_event.is_set():
                 if self.p["stop"].exists():
                     log.info("stop requested")
@@ -288,9 +289,13 @@ class Supervisor:
                 if self.service.poll() is not None:
                     log.warning("the preparation service stopped (exit %s): restarting it", self.service.returncode)
                     self.start_service()
-                if self.tunnel is None or self.tunnel.poll() is not None or not self.public:
+                if (self.tunnel is None or self.tunnel.poll() is not None or not self.public) and now >= next_tunnel:
                     log.warning("the tunnel is down: reopening it")
-                    self.open_tunnel()
+                    if self.open_tunnel():
+                        tunnel_fails = 0
+                    else:                               # e.g. Cloudflare's 429: wait longer each time
+                        tunnel_fails += 1
+                        next_tunnel = now + min(600, 30 * tunnel_fails)
                     last_beat = last_check = now
                 if now - last_beat >= heartbeat_s():
                     self.heartbeat(); self.save_state(); last_beat = now

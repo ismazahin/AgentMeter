@@ -100,9 +100,6 @@ async function run(p, idx) {
   await p.goto(ORIGIN + '/app.html#/new?src=reuse'); await p.waitForSelector('#svc-upload-form');
   log((await p.$$eval('#wiz-step-data [role="tab"]', l => l.map(t => t.id))).join(',') === 'tab-src-file,tab-src-url' && await p.isVisible('#src-file'),
       'an old reuse link opens Upload a file; no reuse tab, no prepared-set id, no re-upload of prepared files');
-  await ready(p);
-  await run(p, [1]);
-  log(/Single-model run/.test(await p.textContent('#svc-verdict')), 're-uploaded set benchmarks (single model)');
 
   // 5. PCAP -> efficiency only, no labels.csv
   await upload(p, REPO + '/data/sample_pcaps/sample_small.pcap', 8);

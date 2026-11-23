@@ -96,28 +96,10 @@ async function run(p, idx) {
   log((await p.$$eval('#svc-downloads a', as => as.map(a => a.textContent))).join(',') === 'features.csv,labels.csv,manifest.json',
       'session Downloads: prepared-set files');
 
-  // 3. reuse a prepared set by id; an unknown id is refused
-  await p.goto(ORIGIN + '/app.html#/new?src=reuse'); await p.waitForSelector('#svc-bench-id');
-  await p.fill('#svc-bench-id', setId); await p.click('#svc-bench-id-btn');
-  await p.waitForFunction(() => /^#\/new\/models\?set=/.test(location.hash));
-  log(await ready(p) === 'Ready' && (await p.textContent('#wiz-data-status')).includes(setId), 'reuse by prepared-set id -> Models with the set ready');
-  await p.goto(ORIGIN + '/app.html#/new?src=reuse'); await p.waitForSelector('#svc-bench-id');
-  await p.fill('#svc-bench-id', 'csv_runs/does-not-exist'); await p.click('#svc-bench-id-btn');
-  await p.waitForSelector('#svc-bench-id-error:not([hidden])');
-  log(/not found/.test(await p.textContent('#svc-bench-id-error')), 'unknown prepared-set id rejected');
-
-  // 4. re-upload the downloaded files
-  await p.goto(ORIGIN + '/app.html#/new?src=reuse'); await p.waitForSelector('#svc-import-form');
-  await p.setInputFiles('#svc-imp-manifest', files['manifest.json']);
-  await p.setInputFiles('#svc-imp-features', files['features.csv']);
-  await p.click('#svc-import-btn');
-  await p.waitForSelector('#svc-import-error:not([hidden])');
-  log(/labels\.csv too/.test(await p.textContent('#svc-import-error')), 're-upload without labels.csv rejected with a reason: ' + await p.textContent('#svc-import-error'));
-  await p.setInputFiles('#svc-imp-labels', files['labels.csv']);
-  await p.click('#svc-import-btn');
-  await p.waitForFunction(() => /^#\/new\/models\?set=/.test(location.hash));
-  const h = decodeURIComponent(await p.evaluate(() => location.hash));
-  log(/_import_/.test(h) && !h.includes(setId.split('/')[1]), 're-uploaded set stored under a new id');
+  // 3. no reuse in the app: New benchmark has only Upload and Import from a link
+  await p.goto(ORIGIN + '/app.html#/new?src=reuse'); await p.waitForSelector('#svc-upload-form');
+  log((await p.$$eval('#wiz-step-data [role="tab"]', l => l.map(t => t.id))).join(',') === 'tab-src-file,tab-src-url' && await p.isVisible('#src-file'),
+      'an old reuse link opens Upload a file; no reuse tab, no prepared-set id, no re-upload of prepared files');
   await ready(p);
   await run(p, [1]);
   log(/Single-model run/.test(await p.textContent('#svc-verdict')), 're-uploaded set benchmarks (single model)');
@@ -183,7 +165,7 @@ async function run(p, idx) {
   log(true, 'Sessions filter by input type');
   const m = await (await b.newContext({ viewport: { width: 375, height: 800 } })).newPage();
   let sw = 0;
-  for (const [hash, sel] of [['#/new', '#svc-upload-form'], ['#/new?src=reuse', '#svc-import-form'], ['#/session/' + job1, '#session-body:not([hidden])'], ['#/sessions', '#sessions-table']]) {
+  for (const [hash, sel] of [['#/new', '#svc-upload-form'], ['#/new?src=url', '#svc-url'], ['#/session/' + job1, '#session-body:not([hidden])'], ['#/sessions', '#sessions-table']]) {
     await m.goto(ORIGIN + '/' + hash); await m.waitForSelector(sel, { timeout: 30000 });
     sw = Math.max(sw, await m.evaluate(() => document.documentElement.scrollWidth));
   }

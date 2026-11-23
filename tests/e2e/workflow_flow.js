@@ -47,15 +47,16 @@ async function grab(p, click) {
     const j2 = await bench(set, models.slice(2, 4));
     log(await waitDone(j1) === 'done' && await waitDone(j2) === 'done', 'two sessions on one prepared set');
 
-    // Run again: same set, models and options
+    // no Run again: the session offers a New benchmark (a fresh upload of the same file)
     await p.goto(BASE + '/app.html#/session/' + j1); await p.waitForSelector('#session-again:not([hidden])');
-    await p.click('#session-again'); await p.waitForSelector('#wiz-again:not([hidden])');
+    log((await p.textContent('#session-again')).trim() === 'New benchmark' && (await p.getAttribute('#session-again', 'href')) === '#/new' &&
+        /upload the same file and pick the same number of flows/.test(await p.textContent('#session-again-note')), 'the session offers New benchmark, with how to compare like for like');
+    await p.goto(BASE + '/app.html#/new/models?set=' + encodeURIComponent(set));
     await p.waitForFunction(() => document.querySelector('#wiz-data-chip').textContent === 'Ready', null, { timeout: 30000 });
-    const ticked = await p.$$eval('#svc-models input:checked', x => x.map(i => i.value).sort());
-    log(JSON.stringify(ticked) === JSON.stringify(models.slice(0, 2).sort()), 'Run again: the same models are ticked (' + ticked.map(m => m.split('/').pop()).join(', ') + ')');
-    log(/Run again/.test(await p.textContent('#wiz-again')) && /same data set and models/.test(await p.textContent('#wiz-again')), 'Run again: says what is reused');
 
     // presets: save these choices, change them, bring them back
+    for (const inp of await p.$$('#svc-models input:checked')) await inp.uncheck();
+    for (const m of models.slice(0, 2)) await p.check('#svc-models input[value="' + m + '"]');
     p.once('dialog', d => d.accept('Pair A'));
     await p.click('#wiz-preset-save');
     await p.waitForFunction(() => /Pair A/.test(document.querySelector('#wiz-preset').textContent));
@@ -71,7 +72,7 @@ async function grab(p, click) {
     await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/new\/run\//.test(location.hash), null, { timeout: 30000 });
     const j3 = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[3]);
-    await p.goto(BASE + '/app.html#/datasets'); await p.waitForSelector('#ds-table');       // somewhere else in the app
+    await p.goto(BASE + '/app.html#/sessions'); await p.waitForSelector('#sessions-table');       // somewhere else in the app
     await p.waitForSelector('.toast', { timeout: 120000 });
     log(/Benchmark finished/.test(await p.textContent('.toast')) && !!(await p.$(`.toast a[href="#/session/${j3}"]`)), 'when it finishes, a message links to the results (while on another page)');
 

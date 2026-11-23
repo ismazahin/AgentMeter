@@ -100,8 +100,14 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await menu(p);
     log(await p.isVisible('#nav-admin') && await p.isVisible('#cp-menu a[href="#/settings/account"]') && await p.isVisible('#cp-menu a[href="#/settings"]'),
         'the profile menu has Account, Settings and (for the admin) Admin');
+    const sideLinks = await p.$$eval('#side-account a', l => l.filter(a => !a.hidden).map(a => a.getAttribute('data-nav')));
+    const groups = await p.$$eval('.sidebar .nav-group, #side-account .nav-group, #main-nav .nav-group', l => l.map(g => g.textContent.trim().toLowerCase()));
+    log(JSON.stringify(sideLinks) === '["help"]' && !groups.includes('account'),
+        'the sidebar has no Account section: Settings and Admin are only in the name menu (' + sideLinks + ')');
     await p.screenshot({ path: path.join(OUT, 'profile-menu.png') });
-    await p.keyboard.press('Escape');
+    await p.click('#cp-menu a[href="#/settings"]'); await p.waitForSelector('#view-settings:not([hidden])');
+    log(await p.$eval('#cp-profile-btn', b => b.classList.contains('is-current')), 'on Settings, the name in the sidebar shows as the current place');
+    await p.goto(APP + '/app.html#/'); await p.waitForSelector('#view-home:not([hidden])');
     log(await p.isHidden('#cp-menu'), 'Escape closes the profile menu');
     log(!(await p.evaluate(() => Object.keys(localStorage).concat(Object.keys(sessionStorage)).some(k => /access/.test(k)))), 'the access token is kept in memory only');
     log(!(await p.evaluate(() => localStorage.getItem('agentmeter.refresh'))) && !!(await p.evaluate(() => sessionStorage.getItem('agentmeter.refresh'))),

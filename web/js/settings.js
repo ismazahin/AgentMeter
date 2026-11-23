@@ -563,7 +563,6 @@ function showLogin() {
   $("login-form").hidden = false; $("pwchange-form").hidden = true; $("login-error").hidden = true;
   $("login-go").disabled = false;                                // disabled in the markup until the app is ready
   $("cp-profile").hidden = true; $("nav-admin").hidden = true;
-  $("side-admin").hidden = true;
   if (LOGOUT_REASON) { $("login-info").hidden = false; $("login-info").textContent = LOGOUT_REASON; LOGOUT_REASON = ""; }
   setTimeout(function () { $("login-user").focus(); }, 0);
 }
@@ -631,7 +630,7 @@ function fillProfileMenu() {
   $("cp-menu-name").textContent = u.username; $("cp-menu-role").textContent = admin ? "Admin" : "User";
   $("cp-profile-btn").setAttribute("aria-label", "Account menu: " + u.username + " (" + (admin ? "admin" : "user") + ")");
   $("nav-admin").hidden = !admin;
-  $("side-admin").hidden = !admin;
+  $("side-settings").hidden = true;                  // with an account, Settings and Admin are in the name menu
 }
 // ---------- ACCOUNT (Settings › Account; was the Profile page) ----------
 function deviceName(ua) {

@@ -396,6 +396,7 @@ function show(view) {
   document.querySelectorAll("[data-nav]").forEach(function (a) {
     if (a.getAttribute("data-nav") === nav) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
+  $("cp-profile-btn").classList.toggle("is-current", nav === "settings" || nav === "admin");   // they live in the name menu
   // a new view: name the tab after it and move focus to it (screen readers hear the change); not on first load
   var h = document.querySelector("#view-" + view + " h1");
   document.title = (view === "home" || !h ? "" : (view === "session" ? "Session" : h.textContent.trim()) + " | ") + "AgentMeter";

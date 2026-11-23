@@ -1319,6 +1319,8 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
     text-decoration: none; color: var(--muted-2); flex: none; white-space: nowrap; }
   .top-right #svc-backend-badge.off { color: var(--danger); }
   .profile-btn { border: 0; background: none; border-radius: 8px; padding: 6px 10px; min-height: 40px; }
+  /* Settings and Admin live in the name menu: while one is open, the name shows as the current place */
+  .profile-btn.is-current { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--accent); }
   .avatar { border-radius: 50%; }
   #theme-toggle { border: 0; background: none; border-radius: 8px; width: 40px; height: 40px; }
   .side-collapse { border: 0; background: none; border-radius: 8px; }
@@ -1361,12 +1363,10 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
       <a href="#/leaderboard" data-nav="leaderboard" title="Leaderboard"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 20V11M12 20V4M18 20v-6"/></svg><span class="nl">Leaderboard</span></a>
       <a href="#/planner" data-nav="planner" title="Cost planner"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h16M6 16l4-4 3 3 5-6"/><circle cx="18" cy="9" r="1.5"/></svg><span class="nl">Cost planner</span></a>
     </nav>
-    <nav class="sidenav-account" id="side-account" aria-label="Account">
-      <span class="nav-group" aria-hidden="true">Account</span>
-      <a href="#/settings" data-nav="settings" title="Settings"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="nl">Settings</span></a>
-      <a href="#/admin" data-nav="admin" id="side-admin" title="Admin" hidden><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><span class="nl">Admin</span></a>
+    <nav class="sidenav-account" id="side-account" aria-label="Help">
       <span class="nav-group" aria-hidden="true">Help</span>
       <a href="#/help" data-nav="help" title="How to use"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg><span class="nl">How to use</span></a>
+      <a href="#/settings" data-nav="settings" id="side-settings" title="Settings"><svg class="ni" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="nl">Settings</span></a>
     </nav>
     <div class="top-right">
       <a href="#/gpu" id="svc-backend-badge" class="chip-gpu" role="status" aria-live="polite" title="GPU status and queue">Checking backend…</a>

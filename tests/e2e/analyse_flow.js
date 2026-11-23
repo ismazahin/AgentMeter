@@ -150,6 +150,8 @@ const txt = (p, sel) => p.$eval(sel, e => e.textContent).catch(() => '');
     // Your uploads: the two prepared uploads, ready; old links come here
     await p.goto(APP + '/app.html#/datasets'); await p.waitForFunction(() => location.hash === '#/new', null, { timeout: 10000 });
     await p.waitForSelector('#an-uploads-table', { timeout: 20000 });
+    await p.waitForFunction(() => { const r = document.querySelectorAll('#an-uploads-table tbody tr'); return r.length === 2 && [...r].every(x => /Ready/.test(x.textContent)); },
+      null, { timeout: 20000 }).catch(() => {});                    // the list refreshes as the GPU status is re-checked
     const ups = await p.$$eval('#an-uploads-table tbody tr', l => l.map(r => r.getAttribute('data-up') + ' ' + r.textContent));
     log(ups.length === 2 && ups.every(u => /Ready/.test(u)) && ups.some(u => u.startsWith(jobId)) && !ups.some(u => u.startsWith(cancelId)),
         'old links redirect; Your uploads lists the two ready uploads, not the cancelled one');

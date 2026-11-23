@@ -300,6 +300,7 @@ def test_entry_urls_redirect_to_the_steps(env):
     assert html == c.get("/app.html").get_data(as_text=True)
     html += "".join(c.get(f"/js/{f.name}").get_data(as_text=True) for f in sorted((PROJECT_ROOT / "web" / "js").glob("*.js")))   # the app's scripts
     for hook in ("view-new", "wiz-step-data", "wiz-step-models", "wiz-step-run", "tab-src-url", "svc-url",
-                 "tab-src-reuse", "svc-import-form", "svc-bench-id", "svc-downloads", "New benchmark",
-                 "after_prepare"):
+                 "svc-downloads", "New benchmark", "after_prepare"):
         assert hook in html, hook
+    for gone in ("tab-src-reuse", "svc-import-form", "svc-bench-id", "svc-schedule", "tr-schedules"):   # no reuse, no schedules
+        assert gone not in html, gone

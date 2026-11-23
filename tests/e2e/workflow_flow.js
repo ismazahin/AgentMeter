@@ -106,7 +106,8 @@ async function grab(p, click) {
     log(!('repeat_check' in run) && !('load_test' in run) && run.quantization === '4-bit NF4' && run.models.length === 2, 'run.json records the models and 4-bit NF4');
 
     // Ctrl+K: search pages, sessions, data sets and models
-    await p.goto(BASE + '/app.html#/'); await p.waitForSelector('#gs-open');
+    await p.goto(BASE + '/app.html#/'); await p.waitForSelector('#view-home:not([hidden])');
+    log(!(await p.$('#gs-open')), 'no search button in the sidebar (Ctrl+K still opens the search)');
     await p.keyboard.press('Control+k'); await p.waitForSelector('#gs:not([hidden])');
     const mname = models[0].split('/').pop();
     await p.keyboard.type(mname.slice(0, 6).toLowerCase());

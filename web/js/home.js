@@ -153,7 +153,7 @@ function gsGo(x) {
   if (location.hash === x.href) route(); else location.hash = x.href;
   if (x.label === "Methodology") setTimeout(function () { var m = $("help-method"); if (m) m.scrollIntoView({ block: "start" }); }, 50);
 }
-$("gs-open").addEventListener("click", gsOpen);
+// no search button: Ctrl+K (or Cmd+K) opens the search
 $("gs-q").addEventListener("input", function () { GS.sel = 0; gsRender(); });
 $("gs-q").addEventListener("keydown", function (ev) {
   if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {

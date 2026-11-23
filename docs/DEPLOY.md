@@ -209,15 +209,9 @@ and commit. Cloudflare Pages for now (any static host works: the site is the `we
 is): `npx wrangler pages deploy web --project-name agentmeter`, or connect the repo in the
 Cloudflare dashboard (Framework preset **None**, no build command, output directory **`web`**).
 `web/_headers` sets the CSP; its `connect-src` allows `https://*.supabase.co` and
-`*.trycloudflare.com`. Where a new dataset is prepared is chosen automatically, never by the user:
-on the GPU server when it is free; while it runs or queues a job, by the cloud preparation service
-(A7) when that is set up, otherwise in the user's browser with Pyodide (Python as WebAssembly,
-`web/prep/`). All three run the same code, so the prepared flows and their hash are identical. For
-the browser route the CSP also
-allows `https://cdn.jsdelivr.net` (Pyodide's files, about 40 MB on first use, then cached) and
-`'wasm-unsafe-eval'` (compiling WebAssembly; JavaScript `eval` stays blocked). To self-host Pyodide
-0.28.3, put its files on your host, set `"pyodide_base"` in `web/config.json`, and regenerate the
-headers with `AGENTMETER_CSP_PYODIDE=<that origin>`. After editing anything in `agentmeter/ingest/`,
+`*.trycloudflare.com`. Uploads are prepared on the GPU machine (A7). The browser route (Pyodide,
+`web/prep/`) is used only without a control plane; for it the CSP also allows
+`https://cdn.jsdelivr.net` and `'wasm-unsafe-eval'`. After editing anything in `agentmeter/ingest/`,
 `agentmeter/server/prepare.py` or the input configs, run `python scripts/build_web_prep.py` (a test
 fails while the browser bundle is stale). Another static host must send the same headers (copy the
 `Content-Security-Policy` line from `web/_headers` into that host's header settings). A custom

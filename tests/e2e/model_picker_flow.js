@@ -61,7 +61,8 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
 
     // 3. the "extra" label: session page, agents, PDF
     const row = await p.textContent(`#svc-models-table tr:has(td:text-is("${EXTRA}extra")), #svc-models-table tbody`);
-    log(/Qwen2\.5-3B-Instruct\s*extra/.test(row) && !/Qwen2\.5-7B-Instruct\s*extra/.test(row), 'Per-model table: the extra model is labelled "extra", the study model is not');
+    // the table names models by their short name (Qwen2.5 3B) or full id (Qwen2.5-3B-Instruct)
+    log(/Qwen2\.5[- ]3B(-Instruct)?\s*extra/.test(row) && !/Qwen2\.5[- ]7B(-Instruct)?\s*extra/.test(row), 'Per-model table: the extra model is labelled "extra", the study model is not');
     await p.screenshot({ path: S + '/02-session.png', fullPage: true });
     await p.click('#session-tabs [data-tab="agents"]'); await p.waitForSelector('#stab-agents[aria-selected="true"]');
     log((await p.$$('.agents-model h2 .extra-tag')).length === 1, 'Agent Analysis: one model card carries the "extra" label');

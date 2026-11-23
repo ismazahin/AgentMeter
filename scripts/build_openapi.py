@@ -5,7 +5,7 @@
 Three APIs, one document:
   * the control plane    (Supabase Edge Function, supabase/functions/agentmeter/src/app.ts)
   * the GPU backend       (Flask, scripts/serve.py + agentmeter/server/*)
-  * the cloud preparation (cloudprep/app.py)
+  * the data preparation service on the GPU machine (cloudprep/app.py)
 Each operation is tagged with its server (x-server) and a topic. tests/test_openapi.py fails when a
 route exists in the code but not here (or the other way round), and when the written file is stale.
 API_VERSION follows semantic versioning: a new endpoint or field raises the minor number; a removed
@@ -95,21 +95,30 @@ op(CP, "delete", "/api/admin/ids-model", "Admin", "Remove the stored IDS model (
 # ------------------------------------------------------------------ control plane: runs, backend status
 op(CP, "get", "/api/backend", "GPU backend", "Where the GPU backend is and whether it is online", USER)
 op(CP, "post", "/api/runs/authorize", "GPU backend", "Get a run token for the GPU backend", USER,
-   body={"kind": "prepare | import | benchmark | resume | read | files | stop | verify | schedule", "run": "string", "after_prepare": "string", "job_id": "string", "set": "string", "model": "string"},
+   body={"kind": "prepare | import | benchmark | resume | read | files | stop | verify", "run": "string", "after_prepare": "string", "job_id": "string", "set": "string", "model": "string"},
    errors=["429 rate_limited", "503 backend_offline"],
    desc="Signed, 5 minutes, single use for actions; bound to the user, the action and the job. Benchmarks count against the hourly limit (a wizard session counts once).")
-# ------------------------------------------------------------------ control plane: cloud preparation
-op(CP, "post", "/api/prep/jobs", "Data preparation", "Start a cloud preparation (returns an upload URL or uses a link)", USER,
-   body={"filename": "string", "size_bytes": "integer", "url": "string", "max_flows": "integer", "other_attack": "boolean"}, ok="201")
-op(CP, "post", "/api/prep/wake", "Data preparation", "Wake the cloud preparation service (cold start)", USER)
-op(CP, "get", "/api/prep/jobs/{id}", "Data preparation", "A cloud preparation's state and progress", USER, [PREP_ID])
-op(CP, "post", "/api/prep/jobs/{id}/start", "Data preparation", "Start preparing (after the upload)", USER, [PREP_ID])
+# ------------------------------------------------------------------ control plane: data preparation (waiting list)
+op(CP, "post", "/api/prep/jobs", "Data preparation", "A new upload (returns an upload URL, or a link joins the waiting list)", USER,
+   body={"filename": "string", "size_bytes": "integer", "url": "string", "max_flows": "integer", "other_attack": "boolean"}, ok="201",
+   errors=["409 cloud_prep_unavailable", "413 too_large", "429 too_many_preparations", "507 storage_full"],
+   desc="Needs the preparation service on the GPU machine online. Files up to CLOUD_PREP_MAX_MB (50); links are downloaded by the service.")
+op(CP, "get", "/api/prep/mine", "Data preparation", "Your uploads not yet benchmarked (waiting, preparing or ready)", USER,
+   desc="{uploads: [job], expire_days}. An upload leaves the list when a benchmark starts on it, or after expire_days.")
+op(CP, "get", "/api/prep/jobs/{id}", "Data preparation", "An upload's state, progress and why it waits", USER, [PREP_ID],
+   desc="status: uploading | waiting | running | done | failed | cancelled | expired. waiting: {reason: gpu_off | benchmark | queue | next, holder?, ahead}.")
+op(CP, "post", "/api/prep/jobs/{id}/start", "Data preparation", "The file is uploaded: join the waiting list", USER, [PREP_ID])
+op(CP, "post", "/api/prep/jobs/{id}/cancel", "Data preparation", "Cancel an upload that has not started preparing (its owner)", USER, [PREP_ID], errors=["409 not_waiting"])
 op(CP, "get", "/api/prep/jobs/{id}/files/{name}", "Data preparation", "A prepared file", USER, [PREP_ID, FILE], errors=["403 owner_only"],
    desc="manifest.json, features.csv, labels.csv; a traffic analysis adds ids_scores.csv, ids_pool.json and ids_flows_identity.csv (source/destination addresses: the job's owner only, not admins).")
 op(CP, "post", "/api/prep/register", "Data preparation", "The preparation service says where it is (or that it is stopping)", PREP_SIGNED,
    body={"url": "string", "version": "string", "stopping": "boolean"},
-   desc="Sent by scripts/prep_local.py on the owner's PC (the Start button). It is online while its heartbeats are under 3 minutes old; jobs then go to this address instead of CLOUD_PREP_URL.")
+   desc="Sent by scripts/prep_local.py on the GPU machine. It is online while its news is under 3 minutes old. A new address (a new machine) or stopping puts its running jobs back on the waiting list.")
 op(CP, "post", "/api/prep/heartbeat", "Data preparation", "The preparation service is still there (every minute)", PREP_SIGNED, body={"url": "string", "version": "string"})
+op(CP, "post", "/api/prep/pending", "Data preparation", "What the service is doing; how many uploads wait", PREP_SIGNED,
+   body={"state": "idle | waiting_for_benchmark | preparing", "holder": "object"}, desc="Called every minute and when nudged. holder: what holds the GPU machine (kind, models, started_at).")
+op(CP, "post", "/api/prep/claim", "Data preparation", "The oldest waiting upload, with fresh single-use URLs (the service holds the machine)", PREP_SIGNED,
+   desc="{job: {job_id, filename, source, max_flows, limits, outputs, report_url, report_path, ids?} | null}")
 op(CP, "post", "/api/prep/jobs/{id}/events", "Data preparation", "Progress, done or failed (from the preparation service)", PREP_SIGNED, [PREP_ID],
    body={"event": "object", "done": "object", "failed": "object"})
 # ------------------------------------------------------------------ control plane: sessions and analysis
@@ -126,7 +135,7 @@ op(CP, "post", "/api/datasets/rename", "Data sets", "Rename a data set (owner or
 op(CP, "post", "/api/datasets/delete", "Data sets", "Remove a data set from Data sets (owner or admin)", USER, body={"key": "string", "set": "string"},
    errors=["403 forbidden"], desc="Sessions that ran on it keep their results. The web app first deletes the set's files on the GPU server (POST /api/prepared/{kind}/{name}/delete). A traffic analysis's stored files (the owner-only address file included) are removed too. Audit: dataset.delete.")
 op(CP, "get", "/api/analyses", "Analyse traffic", "Your traffic analyses (an admin: everyone's)", USER,
-   desc="Finished cloud preparations whose service scored the whole candidate pool with the IDS (no GPU): {analyses: [{job_id, owner, mine, filename, url, set, key, ids: {threshold, n_flows_in, n_flagged, n_selected, labelled, model}, files, finished_at}]}. key: the data set's fingerprint (or name:<kind>/<name>).")
+   desc="Finished preparations whose service scored the whole candidate pool with the IDS (no GPU): {analyses: [{job_id, owner, mine, filename, url, set, key, ids: {threshold, n_flows_in, n_flagged, n_selected, labelled, model}, files, finished_at}]}. key: the data set's fingerprint (or name:<kind>/<name>).")
 op(CP, "delete", "/api/sessions/{id}", "Sessions", "Delete a session (owner or admin)", USER, [ID], errors=["403 forbidden"], desc="Results and stored files are removed for everyone. Audit: session.delete.")
 op(CP, "get", "/api/sessions/{id}/results", "Sessions", "The full stored results (session_results.json)", USER, [ID])
 op(CP, "get", "/api/sessions/{id}/constraints", "Sessions", "Fit check of the results against limits (query: the limits)", USER, [ID])
@@ -200,24 +209,20 @@ op(BE, "get", "/api/leaderboard", "Compare", "Leaderboard (one-user mode)", RUN(
 op(BE, "get", "/api/models/catalog", "New benchmark", "Models offered on this server (study + extra), with download sizes", RUN("read"))
 op(BE, "post", "/api/models/verify", "Admin", "4-bit test-load of a catalogue model", RUN("verify"), body={"model": "string"}, ok="202")
 op(BE, "get", "/api/model-metadata", "New benchmark", "Hugging Face metadata of a model (licence, size)", NONE, [p("model", required=True)])
-op(BE, "get", "/api/schedules", "Repeatability", "Scheduled re-runs", RUN("read"))
-op(BE, "post", "/api/schedules", "Repeatability", "Repeat a finished session on a schedule", RUN("schedule"), body={"job_id": "string", "every_hours": "integer", "runs": "integer"}, ok="201")
-op(BE, "post", "/api/schedules/{schedule_id}/cancel", "Repeatability", "Cancel a schedule", RUN("schedule"), [p("schedule_id", "path", "sch_<12 hex>")], body={"job_id": "string"})
 op(BE, "get", "/api/notify-status", "Settings", "Local Telegram notifier status (one-user mode)", NONE)
 op(BE, "post", "/api/notify-test", "Settings", "Local Telegram test (one-user mode)", NONE)
 op(BE, "post", "/api/notify-check", "Settings", "Look for new results to notify about (one-user mode)", NONE)
 
-# ------------------------------------------------------------------ cloud preparation
-op(PREP, "get", "/health", "Data preparation", "Is the preparation service up", NONE)
-op(PREP, "post", "/prepare", "Data preparation", "Prepare one input (a signed job from the control plane)", CP_SIGNED,
-   body={"job_id": "string", "filename": "string", "source": "object", "max_flows": "integer", "limits": "object", "outputs": "object", "report_url": "string"}, ok="202",
-   desc="Reads the input from a single-use URL, runs the server's own preparation code (identical flows and hash), uploads the files to single-use URLs and reports progress, signed.")
+# ------------------------------------------------------------------ the preparation service (on the GPU machine)
+op(PREP, "get", "/health", "Data preparation", "Is the preparation service up, and what it is doing", NONE)
+op(PREP, "post", "/nudge", "Data preparation", "Look for waiting uploads now (signed by the control plane)", CP_SIGNED, ok="202",
+   desc="It then pulls from POST /api/prep/claim, but only while no benchmark runs on the machine (one at a time), so preparing never changes a reading.")
 
 SERVERS = {CP: {"url": "https://{project}.supabase.co/functions/v1/agentmeter", "description": "Control plane (Supabase Edge Function): accounts, sessions, Compare, Leaderboard",
                 "variables": {"project": {"default": "your-project-ref"}}},
            BE: {"url": "{backend}", "description": "GPU backend (Flask on the rented GPU): preparation, benchmarks, live GPU and queue",
                 "variables": {"backend": {"default": "https://your-gpu-backend.example"}}},
-           PREP: {"url": "{prep}", "description": "Cloud preparation service (Cloud Run / Space)", "variables": {"prep": {"default": "https://your-cloudprep.example"}}}}
+           PREP: {"url": "{prep}", "description": "Data preparation service on the GPU machine (its own Cloudflare quick tunnel)", "variables": {"prep": {"default": "https://your-prep.trycloudflare.com"}}}}
 TYPES = {"string": {"type": "string"}, "integer": {"type": "integer"}, "number": {"type": "number"}, "boolean": {"type": "boolean"}, "object": {"type": "object"}}
 
 

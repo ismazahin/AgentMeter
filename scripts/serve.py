@@ -87,8 +87,9 @@ class CostGuard:
 
     def busy(self) -> bool:
         jm = self.job_manager
-        return bool(jm is not None and any(j["status"] in ("queued", "running")
-                                           for j in jm.list_jobs(limit=200)))
+        from agentmeter.server import gpulock      # a data preparation waiting or running is activity too
+        return gpulock.prep_wanted() or bool(jm is not None and any(j["status"] in ("queued", "running")
+                                                                     for j in jm.list_jobs(limit=200)))
 
     def watchdog(self, stop: threading.Event, poll: float = None) -> None:
         if not self.auto_destroy or self.idle_timeout <= 0:
@@ -176,14 +177,6 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
     register_sessions(app, get_job_manager)                     # Phase 46: sessions, compare, leaderboard
     from agentmeter.server.logbook import register_logs
     register_logs(app, get_job_manager)                         # admins: problems in the last 24 h
-    from agentmeter.server.schedules import Schedules, register_schedules
-    sched = Schedules(get_job_manager, provider=runtime.job_provider(mode),        # scheduled re-runs (History & Trends)
-                      base_config=(str(runtime.REAL_BASE_CONFIG) if mode == "real" else None),
-                      environment=lambda: runtime.environment(mode),
-                      queue_full=lambda: _queue_depth() >= app.config["ACCESS"]["max_queued"])
-    app.config["SCHEDULES"] = sched
-    register_schedules(app, sched)
-    sched.start()
 
     # --- the app (Phase 46: ONE app — the same files as web/ on a static host) ----------
     @app.route("/", methods=["GET"])

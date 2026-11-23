@@ -621,7 +621,6 @@
   .cs-none { height: 70px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--border-2); border-radius: 6px; color: var(--muted); font-size: 13px; }
   #tr-once .card { margin-top: 16px; }
   #tr-once ul { margin: 6px 0 0; padding-left: 18px; }
-  #tr-schedules { margin-top: 18px; }
   /* Settings / Admin (2026-11-13): tabs, sections that save by themselves, Telegram steps, checklist */
   .settab-n { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-left: 6px; background: var(--accent-soft); color: var(--accent-text); }
   .st-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
@@ -795,12 +794,30 @@
   .tel-agent { display: grid; grid-template-columns: minmax(64px, auto) 1fr auto; gap: 8px; align-items: center; margin: 3px 0; }
   .tel-agent .track { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; } .tel-agent .fill { display: block; height: 100%; }
   .tel-log { max-height: 220px; overflow-y: auto; font-size: 12px; line-height: 1.55; border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; background: var(--surface); overflow-wrap: anywhere; }
-  .prep-note { margin: 12px 0 0; max-width: 70ch; }
+  /* upload step: where it is prepared (one unframed line), Your uploads, the waiting screen */
+  .prep-where { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin: 14px 0 4px; font-size: 14px; }
+  .prep-where .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--success); transform: translateY(-1px); }
+  .prep-where.off .dot { background: var(--danger); }
+  .prep-where span { color: var(--muted); }
+  .ups { margin-top: 28px; }
+  .ups h2 { margin: 0 0 4px; }
+  .up-chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--border-2, var(--border)); color: var(--muted); }
+  .up-chip.wait { color: var(--warn-text); border-color: var(--warn); }
+  .up-chip.prep { color: var(--accent-text); border-color: var(--accent); }
+  .up-chip.ready { color: var(--success); border-color: var(--success); }
+  .up-chip.bad { color: var(--danger); border-color: var(--danger); }
+  .wait-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 6px 0 2px; }
+  .wait-h h2 { margin: 0; overflow-wrap: anywhere; }
+  .wait-line { font-size: 18px; margin: 18px 0 6px; }
+  .wait-sub { color: var(--muted); margin: 0 0 18px; }
+  .wait-facts { list-style: none; padding: 0; margin: 20px 0; border-top: 1px solid var(--border); }
+  .wait-facts li { display: grid; grid-template-columns: minmax(120px, 220px) 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .wait-facts li span:first-child { color: var(--muted); }
+  @media (max-width: 560px) { .wait-facts li { grid-template-columns: 1fr; gap: 2px; } }
   .local-prep { margin-top: 12px; } .local-prep .tel-log { list-style: none; margin: 8px 0 0; }
   .tel-line.tel-failed { color: var(--danger); } .tel-line.tel-done { font-weight: 600; }
   svg.trend .tline { fill: none; stroke: var(--series-1); stroke-width: 2; }
   svg.trend .base { stroke: var(--muted-2); stroke-width: 1.5; stroke-dasharray: 6 4; }
-  svg.trend circle.sched { stroke: var(--text); }
   .tr-drift-list { margin: 0; padding-left: 18px; } .tr-drift-list li { margin: 6px 0; }
   .note-snip { margin-top: 4px; color: var(--muted-2); max-width: 46ch; }
   .notes-text { white-space: pre-wrap; }
@@ -1473,7 +1490,7 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
     <div id="home-guide" class="card guide" hidden>
       <div class="guide-head"><h2>How AgentMeter works</h2><button type="button" class="btn" id="home-guide-hide">Got it</button></div>
       <ol class="guide-steps">
-        <li><b>Data.</b> Upload a CSV (CIC-IDS2017 flows, with labels) or a PCAP. AgentMeter samples the flows you ask for and keeps them as a <i>prepared set</i> you can reuse. The GPU server does the sampling when it is free. While it is busy with another benchmark, AgentMeter does it in the cloud instead, or in your browser when there is no cloud preparation, so a new dataset never waits in the queue. Every route runs the same Python code, so the prepared flows are identical.</li>
+        <li><b>Data.</b> Upload a CSV (CIC-IDS2017 flows, with labels) or a PCAP. AgentMeter samples the flows you ask for into a <i>prepared set</i>. It is prepared on the GPU server, never while a benchmark runs there, so preparing cannot change a reading: if a benchmark is running, your upload waits and is prepared as soon as it ends. Every benchmark starts from a new upload. Sampling uses a fixed seed, so the same file with the same number of flows gives the same flows and the same fingerprint.</li>
         <li><b>Models.</b> Pick one to four open models (4-bit). The wizard estimates the time and cost from earlier runs.</li>
         <li><b>Run.</b> Each flow goes through the agents, one model at a time, on the same GPU. The agents are Perceive, Reason, Decide and Act.</li>
         <li><b>Read.</b> Each session tab opens with a one-line summary. Tables download as CSV, and line charts and diagrams as PNG. Reference labels only check that the output is valid, because AgentMeter measures efficiency.</li>
@@ -1537,9 +1554,9 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
     <div class="card" id="help-manage">
       <h2>4. Sessions, Leaderboard, Consistency and the Cost planner</h2>
       <ul class="guide-steps">
-        <li><a href="docs/" target="_blank" rel="noopener">API documentation</a> describes every endpoint of the control plane, the GPU backend and the cloud preparation service (who may call it, its parameters and answers). The services AgentMeter calls (Hugging Face, Telegram, Vast.ai, Supabase) are described in <code>docs/INTEGRATIONS.md</code>.</li>
-        <li><b>Data sets</b> are under <a href="#/new?src=reuse">New Benchmark › Reuse a prepared set</a>: your analyses (each with its IDS results) and every prepared set of flows, with its size, labels, flow mix and fingerprint, the sessions that used it, and Rename / Delete / Benchmark this set.</li>
-        <li><a href="#/gpu">GPU &amp; Queue</a> (click the GPU status chip in the sidebar) shows the GPU server right now, with live utilisation, memory, power and temperature, the run on it with its progress, the runs waiting in order, scheduled re-runs coming up, what just finished, and where a new file would be prepared.</li>
+        <li><a href="docs/" target="_blank" rel="noopener">API documentation</a> describes every endpoint of the control plane, the GPU backend and the data preparation service (who may call it, its parameters and answers). The services AgentMeter calls (Hugging Face, Telegram, Vast.ai, Supabase) are described in <code>docs/INTEGRATIONS.md</code>.</li>
+        <li><b>Every benchmark starts from a new upload.</b> To measure the same flows again, upload the same file and pick the same number of flows: preparation is repeatable, so the fingerprint matches and the sessions land on the same setup. Uploads you have not benchmarked yet are under <a href="#/new">New benchmark › Your uploads</a> for 7 days.</li>
+        <li><a href="#/gpu">GPU &amp; Queue</a> (click the GPU status chip in the sidebar) shows the GPU server right now, with live utilisation, memory, power and temperature, the run on it with its progress, the runs waiting in order, what just finished, and when a new file would be prepared.</li>
         <li><a href="#/sessions">Sessions</a> lists every run. Search by text, filter by tag, open a session, add a note, or delete a finished session (with an account).</li>
         <li><a href="#/planner">Cost planner</a> projects each model's GPU time, cost and energy for a daily number of alerts, from its latest real benchmark on that GPU. No GPU needed.</li>
         <li><a href="#/leaderboard">Leaderboard</a> ranks models, in three tabs. <b>By setup</b> lists the setups (the same flows, GPU and settings) and ranks the models of the one you pick. Under the ranking, <b>Why this order</b> shows where each model earned its score: points for speed, GPU memory and tokens. <b>Overall</b> counts how often each model ranks first across setups. <b>Consistency</b> shows whether the same model on the same setup gives the same result each run.</li>
@@ -1615,7 +1632,6 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
       <div class="tabs" role="tablist" aria-label="Where the data comes from">
         <button type="button" role="tab" id="tab-src-file" aria-controls="src-file" aria-selected="true">Upload a file</button>
         <button type="button" role="tab" id="tab-src-url" aria-controls="src-url" aria-selected="false" tabindex="-1">Import from a link</button>
-        <button type="button" role="tab" id="tab-src-reuse" aria-controls="src-reuse" aria-selected="false" tabindex="-1">Reuse a prepared set</button>
       </div>
       <form id="svc-upload-form" class="card" novalidate>
         <div id="src-file" role="tabpanel" aria-labelledby="tab-src-file">
@@ -1623,7 +1639,7 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
             <strong>Choose a .csv, .pcap or .pcapng file</strong>
             <span class="muted">A CSV with labels gets efficiency and the reference-label check. A PCAP or a CSV without labels gets efficiency and validity only.</span><br>
             <span class="muted small">CSV means CICFlowMeter flow exports such as CIC-IDS2017, CSE-CIC-IDS2018, CIC-DDoS2019, CICFlowMeter V3/V4 and Python CICFlowMeter</span><br>
-            <span class="muted small" id="svc-limits">Maximum upload 90 MB. Use Import from a link for larger files.</span>
+            <span class="muted small" id="svc-limits">Maximum upload 50 MB. Use Import from a link for bigger files.</span>
             <input type="file" id="svc-file" name="file" accept=".csv,.pcap,.pcapng">
           </label>
         </div>
@@ -1634,7 +1650,7 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
             <span class="hint" id="svc-url-limits">A direct download link, up to 10 GB.</span><span class="info-i" tabindex="0" role="button" id="svc-url-info" data-tip="The server downloads the file itself. Use a direct download link, because Google Drive and Dropbox “share” pages are refused. Only public internet addresses are allowed.">i</span>
           </div>
         </div>
-        <p class="muted small prep-note" id="svc-prep-note">AgentMeter prepares the data on the GPU server. While the GPU is busy with another benchmark, it prepares it in the cloud instead, so you never wait in the queue.<span class="info-i" tabindex="0" role="button" data-tip="Both run the same preparation code, so the prepared flows and their hash are identical wherever they were prepared.">i</span></p>
+        <p class="prep-where" id="svc-prep-where" hidden></p>
         <div class="row" id="wiz-options">
           <div class="field">
             <label for="svc-max-flows">Flows to benchmark</label>
@@ -1651,50 +1667,9 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
         </div>
         <div id="svc-upload-error" class="notice error" role="alert" hidden></div>
       </form>
-      <div id="src-reuse" role="tabpanel" aria-labelledby="tab-src-reuse" hidden>
-        <h2>Your analyses</h2>
-        <p class="muted small">Data you uploaded and prepared here, with its IDS results. Open one to continue to the benchmark.</p>
-        <div id="an-list"></div>
-        <h2>All data sets</h2>
-        <p class="muted small">Every prepared set of flows, what is in it and which sessions used it. Models are only compared on the same set.</p>
-        <div class="card" id="ds-controls"><div class="row" style="margin-top:0;gap:16px;flex-wrap:wrap;align-items:flex-end">
-      <div class="field" style="margin:0;flex:2 1 260px"><label for="ds-q">Search</label><input type="search" id="ds-q" placeholder="Name, model or fingerprint"></div>
-      <div class="field" style="margin:0;flex:1 1 160px"><label for="ds-type">Type</label><select id="ds-type"><option value="">All</option><option value="CSV">CSV</option><option value="PCAP">PCAP</option></select></div>
-    </div></div>
-    <div id="ds-body"></div>
-        <h2>More ways to reuse a set</h2>
-        <div class="card" id="svc-stored-card" hidden>
-          <h2>Saved sets</h2>
-          <p class="muted small">The exact flows of earlier sessions. Reuse them on any GPU.<span class="info-i" tabindex="0" role="button" data-tip="Kept by the control plane, so they work on any GPU rental, even after the one that prepared them is gone. They are restored without identification columns (IPs, ports, protocol, timestamp), which no model ever sees. The prepared-set hash is the same, so new sessions compare like-for-like with the old ones.">i</span></p>
-          <div id="svc-stored-sets" class="small muted">Loading…</div>
-          <div id="svc-stored-error" class="notice error" role="alert" hidden></div>
-        </div>
-        <div class="card">
-          <h2>Prepared on this server</h2>
-          <div id="svc-recent-sets" class="small muted">Loading…</div>
-          <form id="svc-bench-id-form" class="row" novalidate>
-            <div class="field" style="flex:1 1 320px">
-              <label for="svc-bench-id">Or enter a prepared-set id</label>
-              <input type="text" class="wide mono" id="svc-bench-id" placeholder="csv_runs/… or pcap_runs/…" autocomplete="off">
-            </div>
-            <button type="submit" class="btn primary" id="svc-bench-id-btn" style="align-self:flex-end">Use this set</button>
-          </form>
-          <div id="svc-bench-id-error" class="notice error" role="alert" hidden></div>
-        </div>
-        <form class="card" id="svc-import-form" novalidate>
-          <h2>Re-upload a downloaded prepared set</h2>
-          <div class="grid two" style="margin-top:8px">
-            <div class="field"><label for="svc-imp-manifest">manifest.json</label><input type="file" id="svc-imp-manifest" accept=".json,application/json"></div>
-            <div class="field"><label for="svc-imp-features">features.csv</label><input type="file" id="svc-imp-features" accept=".csv,text/csv"></div>
-            <div class="field"><label for="svc-imp-labels">labels.csv <span class="hint">(labelled sets only)</span></label><input type="file" id="svc-imp-labels" accept=".csv,text/csv"></div>
-          </div>
-          <div class="row"><button type="submit" class="btn" id="svc-import-btn">Upload prepared set</button></div>
-          <div id="svc-import-error" class="notice error" role="alert" hidden></div>
-        </form>
-      </div>
+      <section id="an-uploads" class="ups" aria-live="polite" hidden></section>
     </div>
 
-    <!-- steps 2-3: preparing, then your data (web/js/analyse.js) -->
     <div id="wiz-step-prep" hidden><div id="an-detail"></div></div>
 
     <!-- step 2: models and settings (data prepares in the background) -->
@@ -1795,11 +1770,12 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
         <div class="chips" id="session-chips" style="margin-top:8px"></div>
       </div>
       <div class="actions" style="margin-top:0">
-        <a class="btn" id="session-again" href="#/new" hidden title="A new session on the same data set, with the same models, pipeline and options">Run again</a>
+        <a class="btn" id="session-again" href="#/new" hidden>New benchmark</a>
         <a class="btn" id="session-compare" href="#/compare">On the Leaderboard</a>
         <a class="btn primary" id="svc-dl-pdf" href="#" download>Download PDF</a>
       </div>
     </div>
+    <p class="small muted" id="session-again-note" hidden>To compare like for like, upload the same file and pick the same number of flows. The fingerprint will match.</p>
     <div id="session-watch" hidden></div>
     <div id="session-body" hidden>
       <div id="session-guide" class="card guide" hidden>
@@ -1880,7 +1856,6 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
     <div class="grid2" id="gq-grid"><div id="gq-gpu"></div><div id="gq-prep"></div></div>
     <div id="gq-running"></div>
     <div id="gq-queued"></div>
-    <div id="gq-upcoming"></div>
     <div id="gq-recent"></div>
   </section>
 
@@ -1904,7 +1879,6 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
     <div id="tr-summary"></div>
     <div id="tr-once"></div>
     <div id="tr-body"></div>
-    <div class="card" id="tr-schedules"><h2>Repeat a run automatically</h2><p class="muted">Loading…</p></div>
   </section>
 
   <!-- SETTINGS: tabs; every change saves by itself. Account (was Profile) is the last tab. -->

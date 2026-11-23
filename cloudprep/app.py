@@ -1,32 +1,34 @@
-"""AgentMeter cloud data preparation: a small CPU service (Google Cloud Run) that prepares a
-dataset while the GPU server is busy benchmarking. AgentMeter MEASURES LLM resource efficiency;
-it is not a threat-detection product.
+"""AgentMeter data preparation service: runs on the rented GPU machine next to the GPU server and
+prepares uploaded datasets (and the IDS traffic analysis). AgentMeter MEASURES LLM resource
+efficiency; it is not a threat-detection product.
 
-It runs the SAME preparation code as the GPU server and the browser (agentmeter.server.prepare,
-packaged by scripts/build_web_prep.py), so a set prepared here has byte-identical data files and
-the same prepared-set hash. It never sees a user or a password: the control plane starts each job
-and holds every key.
+It runs the SAME preparation code as the GPU server and the browser (agentmeter.server.prepare),
+so a set prepared here has byte-identical data files and the same prepared-set hash. It never sees
+a user or a password: the control plane holds every key and hands out single-use Storage URLs.
+
+One at a time on the machine (agentmeter/server/gpulock.py): a preparation never runs while a
+benchmark does, so it cannot change a reading. The service PULLS work from the control plane:
+
+  every PULL_S seconds, or at once when the control plane nudges it (POST /nudge):
+    POST <cp>/api/prep/pending  {state, holder?}       -> {pending: n}
+    n > 0: mark "a preparation is waiting" (the worker starts no new benchmark), wait for the lock
+           (reporting state "waiting_for_benchmark" and who holds it), then
+    POST <cp>/api/prep/claim    {}                     -> {job: {...} | null}, until null:
+       {job_id, filename, source: {kind: "file", url} | {kind: "url", url}, max_flows,
+        other_attack, limits, max_bytes, outputs: {name: put_url}, report_url, report_path, ids?}
+       Every step is POSTed to report_url, signed over report_path:
+       {"event": {phase, message, ...}}, then {"done": {set_name, files}} or {"failed": {error, code}}.
+  Every request to the control plane is signed: X-AM-Timestamp, X-AM-Signature =
+  hex HMAC(CLOUD_PREP_SECRET, "POST\n" + path + "\n" + ts + "\n" + sha256(body)).
 
   Optional `ids` in the job: {sha256, files: {"ids_rf.joblib": url, "ids_rf.json": url,
-  "ids_rf.hashes.npy": url?}} (single-use download URLs of the IDS model the admin stored) and
-  outputs for ids_scores.csv, ids_pool.json, ids_flows_identity.csv: the IDS then scores every
-  candidate-pool flow (the traffic analysis, no GPU). The model is cached by its sha256.
+  "ids_rf.hashes.npy": url?}}: the IDS then scores every candidate-pool flow. Cached by sha256.
 
-  POST /prepare   (signed by the control plane: X-AM-Timestamp, X-AM-Signature =
-                   hex HMAC(CLOUD_PREP_SECRET, "POST\\n/prepare\\n" + ts + "\\n" + sha256(body)))
-      {job_id, filename, source: {kind: "file", url} | {kind: "url", url},
-       max_flows, other_attack, limits, max_bytes,
-       outputs: {"manifest.json": put_url, "features.csv": put_url, "labels.csv": put_url},
-       report_url, report_path}
-    -> 202 at once; the job runs in a background thread (deploy with CPU always allocated).
-       Every step is POSTed to report_url, signed the same way over report_path:
-       {"event": {phase, message, ...}} while it runs, then
-       {"done": {set_name, files}} or {"failed": {error, code}}.
-       The input is read from a single-use download URL (or fetched SSRF-safe from the user's
-       https link) and the prepared files are PUT to single-use upload URLs.
-  GET  /health    -> {"ok": true}
+  POST /nudge     (signed by the control plane, empty body) -> 202: look for work now
+  GET  /health    -> {"ok": true, "state": ...}
 
-  env: PORT (8080), CLOUD_PREP_SECRET (required), CLOUD_PREP_WORK_DIR (a temp dir)
+  env: PORT (8080), CLOUD_PREP_SECRET (required), AGENTMETER_CONTROL_PLANE_URL (where to pull
+       from), CLOUD_PREP_WORK_DIR (a temp dir), AGENTMETER_BUSY_LOCK (gpulock.py), PULL_S (60)
 """
 from __future__ import annotations
 
@@ -53,6 +55,7 @@ _REPO = Path(__file__).resolve().parents[1]
 if (_REPO / "agentmeter").is_dir() and str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from agentmeter.server import gpulock  # noqa: E402
 from agentmeter.server import prepare as P  # noqa: E402
 from agentmeter.server import urlfetch  # noqa: E402
 
@@ -67,7 +70,7 @@ IDS_MODEL_MAX = 60 * 2 ** 20            # per model file (the control plane stor
 _ids_lock = threading.Lock()
 REPORT_EVERY_S = 1.0
 ENVIRONMENT = {"provider": "cloud",
-               "prepared_on": os.environ.get("CLOUD_PREP_WHERE") or "the AgentMeter cloud preparation service",
+               "prepared_on": os.environ.get("CLOUD_PREP_WHERE") or "the AgentMeter preparation service on the GPU machine",
                "runtime": f"Python {platform.python_version()}"}
 
 
@@ -269,39 +272,122 @@ def validate(job: Any) -> Optional[str]:
     return None
 
 
-class Service:
-    def __init__(self, secret: str, work_root: Path, post: Optional[Callable] = None):
-        self.secret, self.work_root, self.post = secret, Path(work_root), post
-        self.work_root.mkdir(parents=True, exist_ok=True)
-        self.running: dict[str, threading.Thread] = {}
-        self.lock = threading.Lock()
+def pull_s() -> float:
+    return float(os.environ.get("PULL_S", "60"))
 
-    def start(self, job: dict) -> tuple[int, dict]:
-        err = validate(job)
-        if err:
-            return 400, {"error": err, "code": "bad_request"}
-        jid = str(job["job_id"])
-        with self.lock:
-            t = self.running.get(jid)
-            if t and t.is_alive():
-                return 200, {"accepted": True, "already_running": True}
-            rep = Reporter(self.secret, job["report_url"], job["report_path"], post=self.post)
-            t = threading.Thread(target=self._run, args=(jid, job, rep), name=f"prep-{jid}", daemon=True)
-            self.running[jid] = t
-        t.start()
-        return 202, {"accepted": True}
 
-    def _run(self, jid: str, job: dict, rep: Reporter) -> None:
+def _post_signed(cp: str, secret: str, path: str, payload: dict, post: Optional[Callable] = None) -> tuple[int, dict]:
+    """POST a signed JSON body to <cp><path>; (status, body). Never raises for HTTP/network."""
+    body = json.dumps(payload).encode()
+    ts = str(int(time.time()))
+    headers = {"content-type": "application/json", "X-AM-Timestamp": ts, "X-AM-Signature": sign(secret, "POST", path, ts, body)}
+    if post is not None:                     # tests
+        return post(cp + path, headers, body)
+    req = urllib.request.Request(cp + path, data=body, method="POST", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status, json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
         try:
-            run_job(job, rep, self.work_root)
+            return e.code, json.loads(e.read() or b"{}")
+        except ValueError:
+            return e.code, {}
+    except (OSError, ValueError) as e:
+        return 0, {"error": str(e)}
+
+
+class Service:
+    """Pulls waiting preparations from the control plane and runs them one at a time, only while
+    the machine's lock is free (no benchmark running)."""
+
+    def __init__(self, secret: str, work_root: Path, cp: Optional[str] = None, post: Optional[Callable] = None,
+                 cp_post: Optional[Callable] = None, lock_path: Optional[Path] = None):
+        self.secret, self.work_root, self.post = secret, Path(work_root), post
+        self.cp = cp.rstrip("/") if cp else None
+        self.cp_post = cp_post                       # tests: (url, headers, body) -> (status, dict)
+        self.lock_path = lock_path
+        self.work_root.mkdir(parents=True, exist_ok=True)
+        self.nudged = threading.Event()
+        self.stop = threading.Event()
+        self.state = "idle"
+        self._thread: Optional[threading.Thread] = None
+
+    def _cp(self, path: str, payload: dict) -> tuple[int, dict]:
+        return _post_signed(self.cp, self.secret, path, payload, self.cp_post)
+
+    def report_state(self, state: str, holder: Optional[dict] = None) -> int:
+        """Tell the control plane what this service is doing; returns how many jobs wait (0 on error)."""
+        self.state = state
+        st, d = self._cp("/api/prep/pending", {"state": state, **({"holder": holder} if holder else {})})
+        if st != 200:
+            log.warning("pending: HTTP %s %s", st, d.get("error", ""))
+            return 0
+        return int(d.get("pending") or 0)
+
+    def start(self) -> None:
+        if self.cp and (self._thread is None or not self._thread.is_alive()):
+            self._thread = threading.Thread(target=self.loop, name="prep-puller", daemon=True)
+            self._thread.start()
+
+    def loop(self) -> None:
+        while not self.stop.is_set():
+            self.nudged.wait(pull_s())
+            self.nudged.clear()
+            if self.stop.is_set():
+                break
+            try:
+                self.work_once()
+            except Exception:  # noqa: BLE001 — the loop must survive anything
+                log.exception("pulling work failed")
+
+    def work_once(self) -> int:
+        """Look for waiting work; when there is some, wait for the machine and run all of it.
+        Returns how many jobs ran."""
+        if not self.report_state("idle"):
+            return 0
+        ran = 0
+        keep = threading.Event()
+
+        def mark() -> None:                          # keep "a preparation is waiting" fresh
+            while not keep.wait(5.0):
+                gpulock.want(True, self.lock_path)
+        gpulock.want(True, self.lock_path)
+        ticker = threading.Thread(target=mark, daemon=True)
+        ticker.start()
+        last = [0.0]
+
+        def waiting(h: Optional[dict]) -> None:      # every 5 s while a benchmark holds the machine
+            if time.monotonic() - last[0] >= 30:
+                last[0] = time.monotonic()
+                self.report_state("waiting_for_benchmark", h)
+        try:
+            with gpulock.hold({"kind": "prepare"}, on_wait=waiting, stop=self.stop, path=self.lock_path) as got:
+                if not got:
+                    return 0
+                self.report_state("preparing")
+                while not self.stop.is_set():
+                    st, d = self._cp("/api/prep/claim", {})
+                    job = d.get("job") if st == 200 else None
+                    if not job:
+                        break
+                    err = validate(job)
+                    if err:
+                        log.error("the control plane sent a bad job: %s", err)
+                        if job.get("report_url") and job.get("report_path"):
+                            Reporter(self.secret, job["report_url"], job["report_path"], post=self.post).failed(err, "bad_request")
+                        continue
+                    run_job(job, Reporter(self.secret, job["report_url"], job["report_path"], post=self.post), self.work_root)
+                    ran += 1
         finally:
-            with self.lock:
-                self.running.pop(jid, None)
+            keep.set()
+            gpulock.want(False, self.lock_path)
+            self.report_state("idle")
+        return ran
 
 
 def make_handler(svc: Service):
     class Handler(BaseHTTPRequestHandler):
-        server_version = "AgentMeterCloudPrep/1"
+        server_version = "AgentMeterPrep/2"
 
         def _json(self, status: int, data: dict) -> None:
             body = json.dumps(data).encode()
@@ -313,25 +399,20 @@ def make_handler(svc: Service):
 
         def do_GET(self):  # noqa: N802
             if self.path == "/health":
-                return self._json(200, {"ok": True, "service": "AgentMeter cloud data preparation",
-                                        "running": len(svc.running)})
+                return self._json(200, {"ok": True, "service": "AgentMeter data preparation", "state": svc.state})
             return self._json(404, {"error": "not found"})
 
         def do_POST(self):  # noqa: N802
-            if self.path != "/prepare":
+            if self.path != "/nudge":
                 return self._json(404, {"error": "not found"})
             n = int(self.headers.get("content-length") or 0)
             if n > MAX_BODY:
                 return self._json(413, {"error": "body too large"})
             body = self.rfile.read(n)
-            if not verify(svc.secret, "POST", "/prepare", self.headers, body):
+            if not verify(svc.secret, "POST", "/nudge", self.headers, body):
                 return self._json(401, {"error": "bad signature", "code": "bad_signature"})
-            try:
-                job = json.loads(body)
-            except ValueError:
-                return self._json(400, {"error": "body must be JSON", "code": "bad_request"})
-            status, data = svc.start(job)
-            return self._json(status, data)
+            svc.nudged.set()
+            return self._json(202, {"ok": True})
 
         def log_message(self, fmt, *args):  # noqa: D401 — quieter than the default
             log.info("%s %s", self.address_string(), fmt % args)
@@ -346,7 +427,11 @@ def main() -> int:
         print("CLOUD_PREP_SECRET is required (at least 16 characters)", file=sys.stderr)
         return 2
     work = Path(os.environ.get("CLOUD_PREP_WORK_DIR") or tempfile.gettempdir()) / "agentmeter-prep"
-    svc = Service(secret, work)
+    cp = (os.environ.get("AGENTMETER_CONTROL_PLANE_URL") or "").strip() or None
+    if not cp:
+        log.warning("AGENTMETER_CONTROL_PLANE_URL is not set: there is nowhere to pull work from")
+    svc = Service(secret, work, cp=cp)
+    svc.start()
     port = int(os.environ.get("PORT", "8080"))
     log.info("listening on :%d", port)
     ThreadingHTTPServer(("0.0.0.0", port), make_handler(svc)).serve_forever()

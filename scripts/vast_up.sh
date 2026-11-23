@@ -21,6 +21,9 @@
 #            PORT=8000   SKIP_INSTALL=1
 #            AGENTMETER_IDS_MODEL=/path/ids_rf.joblib  (else the IDS model stored in Admin › IDS model
 #                             is downloaded by scripts/vast_ids.py; with neither, the demo IDS only)
+#            CLOUD_PREP_SECRET=...  (= the control-plane secret CLOUD_PREP_SECRET: also starts the data
+#                             preparation service here, scripts/prep_local.py, so uploads are prepared on
+#                             this machine, never while a benchmark runs; without it nobody can upload)
 #
 # Steps: check env -> install deps -> check CUDA/GPU -> download the models marked "download at
 # start-up" (the rest download on first use) -> start ONE server process in REAL mode (it refuses
@@ -36,6 +39,8 @@ LOGS="$DATA/agentmeter-logs"
 mkdir -p "$LOGS"
 export HF_HOME="${HF_HOME:-$DATA/hf}"           # model weights on the persistent disk
 export PYTHONUNBUFFERED=1
+# One at a time on this machine: a benchmark or a data preparation, never both (agentmeter/server/gpulock.py)
+export AGENTMETER_BUSY_LOCK="${AGENTMETER_BUSY_LOCK:-$DATA/agentmeter.busy.lock}"
 
 T0=$SECONDS
 say()  { printf '\n\033[1m==> %s\033[0m  [+%dm%02ds]\n' "$*" $(( (SECONDS - T0) / 60 )) $(( (SECONDS - T0) % 60 )); }
@@ -166,6 +171,20 @@ for _ in $(seq 1 30); do
 done
 [ -n "$REG" ] || echo "WARNING: the control plane at $AGENTMETER_CONTROL_PLANE_URL did not answer /api/health — check the URL; the backend keeps retrying."
 
+# --- the data preparation service: on THIS machine, lowest CPU priority, own quick tunnel ---
+PREP="not started (set CLOUD_PREP_SECRET to prepare uploads on this machine)"
+if [ -n "${CLOUD_PREP_SECRET:-}" ]; then
+  if pgrep -f "scripts/prep_local.py" >/dev/null 2>&1; then
+    PREP="already running"
+  else
+    nohup nice -n 19 python3 scripts/prep_local.py run \
+      > "$LOGS/prep.log" 2>&1 &
+    echo $! > "$LOGS/prep.pid"
+    PREP="started (log $LOGS/prep.log); it registers with the control plane within a minute"
+  fi
+fi
+echo "data preparation service: $PREP"
+
 cat <<EOF
 
 ============================================================================
@@ -173,7 +192,8 @@ cat <<EOF
    start-up took $(( (SECONDS - T0) / 60 )) min $(( (SECONDS - T0) % 60 )) s (models not marked for start-up download on first use)
    backend URL : $URL
    health      : $URL/health
-   logs        : $LOGS/server.log   $LOGS/tunnel.log
+   logs        : $LOGS/server.log   $LOGS/tunnel.log   $LOGS/prep.log
+   preparation : $PREP
 
  Registered with the control plane: $AGENTMETER_CONTROL_PLANE_URL
    The front-end finds this backend through the control plane — nothing to paste. Log in and

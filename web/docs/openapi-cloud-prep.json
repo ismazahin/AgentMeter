@@ -11,10 +11,10 @@
  "servers": [
   {
    "url": "{prep}",
-   "description": "Cloud preparation service (Cloud Run / Space)",
+   "description": "Data preparation service on the GPU machine (its own Cloudflare quick tunnel)",
    "variables": {
     "prep": {
-     "default": "https://your-cloudprep.example"
+     "default": "https://your-prep.trycloudflare.com"
     }
    }
   }
@@ -31,7 +31,7 @@
     "tags": [
      "Data preparation"
     ],
-    "summary": "Is the preparation service up",
+    "summary": "Is the preparation service up, and what it is doing",
     "security": [],
     "responses": {
      "200": {
@@ -40,13 +40,13 @@
     }
    }
   },
-  "/prepare": {
+  "/nudge": {
    "post": {
-    "operationId": "post__prepare",
+    "operationId": "post__nudge",
     "tags": [
      "Data preparation"
     ],
-    "summary": "Prepare one input (a signed job from the control plane)",
+    "summary": "Look for waiting uploads now (signed by the control plane)",
     "security": [
      {
       "controlPlaneSignature": []
@@ -67,40 +67,7 @@
       }
      }
     },
-    "description": "Reads the input from a single-use URL, runs the server's own preparation code (identical flows and hash), uploads the files to single-use URLs and reports progress, signed.",
-    "requestBody": {
-     "required": true,
-     "content": {
-      "application/json": {
-       "schema": {
-        "type": "object",
-        "properties": {
-         "job_id": {
-          "type": "string"
-         },
-         "filename": {
-          "type": "string"
-         },
-         "source": {
-          "type": "object"
-         },
-         "max_flows": {
-          "type": "integer"
-         },
-         "limits": {
-          "type": "object"
-         },
-         "outputs": {
-          "type": "object"
-         },
-         "report_url": {
-          "type": "string"
-         }
-        }
-       }
-      }
-     }
-    }
+    "description": "It then pulls from POST /api/prep/claim, but only while no benchmark runs on the machine (one at a time), so preparing never changes a reading."
    }
   }
  },

@@ -18,21 +18,22 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     await p.fill('#login-user', 'admin'); await p.fill('#login-pass', 'admin-password-123');
     await p.click('#login-go');
     await p.waitForSelector('#svc-gpu-off:not([hidden])', { timeout: 30000 });
-    await p.goto(APP + '/app.html#/new?src=reuse');
-    await p.waitForSelector('#src-reuse:not([hidden])');
+    await p.goto(APP + '/app.html#/new?src=url');
+    await p.waitForSelector('#src-url:not([hidden])');
+    await p.fill('#svc-url', 'https://example.org/half-typed.csv');
     await p.waitForTimeout(3000);
-    // count redraws of the lists: each redraw replaces their contents
+    // count redraws of the upload step's lists: each redraw replaces their contents
     await p.evaluate(() => {
       window.__redraws = 0;
-      ['svc-recent-sets', 'svc-stored-sets', 'an-list'].forEach(id => {
+      ['an-uploads'].forEach(id => {
         const el = document.getElementById(id);
         if (el) new MutationObserver(() => { window.__redraws++; }).observe(el, { childList: true });
       });
     });
     await p.waitForTimeout(75000);                       // two re-checks of the GPU
     const n = await p.evaluate(() => window.__redraws);
-    log(n === 0, 'GPU stays offline for 75 s: the prepared sets lists are not redrawn (' + n + ' redraws)');
-    log(await p.isVisible('#src-reuse'), 'still on the Reuse a prepared set tab');
+    log(n === 0, 'GPU stays offline for 75 s: Your uploads is not redrawn (' + n + ' redraws)');
+    log(await p.isVisible('#src-url') && (await p.inputValue('#svc-url')) === 'https://example.org/half-typed.csv', 'still on the Import from a link tab, the typed link kept');
   } catch (e) { log(false, 'walk-through crashed: ' + e.message); }
   log(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   await b.close();

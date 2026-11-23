@@ -146,12 +146,11 @@ function backendNeed(method, path) {
     if (p === "/api/prepared/import") return { kind: "import" };
     if (p === "/api/jobs") return { kind: "benchmark" };
     if (p === "/api/models/verify") return { kind: "verify" };
-    if (p === "/api/schedules" || /^\/api\/schedules\/[^/]+\/cancel$/.test(p)) return { kind: "schedule" };
     if ((m = /^\/api\/jobs\/([^/]+)\/(resume|stop)$/.exec(p))) return { kind: m[2], job_id: decodeURIComponent(m[1]) };
     if ((m = /^\/api\/prepared\/([^/]+)\/([^/]+)\/delete$/.exec(p))) return { kind: "delete_set", set: decodeURIComponent(m[1]) + "/" + decodeURIComponent(m[2]) };
     return null;
   }
-  if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog|schedules|gpu|logs\/recent)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
+  if (/^\/api\/(jobs|sessions|compare|leaderboard|models\/catalog|gpu|logs\/recent)$/.test(p) || /^\/api\/sessions\/[^/]+$/.test(p)) return { kind: "read" };
   if ((m = /^\/api\/jobs\/([^/]+)(\/(result|report\.pdf|constraints|flows|telemetry|explanation))?$/.exec(p))) return m[2] || !STRONG_JOB.test(decodeURIComponent(m[1])) ? { kind: "read" } : null;
   if ((m = /^\/api\/prepared\/([^/]+)\/([^/]+)(\/[^/]+)?$/.exec(p)) && m[1] !== "import") return m[3] ? { kind: "files", set: decodeURIComponent(m[1]) + "/" + decodeURIComponent(m[2]) } : { kind: "read" };
   return null;
@@ -176,7 +175,6 @@ function runToken(need, opts) {
   var body = { kind: need.kind };
   if (need.kind === "resume" || need.kind === "stop") body.job_id = need.job_id;
   if (need.kind === "delete_set") body.set = need.set;
-  if (need.kind === "schedule") { try { body.job_id = JSON.parse(opts.body || "{}").job_id; } catch (e) { /* not JSON */ } }
   if (need.kind === "verify") { try { body.model = JSON.parse(opts.body || "{}").model; } catch (e) { /* not JSON */ } }
   if (need.kind === "benchmark") {
     var b = {};
@@ -411,12 +409,11 @@ function route() {
   var r = parseHash(), p = r.parts, v = p[0] || "home";
   // links from before Phase 46
   if (v === "prepare" || v === "upload") { location.replace("#/new"); return; }
-  if (v === "benchmark") { location.replace("#/new?src=reuse"); return; }
+  if (v === "benchmark") { location.replace("#/new"); return; }
   if (v === "jobs") { location.replace("#/sessions"); return; }
-  // one flow in New Benchmark (2026-11-10): Analyse traffic and Data sets live there now
+  // one flow in New Benchmark (2026-11-10); no reuse of prepared sets (2026-11-22): every benchmark starts from an upload
   if (v === "analyse") { location.replace(p[1] ? "#/new/prep/" + enc(p[1]) : "#/new"); return; }
-  if (v === "datasets") { location.replace("#/new?src=reuse" + (r.q.open ? "&open=" + enc(r.q.open) : "")); return; }
-  if ((v === "prepared" || v === "run") && p.length === 3) { location.replace("#/new/models?set=" + enc(p[1] + "/" + p[2])); return; }
+  if (v === "datasets" || ((v === "prepared" || v === "run") && p.length === 3)) { location.replace("#/new"); return; }
   if (v === "job" && p[1]) { legacyJob(p[1]); return; }
   if (CP && !AUTH.user) { show("login"); showLogin(); return; }
   if (v === "compare") {                         // Compare models was folded into By setup: open that session's setup

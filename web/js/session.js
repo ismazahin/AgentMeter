@@ -138,7 +138,7 @@ function loadSession(id, tab) {
   $("session-body").hidden = true; $("session-watch").hidden = true;
   $("svc-dl-pdf").setAttribute("href", apiUrl("/api/jobs/" + enc(id) + "/report.pdf"));
   $("svc-dl-pdf").hidden = true;
-  $("session-compare").setAttribute("href", "#/compare?a=" + enc(id)); $("session-again").hidden = true;
+  $("session-compare").setAttribute("href", "#/compare?a=" + enc(id)); $("session-again").hidden = true; $("session-again-note").hidden = true;
   (function tick() {
     if (token !== pollToken) return;
     api("/api/jobs/" + enc(id)).then(function (r) {
@@ -188,7 +188,7 @@ function loadSessionCP(id, tab) {
   $("session-chips").innerHTML = "";
   $("session-body").hidden = true; $("session-watch").hidden = true;
   $("svc-dl-pdf").hidden = true;
-  $("session-compare").setAttribute("href", "#/compare?a=" + enc(id)); $("session-again").hidden = true;
+  $("session-compare").setAttribute("href", "#/compare?a=" + enc(id)); $("session-again").hidden = true; $("session-again-note").hidden = true;
   var w = $("session-watch");
   function fromWorker(attempt) {
     api("/api/sessions/" + enc(id)).then(function (r) {
@@ -222,7 +222,7 @@ function loadSessionCP(id, tab) {
         '<p class="muted small">' + (r.data.models || []).map(function (m) { return esc(m) + extraTag(m); }).join("  vs  ") + (r.data.owner ? ", started by " + esc(r.data.owner) : "") + '</p>' +
         (ONLINE ? "" : '<div class="notice warn" id="watch-offline">The GPU is offline. Live progress and Resume need the GPU backend, and stored sessions stay browsable.</div>') +
         (r.data.status === "Stopped" ? '<p class="muted small">Stopped before it finished, so it is not scored.</p>' +
-          (r.data.run_name ? '<div class="actions"><a class="btn" id="watch-again" href="#/new/models?set=' + enc(r.data.run_name) + '">Benchmark these flows again</a></div>' : "") : "") + '</div>';
+          '<div class="actions"><a class="btn" id="watch-again" href="#/new">New benchmark</a><span class="small muted">Upload the same file and pick the same number of flows to measure them again.</span></div>' : "") + '</div>';
       if (ONLINE && (r.data.status === "Failed" || r.data.status === "Interrupted")) fromBackend();
     });
   }
@@ -444,11 +444,7 @@ function renderSession(res, job) {
     (job.owner ? '<span class="chip" title="Started by">' + esc(job.owner) + '</span>' : "");
   setDl($("svc-dl-pdf"), pdfPath(job), "agentmeter_report_" + job.job_id + ".pdf");
   $("svc-dl-pdf").hidden = false;
-  if (job.run_name) {
-    $("session-again").setAttribute("href", "#/new/models?set=" + enc(job.run_name) + "&models=" + (job.models || []).map(enc).join(",") + "&again=" + enc(job.job_id) +
-      (CP && (job.stored || SESSION.stored) ? "&from=" + enc(job.job_id) : ""));
-    $("session-again").hidden = false;
-  }
+  $("session-again").hidden = false; $("session-again-note").hidden = false;      // a fresh upload every time
   $("session-body").hidden = false;
   var base = "#/session/" + enc(job.job_id) + "/";
   if (window.INSIGHTS) setModelSlots(res);
@@ -457,7 +453,7 @@ function renderSession(res, job) {
   var SUM = window.INSIGHTS ? INSIGHTS.tabSummaries(res) : {};
   var lead = function (k) { return takeaway(SUM[k], k); };
   LC = {};                                         // line charts of this session (wired after render)
-  $("spanel-overview").innerHTML = pane("main", overviewTab(res) + '<div class="card" id="svc-rep-line" hidden></div>' + notesCard(job) + scheduleCard(job));
+  $("spanel-overview").innerHTML = pane("main", overviewTab(res) + '<div class="card" id="svc-rep-line" hidden></div>' + notesCard(job));
   $("spanel-ranking").innerHTML = lead("ranking") + pane("scores", '<div class="row" style="margin-top:0;justify-content:flex-end"><a class="btn primary" id="svc-evaluate" href="' + base +
       'recommendations/limits">Evaluate for my workload →</a></div>') + pane("weighting", weightsCard(res)) + pane("robustness", rankStabilityCard(res) + stabilityCard(res)) + pane("tradeoffs", frontierCard(res)) + pane("guide", "");
   $("spanel-reliability").innerHTML = lead("reliability") + pane("main", idsCard(res) + reliabilityCard(res) + accuracyStatsCard(res) + confusionCard(res) +
@@ -470,7 +466,7 @@ function renderSession(res, job) {
   ["overview", "ranking", "reliability", "performance", "agents", "cost", "recommendations", "data"].forEach(function (t) { reportify(t, res); });
   resetEmbed();
   wireAgents(res); wireDecision(res); wireDownloads(res, job); wirePresets(res); wireOverview(res); wireProjection(res); wireLineCharts(); SAME_SETUP = {};       // fresh per render: a later session on these flows must show up
-  wireRepeat(res, job); wireRepLine(job); wireNotes(job); wireSchedule(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePrices(res); wirePicker(res);
+  wireRepeat(res, job); wireRepLine(job); wireNotes(job); wireChanged(job); wireFrontier(res); wireCapacity(res); wirePrices(res); wirePicker(res);
   addExports($("session-body")); paintLimits($("session-body"));
   loadExplanation(job);
 }
@@ -1405,7 +1401,7 @@ function gpuHealthCard(res) {
   return '<div class="notice warn" id="svc-gpu-health" role="status"><b>Check the GPU. It was not in a normal state during this run.</b> The timings and energy below may reflect the GPU, not the model.' +
     '<ul class="small" style="margin:6px 0 0">' + bad.map(function (m) {
       return '<li><b class="model-name" title="' + esc(m.model) + '">' + esc(nick(m.model)) + '</b>: ' + esc(plain(m)) + '.</li>';
-    }).join("") + '</ul><p class="small" style="margin:6px 0 0">Run it again when the GPU is cool and not shared, then compare on <a href="#/trends">Consistency</a>.</p>' +
+    }).join("") + '</ul><p class="small" style="margin:6px 0 0">Benchmark it again (a new upload of the same file) when the GPU is cool and not shared, then compare on <a href="#/trends">Consistency</a>.</p>' +
     '<details class="info"><summary>How to read this</summary><p class="small muted">' + esc(g.rule || "") + '</p><ul class="small muted">' + bad.map(function (m) {
       return '<li>' + esc(nick(m.model)) + ': ' + m.reasons.map(function (r) { return esc(String(r).replace(/\s+\u2014\s+/g, ": ")); }).join("; ") + '</li>';
     }).join("") + '</ul></details></div>';

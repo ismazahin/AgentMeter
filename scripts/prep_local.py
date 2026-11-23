@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""Run AgentMeter's data-preparation service (and the traffic analysis) on YOUR computer.
+"""Run AgentMeter's data-preparation service (and the traffic analysis) next to the GPU server.
 
-No card, no rented GPU: this runs cloudprep/app.py here, opens a Cloudflare tunnel to it and tells
-the control plane where it is (signed with the service's secret, like the GPU server). While it
-runs, Analyse traffic works; the site's Start button starts it (after `install`, Windows).
+scripts/vast_up.sh starts it on the rented GPU machine, so it starts and is destroyed with that
+machine (no extra cost, nothing on the owner's computer). It runs cloudprep/app.py, opens a
+Cloudflare quick tunnel to it, registers with the control plane (signed with the service's secret,
+like the GPU server) and sends a heartbeat every minute. The service pulls waiting preparations
+and runs them only while no benchmark runs (agentmeter/server/gpulock.py).
 
     python scripts/prep_local.py                  # run here, in this terminal (Ctrl+C stops it)
-    python scripts/prep_local.py install          # once: the site's Start / Stop buttons work on this PC
-    python scripts/prep_local.py start | stop | status
+    python scripts/prep_local.py stop | status
     python scripts/prep_local.py set-secret       # once: give the control plane this service's secret
-    python scripts/prep_local.py uninstall        # remove what install added
     python scripts/prep_local.py --tunnel-token <t> --hostname prep.example.org   # a named tunnel
 
 Needs: Python with requirements.txt (+ requirements-pcap.txt and cicflowmeter for PCAPs) and
-cloudflared (on PATH, or cloudflared.exe in the repo folder). The secret is created once in
-.cloudprep_secret (git-ignored); the control plane must have the same CLOUD_PREP_SECRET
-(`set-secret` runs `npx supabase secrets set` for it, once). The control plane's address comes
-from --control-plane, AGENTMETER_CONTROL_PLANE_URL, or web/config.json.
+cloudflared on PATH. The secret is CLOUD_PREP_SECRET from the environment (the Vast template),
+else .cloudprep_secret (git-ignored, created once); the control plane must have the same
+CLOUD_PREP_SECRET. The control plane's address comes from --control-plane,
+AGENTMETER_CONTROL_PLANE_URL, or web/config.json.
 """
 from __future__ import annotations
 
@@ -43,8 +43,7 @@ REPO = Path(__file__).resolve().parents[1]
 SECRET_FILE = REPO / ".cloudprep_secret"
 RUN_DIR = REPO / "results"
 QUICK_URL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
-PROTOCOL = "agentmeter-prep"
-VERSION = "prep_local/2"
+VERSION = "prep_local/3"
 WIN = sys.platform == "win32"
 NO_WINDOW = 0x08000000 if WIN else 0             # CREATE_NO_WINDOW: children open no console
 log = logging.getLogger("prep_local")
@@ -179,12 +178,6 @@ def running_pid(run_dir: Path = RUN_DIR) -> Optional[int]:
     return pid if pid_alive(pid) else None
 
 
-def parse_link(url: str) -> Optional[str]:
-    """agentmeter-prep://start or ://stop (a browser may add a slash); anything else: None."""
-    m = re.fullmatch(rf"{PROTOCOL}:/*(start|stop)/?", (url or "").strip().lower())
-    return m.group(1) if m else None
-
-
 # ---------------------------------------------------------------- the supervisor
 class Supervisor:
     """Runs the service and the tunnel, registers with the control plane, sends heartbeats, and
@@ -207,7 +200,8 @@ class Supervisor:
     def start_service(self) -> bool:
         env = {**os.environ, "PORT": str(self.port), "CLOUD_PREP_SECRET": self.secret,
                "CLOUD_PREP_WORK_DIR": str(self.run_dir / "cloudprep"),
-               "CLOUD_PREP_WHERE": "the AgentMeter preparation service on the owner's computer"}
+               "AGENTMETER_CONTROL_PLANE_URL": self.cp or "",
+               "CLOUD_PREP_WHERE": os.environ.get("CLOUD_PREP_WHERE") or "the AgentMeter preparation service on the GPU machine"}
         exe = sys.executable
         if WIN and exe.lower().endswith("pythonw.exe") and Path(exe[:-5] + ".exe").exists():
             exe = exe[:-5] + ".exe"                # the service's own output goes to the log either way
@@ -367,27 +361,8 @@ def cmd_run(a) -> int:
     sup = Supervisor(cloudflared=cf, secret=load_or_create_secret(), cp=control_plane_url(a.control_plane), port=a.port,
                      tunnel_token=a.tunnel_token, hostname=a.hostname, child_out=child_out)
     if not a.background:
-        log.info("Analyse traffic works while this runs. Ctrl+C stops it.")
+        log.info("Uploads are prepared while this runs. Ctrl+C stops it.")
     return sup.run()
-
-
-def background_command() -> list[str]:
-    exe = sys.executable
-    if WIN and exe.lower().endswith("python.exe") and Path(exe[:-4] + "w.exe").exists():
-        exe = exe[:-4] + "w.exe"                    # pythonw: no console window
-    return [exe, str(Path(__file__).resolve()), "run", "--background"]
-
-
-def cmd_start(_a=None) -> int:
-    pid = running_pid()
-    if pid:
-        print(f"Already running (pid {pid}).")
-        return 0
-    flags = (0x00000008 | 0x00000200 | NO_WINDOW) if WIN else 0     # DETACHED_PROCESS | NEW_PROCESS_GROUP
-    subprocess.Popen(background_command(), cwd=str(REPO), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                     stderr=subprocess.DEVNULL, creationflags=flags, start_new_session=not WIN)
-    print("Starting in the background; the log is results/prep_local.log.")
-    return 0
 
 
 def cmd_stop(_a=None, wait_s: float = 20) -> int:
@@ -410,70 +385,7 @@ def cmd_status(_a=None) -> int:
     except (OSError, ValueError):
         st = {}
     print(f"Running (pid {pid}) at {st.get('url') or '(no public address yet)'}" if pid else "Not running.")
-    print(f"Start / Stop buttons: {'installed' if protocol_installed() else 'not installed (run: python scripts/prep_local.py install)'}")
     return 0
-
-
-def protocol_entries() -> dict[str, dict[str, str]]:
-    """The registry keys `install` writes (HKEY_CURRENT_USER): the link type the site's buttons open."""
-    cmd = background_command()[:2]
-    root = rf"Software\Classes\{PROTOCOL}"
-    return {root: {"": "URL:AgentMeter preparation service", "URL Protocol": ""},
-            root + r"\shell\open\command": {"": f'"{cmd[0]}" "{cmd[1]}" link "%1"'}}
-
-
-def protocol_installed() -> bool:
-    if not WIN:
-        return False
-    import winreg
-    try:
-        winreg.CloseKey(winreg.OpenKey(winreg.HKEY_CURRENT_USER, rf"Software\Classes\{PROTOCOL}"))
-        return True
-    except OSError:
-        return False
-
-
-def cmd_install(_a=None) -> int:
-    if not WIN:
-        print("The Start button works on Windows only. Here, run: python scripts/prep_local.py start")
-        return 1
-    import winreg
-    for key, values in protocol_entries().items():
-        k = winreg.CreateKey(winreg.HKEY_CURRENT_USER, key)
-        for name, val in values.items():
-            winreg.SetValueEx(k, name, 0, winreg.REG_SZ, val)
-        winreg.CloseKey(k)
-    load_or_create_secret()
-    print("Installed: the site's Start / Stop buttons now work on this PC (your browser asks once; tick Always allow).")
-    print("If the control plane does not have this service's secret yet, run once: python scripts/prep_local.py set-secret")
-    return 0
-
-
-def cmd_uninstall(_a=None) -> int:
-    cmd_stop()
-    if not WIN:
-        return 0
-    import winreg
-    for key in sorted(protocol_entries(), key=len, reverse=True) + [rf"Software\Classes\{PROTOCOL}\shell\open", rf"Software\Classes\{PROTOCOL}\shell"]:
-        try:
-            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key)
-        except OSError:
-            pass
-    try:
-        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, rf"Software\Classes\{PROTOCOL}")
-    except OSError:
-        pass
-    print("Uninstalled: the Start / Stop buttons no longer start anything on this PC.")
-    return 0
-
-
-def cmd_link(a) -> int:
-    what = parse_link(a.url)
-    if what == "start":
-        return cmd_start()
-    if what == "stop":
-        return cmd_stop()
-    return 2                                          # anything else: ignored
 
 
 def cmd_set_secret(_a=None) -> int:
@@ -484,19 +396,18 @@ def cmd_set_secret(_a=None) -> int:
     if r.returncode:
         print("Failed: run `npx supabase login` and `npx supabase link` in this folder first.", file=sys.stderr)
         return 1
-    print("Done. If an old CLOUD_PREP_URL is set from earlier runs, remove it: npx supabase secrets unset CLOUD_PREP_URL")
+    print("Done. Set the same value as CLOUD_PREP_SECRET in the Vast template too (docs/VAST_TEMPLATE.md).")
     return 0
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("command", nargs="?", default="run",
-                    choices=["run", "start", "stop", "status", "install", "uninstall", "link", "set-secret"])
-    ap.add_argument("url", nargs="?", help="link: the agentmeter-prep:// link the browser opened")
+                    choices=["run", "stop", "status", "set-secret"])
     ap.add_argument("--background", action="store_true", help="run: no console output; log to results/prep_local.log")
     ap.add_argument("--port", type=int, default=8090)
     ap.add_argument("--control-plane", help="the control plane's URL (default: web/config.json)")
-    ap.add_argument("--tunnel-token", default=os.environ.get("CF_TUNNEL_TOKEN"),
+    ap.add_argument("--tunnel-token", default=os.environ.get("CLOUD_PREP_TUNNEL_TOKEN"),
                     help="a named Cloudflare tunnel's token (with --hostname: a fixed address)")
     ap.add_argument("--hostname", default=os.environ.get("CLOUD_PREP_HOSTNAME"),
                     help="the named tunnel's public hostname, e.g. prep.example.org")
@@ -504,8 +415,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     a = ap.parse_args(argv)
     if a.tunnel_token and not a.hostname:
         ap.error("--tunnel-token needs --hostname (the address the tunnel serves)")
-    return {"run": cmd_run, "start": cmd_start, "stop": cmd_stop, "status": cmd_status, "install": cmd_install,
-            "uninstall": cmd_uninstall, "link": cmd_link, "set-secret": cmd_set_secret}[a.command](a)
+    return {"run": cmd_run, "stop": cmd_stop, "status": cmd_status, "set-secret": cmd_set_secret}[a.command](a)
 
 
 if __name__ == "__main__":

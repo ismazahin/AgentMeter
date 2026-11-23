@@ -1,113 +1,67 @@
-// AgentMeter web app — analyse.js: New Benchmark steps 2-3 (#/new/prep/<job>): the upload prepared and
-// scored by the IDS on the preparation service (no GPU), then "Your data" and Continue to the models.
+// AgentMeter web app — analyse.js: New Benchmark steps 2-3 (#/new/prep/<job>): the upload waits for the
+// GPU machine, is prepared and scored by the IDS there (never while a benchmark runs), then "Your data"
+// and Continue to the models. Also "Your uploads" under the upload form.
 // One of the app's scripts (web/app.html loads them in order: core, home, wizard, session, analysis,
 // analyse, compare, settings, boot); they share the page's global scope.
 //
-// An analysis is a cloud preparation job (control plane: /api/prep/jobs) whose preparation service
-// also scored every flow of the candidate pool with the stored IDS model. This page uploads the file,
-// follows the job, and then works on its stored scores in the browser: the threshold, the alerts,
-// what the IDS caught and missed (labelled CSV), and the LLM cost projected from earlier sessions.
-// "Benchmark LLMs on these alerts" hands the prepared set (with its scores) to the GPU server.
+// An upload is a preparation job of the control plane (/api/prep/jobs). The preparation service runs
+// on the GPU machine and pulls it when no benchmark is running, so the job may WAIT first. This page
+// uploads the file, follows the job (waiting, preparing, done), and then works on its stored scores in
+// the browser: the threshold, the alerts, what the IDS caught and missed (labelled CSV), and the LLM
+// cost projected from earlier sessions. Continue hands the prepared set to the GPU server.
 "use strict";
 var AN = { src: "file", job: null, rows: null, pool: null, ident: null, tau: null, page: 0, sessions: null, seen: 0 };
 var AN_PAGE = 50;
 
+// the preparation service on the GPU machine is online (it registers with the control plane)
 function anCloud() { return !!(CP && BACKEND && BACKEND.cloud_prep); }
-// ---------- the preparation service (scripts/prep_local.py on the owner's PC) ----------
-// Continue starts it when it is not running: the click opens agentmeter-prep://start, which
-// `python scripts/prep_local.py install` registered on that PC (the browser asks once, "Open
-// AgentMeter prep?"). The page then watches /api/backend until the service has registered and
-// carries on with the upload by itself. The Stop link opens agentmeter-prep://stop the same way.
-var AN_SVC = { waiting: null, until: 0, hintAt: 0, then: null };
-var AN_SVC_HINT_MS = 20000, AN_SVC_WAIT_MS = 120000;
-var AN_INSTALL_HINT = 'First time on this PC? Run <code>python scripts/prep_local.py install</code> once in the AgentMeter folder, then press Continue again.';
+var AN_OFF = "The GPU server is off, so new data cannot be prepared right now. Your sessions and the Leaderboard still work. Try again once it is back on.";
+// the upload step: a one-line status under the form, and the warning while the GPU server is off
 function anServiceNotice() {
-  var un = $("an-unavailable"), svc = BACKEND && BACKEND.prep_service, w = AN_SVC.waiting;
-  if ($("svc-upload-btn") && viaService()) $("svc-upload-btn").disabled = w === "start";
-  if (!CP) { un.hidden = false; un.className = "notice warn"; un.innerHTML = "Analyse traffic needs the control plane on the hosted site. On a single GPU server, use New benchmark."; return; }
-  if (anCloud()) {
-    un.hidden = !(svc && svc.online);
-    un.className = "notice small";
-    un.innerHTML = 'Preparation service running on your computer. <a href="agentmeter-prep://stop" id="an-svc-stop">Stop it</a>' +
-      (w === "stop" ? ' <span class="muted" id="an-svc-wait">Stopping…</span>' : "");
-    return;
-  }
-  if (w === "start") {
-    un.hidden = false; un.className = "notice small";
-    un.innerHTML = '<span id="an-svc-wait" role="status">Starting the preparation service on your computer… Your browser may ask to open AgentMeter prep. Tick <i>Always allow</i>.</span>' +
-      (Date.now() > AN_SVC.hintAt ? '<p class="small" id="an-svc-hint" style="margin:6px 0 0">' + AN_INSTALL_HINT + '</p>' : "");
-    return;
-  }
-  if (w === "late") {
-    un.hidden = false; un.className = "notice warn";
-    un.innerHTML = '<p id="an-svc-late" role="alert" style="margin:0"><b>The preparation service did not start.</b> ' + AN_INSTALL_HINT +
-      ' If it is installed, check <code>results/prep_local.log</code>, or run <code>python scripts/prep_local.py</code> in a terminal to see why.</p>';
-    return;
-  }
-  un.hidden = true; un.innerHTML = "";              // not running: Continue starts it
+  var un = $("an-unavailable"), where = $("svc-prep-where"), on = anCloud(), st = on && BACKEND.prep_service ? BACKEND.prep_service.state : null;
+  if ($("svc-upload-btn") && viaService()) $("svc-upload-btn").disabled = !on;
+  if (!CP) { un.hidden = false; un.className = "notice warn"; un.textContent = "Uploads need the control plane on the hosted site."; return; }
+  un.hidden = on; un.className = "notice warn"; un.textContent = on ? "" : AN_OFF;
+  if (!where) return;
+  where.hidden = false;
+  where.className = "prep-where" + (on ? "" : " off");
+  where.innerHTML = '<i class="dot" aria-hidden="true"></i>' + (on
+    ? '<b>Prepared on the GPU server.</b> <span>' + (st === "waiting_for_benchmark" || st === "preparing"
+        ? "A benchmark or another upload is running, so your upload waits and prepares as soon as it ends."
+        : "If a benchmark is running, your upload waits and prepares as soon as it ends.") + '</span>'
+    : '<b>The GPU server is off.</b> <span>Nothing can be prepared or run until it is back on.</span>');
 }
-// open agentmeter-prep://start from the Continue click (a user action, so the browser allows it)
-function anLaunchService() {
-  var a = document.createElement("a");
-  a.href = "agentmeter-prep://start"; a.id = "an-svc-start"; a.hidden = true;
-  document.body.appendChild(a); a.click(); a.remove();
-}
-function anWatchService(what, then) {
-  AN_SVC.waiting = what; AN_SVC.until = Date.now() + AN_SVC_WAIT_MS; AN_SVC.hintAt = Date.now() + AN_SVC_HINT_MS; AN_SVC.then = then || null;
-  anServiceNotice();
-  var token = pollToken;
-  (function tick() {
-    if (token !== pollToken) { AN_SVC.waiting = null; AN_SVC.then = null; return; }
-    cpFetch("/api/backend").then(function (r) {
-      if (token !== pollToken) return;
-      if (r.ok) BACKEND = r.data;
-      var up = anCloud();
-      if ((what === "start" && up) || (what === "stop" && !up)) {
-        var then = AN_SVC.then;
-        AN_SVC.waiting = null; AN_SVC.then = null; anServiceNotice();
-        if (up) cpFetch("/api/prep/wake", { method: "POST" }).then(function () { /* best effort */ });
-        if (then) then();
-        return;
-      }
-      if (Date.now() > AN_SVC.until) { AN_SVC.waiting = what === "start" ? "late" : null; AN_SVC.then = null; anServiceNotice(); return; }
-      anServiceNotice();                             // shows the install hint once 20 seconds have passed
-      setTimeout(tick, 3000);
-    });
-  })();
-}
-document.addEventListener("click", function (ev) {
-  var a = ev.target.closest && ev.target.closest("#an-svc-stop");
-  if (a) anWatchService("stop");                     // the link itself opens (the browser asks)
-});
 
-// ---------- the list of analyses ----------
-function anList() {
-  $("an-list").innerHTML = skel(3, true);
-  cpFetch("/api/analyses").then(function (r) {
-    if (!r.ok) { $("an-list").innerHTML = '<div class="notice error">' + esc((r.data || {}).error || "Could not load your analyses.") + '</div>'; return; }
-    var a = r.data.analyses || [];
-    if (!a.length) { $("an-list").innerHTML = '<div class="card empty" id="an-empty"><p>No analyses yet. Upload a file on the first tab. It is prepared and the IDS scores every flow in it.</p></div>'; return; }
-    $("an-list").innerHTML = '<div class="card"><div class="table-wrap"><table id="an-table"><thead><tr><th>File</th><th class="num">Flows scored</th><th class="num">Alerts</th>' +
-      '<th>Labels</th><th>Finished</th>' + (isAdmin() ? "<th>By</th>" : "") + '<th><span class="sr-only">Open</span></th></tr></thead><tbody>' +
-      a.map(function (x) {
-        var i = x.ids || {}, name = x.filename || (x.url ? x.url.split("/").pop() : (x.set || "").split("/").pop());
-        return '<tr><td><b class="mono small">' + esc(name) + '</b></td><td class="num">' + fmtNum(i.n_flows_in) + '</td><td class="num">' + fmtNum(i.n_flagged) +
-          '</td><td>' + (i.labelled ? '<span class="chip ok">labelled</span>' : '<span class="chip">no labels</span>') + '</td><td class="small">' + esc(fmtDate(x.finished_at)) +
-          '</td>' + (isAdmin() ? '<td class="small">' + esc(x.owner || "—") + '</td>' : "") + '<td><a class="btn small-btn" href="#/new/prep/' + enc(x.job_id) + '">Open</a></td></tr>';
-      }).join("") + '</tbody></table></div></div>';
+// ---------- Your uploads: the caller's uploads not yet benchmarked ----------
+var AN_STATE = { uploading: ["Uploading", "prep"], waiting: ["Waiting", "wait"], running: ["Preparing", "prep"], done: ["Ready", "ready"], failed: ["Failed", "bad"] };
+function anUploads() {
+  var host = $("an-uploads");
+  if (!host || !CP) return;
+  cpFetch("/api/prep/mine").then(function (r) {
+    if (!r.ok) { host.hidden = true; return; }
+    var up = (r.data.uploads || []).filter(function (x) { return x.status !== "uploading"; });
+    host.hidden = !up.length;
+    if (!up.length) { host.innerHTML = ""; return; }
+    host.innerHTML = '<h2>Your uploads</h2><p class="muted small" style="margin-top:0">Uploads you have not benchmarked yet. One leaves this list when you start its benchmark, or after ' + fmtNum(r.data.expire_days || 7) + ' days.</p>' +
+      '<div class="table-wrap"><table id="an-uploads-table"><thead><tr><th>File</th><th class="num">Flows</th><th>Uploaded</th><th>State</th><th><span class="sr-only">Open</span></th></tr></thead><tbody>' +
+      up.map(function (x) {
+        var s = AN_STATE[x.status] || [x.status, ""], why = x.status === "waiting" && x.waiting ? anWaitShort(x.waiting) : x.status === "done" ? "choose models next" : "";
+        return '<tr data-up="' + esc(x.job_id) + '"><td class="mono small">' + esc(anName(x)) + '</td><td class="num">' + fmtNum(x.max_flows) + '</td><td class="small">' + esc(fmtDate(x.created_at)) +
+          '</td><td><span class="up-chip ' + s[1] + '">' + esc(s[0]) + '</span>' + (why ? ' <span class="small muted">' + esc(why) + '</span>' : "") +
+          '</td><td><a href="#/new/prep/' + enc(x.job_id) + '">Open</a></td></tr>';
+      }).join("") + '</tbody></table></div>';
   });
+}
+function anWaitShort(w) {
+  return w.reason === "gpu_off" ? "until the GPU server is back on" : w.reason === "benchmark" ? "for the running benchmark" :
+    w.reason === "queue" ? (w.ahead === 1 ? "1 upload ahead" : fmtNum(w.ahead) + " uploads ahead") : "starting next";
 }
 
 // ---------- step 1 -> 2: the wizard's upload goes to the preparation service ----------
 function startAnalysis(src) {
   var err = $("svc-upload-error"), btn = $("svc-upload-btn"), busy = $("svc-upload-busy");
   err.hidden = true;
-  if (!anCloud()) {                                  // not running: start it, then carry on with this upload
-    if (AN_SVC.waiting === "start") return;
-    anLaunchService();
-    anWatchService("start", function () { startAnalysis(src); });
-    return;
-  }
+  if (!anCloud()) { showError(err, { error: AN_OFF, code: "cloud_prep_unavailable" }); return; }
   var maxB = ((BACKEND && BACKEND.cloud_prep_max_mb) || 50) * 1024 * 1024;
   if (src.file && src.file.size > maxB) {
     showError(err, { error: "This file is " + fmtSize(src.file.size) + "; uploads are limited to " + fmtSize(maxB) + ". Use Import from a link for larger files.", code: "too_large" });
@@ -116,7 +70,7 @@ function startAnalysis(src) {
   var body = { max_flows: Math.max(1, Math.min(500, parseInt($("svc-max-flows").value || "50", 10) || 50)),
                other_attack: false, limits: (CONFIG && CONFIG.limits) || {} };
   if (src.file) { body.filename = src.file.name; body.size = src.file.size; } else body.url = src.url;
-  btn.disabled = true; busy.hidden = false; busy.textContent = "Sending to the preparation service…";
+  btn.disabled = true; busy.hidden = false; busy.textContent = "Saving your upload…";
   var fail = function (d) { btn.disabled = false; busy.hidden = true; showError(err, d); };
   cpFetch("/api/prep/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
     if (!r.ok) { fail(r.data); return; }
@@ -125,7 +79,7 @@ function startAnalysis(src) {
     busy.textContent = "Uploading " + fmtSize(src.file.size) + "…";
     fetch(r.data.upload_url, { method: "PUT", body: src.file, headers: { "content-type": src.file.type || "application/octet-stream" } }).then(function (u) {
       if (!u.ok) throw new Error("storage answered HTTP " + u.status);
-      busy.textContent = "Uploaded. Starting the preparation…";
+      busy.textContent = "Uploaded.";
       return cpFetch("/api/prep/jobs/" + enc(id) + "/start", { method: "POST" });
     }).then(function (st) {
       if (!st.ok) { fail(st.data); return; }
@@ -167,9 +121,12 @@ function anDetail(id) {
       if (!r.ok) { box.innerHTML = '<p><a href="#/new">← Upload another file</a></p><div class="notice error">' + esc((r.data || {}).error || "No such analysis.") + '</div>'; return; }
       var j = r.data;
       AN.job = j;
+      if (j.status === "waiting" || j.status === "uploading") { wizStep("prep"); anWaiting(j); setTimeout(tick, 3000); return; }
+      if (j.status === "cancelled" || j.status === "expired") { wizStep("prep"); anGone(j); return; }
       if (j.status !== "done" && j.status !== "failed") { wizStep("prep"); anProgress(j); setTimeout(tick, 1500); return; }
       if (j.status === "failed") { wizStep("prep"); anProgress(j); return; }
       wizStep("review");
+      $("an-detail").removeAttribute("data-wait");
       if (j.files.indexOf("ids_scores.csv") < 0) {
         AN.pool = null; AN.rows = null;
         anFile(id, "manifest.json").then(function (m) {
@@ -206,13 +163,57 @@ function anDetail(id) {
 }
 function anRound(v) { return Math.round(v * 10000) / 10000; }
 function anName(j) { return j.filename || (j.url ? j.url.split("/").pop() : String(j.set_name || "").split("/").pop()); }
+// waiting for the GPU machine: why, what runs now, its place, and that the page may be closed
+function anWaiting(j) {
+  var w = j.waiting || { reason: "next", ahead: 0 }, h = w.holder || {};
+  var mins = h.started_at ? Math.max(0, Math.round((Date.now() - Date.parse(h.started_at)) / 60000)) : null;
+  var line = w.reason === "gpu_off" ? "Waiting for the GPU server to be back on, then preparing." :
+    w.reason === "benchmark" ? "Waiting for the running benchmark to finish, then preparing." :
+    w.reason === "queue" ? "Waiting for the uploads ahead of it, then preparing." : "Starting the preparation…";
+  var now = w.reason === "gpu_off" ? "Nothing. The GPU server is off." :
+    w.reason === "benchmark" ? (h.kind === "prepare" ? "Another upload is being prepared" :
+      "A benchmark" + (h.models ? " of " + fmtNum(h.models) + " model" + (h.models === 1 ? "" : "s") : "")) + (mins != null ? ", started " + (mins < 1 ? "just now" : fmtNum(mins) + " minute" + (mins === 1 ? "" : "s") + " ago") : "") :
+    w.reason === "queue" ? "Another upload is being prepared" : "Nothing. Yours starts now.";
+  var place = w.ahead ? fmtNum(w.ahead) + (w.ahead === 1 ? " upload is" : " uploads are") + " ahead of yours." : "Next. Benchmarks queued after the running one wait for your preparation.";
+  var size = [j.size_bytes ? fmtSize(j.size_bytes) : (j.url ? "a link" : null), j.max_flows ? fmtNum(j.max_flows) + " flows" : null, "saved to your account"].filter(Boolean).join(" · ");
+  var html = '<p><a href="#/new">← Upload another file</a></p>' +
+    '<div class="wait-h"><h2>' + esc(anName(j)) + '</h2><span class="up-chip wait">Waiting</span></div>' +
+    '<p class="wait-line" id="an-wait-line">' + esc(line) + '</p>' +
+    '<p class="wait-sub">Preparing never runs at the same time as a benchmark, so it cannot change anyone\'s readings.</p>' +
+    '<div class="bar indet" aria-hidden="true"><span></span></div>' +
+    '<ul class="wait-facts" id="an-wait-facts"><li><span>Your upload</span><span>' + esc(size) + '</span></li>' +
+    '<li><span>Running now</span><span>' + esc(now) + '</span></li>' +
+    '<li><span>Your place</span><span>' + esc(place) + '</span></li>' +
+    '<li><span>When it is ready</span><span>You can close this page. It prepares by itself and stays under Your uploads. If Telegram is set up in Settings, a message tells you.</span></li></ul>' +
+    '<div class="actions"><button type="button" class="btn" id="an-cancel">Cancel this upload</button></div>' +
+    '<div id="an-cancel-error" class="notice error" role="alert" hidden></div>';
+  var box = $("an-detail");
+  if (box.getAttribute("data-wait") === html) return;               // unchanged: keep focus where it is
+  box.setAttribute("data-wait", html);
+  box.innerHTML = html;
+  $("an-cancel").addEventListener("click", function () {
+    confirmAction({ title: "Cancel this upload?", body: "The file is deleted and nothing is prepared.", ok: "Cancel upload", cancel: "Keep it", danger: true }).then(function (yes) {
+      if (!yes) return;
+      cpFetch("/api/prep/jobs/" + enc(j.job_id) + "/cancel", { method: "POST" }).then(function (r) {
+        if (!r.ok) { showError($("an-cancel-error"), r.data); return; }
+        location.hash = "#/new";
+      });
+    });
+  });
+}
+function anGone(j) {
+  $("an-detail").removeAttribute("data-wait");
+  $("an-detail").innerHTML = '<p><a href="#/new">← Upload another file</a></p><div class="card"><h2>' + esc(anName(j)) + '</h2><p>' +
+    (j.status === "cancelled" ? "This upload was cancelled." : "This upload was not benchmarked within 7 days, so it was deleted.") + ' Upload the file again to benchmark it.</p></div>';
+}
 function anProgress(j) {
+  $("an-detail").removeAttribute("data-wait");
   var log = (j.log || []).map(function (ev) {
     return '<li class="tel-line">' + esc(new Date(ev.t).toTimeString().slice(0, 8)) + "  " + esc((PHASES[ev.phase] ? PHASES[ev.phase] + (ev.message ? ": " : "") : "") + (ev.message || "")) + '</li>';
   }).join("");
   $("an-detail").innerHTML = '<p><a href="#/new">← Upload another file</a></p><div class="card"><h2>' + esc(anName(j)) + '</h2>' +
     (j.status === "failed" ? '<div class="notice error" role="alert">' + esc(j.error || "The analysis failed.") + (j.code ? ' <code>' + esc(j.code) + '</code>' : "") + '</div>'
-      : '<p class="muted">Preparing the data and scoring every flow with the IDS. The first job after a quiet spell waits about a minute while the preparation service wakes.</p><div class="bar indet"><span></span></div>') +
+      : '<p class="muted">Preparing the data on the GPU server and scoring every flow with the IDS. No benchmark runs meanwhile.</p><div class="bar indet"><span></span></div>') +
     '<ol class="tel-log mono" aria-label="Analysis progress">' + log + '</ol></div>';
 }
 function anRender() {

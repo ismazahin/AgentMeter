@@ -1,10 +1,13 @@
-// New Benchmark as one flow, steps 1-3 without a GPU (Playwright; run via tests/e2e/cloudprep_stack.sh):
-//   an admin stores the IDS model -> with NO GPU server, a labelled CSV is uploaded on Analyse traffic
-//   -> the preparation service scores every flow -> the page shows the alerts, recall / precision /
-//   false-positive rate and the addresses (the uploader's) -> the threshold changes the figures in the
-//   browser -> the analysis is listed -> the GPU server starts -> "Benchmark these alerts" hands the set
-//   and its scores to it and opens model choice with the IDS gate at the page's threshold -> a mock
-//   benchmark triages the alerts with the STORED scores -> no CSP blocks, no JS errors.
+// New Benchmark as one flow (Playwright; run via tests/e2e/cloudprep_stack.sh):
+//   an admin stores the IDS model -> only two tabs (no reuse) -> a labelled CSV is uploaded, waits,
+//   and the preparation service (on the GPU machine) pulls it and scores every flow -> the page shows
+//   the alerts, recall / precision / false-positive rate -> the threshold changes the figures in the
+//   browser -> while a benchmark holds the machine's lock, a second upload WAITS and says why, and
+//   prepares by itself once the lock is free; a third is cancelled -> Your uploads lists the uploads
+//   -> the GPU server starts -> Continue hands the set and its scores to it and opens model choice
+//   with the IDS gate at the page's threshold -> a mock benchmark triages the alerts with the STORED
+//   scores -> the upload leaves Your uploads and cannot start a second benchmark -> no CSP blocks, no
+//   JS errors.
 const path = require('path'), fs = require('fs'), cp = require('child_process');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (e) {
@@ -19,6 +22,16 @@ const IDS = path.join(REPO, 'models', 'ids');
 const RESULTS = path.join(OUT, 'backend-results');
 const out = []; const log = (ok, msg) => { out.push((ok ? 'PASS ' : 'FAIL ') + msg); console.log((ok ? 'PASS ' : 'FAIL ') + msg); };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// a benchmark holding the GPU machine (gpulock.py): until killed
+function holdMachine() {
+  return cp.spawn(process.env.PYTHON || 'python', ['-c', `
+import sys, time
+from agentmeter.server import gpulock
+with gpulock.hold({"kind": "benchmark", "job_id": "job_e2e", "models": 3}):
+    print("held", flush=True)
+    while True: time.sleep(1)
+`], { cwd: REPO, env: Object.assign({}, process.env, { PYTHONPATH: REPO }), stdio: ['ignore', 'pipe', 'inherit'] });
+}
 
 let backend = null;
 function startBackend() {
@@ -76,6 +89,9 @@ const txt = (p, sel) => p.$eval(sel, e => e.textContent).catch(() => '');
     const steps = await p.$$eval('#wiz-steps li', l => l.map(x => x.textContent.replace(/^\d/, '')));
     log(steps.join('|') === 'Upload|Preparing|Your data|Models and settings|Run', 'five steps: ' + steps.join(' → '));
     log(!(await p.$eval('#svc-upload-btn', e => e.disabled)), 'GPU off: step 1 (upload) works');
+    const tabs = await p.$$eval('#wiz-step-data [role="tab"]', l => l.map(t => t.textContent));
+    log(tabs.join('|') === 'Upload a file|Import from a link', 'two tabs only, no reuse (' + tabs.join(', ') + ')');
+    log(/Prepared on the GPU server/.test(await txt(p, '#svc-prep-where')) && /50 MB/.test(await txt(p, '#svc-limits')), 'it says where the data is prepared, and the 50 MB upload limit');
 
     // 1. upload a labelled CSV with the GPU off
     await p.setInputFiles('#svc-file', CSV);
@@ -106,11 +122,38 @@ const txt = (p, sel) => p.$eval(sel, e => e.textContent).catch(() => '');
     log(Number(high.replace(/\D/g, '')) < Number(before.replace(/\D/g, '')) && (await txt(p, '#an-t-alerts .v')) === before,
         `a higher threshold gives fewer alerts (${before} -> ${high}), and the model's own restores them`);
 
-    // 3. listed under Reuse a prepared set, with the data sets
-    await p.goto(APP + '/app.html#/analyse'); await p.waitForFunction(() => location.hash === '#/new', null, { timeout: 10000 });
-    await p.goto(APP + '/app.html#/datasets'); await p.waitForSelector('#an-table', { timeout: 20000 });
-    log(await p.$(`#an-table a[href="#/new/prep/${jobId}"]`) !== null && !!(await p.$('#ds-body')),
-        'old links redirect; Reuse a prepared set lists the analysis and the data sets');
+    // 3. a benchmark holds the machine: the next upload waits, says why, and prepares by itself after
+    const holder = holdMachine();
+    await new Promise((ok) => holder.stdout.once('data', ok));
+    await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#svc-upload-form');
+    await p.setInputFiles('#svc-file', CSV); await p.fill('#svc-max-flows', '10'); await p.click('#svc-upload-btn');
+    await p.waitForFunction(() => /^#\/new\/prep\/[0-9a-f]{32}$/.test(location.hash), null, { timeout: 60000 });
+    const waitId = (await p.evaluate(() => location.hash)).split('/')[3];
+    const waiting = await p.waitForFunction(() => /Waiting for the running benchmark to finish, then preparing/.test((document.getElementById('an-wait-line') || {}).textContent || ''),
+      null, { timeout: 60000 }).then(() => true, () => false);
+    log(waiting && /A benchmark of 3 models/.test(await txt(p, '#an-wait-facts')), 'a benchmark holds the machine: the upload waits and says why ("A benchmark of 3 models")');
+    await p.screenshot({ path: path.join(OUT, 'upload-waiting.png'), fullPage: true });
+    await sleep(3000);
+    log((await cp_(`/api/prep/jobs/${waitId}`, tok)).data.status === 'waiting', 'nothing is prepared while the benchmark runs');
+    // a third upload, cancelled while it waits
+    await p.goto(APP + '/app.html#/new?src=url'); await p.waitForSelector('#svc-url');
+    await p.fill('#svc-url', 'https://example.org/never.csv'); await p.click('#svc-upload-btn');
+    await p.waitForFunction(() => /^#\/new\/prep\/[0-9a-f]{32}$/.test(location.hash), null, { timeout: 60000 });
+    const cancelId = (await p.evaluate(() => location.hash)).split('/')[3];
+    await p.waitForSelector('#an-cancel', { timeout: 30000 });
+    await p.click('#an-cancel'); await p.click('#confirm-ok');
+    await p.waitForFunction(() => location.hash === '#/new', null, { timeout: 15000 });
+    log((await cp_(`/api/prep/jobs/${cancelId}`, tok)).data.status === 'cancelled', 'a waiting upload can be cancelled');
+    holder.kill('SIGTERM');
+    const prepared = await waitFor(async () => (await cp_(`/api/prep/jobs/${waitId}`, tok)).data.status === 'done', 120000, 1000);
+    log(prepared, 'the benchmark ended: the waiting upload prepared by itself');
+    // Your uploads: the two prepared uploads, ready; old links come here
+    await p.goto(APP + '/app.html#/datasets'); await p.waitForFunction(() => location.hash === '#/new', null, { timeout: 10000 });
+    await p.waitForSelector('#an-uploads-table', { timeout: 20000 });
+    const ups = await p.$$eval('#an-uploads-table tbody tr', l => l.map(r => r.getAttribute('data-up') + ' ' + r.textContent));
+    log(ups.length === 2 && ups.every(u => /Ready/.test(u)) && ups.some(u => u.startsWith(jobId)) && !ups.some(u => u.startsWith(cancelId)),
+        'old links redirect; Your uploads lists the two ready uploads, not the cancelled one');
+    await p.screenshot({ path: path.join(OUT, 'your-uploads.png'), fullPage: true });
 
     // 4. the GPU server starts -> benchmark the alerts, with the stored scores
     startBackend();
@@ -133,6 +176,10 @@ const txt = (p, sel) => p.$eval(sel, e => e.textContent).catch(() => '');
     const idsJson = path.join(RESULTS, set, 'ids.json');
     const used = await waitFor(() => fs.existsSync(idsJson) && /prepared set/.test(fs.readFileSync(idsJson, 'utf8')), 60000);
     log(used, 'the benchmark triaged the alerts with the STORED scores (no second scoring)');
+    const again = await cp_('/api/runs/authorize', tok, { method: 'POST', body: JSON.stringify({ kind: 'benchmark', run: set }) });
+    log(again.status === 409 && again.data.code === 'upload_again', 'each upload starts one benchmark: a second one on the same set is refused (' + again.status + ')');
+    const mine = (await cp_('/api/prep/mine', tok)).data.uploads || [];
+    log(!mine.some(u => u.job_id === jobId) && mine.some(u => u.job_id === waitId), 'the benchmarked upload left Your uploads');
     await p.screenshot({ path: path.join(OUT, 'analyse-benchmark.png'), fullPage: true });
 
     // 5. the Cost planner (GPU-free): mock benchmarks are demo runs, so there is nothing real to project from

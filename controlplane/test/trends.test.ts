@@ -3,7 +3,7 @@
 import { createRequire } from "node:module";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { drift, movedRuns, movedLines } from "../../supabase/functions/agentmeter/src/trends.ts";
-import { api, backendCall, register, user } from "./helpers.ts";
+import { api, backendCall, register, user, benchAuth } from "./helpers.ts";
 
 const INSIGHTS = createRequire(import.meta.url)("../../web/insights.js");
 const SET = "a".repeat(64);
@@ -50,8 +50,8 @@ describe("Telegram alert when a finished run got worse", () => {
     });
     return sent;
   }
-  async function finish(u: { token: string }, s: any) {
-    const g = await api("/api/runs/authorize", { body: { kind: "benchmark", run: "csv_runs/x_1" }, token: u.token });
+  async function finish(u: { id: string; token: string }, s: any) {
+    const g = await benchAuth(u, "csv_runs/x_1");
     await backendCall("POST", "/api/backend/jobs", { job_id: s.session_id, kind: "benchmark", status: "running", jti: g.data.jti, models: s.models });
     await backendCall("POST", `/api/backend/jobs/${s.session_id}/status`, { status: "done" });
     await backendCall("PUT", `/api/backend/sessions/${s.session_id}/summary`, { summary: s });

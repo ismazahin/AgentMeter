@@ -38,3 +38,19 @@ export const register = (extra: Record<string, unknown> = {}) =>
                                                 creds: { hf_token: true, vast_api_key: false }, jobs: [], ...extra });
 
 export const accessToken = (payload: Record<string, unknown>) => signToken(E.ACCESS_TOKEN_SECRET, { typ: "access", ...payload });
+
+/** A finished upload of `set` by this user, not yet benchmarked: every benchmark on a prepared set
+ *  needs one (prep.ts markPrepUsed). */
+export async function uploadedSet(u: { id: string }, set: string) {
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const t = new Date().toISOString();
+  await E.DB.prepare(`INSERT INTO prep_jobs (id, owner_id, status, source_kind, filename, options_json, log_json, set_name, files_json, created_at, updated_at, finished_at)
+                      VALUES (?,?,'done','file','f.csv','{"max_flows":5}','[]',?,'["manifest.json","features.csv"]',?,?,?)`).bind(id, u.id, set, t, t, t).run();
+  return id;
+}
+
+/** Authorise a benchmark on `set` for this user, with a fresh upload behind it. */
+export async function benchAuth(u: { id: string; token: string }, set: string, extra: Record<string, unknown> = {}) {
+  await uploadedSet(u, set);
+  return api("/api/runs/authorize", { body: { kind: "benchmark", run: set, ...extra }, token: u.token });
+}

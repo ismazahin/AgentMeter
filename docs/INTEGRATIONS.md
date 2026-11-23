@@ -12,8 +12,8 @@ read results that are already stored.
 | **Telegram Bot API** | `POST https://api.telegram.org/bot<token>/sendMessage` | "Notify me" when a run finishes or fails, and the "a result moved" alert | `TELEGRAM_BOT_TOKEN` (control-plane secret; one-user mode: the backend's `.env`) | The chat id the user saved, the session's models, headline numbers and a link | The notice is skipped (logged); a run or a result is never affected |
 | **Vast.ai** | `GET https://console.vast.ai/api/v0/instances/{id}/` (the hourly price) and `DELETE …/instances/{id}/` (destroy) | Cost per 1,000 flows from the real rental price; the cost guard destroys an idle rented GPU | `VAST_API_KEY`, `VAST_INSTANCE_ID` (GPU backend's `.env`) | The instance id | No price: cost shows "not measured". A failed destroy is logged and the instance keeps running (and costing money) — check the Vast.ai console |
 | **Supabase** (platform) | Postgres (the control plane's tables), Storage (signed upload / download URLs), the Edge runtime | Accounts, stored sessions and files; large files go straight to Storage | The function's own database role and Storage key (Supabase secrets; never in the browser) | Everything the control plane stores | The site says "Cannot reach the control plane"; the GPU backend keeps running and re-sends its sessions later |
-| **Cloud preparation service** (AgentMeter's own code, hosted on Cloud Run or a Space) | `POST {prep}/prepare`, `GET {prep}/health` (see its OpenAPI document) | Prepare data while the GPU is busy | `CLOUD_PREP_SECRET` (shared: Supabase secret + the service's environment) | The uploaded file (via a single-use URL), the preparation options | New uploads are prepared in the browser instead (or on the GPU server once it is free) |
-| **jsDelivr** (CDN) | Pyodide 0.28.3 files | Preparing data in the browser | none | nothing (static downloads) | Browser preparation is unavailable; the GPU server or the cloud prepares instead |
+| **Data preparation service** (AgentMeter's own code, on the rented GPU machine, reached through its own Cloudflare quick tunnel) | `POST {prep}/nudge`, `GET {prep}/health` (see its OpenAPI document); it calls the control plane's `/api/prep/pending`, `/api/prep/claim` and `/events` | Prepare uploads, never while a benchmark runs | `CLOUD_PREP_SECRET` (shared: Supabase secret + the Vast template) | The uploaded file (via a single-use URL), the preparation options | Uploads wait in the list and are prepared when a GPU machine is online again |
+| **jsDelivr** (CDN) | Pyodide 0.28.3 files | Preparing data in the browser | none | nothing (static downloads) | Browser preparation (single-server mode only) is unavailable; the GPU server prepares instead |
 | **Google Fonts** | Font files | The site's typeface | none | nothing | The page uses system fonts |
 
 ## Dependency risks and fallbacks (for the thesis)
@@ -27,8 +27,9 @@ read results that are already stored.
   hours); destroy the instance by hand.
 - **Supabase is unreachable.** Logging in and stored results are unavailable until it returns; the
   GPU backend keeps its own copy of each session and re-sends it.
-- **The cloud preparation service is cold or down.** Uploads are prepared in the browser (the same
-  Python code, the same flows and hash) or wait for the GPU server.
+- **The preparation service (on the GPU machine) is down.** New uploads are refused with "The GPU
+  server is off"; uploads already waiting stay in the list (7 days) and are prepared once a GPU
+  machine is online again.
 
 ## Rotating the credentials
 

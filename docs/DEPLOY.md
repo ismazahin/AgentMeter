@@ -227,103 +227,59 @@ domain for the control plane or a named tunnel? Run
 script — a test fails while it is stale). Open the site, log in as the admin, and create the
 other users under **Admin** (each must choose a new password at first login).
 
-### A7. Cloud data preparation (optional; on your own computer for free, or Google Cloud Run)
-While the GPU benchmarks, a new dataset is prepared by a small CPU service instead of waiting in
-the GPU queue: `cloudprep/app.py`, packaged with the same preparation code as the server and the
-browser (`web/prep/agentmeter-prep.zip`). Users never see it: the web app asks the control plane,
-the control plane signs a job to the service with `CLOUD_PREP_SECRET` and gives it only single-use
-Storage URLs (the upload, and one per prepared file); the service reports each step back, signed
-with the same secret, and the web app then imports the prepared files into the GPU server
-(hash-checked). Without A7 the browser takes over, as before.
+### A7. Data preparation: on the GPU machine, with a waiting list (no extra cost)
+Uploads are prepared by a small service that runs **on the rented GPU machine, next to the GPU
+server**: `cloudprep/app.py`, started by `scripts/prep_local.py` from `scripts/vast_up.sh`. It starts
+with the instance and is destroyed with it, so it costs nothing extra and nothing runs on your own
+computer. It runs the same preparation code as the server and the browser, so the prepared flows
+and their fingerprint are identical.
 
-**Free, no card: on your own computer** (recommended for a thesis setup). The same service runs on
-your PC and is reached through a Cloudflare tunnel, like the GPU server; it works while your PC and
-the command below are running, and the web app prepares in the browser otherwise. Once: install
-cloudflared (Windows: `winget install --id Cloudflare.cloudflared`), and link the Supabase CLI in
-the repo folder (`npx supabase login`, `npx supabase link`). Then, each time:
-```bash
-python scripts/prep_local.py               # starts the service, opens a tunnel, runs supabase secrets set
-```
-A quick tunnel gets a new `*.trycloudflare.com` address each run; the script sets `CLOUD_PREP_URL`
-again every time. For a fixed address, use a named tunnel: `--tunnel-token <token> --hostname
-prep.example.org`. The signing secret is created once in `.cloudprep_secret` (git-ignored). PCAP
-uploads need `requirements-pcap.txt` and cicflowmeter installed on the PC (see Setup).
+**Never alongside a benchmark.** Preparing is CPU work; next to a benchmark it would compete for the
+CPU, its cache, memory bandwidth and the disk, and change latency, cost and energy readings. The
+GPU server's worker and the preparation service share one lock on the machine
+(`agentmeter/server/gpulock.py`, the file `$AGENTMETER_BUSY_LOCK`, set by `vast_up.sh`): only one of
+them runs at a time. A waiting preparation goes before the next queued benchmark; a running
+benchmark is never interrupted. The service also runs at the lowest CPU priority (`nice -n 19`).
 
-**A Hugging Face Space: no longer free.** As of November 2026 Hugging Face requires a PRO
-subscription to host Docker Spaces, even on CPU Basic (`402 Payment Required` from
-`scripts/deploy_cloudprep_hf.py` without it). With PRO (Docker, CPU Basic: 2 vCPU, 16 GB): With a Hugging Face
-**write** token (huggingface.co → Settings → Access Tokens), from the repo folder (PowerShell too):
+**The waiting list.** An upload is stored in Supabase Storage (or, for a link, only the link) and
+**waits** (`prep_jobs.status = waiting`). The service pulls work from the control plane (signed
+`POST /api/prep/pending` every minute, `POST /api/prep/claim` for each job, with fresh single-use
+Storage URLs); the control plane nudges it (`POST <service>/nudge`, signed) when a job starts
+waiting. If the GPU machine goes away, jobs it had picked up go back on the list and are prepared by
+the next machine. Each upload starts **one** benchmark (checked when the benchmark is authorised),
+and an upload nobody benchmarks is deleted after 7 days. The uploader gets a Telegram message when
+it is ready, if they set a chat id.
+
+**Set up once:**
 ```bash
-pip install huggingface_hub
-python scripts/deploy_cloudprep_hf.py      # creates/updates <you>/agentmeter-prep, sets its secret,
-                                           # waits for the build, then runs npx supabase secrets set ...
-npx supabase db push --remote                   # the prep_jobs table (answer Y)
+python -c "import secrets; print(secrets.token_urlsafe(48))"      # the service's secret
+npx supabase secrets set CLOUD_PREP_SECRET=<that value>
+npx supabase secrets unset CLOUD_PREP_URL                          # only if an old Cloud Run / Space address is set
+npx supabase db push --remote                                      # prep_jobs: the waiting list (20261122000000)
 npx supabase functions deploy agentmeter --no-verify-jwt --use-api
 ```
-The Space is public (its code is this repository's; the secret is a Space secret, never in a file,
-and every job must be signed). A free Space sleeps after 48 hours without use: New benchmark wakes
-it, the control plane retries while it wakes, and a job that still finds it asleep is prepared in
-the browser instead. Re-run the script after a change to the preparation code.
+Then add `CLOUD_PREP_SECRET` with the same value to the Vast template's environment variables
+(docs/VAST_TEMPLATE.md). Without it the GPU machine starts no preparation service and nobody can
+upload.
 
-**Or Google Cloud Run** (needs a billing card even within the free tier). Once, from your terminal
-(the Cloud Console is only needed to create the account and add the card):
-```bash
-gcloud auth login                                      # opens the browser once
-gcloud projects create agentmeter-prep-<suffix> && gcloud config set project agentmeter-prep-<suffix>
-gcloud billing projects link agentmeter-prep-<suffix> --billing-account <ACCOUNT_ID>   # gcloud billing accounts list
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com billingbudgets.googleapis.com
-
-# a $1 budget: an email at 50% and 100% of one dollar, so nothing is ever charged unnoticed
-gcloud billing budgets create --billing-account <ACCOUNT_ID> --display-name "agentmeter-1usd" \
-  --budget-amount 1USD --threshold-rule percent=0.5 --threshold-rule percent=1.0
-
-SECRET=$(python -c "import secrets; print(secrets.token_urlsafe(48))")
-CLOUD_PREP_SECRET=$SECRET bash scripts/deploy_cloudprep.sh     # builds and deploys; prints the URL
-# Windows PowerShell: $env:CLOUD_PREP_SECRET = "<secret>"; .\scripts\deploy_cloudprep.ps1
-npx supabase secrets set CLOUD_PREP_URL=<the printed URL> CLOUD_PREP_SECRET=$SECRET
-npx supabase db push --remote                               # the prep_jobs table
-npx supabase functions deploy agentmeter --no-verify-jwt --use-api
-```
-After a change to the preparation code, run `scripts/deploy_cloudprep.sh` again (it rebuilds the
-bundle first). The service runs 1 vCPU / 4 GB, at most one machine, none while idle, and keeps
-working after answering (`--no-cpu-throttling`).
-
-**Staying at $0.** Everything here is sized for Google Cloud's free tier, and the card is only
-for identity:
-- *Cloud Run.* Each preparation keeps one machine up for the job plus a few idle minutes, roughly
-  20 minutes in all. The free monthly allowance (vCPU-seconds and GiB-seconds of memory) covers
-  about 70 preparations a month at this size. Check it in the console under Billing › Reports.
-- *Stored images.* Every deploy stores a new image (about 0.3 GB). The script keeps only the
-  newest one, because only 0.5 GB is free, and deletes each source upload after a day.
-- *The budget.* The $1 budget above emails you at $0.50 and $1. A budget warns, it does not stop
-  anything: if it ever emails you, run `gcloud run services delete agentmeter-prep --region
-  asia-southeast1` (and `python scripts/prep_local.py` on your computer covers preparation until
-  next month).
-- New accounts usually start with free trial credit as well, which covers any cents.
-
-The tier and prices are Google's and change. Check the current Cloud Run, Artifact Registry and
-Cloud Storage free-tier pages before relying on these numbers. Uploads prepared in the cloud are capped at 50 MB (one Supabase Storage file on the free
-plan; `CLOUD_PREP_MAX_MB` lowers it); a larger file falls back to the browser. A linked file is
-downloaded by the service up to 2 GB (`CLOUD_PREP_MAX_URL_MB`; Cloud Run keeps files in memory). Optional:
-`gcloud billing budgets create` with a small amount to be emailed before anything is charged.
+**Limits (Supabase free plan).** An uploaded file is at most 50 MB (one Storage file;
+`CLOUD_PREP_MAX_MB` lowers it), and waiting files may use at most 800 MB together
+(`PREP_STORAGE_MAX_MB`; the plan has 1 GB): above that a new upload is refused with "Too many
+uploads are waiting". A larger dataset comes in through Import from a link: the service downloads it
+itself, up to 10 GB (`CLOUD_PREP_MAX_URL_MB`). Each user has at most 3 uploads waiting or preparing.
 Local rehearsal, no accounts: `bash tests/e2e/cloudprep_stack.sh`.
 
-**The traffic analysis (no GPU).** When an IDS model is stored (Admin › IDS model), every cloud
+**The traffic analysis.** When an IDS model is stored (Admin › IDS model), every
 preparation also scores the whole candidate pool with it: the control plane hands the service
 single-use download URLs for the model (the service still holds no key), the service caches the
 model by its sha256 and uploads `ids_scores.csv`, `ids_pool.json` and `ids_flows_identity.csv`
 (source/destination addresses: readable by the uploader only, deleted with the data set). The
 service installs `scikit-learn==1.9.1`, the version the IDS model is trained with, so its first
-build after this change takes a little longer. After pulling this change:
-```bash
-python scripts/prep_local.py               # your computer; or deploy_cloudprep.sh (Cloud Run) / _hf.py (PRO)
-npx supabase db push --remote                   # prep_jobs: prepared_sha256 + ids_json (20261110000000)
-npx supabase functions deploy agentmeter --no-verify-jwt --use-api
-```
+build after this change takes a little longer.
 Measured on a laptop CPU with the demo IDS: a 100,000-flow CSV is prepared and scored in about 4 s
 (peak memory about 630 MB); `ids_scores.csv` is about 4 MB per 100,000 flows (about 20 MB at the
 500,000-row cap), well under the 50 MB per Storage file. A trained 100-tree forest scores more
-slowly than the demo model: measure it on the Space once deployed.
+slowly than the demo model: measure it on the GPU machine.
 
 ### A5. The GPU backend's settings
 In `%USERPROFILE%\.agentmeter\backend.env` (what `scripts\vast_start.ps1` copies to the box):
@@ -601,24 +557,6 @@ What changes, and how the app reports it:
 
 Settings (in the base config, `model.vllm`): `gpu_memory_utilization` (0.1-0.95),
 `max_model_len` (default 8192), `enforce_eager` (default true), `seed`.
-
-## Scheduled re-runs (Repeatability)
-
-A finished session can be repeated on a schedule from its Overview tab (**Repeat on a
-schedule**): every 6 hours to weekly, 1 to 30 runs. The schedule lives on the GPU backend
-(`<jobs dir>/schedules.json`, `agentmeter/server/schedules.py`), which queues each run as an
-ordinary benchmark session owned by whoever created the schedule. The runs use the same GPU,
-prepared set, models, settings and pipeline, so the **Repeatability** page (`#/trends`) can line them up.
-
-- A run never stacks: while the previous scheduled run is queued or running, or the queue is
-  full, the next one waits and is retried every 10 minutes.
-- At most 3 active schedules per user. Creating or cancelling one needs a `schedule` run
-  token for that session (the control plane issues it; the backend checks that the caller owns the
-  session or is an admin). Scheduled runs are not counted against the hourly limit.
-- Schedules run only while the backend runs. A Vast.ai instance that is stopped skips its
-  firings; when it comes back, a due schedule fires once (no burst of catch-up runs). If the
-  prepared set is gone (a new instance without the results volume), the schedule ends as
-  `failed` with the reason.
 
 ## Checklist before going public
 - [ ] Served over **HTTPS** (tunnel), never plain http; `ALLOW_HTTP_BACKEND` is not set in the Supabase secrets.

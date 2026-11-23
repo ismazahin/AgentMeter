@@ -104,24 +104,20 @@ function skel(lines, card) {
 // ---------- search everything (Ctrl+K): pages, sessions, data sets, models ----------
 var GS = { items: [], shown: [], sel: 0, last: null };
 var GS_PAGES = [["Home", "#/", "start latest"], ["New benchmark", "#/new", "run upload prepare csv pcap"], ["Sessions", "#/sessions", "runs list history"],
-  ["Data sets", "#/new?src=reuse", "prepared sets flows fingerprint analyses analyse traffic"], ["Cost planner", "#/planner", "cost price per day alerts gpu hours energy"], ["Leaderboard by setup", "#/leaderboard", "rank ranking"], ["Leaderboard, compare models", "#/compare", "compare models side by side"],
+  ["Your uploads", "#/new", "uploads waiting prepared data sets flows analyses analyse traffic"], ["Cost planner", "#/planner", "cost price per day alerts gpu hours energy"], ["Leaderboard by setup", "#/leaderboard", "rank ranking"], ["Leaderboard, compare models", "#/compare", "compare models side by side"],
   ["Consistency", "#/trends", "repeatability trends history stable steady varies moved same result twice"], ["GPU & Queue", "#/gpu", "queue running waiting gpu now"], ["Settings", "#/settings", "theme telegram alerts limits"],
   ["How to use", "#/help", "help guide"], ["Methodology", "#/help", "saw formula statistics how measured"], ["Account", "#/settings/account", "profile password devices log out"], ["Telegram alerts", "#/settings/notify", "notifications telegram chat"], ["Admin", "#/admin", "users audit log problems limits models"]];
 function gsBuild() {
   var items = GS_PAGES.filter(function (x) { return (x[1] !== "#/admin" || (AUTH.user && AUTH.user.role === "admin")) && (x[1] !== "#/profile" || CP); })
     .map(function (x) { return { kind: "Page", label: x[0], sub: "", href: x[1], hay: (x[0] + " " + x[2]).toLowerCase(), rank: 0 }; });
   return allSessions().then(function (r) {
-    var rows = r.ok ? r.data.sessions || [] : [], sets = {}, models = {};
+    var rows = r.ok ? r.data.sessions || [] : [], models = {};
     rows.forEach(function (s) {
       var ms = (s.models || []).map(short).join(", ");
       items.push({ kind: "Session", label: ms || shortId(s.session_id), sub: [s.status, s.run_name ? s.run_name.split("/").pop() : null, fmtDate(s.finished_at || s.created_at)].filter(Boolean).join(", "),
                    href: "#/session/" + enc(s.session_id), rank: 2,
                    hay: [s.session_id, (s.models || []).join(" "), s.run_name, s.notes, (s.tags || []).join(" "), s.owner || s.owner_username, s.gpu, s.status].join(" ").toLowerCase() });
-      if (s.run_name && !sets[s.run_name]) sets[s.run_name] = 1;
       (s.models || []).forEach(function (m) { models[m] = (models[m] || 0) + 1; });
-    });
-    Object.keys(sets).forEach(function (n) {
-      items.push({ kind: "Data set", label: n.split("/").pop(), sub: n.split("/")[0] === "pcap_runs" ? "PCAP" : "CSV", href: "#/datasets", hay: n.toLowerCase(), rank: 1, ds: n });
     });
     Object.keys(models).forEach(function (m) {
       items.push({ kind: "Model", label: short(m), sub: models[m] + " session" + (models[m] === 1 ? "" : "s") + ", show them", href: "#/sessions", hay: m.toLowerCase(), rank: 1, model: m });
@@ -154,7 +150,6 @@ function gsGo(x) {
   if (!x) return;
   gsClose();
   if (x.model) { location.hash = "#/sessions"; setTimeout(function () { $("flt-q").value = x.model; loadSessions(); }, 0); return; }
-  if (x.ds) { DS.open = (DS.rows || []).filter(function (g) { return g.names.indexOf(x.ds) >= 0; }).map(function (g) { return g.key; })[0] || null; }
   if (location.hash === x.href) route(); else location.hash = x.href;
   if (x.label === "Methodology") setTimeout(function () { var m = $("help-method"); if (m) m.scrollIntoView({ block: "start" }); }, 50);
 }

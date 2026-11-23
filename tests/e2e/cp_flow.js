@@ -48,6 +48,17 @@ async function waitFor(fn, ms, step = 500) {
   return false;
 }
 // Leaderboard: demo runs are hidden by default (this stack is a mock backend), so show them first
+// a new benchmark from a fresh upload of the same CSV (every benchmark starts from an upload), prepared by
+// the GPU server; resolves when Run has been clicked
+async function uploadAndRun(p) {
+  await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); });
+  await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
+  await p.setInputFiles('#svc-file', CSV); await p.click('#svc-upload-btn');
+  await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
+  await p.waitForSelector('#svc-models input');
+  await p.waitForFunction(() => !document.getElementById('svc-run').disabled, null, { timeout: 60000 });
+  await p.click('#svc-run');
+}
 async function lbOpen(p) {
   await p.goto(APP + '/app.html#/leaderboard'); await p.waitForSelector('#lb-demo-only, #lb-slist, #lb-none', { timeout: 30000 });
   if (await p.$('#lb-show-demo')) { await p.click('#lb-show-demo'); }
@@ -271,14 +282,20 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     const anon = await p.evaluate(async (a) => (await fetch(a.w + '/api/sessions/' + a.id + '/files/features.csv')).status, { w: WORKER, id: job1 });
     log(anon === 401, 'prepared-set files need a token');
 
-    // 6. a second session (reuse the prepared set) -> Compare, Leaderboard
-    const set = (await (await fetch(WORKER + '/api/sessions/' + job1, { headers: { Authorization: 'Bearer ' + (await loginApi('alice', 'alice-password-123')).access_token } })).json()).run_name;
-    await p.goto(APP + '/app.html#/new/models?set=' + encodeURIComponent(set)); await p.waitForSelector('#svc-models input');
-    await p.waitForFunction(() => !document.getElementById('svc-run').disabled, null, { timeout: 30000 });
-    await p.click('#svc-run');
+    // 6. no reuse: benchmarking session 1's prepared set again is refused; a second session comes from
+    // uploading the same file with the same flow count -> the same fingerprint -> Compare, Leaderboard
+    const aliceTok = (await loginApi('alice', 'alice-password-123')).access_token;
+    const set = (await workerJson('/api/sessions/' + job1, aliceTok)).run_name;
+    const again = await fetch(WORKER + '/api/runs/authorize', { method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + aliceTok },
+                                                             body: JSON.stringify({ kind: 'benchmark', run: set }) });
+    log(again.status === 409 && (await again.json()).code === 'upload_again', 'each upload starts one benchmark: running session 1\'s set again is refused');
+    await uploadAndRun(p);
     await p.waitForFunction(() => /^#\/session\//.test(location.hash), null, { timeout: 180000 });
     const job2 = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[2]);
     await p.waitForSelector('#session-body:not([hidden])', { timeout: 60000 });
+    log((await p.getAttribute('#session-again', 'href')) === '#/new', 'the session page offers New benchmark');
+    const sh1 = (await workerJson('/api/sessions/' + job1, aliceTok)).identity, sh2 = (await workerJson('/api/sessions/' + job2, aliceTok)).identity;
+    log(!!sh1.prepared_set_sha256 && sh1.prepared_set_sha256 === sh2.prepared_set_sha256, 'the same file uploaded again gives the same prepared-set fingerprint');
     await p.goto(APP + `/app.html#/compare?a=${job1}`); await p.waitForSelector('#lb-table-0', { timeout: 30000 });
     log(/^#\/leaderboard/.test(await p.evaluate(() => location.hash)) && /2 sessions/.test(await p.textContent('#lb-panel .sub')),
         'an old Compare link opens the Leaderboard on that session\'s setup (both sessions, same prepared set and settings)');
@@ -317,8 +334,8 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await pa.close();
     await p.goto(APP + '/app.html#/gpu'); await p.waitForSelector('#gq-state');
     log(/Free|Busy/.test(await p.textContent('#gq-state')) && !!(await p.$('#gq-recent-table')), 'GPU & Queue reads the GPU server through the control plane (read token)');
-    await p.goto(APP + '/app.html#/datasets'); await p.waitForSelector('#ds-table');
-    log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1 && await p.$eval('#ds-table tbody tr[data-ds]', r => r.children[3].textContent.trim()) === '2', 'Data sets: the one set, used by both sessions');
+    await p.goto(APP + '/app.html#/datasets'); await p.waitForFunction(() => location.hash === '#/new', null, { timeout: 10000 });
+    log(await p.$$eval('#wiz-step-data [role="tab"]', l => l.length) === 2, 'an old Data sets link opens New benchmark (two tabs, no reuse)');
 
     // 7. GPU off: stop the backend
     await stopBackend();
@@ -334,20 +351,14 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     log(true, 'GPU off: Compare and Leaderboard work');
     await p.goto(APP + '/app.html#/gpu'); await p.waitForSelector('#gq-state');
     log(/GPU offline/.test(await p.textContent('#gq-state')), 'GPU off: GPU & Queue says the GPU server is offline');
-    await p.goto(APP + '/app.html#/datasets'); await p.waitForSelector('#ds-table');
-    log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1 && !!(await p.$('#ds-offline')), 'GPU off: Data sets still lists the benchmarked set');
     log(await p.isVisible('.mainnav') && await p.isVisible('#svc-gpu-off') && /viewing/.test(await p.textContent('#svc-backend-badge')), 'GPU off: viewing mode — the menu stays, a banner says so');
     await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
     log(/GPU server must be running/.test(await p.textContent('#wiz-offline')) && await p.isVisible('#wiz-steps'), 'GPU off: New benchmark opens and says runs (demo too) need the GPU server');
     await p.goto(APP + '/app.html#/new'); await p.waitForSelector('#wiz-offline:not([hidden])');
     log(await p.isDisabled('#svc-upload-btn'), 'GPU off: New benchmark says GPU offline; Prepare is disabled');
-    // the Reuse tab must stay open while the GPU is off (it used to snap back to "Upload a file")
-    await p.click('#tab-src-reuse'); await p.waitForSelector('#svc-stored-table', { timeout: 15000 });
-    await sleep(1500);
-    log(await p.isVisible('#src-reuse') && /src=reuse/.test(await p.evaluate(() => location.hash)) && /GPU is offline/.test(await p.textContent('#svc-recent-sets')),
-        'GPU off: Reuse a prepared set opens and stays open, listing the saved sets');
-    await p.click('#svc-stored-table [data-restore]'); await p.waitForSelector('#svc-stored-error:not([hidden])');
-    log(/GPU is offline/.test(await p.textContent('#svc-stored-error')) && await p.isVisible('#src-reuse'), 'GPU off: using a saved set says the GPU is needed, the tab stays');
+    // the link tab must stay open while the GPU is off (it used to snap back to "Upload a file")
+    await p.click('#tab-src-url'); await sleep(1500);
+    log(await p.isVisible('#src-url') && /src=url/.test(await p.evaluate(() => location.hash)), 'GPU off: Import from a link opens and stays open');
     // notes and tags live in the control plane: editable and searchable with the GPU off
     await p.goto(APP + `/app.html#/session/${job1}/overview`); await p.waitForSelector('form#svc-notes', { timeout: 30000 });
     await p.fill('#svc-notes-text', 'first demo session'); await p.fill('#svc-notes-tags', 'cp-check');
@@ -368,28 +379,20 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.waitForFunction(() => !document.getElementById('svc-run').disabled, null, { timeout: 30000 });
     log(true, 'GPU back: Run is enabled again without any configuration change');
 
-    // 8b. a NEW rental: the backend's disk is wiped; reuse session 1's stored prepared set
+    // 8b. a NEW rental: the backend's disk is wiped; uploading the same file again gives the same fingerprint
     await stopBackend();
     fs.rmSync(RESULTS, { recursive: true, force: true });
     startBackend();
     const healthy = await waitFor(async () => { try { return (await fetch(`http://127.0.0.1:${BP}/health`)).ok; } catch (e) { return false; } }, 60000);
     await sleep(4000);                                    // its first heartbeat (every 3 s here) has registered it
     log(healthy && (await workerJson('/api/backend', offTok)).online, 'new rental (empty disk) registered itself');
-    await p.goto(APP + '/app.html#/new?src=reuse'); await p.reload();
-    await p.waitForSelector('#svc-stored-table', { timeout: 30000 });
-    await p.waitForFunction(() => !/Loading/.test(document.getElementById('svc-recent-sets').textContent), null, { timeout: 30000 });
-    log(/No prepared|Nothing prepared/.test(await p.textContent('#svc-recent-sets')), 'new rental: nothing prepared on this server');
-    log(await p.$$eval('#svc-stored-table tbody tr', r => r.length) === 1, 'Reuse lists the prepared set stored with the sessions (one set, two sessions)');
-    await p.click('#svc-stored-table [data-restore]');
-    await p.waitForFunction(() => /^#\/new\/models\?set=/.test(location.hash), null, { timeout: 30000 });
-    await p.waitForSelector('#svc-summary-card', { timeout: 30000 });
-    await p.waitForFunction(() => !document.getElementById('svc-run').disabled, null, { timeout: 30000 });
-    await p.click('#svc-run');
+    await p.reload(); await p.waitForTimeout(1500);
+    await uploadAndRun(p);
     await p.waitForFunction(() => /^#\/session\//.test(location.hash), null, { timeout: 180000 });
     const job3 = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[2]);
     await p.waitForSelector('#session-body:not([hidden])', { timeout: 60000 });
     const s1 = await workerJson('/api/sessions/' + job1, offTok), s3 = await workerJson('/api/sessions/' + job3, offTok);
-    log(s1.identity.prepared_set_sha256 === s3.identity.prepared_set_sha256, 'the restored set has the same prepared-set hash as on the first rental');
+    log(s1.identity.prepared_set_sha256 === s3.identity.prepared_set_sha256, 'on a new rental the same upload has the same prepared-set hash as on the first');
     await lbOpen(p);
     log((await p.$$('#lb-slist .sitem')).length === 1, 'Leaderboard keeps all three sessions in one setup');
 
@@ -400,10 +403,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await sleep(4000);                               // the next heartbeat re-registers it
     const lbBefore = (await workerJson('/api/leaderboard', (await loginApi('admin', 'admin-password-123')).access_token));
     await p.goto(APP + '/app.html#/'); await p.waitForTimeout(1500);
-    const set3 = (await workerJson('/api/sessions/' + job3, offTok)).run_name;          // the restored set on this rental
-    await p.goto(APP + '/app.html#/new/models?set=' + encodeURIComponent(set3)); await p.waitForSelector('#svc-models input');
-    await p.waitForFunction(() => !document.getElementById('svc-run').disabled, null, { timeout: 30000 });
-    await p.click('#svc-run');
+    await uploadAndRun(p);
     await p.waitForFunction(() => /^#\/(new\/run|session)\//.test(location.hash), null, { timeout: 30000 });
     if (!/^#\/new\/run\//.test(await p.evaluate(() => location.hash))) log(false, 'Run opened the watch page');
     const jobS = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[3]);
@@ -413,7 +413,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     await p.click('#svc-stop'); await p.click('#confirm-ok');
     await p.waitForFunction(() => /Stopped/.test(document.getElementById('svc-job-status').textContent), null, { timeout: 60000 });
     log(/not scored/.test(await p.textContent('#svc-progress-text')) && await p.isHidden('#svc-stop'), 'after confirming, the run stops: "Stopped … not scored", no Stop button');
-    log(await p.isVisible('.again-link a'), 'a stopped run offers "Benchmark these flows again"');
+    log(await p.isVisible('.again-link a') && (await p.getAttribute('.again-link a', 'href')) === '#/new', 'a stopped run offers a New benchmark (a fresh upload)');
     const stoppedRow = await waitFor(async () => (await workerJson('/api/sessions/' + jobS, (await loginApi('admin', 'admin-password-123')).access_token)).status === 'Stopped', 20000);
     log(stoppedRow, 'the control plane marks the session Stopped');
     const sj = await workerJson('/api/sessions/' + jobS, (await loginApi('admin', 'admin-password-123')).access_token);

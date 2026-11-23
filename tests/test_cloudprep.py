@@ -1,6 +1,7 @@
-"""Cloud data preparation (cloudprep/app.py): only signed jobs run; a job reads its input from a
-single-use URL, prepares it with the server's own code (byte-identical data files), PUTs the
-prepared set to single-use upload URLs and reports every step to the control plane, signed."""
+"""The data preparation service (cloudprep/app.py): it pulls waiting jobs from the control plane
+(signed), only while no benchmark holds the machine (gpulock), reads a job's input from a single-use
+URL, prepares it with the server's own code (byte-identical data files), PUTs the prepared set to
+single-use upload URLs and reports every step to the control plane, signed."""
 from __future__ import annotations
 
 import hashlib
@@ -16,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from agentmeter.config import PROJECT_ROOT
+from agentmeter.server import gpulock
 from agentmeter.server import prepare as P
 
 spec = importlib.util.spec_from_file_location("cloudprep_app", PROJECT_ROOT / "cloudprep" / "app.py")
@@ -37,6 +39,8 @@ class Stub:
         self.reports: list[dict] = []
         self.bad_reports = 0
         self.done = threading.Event()
+        self.queue: list[dict] = []                  # the control plane's waiting list
+        self.states: list[dict] = []                 # what the service said it was doing (/pending)
         stub = self
 
         class H(BaseHTTPRequestHandler):
@@ -60,6 +64,15 @@ class Stub:
 
             def do_POST(self):  # noqa: N802
                 body = self.rfile.read(int(self.headers["content-length"]))
+                if self.path in ("/api/prep/pending", "/api/prep/claim"):
+                    if not C.verify(SECRET, "POST", self.path, self.headers, body):
+                        stub.bad_reports += 1
+                        return self._reply(401)
+                    if self.path == "/api/prep/pending":
+                        stub.states.append(json.loads(body))
+                        return self._reply(200, json.dumps({"pending": len(stub.queue)}).encode())
+                    job = stub.queue.pop(0) if stub.queue else None
+                    return self._reply(200, json.dumps({"job": job}).encode())
                 if not C.verify(SECRET, "POST", "/api/prep/jobs/j1/events", self.headers, body):
                     stub.bad_reports += 1
                     return self._reply(401)
@@ -84,23 +97,33 @@ class Stub:
 
 @pytest.fixture
 def service(tmp_path):
-    svc = C.Service(SECRET, tmp_path / "work")
+    """A service that pulls from its own stub control plane, with a lock of its own."""
+    stub = Stub()
+    svc = C.Service(SECRET, tmp_path / "work", cp=stub.base, lock_path=tmp_path / "busy.lock")
     srv = ThreadingHTTPServer(("127.0.0.1", 0), C.make_handler(svc))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
-    yield svc, f"http://127.0.0.1:{srv.server_address[1]}"
+    yield svc, f"http://127.0.0.1:{srv.server_address[1]}", stub
     srv.shutdown()
 
 
-def signed_post(base: str, body: bytes, secret: str = SECRET, ts: int | None = None) -> tuple[int, dict]:
+def run(svc, stub: Stub, job: dict) -> dict:
+    """Put one job on the waiting list, let the service pull and run it; the final report."""
+    stub.queue.append(job)
+    assert svc.work_once() == 1
+    assert stub.done.is_set()
+    return stub.reports[-1]
+
+
+def nudge(base: str, secret: str = SECRET, ts: int | None = None, path: str = "/nudge") -> int:
+    body = b""
     ts = str(int(time.time()) if ts is None else ts)
-    req = urllib.request.Request(base + "/prepare", data=body, method="POST", headers={
-        "content-type": "application/json", "X-AM-Timestamp": ts,
-        "X-AM-Signature": C.sign(secret, "POST", "/prepare", ts, body)})
+    req = urllib.request.Request(base + path, data=body, method="POST", headers={
+        "X-AM-Timestamp": ts, "X-AM-Signature": C.sign(secret, "POST", path, ts, body)})
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
-            return r.status, json.loads(r.read())
+            return r.status
     except urllib.error.HTTPError as e:
-        return e.code, json.loads(e.read())
+        return e.code
 
 
 def test_signatures():
@@ -114,30 +137,77 @@ def test_signatures():
     assert not C.verify(SECRET, "POST", "/prepare", {"X-AM-Timestamp": "x"}, body)
 
 
-def test_only_signed_valid_jobs_are_accepted(service):
-    _, base = service
-    stub = Stub()
-    body = json.dumps(stub.job("a.csv")).encode()
-    assert signed_post(base, body, secret="wrong-secret-0123456789")[0] == 401
-    assert signed_post(base, body, ts=int(time.time()) - 3600)[0] == 401
-    status, data = signed_post(base, json.dumps({"job_id": "x"}).encode())
-    assert status == 400 and "missing" in data["error"]
-    bad_src = stub.job("a.csv", source={"kind": "file", "url": "file:///etc/passwd"})
-    assert signed_post(base, json.dumps(bad_src).encode())[0] == 400
-    assert urllib.request.urlopen(base + "/health").status == 200
+def test_only_a_signed_nudge_wakes_it_and_it_takes_no_pushed_jobs(service):
+    svc, base, _ = service
+    assert nudge(base, secret="wrong-secret-0123456789") == 401
+    assert nudge(base, ts=int(time.time()) - 3600) == 401
+    assert not svc.nudged.is_set()
+    assert nudge(base) == 202
+    assert svc.nudged.is_set()
+    assert nudge(base, path="/prepare") == 404                          # the old push route is gone
+    h = json.loads(urllib.request.urlopen(base + "/health").read())
+    assert h["ok"] and h["state"] == "idle"
+
+
+def test_nothing_waiting_means_nothing_runs_and_the_machine_is_not_held(service, tmp_path):
+    svc, _, stub = service
+    assert svc.work_once() == 0
+    assert stub.states == [{"state": "idle"}]
+    assert not gpulock.prep_wanted(tmp_path / "busy.lock")
+
+
+def test_a_bad_job_is_reported_failed_and_the_next_one_still_runs(service):
+    svc, _, stub = service
+    stub.inputs[SAMPLE_CSV.name] = SAMPLE_CSV.read_bytes()
+    stub.queue.append(stub.job("a.csv", source={"kind": "file", "url": "file:///etc/passwd"}))
+    stub.queue.append(stub.job(SAMPLE_CSV.name))
+    assert svc.work_once() == 1
+    failed = [r for r in stub.reports if "failed" in r]
+    assert failed and failed[0]["failed"]["code"] == "bad_request"
+    assert "done" in stub.reports[-1]
+    assert stub.bad_reports == 0
+
+
+def test_it_never_prepares_while_a_benchmark_holds_the_machine(service, tmp_path):
+    """The lock: the service marks that it waits, reports who holds the machine, and starts only
+    when the benchmark lets go."""
+    svc, _, stub = service
+    lock = tmp_path / "busy.lock"
+    stub.inputs[SAMPLE_CSV.name] = SAMPLE_CSV.read_bytes()
+    stub.queue.append(stub.job(SAMPLE_CSV.name))
+    release, held = threading.Event(), threading.Event()
+
+    def benchmark():
+        with gpulock.hold({"kind": "benchmark", "job_id": "job_x", "models": 3}, path=lock):
+            held.set()
+            release.wait(20)
+    threading.Thread(target=benchmark, daemon=True).start()
+    assert held.wait(5)
+    worker = threading.Thread(target=svc.work_once, daemon=True)
+    worker.start()
+    deadline = time.time() + 10
+    while time.time() < deadline and not gpulock.prep_wanted(lock):
+        time.sleep(0.1)
+    assert gpulock.prep_wanted(lock)                                    # the worker will start no new job
+    time.sleep(1.5)
+    assert not stub.reports                                             # nothing prepared yet
+    assert gpulock.holder(lock)["kind"] == "benchmark"
+    release.set()
+    worker.join(120)
+    assert "done" in stub.reports[-1], stub.reports
+    assert [x["state"] for x in stub.states][:2] == ["idle", "waiting_for_benchmark"]
+    assert stub.states[1]["holder"]["models"] == 3
+    assert stub.states[-1] == {"state": "idle"}
+    assert not gpulock.prep_wanted(lock) and gpulock.holder(lock) is None
 
 
 @pytest.mark.parametrize("src", [SAMPLE_CSV, SAMPLE_PCAP], ids=["csv", "pcap"])
 def test_a_job_prepares_like_the_server_and_reports_signed(service, tmp_path, src):
     if src.suffix == ".pcap":
         pytest.importorskip("scapy")
-    _, base = service
-    stub = Stub()
+    svc, _, stub = service
     stub.inputs[src.name] = src.read_bytes()
-    status, data = signed_post(base, json.dumps(stub.job(src.name)).encode())
-    assert status == 202 and data["accepted"]
-    assert stub.done.wait(120), stub.reports
-    final = stub.reports[-1]
+    final = run(svc, stub, stub.job(src.name))
     assert "done" in final, final
     assert stub.bad_reports == 0
     assert any(r.get("event", {}).get("phase") == "validating" for r in stub.reports)
@@ -153,6 +223,7 @@ def test_a_job_prepares_like_the_server_and_reports_signed(service, tmp_path, sr
             assert stub.outputs[f] == r.read_bytes(), f                  # byte-identical data
     man = json.loads(stub.outputs["manifest.json"])["prepared_set"]
     assert man["backend"]["provider"] == "cloud"
+    assert "GPU machine" in man["backend"]["prepared_on"]
     assert man["source"]["sha256"] == hashlib.sha256(src.read_bytes()).hexdigest()
     ref_man = json.loads((tmp_path / "s" / ref / "manifest.json").read_text())["prepared_set"]
     assert man["content_sha256"] == ref_man["content_sha256"]            # same prepared-set hash
@@ -162,39 +233,17 @@ def test_a_job_prepares_like_the_server_and_reports_signed(service, tmp_path, sr
 
 
 def test_a_bad_file_is_reported_as_failed(service):
-    _, base = service
-    stub = Stub()
+    svc, _, stub = service
     stub.inputs["nolabel.csv"] = b"a,b,c\n1,2,3\n4,5,6\n"
-    assert signed_post(base, json.dumps(stub.job("nolabel.csv")).encode())[0] == 202
-    assert stub.done.wait(60)
-    final = stub.reports[-1]
+    final = run(svc, stub, stub.job("nolabel.csv"))
     assert "failed" in final and final["failed"]["code"] and final["failed"]["error"]
     assert not stub.outputs                                              # nothing stored
 
 
 def test_an_input_over_the_limit_is_refused(service):
-    _, base = service
-    stub = Stub()
+    svc, _, stub = service
     stub.inputs["big.csv"] = SAMPLE_CSV.read_bytes()
-    assert signed_post(base, json.dumps(stub.job("big.csv", max_bytes=100)).encode())[0] == 202
-    assert stub.done.wait(60)
-    assert stub.reports[-1]["failed"]["code"] == "too_large"
-
-
-def test_the_hugging_face_space_bundle(tmp_path):
-    """scripts/deploy_cloudprep_hf.py stages the Cloud Run files plus a Docker Space README."""
-    s = importlib.util.spec_from_file_location("deploy_cloudprep_hf", PROJECT_ROOT / "scripts" / "deploy_cloudprep_hf.py")
-    D = importlib.util.module_from_spec(s)
-    s.loader.exec_module(D)
-    d = D.stage(tmp_path / "space")
-    names = sorted(p.name for p in d.iterdir())
-    assert names == ["Dockerfile", "README.md", "agentmeter-prep.zip", "app.py", "requirements.txt", "urlfetch.py", "wheels"]
-    assert len(list((d / "wheels").glob("*.whl"))) == 2
-    readme = (d / "README.md").read_text(encoding="utf-8")
-    assert "sdk: docker" in readme and "app_port: 8080" in readme
-    assert "ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PORT=8080" in (d / "Dockerfile").read_text()
-    assert not any("SECRET" in p.read_text(errors="ignore") and "secret" in p.name.lower() for p in d.iterdir() if p.is_file())
-    assert D.space_url("Isma_Zahin/agentmeter-prep") == "https://isma-zahin-agentmeter-prep.hf.space"
+    assert run(svc, stub, stub.job("big.csv", max_bytes=100))["failed"]["code"] == "too_large"
 
 
 # --- the traffic analysis: the job carries the IDS model, the service scores the pool ----------
@@ -212,12 +261,9 @@ def _ids_job(stub: Stub, filename: str, sha: str | None = None, **kw) -> dict:
 
 
 def test_a_job_with_the_ids_scores_the_pool_and_stores_the_analysis(service, tmp_path):
-    svc, base = service
-    stub = Stub()
+    svc, _, stub = service
     stub.inputs[SAMPLE_CSV.name] = SAMPLE_CSV.read_bytes()
-    assert signed_post(base, json.dumps(_ids_job(stub, SAMPLE_CSV.name)).encode())[0] == 202
-    assert stub.done.wait(120), stub.reports
-    final = stub.reports[-1]
+    final = run(svc, stub, _ids_job(stub, SAMPLE_CSV.name))
     assert "done" in final, final
     assert set(final["done"]["files"]) == set(C.FILES + C.IDS_OUT)
     assert any(r.get("event", {}).get("phase") == "ids" for r in stub.reports)
@@ -240,22 +286,18 @@ def test_a_job_with_the_ids_scores_the_pool_and_stores_the_analysis(service, tmp
 
 
 def test_a_model_that_does_not_match_its_sha256_fails_the_job(service):
-    _, base = service
-    stub = Stub()
+    svc, _, stub = service
     stub.inputs[SAMPLE_CSV.name] = SAMPLE_CSV.read_bytes()
-    assert signed_post(base, json.dumps(_ids_job(stub, SAMPLE_CSV.name, sha="0" * 64)).encode())[0] == 202
-    assert stub.done.wait(60)
-    assert stub.reports[-1]["failed"]["code"] == "ids_model_invalid"
+    assert run(svc, stub, _ids_job(stub, SAMPLE_CSV.name, sha="0" * 64))["failed"]["code"] == "ids_model_invalid"
     assert not stub.outputs
 
 
 def test_an_ids_job_needs_its_model_urls_and_outputs(service):
-    _, base = service
-    stub = Stub()
+    _, _, stub = service
     no_out = stub.job("a.csv", ids={"sha256": "a" * 64, "files": {"ids_rf.joblib": f"{stub.base}/in/x",
                                                                     "ids_rf.json": f"{stub.base}/in/y"}})
-    status, data = signed_post(base, json.dumps(no_out).encode())
-    assert status == 400 and "ids_scores.csv" in data["error"]
+    assert "ids_scores.csv" in C.validate(no_out)
     bad = _ids_job(stub, "a.csv")
     bad["ids"]["files"]["ids_rf.json"] = "file:///etc/passwd"
-    assert signed_post(base, json.dumps(bad).encode())[0] == 400
+    assert C.validate(bad)
+    assert C.validate(_ids_job(stub, "a.csv")) is None

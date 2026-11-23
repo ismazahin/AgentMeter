@@ -1,203 +1,10 @@
-// AgentMeter web app — compare.js: Data sets, GPU & Queue, Leaderboard (By setup, Overall).
+// AgentMeter web app — compare.js: GPU & Queue, Leaderboard (By setup, Overall).
 // One of the app's scripts (web/app.html loads them in order: core, home, wizard, session, analysis,
 // compare, settings, boot); they share the page's global scope, so a function defined in one is used by the others.
 "use strict";
 // a model's Consistency card on one setup (linked from a session and the analysis)
 function repLink(model, key) { return "#/trends?model=" + enc(model) + "&setup=" + enc(key); }
 
-// ---------- DATA SETS: every prepared set, what is in it and who used it ----------
-// One row per prepared set, keyed by its content hash (the like-for-like key), built from the
-// finished sessions (always available) plus the sets the GPU server prepared but nobody has
-// benchmarked yet (while it is online). Details come from the set's own summary.
-var DS = { rows: null, open: null, offline: false, meta: [] };
-function finishedRow(s) { return s.status === "Done" || s.status === "Demo"; }
-function datasetRows(sessions, jobs) {
-  var by = {}, byName = {};
-  var at = function (x) { return String(x.finished_at || x.created_at || ""); };
-  sessions.filter(finishedRow).forEach(function (s) {
-    var sha = (s.identity || {}).prepared_set_sha256 || s.prepared_set_sha256 || null;
-    if (!sha && !s.run_name) return;
-    var k = sha || "name:" + s.run_name;
-    var g = by[k] || (by[k] = { key: k, sha: sha, names: [], type: s.input_type || null, n_flows: s.n_flows, labelled: s.labelled, sessions: [], models: [], gpus: [], prepared_at: null, source: null, last: "" });
-    if (s.run_name && g.names.indexOf(s.run_name) < 0) g.names.push(s.run_name);
-    g.sessions.push(s);
-    (s.models || []).forEach(function (m) { if (g.models.indexOf(m) < 0) g.models.push(m); });
-    if (s.gpu && g.gpus.indexOf(s.gpu) < 0) g.gpus.push(s.gpu);
-    if (at(s) > g.last) g.last = at(s);
-    if (s.run_name) byName[s.run_name] = k;
-  });
-  jobs.filter(function (j) { return j.kind === "prepare" && j.status === "done" && j.prepared; }).forEach(function (j) {
-    var k = byName[j.prepared] || "name:" + j.prepared;
-    var g = by[k] || (by[k] = { key: k, sha: null, names: [j.prepared], type: /^pcap/.test(j.prepared) ? "PCAP" : "CSV", n_flows: null, labelled: null, sessions: [], models: [], gpus: [], prepared_at: null, source: null, last: "" });
-    if (!g.prepared_at || String(j.finished_at) < g.prepared_at) { g.prepared_at = j.finished_at; g.source = j.run_name; g.preparer = (j.user || {}).uname || null; }
-    if (String(j.finished_at || "") > g.last) g.last = String(j.finished_at || "");
-  });
-  return Object.keys(by).map(function (k) {
-    var g = by[k];
-    g.sessions.sort(function (a, b) { return at(b).localeCompare(at(a)); });
-    g.name = g.names[0] || null;
-    return g;
-  }).sort(function (a, b) { return b.last.localeCompare(a.last); });
-}
-function loadDatasets(q) {
-  q = q || {};
-  if (q.open) DS.open = q.open;
-  $("ds-body").innerHTML = skel(5, true);
-  var gpuJobs = CP && !ONLINE ? Promise.resolve({ ok: false }) : api("/api/jobs?limit=200");
-  Promise.all([allSessions(), gpuJobs, datasetMeta()]).then(function (rs) {
-    if (!rs[0].ok) { $("ds-body").innerHTML = '<div class="notice error">' + esc(rs[0].data.error || "Could not load the sessions.") + '</div>'; return; }
-    DS.offline = !rs[1].ok;
-    DS.meta = rs[2];
-    DS.rows = datasetRows(rs[0].data.sessions || [], rs[1].ok ? rs[1].data.jobs || [] : []);
-    renderDatasets();
-  });
-}
-// a data set's name (the one users gave it, else its file name) and whether it was removed
-function dsInfo(g) {
-  var m = dsMetaFor(DS.meta, g.key, g.names), file = g.name ? g.name.split("/").pop() : "(unnamed set)";
-  return { label: (m && m.label) || "", file: file, shown: (m && m.label) || file, deleted: dsGone(DS.meta, g.key, g.names, g.last) };
-}
-// delete (its files on the GPU server): the set's owner (who ran its first session, or prepared it) or an
-// admin; the control plane and the GPU server check again. A name is each user's own, so anyone renames.
-function dsCanEdit(g) {
-  if (!CP || isAdmin()) return true;
-  var first = g.sessions[g.sessions.length - 1];                      // sessions are newest first
-  if (first) return !!first.can_edit;
-  return !!(g.preparer && AUTH.user && g.preparer === AUTH.user.username);
-}
-// whose a data set is (admins see it): who ran its first session, else who prepared it
-function dsOwner(g) { var first = g.sessions[g.sessions.length - 1]; return (first && first.owner) || g.preparer || null; }
-function dsMatch(g) {
-  var t = $("ds-type").value, words = $("ds-q").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if (t && g.type !== t) return false;
-  var hay = (dsInfo(g).label + " " + g.names.join(" ") + " " + (g.sha || "") + " " + g.models.join(" ") + " " + (g.source || "")).toLowerCase();
-  return words.every(function (w) { return hay.indexOf(w) >= 0; });
-}
-function renderDatasets() {
-  if (!DS.rows) return;
-  var live = DS.rows.filter(function (g) { return !dsInfo(g).deleted; });
-  var rows = live.filter(dsMatch), off = DS.offline && CP;
-  if (!live.length) {
-    $("ds-body").innerHTML = '<div class="card empty" id="ds-empty"><h2>No data sets yet</h2><p>Upload a CSV or PCAP file on <a href="#/new">New benchmark</a>. It is prepared into a set of flows that every model then answers.</p></div>';
-    return;
-  }
-  $("ds-body").innerHTML = (off ? '<p class="notice small" id="ds-offline">The GPU server is offline. Sets that have been benchmarked are listed, and sets prepared but not yet benchmarked appear when it is back.</p>' : "") +
-    '<div class="card"><p class="muted small" style="margin-top:0">' + rows.length + ' of ' + live.length + ' set' + (live.length === 1 ? "" : "s") +
-    '. The fingerprint is the hash of the prepared flows. Two sessions with the same fingerprint answered exactly the same flows.</p>' +
-    '<div class="table-wrap"><table id="ds-table"><thead><tr><th>Data set</th><th class="num">Flows</th><th>Fingerprint</th><th class="num">Sessions</th><th class="num">Models</th>' + (seesAll() ? '<th>Owner</th>' : '') + '<th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
-    rows.map(function (g) {
-      var open = DS.open === g.key, info = dsInfo(g), can = dsCanEdit(g), k = esc(g.key);
-      return '<tr data-ds="' + k + '"><td>' + (info.label ? '<span class="row-name">' + esc(info.label) + '</span><span class="row-sub mono small muted">' + esc(info.file) + '</span>'
-          : '<b class="mono small">' + esc(info.file) + '</b><br>') + '<span class="chip">' + esc(g.type || "—") + '</span>' +
-        (g.labelled === true ? ' <span class="chip ok">labelled</span>' : g.labelled === false ? ' <span class="chip">no labels</span>' : "") +
-        (g.sessions.length ? "" : ' <span class="chip warn">not benchmarked yet</span>') + '</td><td class="num">' + (g.n_flows == null ? "—" : fmtNum(g.n_flows)) +
-        '</td><td class="mono small">' + (g.sha ? esc(g.sha.slice(0, 12)) : "—") + '</td><td class="num">' + g.sessions.length + '</td><td class="num">' + g.models.length + '</td>' +
-        (seesAll() ? '<td>' + whoTag(dsOwner(g)) + '</td>' : '') + '<td class="small">' + esc(g.last ? fmtDate(g.last) : "—") + '</td><td class="ds-actions row-acts"><button type="button" class="btn small-btn" data-ds-open="' + k + '" aria-expanded="' + open + '">' + (open ? "Hide" : "Details") + '</button>' +
-        rowMenu("More actions for data set " + info.shown, [
-          g.name && { label: "Benchmark this set", icon: "run", href: "#/new/models?set=" + enc(g.name) },
-          { label: "Rename", icon: "rename", attr: 'data-ds-rename="' + k + '"' },
-          can && { sep: true },
-          can && { label: "Delete data set", icon: "trash", attr: 'data-ds-del="' + k + '"', danger: true }]) + '</td></tr>' +
-        (open ? '<tr class="ds-detail"><td colspan="' + (seesAll() ? 8 : 7) + '"><div id="ds-detail">' + dsDetail(g, null) + '</div></td></tr>' : "");
-    }).join("") + '</tbody></table></div>' + (rows.length ? "" : '<p class="muted" id="ds-none">No set matches.</p>') + '</div>';
-  addExports($("ds-body"));
-  var g = DS.rows.filter(function (x) { return x.key === DS.open; })[0];
-  if (g && g.name && !(CP && !ONLINE)) {
-    api("/api/prepared/" + setPath(g.name)).then(function (r) {
-      if (DS.open === g.key && $("ds-detail")) $("ds-detail").innerHTML = dsDetail(g, r);
-    });
-  }
-}
-function dsDetail(g, r) {
-  var sum = r && r.ok ? r.data : null, ccs = sum ? sum.class_counts || {} : {};
-  var cc = sum ? sum.label_distribution_selected || ccs.selected || {} : {}, inFile = ccs.in_file || {};   // flows kept per class (and how many the file had)
-  var classes = Object.keys(cc).sort(function (a, b) { return cc[b] - cc[a]; });
-  var tot = classes.reduce(function (a, k) { return a + cc[k]; }, 0);
-  var files = sum ? (sum.downloads || []).map(function (f) { return dlLink("/api/prepared/" + setPath(g.name) + "/" + enc(f), g.name.split("/").pop() + "_" + f, f, "btn small-btn"); }).join(" ") : "";
-  var about = !g.name ? "" : !r ? '<p class="muted small" id="ds-files">' + (CP && !ONLINE ? "The set's files are on the GPU server, which is offline." : "Loading the set's details…") + '</p>'
-    : !sum ? '<p class="muted small" id="ds-files">' + esc((r.data && r.data.error) || "The set's details are not on this GPU server.") + '</p>'
-    : '<div class="grid2"><div><h3>What is in it</h3><ul class="lk-list small">' +
-        '<li>Source file: <b>' + esc((sum.source || {}).filename || sum.source_file || g.source || "—") + '</b></li>' +
-        '<li>Rows read: <b>' + (sum.rows_total == null ? "—" : fmtNum(sum.rows_total)) + '</b>, flows kept: <b>' + (sum.rows_selected == null ? fmtNum(g.n_flows) : fmtNum(sum.rows_selected)) + '</b></li>' +
-        '<li>Labels: <b>' + (sum.accuracy_available ? "yes, so the output check can compare with them" : "no, so efficiency only") + '</b></li>' +
-        (g.prepared_at ? '<li>Prepared: ' + esc(fmtDate(g.prepared_at)) + '</li>' : "") +
-        (g.sha ? '<li>Fingerprint: <span class="mono">' + esc(g.sha) + '</span></li>' : "") + '</ul></div>' +
-      '<div><h3>Flow mix</h3>' + (classes.length ? '<div class="hbars" id="ds-mix">' + classes.map(function (k) {
-        return '<div class="hbar"><span class="hb-l">' + esc(k) + '</span><span class="hb-t"><span class="hb-f" style="width:' + (100 * cc[k] / tot).toFixed(1) + '%"></span></span><span class="hb-v num" title="' + (inFile[k] == null ? "" : fmtNum(inFile[k]) + ' in the file') + '">' + fmtNum(cc[k]) + '</span></div>';
-      }).join("") + '</div><p class="small muted" style="margin:6px 0 0">Flows kept per class' + (Object.keys(inFile).length ? ' (hover a number for how many the file had)' : "") + '.</p>'
-        : '<p class="muted small">This set has no class labels, since PCAP traffic has none. Every model answers the same flows, measured for efficiency.</p>') + '</div></div>' +
-      (files ? '<p class="small" id="ds-files" style="margin-bottom:0">Download: ' + files + '</p>' : "");
-  var used = g.sessions.length ? '<h3>Used by</h3><div class="table-wrap"><table class="ds-used"><thead><tr><th>Session</th><th>Models</th><th>GPU</th><th>Finished</th></tr></thead><tbody>' +
-    g.sessions.slice(0, 50).map(function (s) {
-      return '<tr><td><a class="mono" href="#/session/' + enc(s.session_id) + '">' + esc(shortId(s.session_id)) + '</a></td><td class="small">' + esc((s.models || []).map(short).join(", ")) +
-        '</td><td class="small">' + esc(s.gpu || "—") + '</td><td class="small">' + esc(fmtDate(s.finished_at || s.created_at)) + '</td></tr>';
-    }).join("") + '</tbody></table></div>' : '<p class="muted small">No session has used this set yet.</p>';
-  return about + used;
-}
-$("ds-q").addEventListener("input", renderDatasets);
-$("ds-type").addEventListener("change", renderDatasets);
-document.addEventListener("click", function (ev) {
-  var b = ev.target.closest && ev.target.closest("[data-ds-open]");
-  if (!b) return;
-  var k = b.getAttribute("data-ds-open");
-  DS.open = DS.open === k ? null : k;
-  renderDatasets();
-});
-function dsByKey(k) { return (DS.rows || []).filter(function (g) { return g.key === k; })[0] || null; }
-function dsPost(what, body) { return api("/api/datasets/" + what, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); }
-document.addEventListener("click", function (ev) {
-  var b = ev.target.closest && ev.target.closest("[data-ds-rename]");
-  if (!b) return;
-  var g = dsByKey(b.getAttribute("data-ds-rename"));
-  if (!g) return;
-  var info = dsInfo(g);
-  askName({ title: "Rename data set", label: "Data set name", value: info.label, placeholder: info.file,
-            hint: "Up to 80 characters, shown to you instead of the file name " + info.file + ". Leave it empty to show the file name again.",
-            save: function (name) { return dsPost("rename", { key: g.key, set: g.name || null, label: name }); }
-  }).then(function (r) { if (r) datasetMeta(true).then(function (m) { DS.meta = m; renderDatasets(); }); });
-});
-document.addEventListener("click", function (ev) {
-  var b = ev.target.closest && ev.target.closest("[data-ds-del]");
-  if (!b) return;
-  var g = dsByKey(b.getAttribute("data-ds-del"));
-  if (g) dsDelete(g);
-});
-// Delete = remove the set's files from the GPU server, then the set from your Data sets.
-// Sessions that ran on it keep their results. GPU off: only the second step (its files stay there).
-function dsDelete(g) {
-  var info = dsInfo(g), n = g.sessions.length, gpuOff = CP && !ONLINE;
-  confirmAction({ title: "Delete data set \u201C" + info.shown + "\u201D?", danger: true, ok: "Delete data set",
-    body: "It disappears from your Data sets and can no longer be benchmarked. " +
-          (gpuOff ? "The GPU server is offline, so its prepared files there are not deleted now. "
-                  : "Its prepared files are deleted from the GPU server. ") +
-          (n ? "The " + n + " session" + (n === 1 ? "" : "s") + " that ran on it keep" + (n === 1 ? "s" : "") + " " + (n === 1 ? "its" : "their") + " results, but Run again on " + (n === 1 ? "it" : "them") + " will not work. " : "") +
-          "This cannot be undone." }).then(function (yes) {
-    if (!yes) return;
-    var names = gpuOff ? [] : g.names.slice(), gone = 0, failed = null;
-    // 1. the files, name by name (the control plane only gives the owner or an admin a token for this)
-    (function next() {
-      if (!names.length || failed) return record();
-      var name = names.shift();
-      api("/api/prepared/" + setPath(name) + "/delete", { method: "POST" }).then(function (r) {
-        if (r.ok) gone++;
-        else if (r.status !== 404) failed = { name: name, error: (r.data || {}).error };   // 404: not on this server
-        next();
-      });
-    })();
-    // 2. the data set, and each name it had (the wizard's reuse lists find a set by name); refused
-    //    before any file was deleted: nothing has changed, so nothing is recorded
-    function record() {
-      if (failed && !gone) { alert(failed.error || "Could not delete the data set's files from the GPU server."); return; }
-      var extra = g.names.filter(function (n) { return "name:" + n !== g.key; }).map(function (n) { return dsPost("delete", { key: "name:" + n, set: n }); });
-      Promise.all([dsPost("delete", { key: g.key, set: g.name || null })].concat(extra)).then(function (rs) {
-        if (!rs[0].ok) { alert((rs[0].data || {}).error || "Could not delete the data set."); return; }
-        if (failed) alert("The data set was removed, but the files of " + failed.name.split("/").pop() + " are still on the GPU server (" + (failed.error || "the server refused") + ").");
-        if (DS.open === g.key) DS.open = null;
-        datasetMeta(true).then(function (m) { DS.meta = m; renderDatasets(); });
-      });
-    }
-  });
-}
 // ---------- GPU & QUEUE: the one GPU server right now (polled while the page is open) ----------
 var GQ = { hist: [], last: null };
 var KIND_LABEL = { benchmark: "Benchmark", prepare: "Data preparation" };
@@ -218,7 +25,7 @@ function loadGpu() {
   var token = pollToken;
   GQ.hist = []; GQ.last = null;
   $("gq-status").innerHTML = skel(3, true);
-  ["gq-gpu", "gq-prep", "gq-running", "gq-queued", "gq-upcoming", "gq-recent"].forEach(function (id) { $(id).innerHTML = ""; });
+  ["gq-gpu", "gq-prep", "gq-running", "gq-queued", "gq-recent"].forEach(function (id) { $(id).innerHTML = ""; });
   var tick = function () {
     if (token !== pollToken) return;                        // left the page
     var off = CP && !ONLINE;
@@ -229,7 +36,6 @@ function loadGpu() {
     });
   };
   tick();
-  if (!(CP && !ONLINE)) backendFetch("/api/schedules").then(function (r) { if (token === pollToken) renderUpcoming(r); });
 }
 function renderGpu(r) {
   var off = !r || !r.ok, d = off ? null : r.data;
@@ -286,21 +92,10 @@ function renderGpu(r) {
 }
 // where a file uploaded now would be prepared (the same rule as New benchmark: prepRoute)
 function renderPrepWhere(d) {
-  var busy = d ? d.running.length + d.queued.length > 0 : true, cloud = !!(CP && BACKEND && BACKEND.cloud_prep);
-  var where = !d ? (cloud ? "in the cloud" : localPrepSupported() ? "in your browser" : "when the GPU server is back")
-    : !busy ? "on the GPU server" : cloud ? "in the cloud" : localPrepSupported() ? "in your browser" : "on the GPU server, after the queue";
-  var why = !d ? "the GPU server is offline" : !busy ? "it is free" : "the GPU is busy, so preparing does not wait in its queue";
-  $("gq-prep").innerHTML = '<div class="card" id="gq-prep-card"><h2>Data preparation</h2><p id="gq-prep-where">A file uploaded now is prepared <b>' + esc(where) + '</b> (' + esc(why) + ').</p>' +
-    '<p class="small muted" style="margin-bottom:0">Chosen automatically. Every place runs the same preparation code, so the flows and their fingerprint are identical wherever they are prepared.</p></div>';
-}
-function renderUpcoming(r) {
-  var host = $("gq-upcoming");
-  if (!host) return;
-  var next = r && r.ok ? (r.data.schedules || []).filter(function (x) { return x.active; }).sort(function (a, b) { return String(a.next_at).localeCompare(String(b.next_at)); }) : [];
-  host.innerHTML = '<div class="card" id="gq-upcoming-card"><h2>Coming up</h2>' + (next.length ? '<ul class="lk-list small">' + next.slice(0, 5).map(function (x) {
-    return '<li>' + esc(fmtDate(x.next_at)) + ', repeat of <a class="mono" href="#/session/' + enc(x.source_job_id) + '">' + esc(shortId(x.source_job_id)) + '</a> (' + esc((x.models || []).map(short).join(", ")) + '), run ' + (x.runs_done + 1) + ' of ' + x.runs_total + '</li>';
-  }).join("") + '</ul>' : '<p class="muted" style="margin-bottom:0">No scheduled re-runs.</p>') +
-    '<p class="small muted" style="margin-bottom:0">Schedules are started from a session\'s Overview and shown on <a href="#/trends">Consistency</a>.</p></div>';
+  var busy = d ? d.running.length > 0 : false;
+  var where = !d ? "when the GPU server is back on" : busy ? "on the GPU server, as soon as the running benchmark ends" : "on the GPU server, right away";
+  $("gq-prep").innerHTML = '<div class="card" id="gq-prep-card"><h2>Data preparation</h2><p id="gq-prep-where">A file uploaded now is prepared <b>' + esc(where) + '</b>.</p>' +
+    '<p class="small muted" style="margin-bottom:0">Preparing never runs at the same time as a benchmark, so it cannot change anyone\'s readings. A waiting preparation goes before the next queued benchmark.</p></div>';
 }
 // ---------- LEADERBOARD ----------
 // By setup: a list of the setups (same flows, GPU and settings) and the chosen one's ranking.
@@ -458,12 +253,12 @@ function setupPanel(g) {
   var key = LB.data.sort_metric, col = colOf(key), hi = LB.data.higher_is_better, rk = ranked(g), people = gPeople(g.sessions);
   var vals = rk.map(function (r) { return r[key]; }), best = vals.length ? (hi ? Math.max.apply(null, vals) : Math.min.apply(null, vals)) : 0;
   var w = function (v) { return v == null || !best ? 0 : Math.max(3, Math.min(100, hi ? 100 * v / best : 100 * best / v)); };
-  var mine = CP && !seesAll(), run = gRun(g);
+  var mine = CP && !seesAll();
   var ne = rk.length < 2 ? '<div class="ne-box" id="lb-not-enough"><h3>Not enough to rank yet<span class="dots2" aria-hidden="true"><i class="f"></i><i class="' + (rk.length > 1 ? "f" : "") + '"></i></span></h3>' +
     '<p style="margin:0">' + (mine ? "Your sessions on this setup measured " : "The sessions on this setup measured ") + '<b>' + (g.rows || []).length + ' model' + ((g.rows || []).length === 1 ? "" : "s") + '</b>' +
     ((g.rows || []).length ? ", " + esc((g.rows || []).map(function (r) { return nick(r.model); }).join(", ")) : "") + '. A ranking needs <b>at least 2 models</b> on the same flows, GPU and settings.</p>' +
-    '<ol class="small"><li>Run another model on this data set. The setup stays the same, so it lands here.</li><li>Then open Compare models to see them side by side.</li></ol>' +
-    '<div class="actions" style="margin-top:12px"><a class="btn primary" id="lb-run-another" href="' + (run ? "#/new/models?set=" + enc(run) : "#/new") + '">Run another model on this set</a></div></div>' : "";
+    '<ol class="small"><li>Start a new benchmark with another model. Upload the same file and pick the same number of flows, so the setup stays the same and it lands here.</li><li>Then open Compare models to see them side by side.</li></ol>' +
+    '<div class="actions" style="margin-top:12px"><a class="btn primary" id="lb-run-another" href="#/new">New benchmark</a></div></div>' : "";
   var rows = (g.rows || []).map(function (r, i) {
     var sids = r.sessions || [], v = r[key];
     return '<tr class="' + (r.rank === 1 ? "first" : "") + '" data-model="' + esc(r.model) + '"><td class="rn">' + (r.rank == null ? '<span class="muted small">not ranked</span>' : '<span>' + r.rank + '</span>') +

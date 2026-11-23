@@ -1,4 +1,4 @@
-// Data sets and GPU & Queue pages (mock backend, slow mock answers so a run is seen running).
+// GPU & Queue page, and the old Data sets link (mock backend, slow mock answers so a run is seen running).
 //   AGENTMETER_MOCK_LATENCY_S=0.2 python scripts/serve.py --provider mock --port 8766   (fresh results dir)
 //   node tests/e2e/datasets_gpu_flow.js [base_url] [out_dir]
 const path = require('path'), os = require('os'), fs = require('fs');
@@ -57,9 +57,9 @@ async function waitDone(id) {
     const qrows = await p.$$eval('#gq-queue-table tbody tr', r => r.map(x => x.textContent));
     log(qrows.length === 1 && qrows[0].startsWith('1') && qrows[0].includes(models[2].split('/').pop()), 'Waiting: the second run, first in line');
     log(/demo mode/i.test(await p.textContent('#gq-gpu-card')) && !(await p.$('#gq-metrics')), 'GPU now: demo mode says it has no live readings (nothing simulated)');
-    log(/in your browser|on the GPU server, after the queue/.test(await p.textContent('#gq-prep-where')) && /GPU is busy/.test(await p.textContent('#gq-prep-where')),
-        'Data preparation: a file uploaded now would not wait in the GPU queue');
-    log(/No scheduled re-runs/.test(await p.textContent('#gq-upcoming-card')), 'Coming up: no scheduled re-runs');
+    log(/as soon as the running benchmark ends/.test(await p.textContent('#gq-prep-where')) && /never runs at the same time as a benchmark/.test(await p.textContent('#gq-prep-card')),
+        'Data preparation: a file uploaded now is prepared when the running benchmark ends, never alongside it');
+    log(!(await p.$('#gq-upcoming-card')), 'no Coming up card (scheduled re-runs were removed)');
     await p.screenshot({ path: S + '/gpu-busy.png', fullPage: true });
     log(await waitDone(j1) === 'done' && await waitDone(j2) === 'done', 'both runs finished');
     await p.waitForFunction(() => /Free/.test(document.querySelector('#gq-state')?.textContent || ''), null, { timeout: 20000 });
@@ -68,45 +68,13 @@ async function waitDone(id) {
     const rec = await p.$$eval('#gq-recent-table tbody tr', r => r.map(x => x.textContent));
     log(rec.length >= 3 && rec.filter(t => /Benchmark/.test(t) && /done/.test(t)).length === 2 && !!(await p.$(`#gq-recent-table a[href="#/session/${j2}"]`)),
         'Just finished: both benchmarks (and the preparations), linked to their sessions');
-    log(/on the GPU server/.test(await p.textContent('#gq-prep-where')) && /free/.test(await p.textContent('#gq-prep-where')), 'Data preparation: on the GPU server now that it is free');
+    log(/on the GPU server, right away/.test(await p.textContent('#gq-prep-where')), 'Data preparation: right away now that the GPU server is free');
 
-    // Data sets
-    await p.goto(BASE + '/app.html#/datasets'); await p.waitForSelector('#ds-table');
-    const rows = await p.$$eval('#ds-table tbody tr[data-ds]', r => r.map(x => x.textContent));
-    log(rows.length === (pcapSet ? 2 : 1), 'Data sets: one row per prepared set (' + rows.length + ')');
-    const csvName = csvSet.split('/').pop();
-    const csvRow = rows.find(t => t.includes(csvName)) || '';
-    log(/12/.test(csvRow) && /labelled/.test(csvRow), 'the CSV set: 12 flows, labelled');
-    const cells = await p.$$eval(`#ds-table tbody tr[data-ds]`, (r, n) => { const x = r.find(t => t.textContent.includes(n)); return [...x.children].map(c => c.textContent.trim()); }, csvName);
-    log(cells[3] === '2' && cells[4] === '4' && /^[0-9a-f]{12}$/.test(cells[2]), `used by 2 sessions and 4 models; fingerprint ${cells[2]}`);
-    if (pcapSet) log(rows.some(t => t.includes(pcapSet.split('/').pop()) && /not benchmarked yet/.test(t)), 'the PCAP set is listed though nobody benchmarked it yet');
-    await p.selectOption('#ds-type', 'PCAP');
-    log((await p.$$('#ds-table tbody tr[data-ds]')).length === (pcapSet ? 1 : 0), 'Type filter: PCAP only');
-    await p.selectOption('#ds-type', '');
-    await p.fill('#ds-q', models[3].split('/').pop().toLowerCase());
-    log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1, 'Search by model finds the set it was measured on');
-    await p.fill('#ds-q', '');
-    await p.click(`#ds-table tbody tr[data-ds]:has-text("${csvName}") [data-ds-open]`);
-    await p.waitForSelector('#ds-mix');
-    const mix = await p.$$eval('#ds-mix .hbar', r => r.map(x => [x.querySelector('.hb-l').textContent, Number(x.querySelector('.hb-v').textContent)]));
-    log(mix.length >= 2 && mix.some(m => m[0] === 'Benign') && mix.every(m => m[1] > 0) && mix.reduce((a, m) => a + m[1], 0) === 12,
-        'Details: the flow mix by class adds up to the 12 flows (' + mix.map(m => m.join(' ')).join(', ') + ')');
-    log(/features\.csv/.test(await p.textContent('#ds-files')) && /Source file/.test(await p.textContent('#ds-detail')), 'Details: source file and the prepared files to download');
-    log((await p.$$('#ds-detail .ds-used tbody tr')).length === 2, 'Details: the 2 sessions that used it');
-    log(!!(await p.$(`#ds-table a[href="#/new/models?set=${encodeURIComponent(csvSet)}"]`)), 'Benchmark: starts a new benchmark on this set');
-    log(!(await p.$('#ds-table :text("Compare models")')), 'No Compare models button on Data sets (Compare lives in Leaderboard)');
-    // "More actions" › Rename: the set shows its new name and search finds it
-    const rowD = `#ds-table tbody tr[data-ds]:has-text("${csvName}")`;
-    await p.click(rowD + ' .rmenu-btn'); await p.click(rowD + ' [data-ds-rename]');
-    await p.fill('#name-dlg-input', 'Smoke flows'); await p.click('#name-dlg-ok');
-    await p.waitForFunction(() => /Smoke flows/.test((document.querySelector('#ds-table') || {}).textContent || ''), null, { timeout: 15000 });
-    await p.fill('#ds-q', 'smoke flows');
-    log((await p.$$('#ds-table tbody tr[data-ds]')).length === 1, 'Rename: the data set shows its new name and search finds it');
-    await p.fill('#ds-q', '');
-    await p.goto(BASE + '/app.html#/datasets'); await p.waitForSelector('#ds-table');
-    await p.screenshot({ path: S + '/datasets.png', fullPage: true });
+    // no Data sets page any more (it listed sets for reuse): old links open New benchmark
+    await p.goto(BASE + '/app.html#/datasets'); await p.waitForFunction(() => location.hash === '#/new', null, { timeout: 10000 });
+    log(await p.$$eval('#wiz-step-data [role="tab"]', l => l.length) === 2 && !(await p.$('#ds-table')), 'an old Data sets link opens New benchmark, two tabs, no data set list');
     const nav = await p.$$eval('.mainnav [data-nav]', a => a.map(x => x.getAttribute('data-nav')));
-    log(!nav.includes('datasets') && !nav.includes('gpu') && (await p.getAttribute('#svc-backend-badge', 'href')) === '#/gpu', 'Data sets live under New Benchmark; the GPU chip opens GPU & Queue');
+    log(!nav.includes('datasets') && !nav.includes('gpu') && (await p.getAttribute('#svc-backend-badge', 'href')) === '#/gpu', 'no Data sets in the menu; the GPU chip opens GPU & Queue');
     log(!errs.length, 'no JS errors ' + errs.join(' | '));
   } catch (e) {
     out.push('CRASH ' + e.message);

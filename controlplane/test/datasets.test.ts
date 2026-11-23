@@ -1,14 +1,14 @@
 // Session names and data-set names/removal (the Sessions and Data sets pages).
 import { describe, expect, it } from "vitest";
-import { E, api, backendCall, register, user } from "./helpers.ts";
+import { E, api, backendCall, register, user, benchAuth } from "./helpers.ts";
 
 const SID = "job_20261109_090000_" + "d".repeat(32);
 const SHA = "e".repeat(64);
 
 // a finished session (status Done) of user u on a prepared set: the data set's owner is whoever
 // ran its first finished session
-async function sessionOn(u: { token: string }, set = "csv_runs/x_1", sha: string | null = SHA, id = SID, finished = "2026-11-09T09:00:00Z") {
-  const g = await api("/api/runs/authorize", { body: { kind: "benchmark", run: set }, token: u.token });
+async function sessionOn(u: { id: string; token: string }, set = "csv_runs/x_1", sha: string | null = SHA, id = SID, finished = "2026-11-09T09:00:00Z") {
+  const g = await benchAuth(u, set);
   await backendCall("POST", "/api/backend/jobs", { job_id: id, kind: "benchmark", status: "queued", jti: g.data.jti,
                                                    models: ["m/a", "m/b"], input_type: "csv", n_flows: 50, provider: "hf" });
   await E.DB.prepare("UPDATE sessions SET prepared_set=?, prepared_set_sha256=?, status='Done', finished_at=? WHERE id=?").bind(set, sha, finished, id).run();

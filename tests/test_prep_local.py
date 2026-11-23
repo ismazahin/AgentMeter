@@ -1,5 +1,5 @@
-"""scripts/prep_local.py: the preparation service (and traffic analysis) on the owner's computer,
-started by the site's Start button: registration, restarts, Stop, the link type, the secret."""
+"""scripts/prep_local.py: the preparation service (and traffic analysis) next to the GPU server on the
+rented machine: registration, heartbeats, restarts, stop, the secret."""
 from __future__ import annotations
 
 import hashlib
@@ -44,22 +44,6 @@ def test_the_signature_is_the_control_planes():
     want = hmac.new(SECRET.encode(), f"POST\n/api/prep/register\n1700000000\n{hashlib.sha256(body).hexdigest()}".encode(),
                     hashlib.sha256).hexdigest()
     assert sig == want
-
-
-def test_only_start_and_stop_links_do_anything():
-    assert L.parse_link("agentmeter-prep://start") == "start"
-    assert L.parse_link("agentmeter-prep://start/") == "start"           # browsers may add a slash
-    assert L.parse_link("AGENTMETER-PREP://STOP") == "stop"
-    for bad in ("agentmeter-prep://start?x=1", "agentmeter-prep://run/calc.exe", "agentmeter-prep://", "https://start", ""):
-        assert L.parse_link(bad) is None, bad
-
-
-def test_the_link_type_runs_this_script_with_the_link_only():
-    e = L.protocol_entries()
-    root = r"Software\Classes\agentmeter-prep"
-    assert e[root]["URL Protocol"] == "" and "AgentMeter" in e[root][""]
-    cmd = e[root + r"\shell\open\command"][""]
-    assert cmd.endswith('prep_local.py" link "%1"') and str(PROJECT_ROOT / "scripts" / "prep_local.py") in cmd
 
 
 def test_cloudflared_is_found_in_the_repo_folder_without_path(tmp_path, monkeypatch):

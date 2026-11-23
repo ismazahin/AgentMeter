@@ -11,7 +11,8 @@
 #
 # Settings come from the template's / account's environment variables (never from this repo):
 #   required  HF_TOKEN  AGENTMETER_CONTROL_PLANE_URL  AGENTMETER_RUN_TOKEN_SECRET  AGENTMETER_BACKEND_SECRET
-#   optional  VAST_API_KEY + IDLE_MIN (default 60: the instance destroys itself after that many idle
+#   optional  CLOUD_PREP_SECRET (= the control plane's: prepares uploads on this machine; without
+#             it nobody can upload)  VAST_API_KEY + IDLE_MIN (default 60: the instance destroys itself after that many idle
 #             minutes)  AGENTMETER_ALLOWED_ORIGINS (default https://agentmeter.pages.dev)
 #             PRELOAD_STUDY=1  AGENTMETER_BRANCH (default claude/cool-ride-mitmzl)
 #
@@ -33,6 +34,7 @@ missing=()
 for v in HF_TOKEN AGENTMETER_CONTROL_PLANE_URL AGENTMETER_RUN_TOKEN_SECRET AGENTMETER_BACKEND_SECRET; do
   [ -n "${!v:-}" ] || missing+=("$v")
 done
+[ -n "${CLOUD_PREP_SECRET:-}" ] || echo "WARNING: CLOUD_PREP_SECRET is not set: uploads cannot be prepared (see docs/VAST_TEMPLATE.md)."
 if [ ${#missing[@]} -gt 0 ]; then
   echo "ERROR: missing environment variables: ${missing[*]}"
   echo "Set them in the Vast template (or Account › Environment variables); see docs/VAST_TEMPLATE.md."
@@ -55,7 +57,7 @@ umask 077
 ENVF=/root/agentmeter.env
 {
   for v in HF_TOKEN AGENTMETER_CONTROL_PLANE_URL AGENTMETER_RUN_TOKEN_SECRET AGENTMETER_BACKEND_SECRET \
-           VAST_API_KEY PRELOAD_STUDY AGENTMETER_IDS_MODEL CF_TUNNEL_TOKEN CF_TUNNEL_HOSTNAME; do
+           VAST_API_KEY PRELOAD_STUDY AGENTMETER_IDS_MODEL CF_TUNNEL_TOKEN CF_TUNNEL_HOSTNAME CLOUD_PREP_SECRET; do
     [ -n "${!v:-}" ] && printf "export %s=%q\n" "$v" "${!v}"
   done
   printf "export AGENTMETER_ALLOWED_ORIGINS=%q\n" "${AGENTMETER_ALLOWED_ORIGINS:-https://agentmeter.pages.dev}"

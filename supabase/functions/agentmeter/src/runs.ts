@@ -11,12 +11,13 @@ import { backendState } from "./backend.ts";
 import { randomHex, signToken } from "./crypto.ts";
 import { datasetOwner } from "./datasets.ts";
 import { loadLimits } from "./settings.ts";
+import { markPrepUsed } from "./prep.ts";
 import { type Env, fail, json, nowIso, nowS, readJson } from "./util.ts";
 
 export const RUN_TTL_S = 300;
 export const RUN_KINDS = ["prepare", "import", "benchmark", "resume"];
 export const READ_KINDS = ["read", "files"];
-export const CONTROL_KINDS = ["stop", "verify", "schedule", "delete_set"];   // never counted against the hourly limit
+export const CONTROL_KINDS = ["stop", "verify", "delete_set"];   // never counted against the hourly limit
 const JOB_ID = /^job_\d{8}_\d{6}_([0-9a-f]{6}|[0-9a-f]{32})$/;
 const SET_ID = /^(csv_runs|pcap_runs)\/[A-Za-z0-9_.-]{1,80}$/;
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9._-]{1,96}$/;
@@ -44,13 +45,6 @@ export async function authorize(req: Request, env: Env): Promise<Response> {
     if (a.user.role !== "admin") fail(403, "forbidden", "admin only");
     if (!MODEL_ID.test(String(b.model || ""))) fail(400, "bad_request", "model: owner/name");
     return json({ token: await signToken(env.RUN_TOKEN_SECRET, { ...base, model: b.model, admin: true }),
-                  expires_in: RUN_TTL_S, backend: be.url });
-  }
-  if (kind === "schedule") {
-    // repeat a finished session on a schedule, or cancel one: the backend checks the session's
-    // owner (token sub) unless the token says admin, and caps active schedules per user
-    if (!JOB_ID.test(String(b.job_id || ""))) fail(400, "bad_request", "job_id: the session to repeat");
-    return json({ token: await signToken(env.RUN_TOKEN_SECRET, { ...base, job_id: b.job_id, admin: a.user.role === "admin" }),
                   expires_in: RUN_TTL_S, backend: be.url });
   }
   if (kind === "delete_set") {
@@ -85,6 +79,18 @@ export async function authorize(req: Request, env: Env): Promise<Response> {
     payload.job_id = b.job_id;
   }
   if (kind === "benchmark" && !payload.after_prepare && !payload.run) fail(400, "bad_request", "benchmark needs after_prepare or run");
+  // Every benchmark starts from a fresh upload: a prepared set (run) must be the caller's own upload
+  // that has not started a benchmark yet (prep.ts markPrepUsed). A retry is allowed only when the
+  // first authorisation's token expired without a session.
+  if (kind === "benchmark" && payload.run && !(await markPrepUsed(env, a.user.id, String(payload.run), RUN_TTL_S)))
+    fail(409, "upload_again", "Each upload starts one benchmark. Upload the file again to run another.");
+  // the same for an upload the GPU server prepared itself (after_prepare): one benchmark; a second
+  // authorisation only while the first one's token could still be unused
+  if (kind === "benchmark" && payload.after_prepare) {
+    const prior = await env.DB.prepare("SELECT 1 AS x FROM run_grants WHERE kind='benchmark' AND after_prepare=? AND issued_at < ? LIMIT 1")
+      .bind(String(payload.after_prepare), nowIso((now - RUN_TTL_S) * 1000)).first();
+    if (prior) fail(409, "upload_again", "Each upload starts one benchmark. Upload the file again to run another.");
+  }
 
   // free follow-up benchmark of the user's own wizard session?
   let counted = 1;

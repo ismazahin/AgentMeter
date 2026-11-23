@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { verifyToken } from "../../supabase/functions/agentmeter/src/crypto.ts";
-import { E, api, backendCall, register, user } from "./helpers.ts";
+import { E, api, backendCall, register, user, benchAuth } from "./helpers.ts";
 
 const JOB = (n: number) => `job_20261010_0900${String(n).padStart(2, "0")}_${"a".repeat(31)}${n % 10}`;
 
@@ -91,7 +91,7 @@ describe("run tokens + per-user rate limit", () => {
     expect((await auth({ kind: "benchmark", after_prepare: JOB(0), prepare_jti: g })).data.code).toBe("rate_limited");
     // another user's grant is not free for me
     const other = await user();
-    const theirs = await api("/api/runs/authorize", { body: { kind: "benchmark", run: "csv_runs/a", prepare_jti: g }, token: other.token });
+    const theirs = await benchAuth(other, "csv_runs/a", { prepare_jti: g });
     expect(theirs.data.counted).toBe(true);
     // the limit is persistent, per user: the other user still has room
     expect((await api("/api/runs/authorize", { body: { kind: "prepare" }, token: other.token })).status).toBe(200);
@@ -127,17 +127,3 @@ describe("stop tokens", () => {
   });
 });
 
-describe("schedule tokens", () => {
-  it("a schedule token names the session, says whether the caller is an admin, and is never counted", async () => {
-    const admin = await user("admin"), u = await user();
-    await register();
-    const r = await api("/api/runs/authorize", { body: { kind: "schedule", job_id: JOB(1) }, token: u.token });
-    expect(r.status).toBe(200);
-    expect(await verifyToken<any>(E.RUN_TOKEN_SECRET, r.data.token, "run")).toMatchObject({ kind: "schedule", job_id: JOB(1), sub: u.id, admin: false });
-    const a = await api("/api/runs/authorize", { body: { kind: "schedule", job_id: JOB(2) }, token: admin.token });
-    expect((await verifyToken<any>(E.RUN_TOKEN_SECRET, a.data.token, "run"))!.admin).toBe(true);
-    expect((await api("/api/runs/authorize", { body: { kind: "schedule" }, token: u.token })).status).toBe(400);
-    const n = await E.DB.prepare("SELECT COUNT(*) AS n FROM run_grants").first();
-    expect(n.n).toBe(0);
-  });
-});

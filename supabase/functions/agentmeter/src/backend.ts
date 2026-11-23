@@ -105,9 +105,10 @@ export async function backendState(env: Env) {
     version: r?.version || null, last_heartbeat_at: r?.last_heartbeat_at || null, registered_at: r?.registered_at || null,
     offline_after_s: after,
     cloud_prep: !!prepUrl,
-    cloud_prep_max_mb: prepUrl ? intVar(env.CLOUD_PREP_MAX_MB, 50) : null,
-    // the service on the owner's PC (Start button): whether it registered and is checking in
-    prep_service: reg ? { online: reg.online, last_heartbeat_at: reg.last_heartbeat_at } : null,
+    cloud_prep_max_mb: intVar(env.CLOUD_PREP_MAX_MB, 50),
+    // the preparation service on the GPU machine: online, and what it is doing (idle |
+    // waiting_for_benchmark | preparing); uploads wait while it is off or a benchmark runs
+    prep_service: reg ? { online: reg.online && !!prepUrl, last_heartbeat_at: reg.last_heartbeat_at, state: reg.online ? reg.state : null } : null,
   };
 }
 

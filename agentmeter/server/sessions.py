@@ -169,7 +169,7 @@ def session_summary(job: dict[str, Any], res: Optional[dict[str, Any]] = None,
         "title": job.get("title") or "",                 # a name the owner gave the session ("" = none)
         "notes": job.get("notes") or "", "tags": list(job.get("tags") or []),
         # the agents this session ran (a custom pipeline lists its own; None = the default four)
-        "schedule_id": job.get("schedule_id"),          # queued by a scheduled re-run (server/schedules.py)
+        "schedule_id": job.get("schedule_id"),          # a scheduled re-run (sessions made before schedules were removed)
         "pipeline": [a.get("name") if isinstance(a, dict) else a for a in job["pipeline"]] if job.get("pipeline") else None,
     }
     if res:

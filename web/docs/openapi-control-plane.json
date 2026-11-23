@@ -839,7 +839,7 @@
       }
      }
     },
-    "description": "Finished cloud preparations whose service scored the whole candidate pool with the IDS (no GPU): {analyses: [{job_id, owner, mine, filename, url, set, key, ids: {threshold, n_flows_in, n_flagged, n_selected, labelled, model}, files, finished_at}]}. key: the data set's fingerprint (or name:<kind>/<name>)."
+    "description": "Finished preparations whose service scored the whole candidate pool with the IDS (no GPU): {analyses: [{job_id, owner, mine, filename, url, set, key, ids: {threshold, n_flows_in, n_flagged, n_selected, labelled, model}, files, finished_at}]}. key: the data set's fingerprint (or name:<kind>/<name>)."
    }
   },
   "/api/auth/login": {
@@ -2170,6 +2170,36 @@
     }
    }
   },
+  "/api/prep/claim": {
+   "post": {
+    "operationId": "post__api_prep_claim",
+    "tags": [
+     "Data preparation"
+    ],
+    "summary": "The oldest waiting upload, with fresh single-use URLs (the service holds the machine)",
+    "security": [
+     {
+      "prepSignature": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "{job: {job_id, filename, source, max_flows, limits, outputs, report_url, report_path, ids?} | null}"
+   }
+  },
   "/api/prep/heartbeat": {
    "post": {
     "operationId": "post__api_prep_heartbeat",
@@ -2223,7 +2253,7 @@
     "tags": [
      "Data preparation"
     ],
-    "summary": "Start a cloud preparation (returns an upload URL or uses a link)",
+    "summary": "A new upload (returns an upload URL, or a link joins the waiting list)",
     "security": [
      {
       "userToken": []
@@ -2242,8 +2272,49 @@
         }
        }
       }
+     },
+     "409": {
+      "description": "cloud_prep_unavailable",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "413": {
+      "description": "too_large",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "429": {
+      "description": "too_many_preparations",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "507": {
+      "description": "storage_full",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
      }
     },
+    "description": "Needs the preparation service on the GPU machine online. Files up to CLOUD_PREP_MAX_MB (50); links are downloaded by the service.",
     "requestBody": {
      "required": true,
      "content": {
@@ -2279,7 +2350,7 @@
     "tags": [
      "Data preparation"
     ],
-    "summary": "A cloud preparation's state and progress",
+    "summary": "An upload's state, progress and why it waits",
     "security": [
      {
       "userToken": []
@@ -2291,6 +2362,57 @@
      },
      "401": {
       "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "status: uploading | waiting | running | done | failed | cancelled | expired. waiting: {reason: gpu_off | benchmark | queue | next, holder?, ahead}.",
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "description": "Cloud preparation job id (32 hex)",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
+  "/api/prep/jobs/{id}/cancel": {
+   "post": {
+    "operationId": "post__api_prep_jobs_id_cancel",
+    "tags": [
+     "Data preparation"
+    ],
+    "summary": "Cancel an upload that has not started preparing (its owner)",
+    "security": [
+     {
+      "userToken": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "not_waiting",
       "content": {
        "application/json": {
         "schema": {
@@ -2440,7 +2562,7 @@
     "tags": [
      "Data preparation"
     ],
-    "summary": "Start preparing (after the upload)",
+    "summary": "The file is uploaded: join the waiting list",
     "security": [
      {
       "userToken": []
@@ -2474,6 +2596,85 @@
     ]
    }
   },
+  "/api/prep/mine": {
+   "get": {
+    "operationId": "get__api_prep_mine",
+    "tags": [
+     "Data preparation"
+    ],
+    "summary": "Your uploads not yet benchmarked (waiting, preparing or ready)",
+    "security": [
+     {
+      "userToken": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "{uploads: [job], expire_days}. An upload leaves the list when a benchmark starts on it, or after expire_days."
+   }
+  },
+  "/api/prep/pending": {
+   "post": {
+    "operationId": "post__api_prep_pending",
+    "tags": [
+     "Data preparation"
+    ],
+    "summary": "What the service is doing; how many uploads wait",
+    "security": [
+     {
+      "prepSignature": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "description": "Called every minute and when nudged. holder: what holds the GPU machine (kind, models, started_at).",
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "type": "object",
+        "properties": {
+         "state": {
+          "type": "string",
+          "description": "idle | waiting_for_benchmark | preparing"
+         },
+         "holder": {
+          "type": "object"
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/api/prep/register": {
    "post": {
     "operationId": "post__api_prep_register",
@@ -2501,7 +2702,7 @@
       }
      }
     },
-    "description": "Sent by scripts/prep_local.py on the owner's PC (the Start button). It is online while its heartbeats are under 3 minutes old; jobs then go to this address instead of CLOUD_PREP_URL.",
+    "description": "Sent by scripts/prep_local.py on the GPU machine. It is online while its news is under 3 minutes old. A new address (a new machine) or stopping puts its running jobs back on the waiting list.",
     "requestBody": {
      "required": true,
      "content": {
@@ -2518,35 +2719,6 @@
          "stopping": {
           "type": "boolean"
          }
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/api/prep/wake": {
-   "post": {
-    "operationId": "post__api_prep_wake",
-    "tags": [
-     "Data preparation"
-    ],
-    "summary": "Wake the cloud preparation service (cold start)",
-    "security": [
-     {
-      "userToken": []
-     }
-    ],
-    "responses": {
-     "200": {
-      "description": "OK"
-     },
-     "401": {
-      "description": "Not logged in / bad or missing token or signature",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/Error"
         }
        }
       }
@@ -2611,7 +2783,7 @@
         "properties": {
          "kind": {
           "type": "string",
-          "description": "prepare | import | benchmark | resume | read | files | stop | verify | schedule"
+          "description": "prepare | import | benchmark | resume | read | files | stop | verify"
          },
          "run": {
           "type": "string"

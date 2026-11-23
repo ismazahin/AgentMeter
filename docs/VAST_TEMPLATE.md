@@ -28,6 +28,7 @@ given to every instance you rent. Values are the same as in your `backend.env` a
 | `AGENTMETER_CONTROL_PLANE_URL` | `https://<project-ref>.supabase.co/functions/v1/agentmeter` |
 | `AGENTMETER_RUN_TOKEN_SECRET` | = the control plane's `RUN_TOKEN_SECRET` (`backend.env`) |
 | `AGENTMETER_BACKEND_SECRET` | = the control plane's `BACKEND_SECRET` (`backend.env`) |
+| `CLOUD_PREP_SECRET` | = the control plane's `CLOUD_PREP_SECRET`: starts the data preparation service on the machine, so users can upload (docs/DEPLOY.md, A7) |
 | `VAST_API_KEY` | optional but recommended: lets an idle instance destroy itself |
 | `IDLE_MIN` | optional, default 60: idle minutes before it destroys itself |
 | `PRELOAD_STUDY` | optional: `1` downloads all 5 study models at start-up (slower start) |

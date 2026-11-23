@@ -66,7 +66,9 @@ function goOnline(h) {
     $("svc-max-flows").value = (SETTINGS && SETTINGS.default_flows) || CONFIG.default_max_flows || 50;
     var L = CONFIG.limits;
     if (L) {
-      $("svc-limits").innerHTML = "Maximum upload " + esc(L.max_upload_label) + ". Use Import from a link for bigger files." +
+      // with a control plane an upload waits in its Storage (one file: CLOUD_PREP_MAX_MB, 50 on the free plan)
+      var upLabel = CP && BACKEND && BACKEND.cloud_prep_max_mb ? fmtNum(BACKEND.cloud_prep_max_mb) + " MB" : L.max_upload_label;
+      $("svc-limits").innerHTML = "Maximum upload " + esc(upLabel) + ". Use Import from a link for bigger files." +
         infoI("For larger files use Import from a link (up to " + L.max_url_download_label + "). Large inputs are sampled across the whole file.");
       $("svc-url-limits").textContent = "A direct download link, up to " + L.max_url_download_label + ".";
     }

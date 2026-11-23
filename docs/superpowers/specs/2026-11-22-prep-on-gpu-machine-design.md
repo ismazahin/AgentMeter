@@ -1,6 +1,6 @@
 # Preparation on the GPU machine, never alongside a benchmark, no reuse, no schedules
 
-Status: proposed, waiting for the owner's approval. Mockups in `2026-11-22-hybrid-prep-mockup/`:
+Status: approved by the owner on 2026-11-22 ("yes i approve, build it") and built. Mockups in `2026-11-22-hybrid-prep-mockup/`:
 `4-samebox-upload-on.png`, `4-samebox-upload-off.png`, `5-waiting.png`, `5-your-uploads.png`,
 `2-session-new-benchmark.png`.
 
@@ -133,3 +133,21 @@ Status: proposed, waiting for the owner's approval. Mockups in `2026-11-22-hybri
   benchmark of N models, started M minutes ago", no owner or models named).
 - Whether the browser (Pyodide) preparation path, used only without a control plane, stays.
   Default: leave it untouched.
+
+## Calls made while building (for the owner to check)
+- **The service pulls, the control plane does not push.** A signed `POST /api/prep/claim` hands out
+  the oldest waiting job with fresh single-use URLs only once the service holds the machine, so a
+  long wait never outlives a URL. The control plane nudges the service (`POST /nudge`) when a job
+  starts waiting; the service also looks every minute.
+- **Order.** By the time a job joined the list (milliseconds), so a job a dead machine dropped keeps
+  its place.
+- **Retries.** A job whose machine goes away (new address, stopping, or 15 minutes with no news) goes
+  back on the list; after the third try it fails.
+- **Limits.** At most 3 unfinished uploads per user; waiting files use at most 800 MB of Storage.
+- **One benchmark per upload.** Marked when the benchmark is authorised. If that authorisation's
+  token expired without a session (the click failed), one retry is allowed after 5 minutes.
+- **Data sets page.** It lived inside the reuse tab, so it is gone too (rename, delete and the flow
+  mix of old sets). Sessions keep everything they measured.
+- **Single-server mode** (no control plane, local use): the GPU server prepares uploads as a job in
+  its own queue, which never overlapped a benchmark either; the browser path stays for tests.
+

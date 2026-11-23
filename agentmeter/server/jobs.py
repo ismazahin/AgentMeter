@@ -48,6 +48,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from .. import telemetry
+from . import gpulock
 from ..config import PROJECT_ROOT, load_config
 
 # AGENTMETER_RESULTS_DIR moves jobs + prepared sets elsewhere (persistent disk; local walk-throughs)
@@ -675,7 +676,16 @@ class JobManager:
         while True:
             job_id = self._queue.get()
             try:
-                self._run_one(job_id)
+                # One at a time on the machine (gpulock.py): a waiting data preparation goes first,
+                # and none runs while this job does, so preparing never changes a reading.
+                gpulock.wait_for_prep()
+                try:
+                    j = self._load(job_id)
+                    info = {"kind": j.get("kind") or "benchmark", "job_id": job_id, "models": len(j.get("models") or [])}
+                except JobError:
+                    info = {"kind": "benchmark", "job_id": job_id}
+                with gpulock.hold(info):
+                    self._run_one(job_id)
             finally:
                 self._queue.task_done()
 

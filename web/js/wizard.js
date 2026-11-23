@@ -1,4 +1,4 @@
-// AgentMeter web app — wizard.js: New benchmark: data (upload, link, reuse; where it is prepared: GPU server, cloud or browser), models, settings, the agent pipeline, Run, live telemetry.
+// AgentMeter web app — wizard.js: New benchmark: data (upload or link; with a control plane it is prepared on the GPU machine, never alongside a benchmark), models, settings, Run, live telemetry.
 // One of the app's scripts (web/app.html loads them in order: core, home, wizard, session, analysis,
 // compare, settings, boot); they share the page's global scope, so a function defined in one is used by the others.
 "use strict";
@@ -27,7 +27,7 @@ function routeWizard(p, q) {
   $("wiz-offline").hidden = !off;
   // with a control plane, uploading and preparing need no GPU (the preparation service does it)
   // (via the preparation service, Continue starts the service itself when it is not running)
-  if ($("svc-upload-btn")) $("svc-upload-btn").disabled = viaService() ? AN_SVC.waiting === "start" : off;
+  if ($("svc-upload-btn")) $("svc-upload-btn").disabled = viaService() ? !anCloud() : off;
   if ($("svc-import-btn")) $("svc-import-btn").disabled = off;
   if (p[1] === "models") { wizStep("models"); wizModels(q); }
   else if (p[1] === "run" && p[2]) { wizStep("run"); watchRun(p[2]); }
@@ -38,10 +38,9 @@ var srcTabs = Array.prototype.slice.call(document.querySelectorAll('#wiz-step-da
 function setSrc(name) {
   WIZ.src = name;
   selectTab(srcTabs, $("tab-src-" + name));
-  $("svc-upload-form").hidden = name === "reuse";
-  $("src-reuse").hidden = name !== "reuse";
+  $("src-file").hidden = name !== "file";
+  $("src-url").hidden = name !== "url";
   $("svc-upload-error").hidden = true;
-  if (name === "reuse") { loadRecentSets(); loadStoredSets(); if (CP) anList(); loadDatasets(); }
 }
 // the chosen source lives in the URL (#/new?src=…): a re-render (e.g. the GPU going offline)
 // keeps it instead of falling back to "Upload a file"; replaceState fires no hashchange
@@ -50,18 +49,9 @@ tablist(document.querySelector("#wiz-step-data .tabs"), function (t) {
   try { history.replaceState(null, "", "#/new" + (src === "file" ? "" : "?src=" + src)); } catch (e) { /* URL unchanged */ }
   setSrc(src);
 });
-function wizData(src, q) {
-  if (q && q.open) DS.open = q.open;
-  setSrc(src === "url" || src === "reuse" ? src : "file");
-  if (viaService()) { anServiceNotice(); wakeCloud(); } else $("an-unavailable").hidden = true;
-  resumeCloud();
-}
-// a free cloud service (Hugging Face Space) sleeps when unused: nudge it awake while the user picks a file
-var WOKEN = 0;
-function wakeCloud() {
-  if (!CP || !BACKEND || !BACKEND.cloud_prep || Date.now() - WOKEN < 10 * 60 * 1000) return;
-  WOKEN = Date.now();
-  cpFetch("/api/prep/wake", { method: "POST" }).then(function () { /* best effort */ });
+function wizData(src) {
+  setSrc(src === "url" ? "url" : "file");
+  if (viaService()) { anServiceNotice(); anUploads(); } else { $("an-unavailable").hidden = true; $("svc-prep-where").hidden = true; $("an-uploads").hidden = true; }
 }
 
 $("svc-upload-form").addEventListener("submit", function (ev) {
@@ -89,7 +79,6 @@ $("svc-upload-form").addEventListener("submit", function (ev) {
   $("svc-upload-busy").textContent = "Checking the GPU…";
   prepRoute(src).then(function (where) {
     $("svc-upload-btn").disabled = false; $("svc-upload-busy").hidden = true;
-    if (where === "cloud") { prepareInCloud(src); return; }
     if (where === "local") { prepareLocally(src.file); return; }
     prepareOnServer(fd);
   });
@@ -100,22 +89,13 @@ $("svc-upload-form").addEventListener("submit", function (ev) {
 // the GPU queue; without cloud preparation, this browser does (web/prep). All three run the
 // same Python code: the prepared flows and their hash are identical. (localStorage
 // "agentmeter.prepWhere" = server | cloud | local forces one; the end-to-end tests use it.)
-function gpuBusy() {
-  return api("/api/jobs?limit=50").then(function (r) {
-    return !!(r.ok && (r.data.jobs || []).some(function (j) { return j.status === "running" || j.status === "queued"; }));
-  });
-}
-function cloudMaxBytes() { return ((BACKEND && BACKEND.cloud_prep_max_mb) || 50) * 1024 * 1024; }
+// Without a control plane (one GPU server, one user) the GPU server prepares the data as a job in
+// its own queue, so it never runs alongside a benchmark either. "agentmeter.prepWhere" = local
+// prepares it in this browser instead (web/prep; the end-to-end tests use it).
 function prepRoute(src) {
   var forced = null;
   try { forced = localStorage.getItem("agentmeter.prepWhere"); } catch (e) { /* none */ }
-  if (forced === "server" || forced === "cloud" || (forced === "local" && src.file)) return Promise.resolve(forced);
-  return gpuBusy().then(function (busy) {
-    if (!busy) return "server";
-    var cloud = CP && BACKEND && BACKEND.cloud_prep && (!src.file || src.file.size <= cloudMaxBytes());
-    if (cloud) return "cloud";
-    return src.file && localPrepSupported() ? "local" : "server";
-  });
+  return Promise.resolve(forced === "local" && src.file ? "local" : "server");
 }
 function prepareOnServer(fd) {
   var err = $("svc-upload-error");
@@ -133,7 +113,6 @@ function prepareOnServer(fd) {
 // CPU; the GPU server gets only the prepared set (manifest + features + labels), checks its
 // hashes and stores it at once (POST /api/prepared/import), even while it benchmarks.
 var PREP_WORKER = null;
-function localPrepSupported() { return typeof Worker !== "undefined" && typeof WebAssembly !== "undefined"; }
 function prepareLocally(file) {
   var err = $("svc-upload-error"), box = $("svc-local-prep"), log = $("svc-local-log"), btn = $("svc-upload-btn");
   var lim = (CONFIG && CONFIG.limits) || {};
@@ -167,89 +146,16 @@ function prepareLocally(file) {
   PREP_WORKER.postMessage({ type: "prepare", base: PYODIDE_BASE, file: file, max_flows: parseInt($("svc-max-flows").value || "50", 10),
                             other_attack: false, limits: lim });
 }
-// ---------- prepared in the cloud (while the GPU benchmarks) ----------
-var CLOUD_KEY = "agentmeter.cloudPrepJob", CLOUD_POLL = null;
-function prepLogUi() {
-  var box = $("svc-local-prep"), log = $("svc-local-log"), btn = $("svc-upload-btn");
-  return {
-    start: function () { log.innerHTML = ""; box.hidden = false; box.querySelector(".bar").hidden = false; btn.disabled = true; $("svc-upload-error").hidden = true; },
-    line: function (msg, cls, when) {
-      var li = document.createElement("li"); li.className = "tel-line" + (cls ? " " + cls : "");
-      li.textContent = (when ? new Date(when) : new Date()).toTimeString().slice(0, 8) + "  " + msg; log.appendChild(li); log.scrollTop = log.scrollHeight;
-    },
-    end: function () { btn.disabled = false; box.querySelector(".bar").hidden = true; }
-  };
-}
-function remember(job) { try { if (job) localStorage.setItem(CLOUD_KEY, JSON.stringify(job)); else localStorage.removeItem(CLOUD_KEY); } catch (e) { /* not kept */ } }
-function prepareInCloud(src) {
-  var ui = prepLogUi(), err = $("svc-upload-error");
-  ui.start();
-  ui.line("The GPU is busy with a benchmark, so " + (src.file ? src.file.name + " (" + fmtSize(src.file.size) + ")" : "the linked file") + " is prepared in the cloud.");
-  var body = { max_flows: parseInt($("svc-max-flows").value || "50", 10), other_attack: false, limits: (CONFIG && CONFIG.limits) || {} };
-  if (src.file) { body.filename = src.file.name; body.size = src.file.size; } else body.url = src.url;
-  cpFetch("/api/prep/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
-    if (!r.ok) {
-      if (src.file && localPrepSupported() && /cloud_prep_unavailable|too_large|cloud_prep_unreachable|cloud_prep_refused/.test(r.data.code || "")) {
-        ui.line("Cloud preparation is not available (" + (r.data.error || r.status) + "); preparing on this computer instead.");
-        ui.end(); prepareLocally(src.file); return;
-      }
-      ui.end(); ui.line(r.data.error || "Cloud preparation failed.", "tel-failed"); showError(err, r.data); return;
-    }
-    var job = { id: r.data.job_id, name: src.file ? src.file.name : src.url };
-    remember(job);
-    if (!src.file) { ui.line("Sent to the cloud."); watchCloud(job, ui); return; }
-    ui.line("Uploading " + fmtSize(src.file.size) + " to cloud storage…");
-    fetch(r.data.upload_url, { method: "PUT", body: src.file, headers: { "content-type": src.file.type || "application/octet-stream" } }).then(function (u) {
-      if (!u.ok) throw new Error("storage answered HTTP " + u.status);
-      return cpFetch("/api/prep/jobs/" + enc(job.id) + "/start", { method: "POST" });
-    }).then(function (s) {
-      if (!s.ok) {
-        remember(null); ui.end();
-        if (localPrepSupported() && /cloud_prep_unreachable|cloud_prep_refused/.test(s.data.code || "")) {
-          ui.line("The cloud did not answer (" + (s.data.error || s.status) + "); preparing on this computer instead.");
-          prepareLocally(src.file); return;
-        }
-        ui.line(s.data.error || "The cloud did not start.", "tel-failed"); showError(err, s.data); return;
-      }
-      ui.line("Uploaded. The cloud is preparing it.");
-      watchCloud(job, ui);
-    }, function (e) {
-      remember(null); ui.end(); ui.line("Upload failed: " + e.message, "tel-failed");
-      showError(err, { error: "The upload to cloud storage failed (" + e.message + "). Try again.", code: "cloud_upload_failed" });
-    });
+// ---------- the preparation service's files go to the GPU server (hash-checked there) ----------
+// Imported once: a set already on the GPU server is used as it is, so a page reload never creates a
+// second copy (each upload starts one benchmark, checked by the control plane on the set's name).
+function cloudImport(j) {
+  return api("/api/prepared/" + setPath(j.set_name)).then(function (have) {
+    if (have.ok) return { ok: true, data: { prepared_set: j.set_name } };
+    return cloudImportFiles(j);
   });
 }
-function watchCloud(job, ui) {
-  var seen = 0, err = $("svc-upload-error");
-  clearTimeout(CLOUD_POLL);
-  var tick = function () {
-    if ($("view-new").hidden || $("wiz-step-data").hidden) return;      // left the page: resumes on return
-    cpFetch("/api/prep/jobs/" + enc(job.id)).then(function (r) {
-      if (!r.ok) { if (r.status === 404) { remember(null); ui.end(); return; } CLOUD_POLL = setTimeout(tick, 3000); return; }
-      var j = r.data;
-      (j.log || []).slice(seen).forEach(function (ev) { ui.line((PHASES[ev.phase] && ev.phase !== "loading" ? PHASES[ev.phase] + (ev.message ? ": " : "") : "") + (ev.message || ""), null, ev.t); });
-      seen = (j.log || []).length;
-      if (j.status === "failed") { remember(null); ui.end(); ui.line(j.error || "Cloud preparation failed.", "tel-failed"); showError(err, { error: j.error, code: j.code }); return; }
-      if (j.status !== "done") { CLOUD_POLL = setTimeout(tick, 1500); return; }
-      if (!ONLINE) {                                  // GPU off: the set is stored; its analysis page has it
-        remember(null); ui.end();
-        ui.line("Prepared " + String(j.set_name).split("/").pop() + ". The GPU server is offline, so it is kept for later. Open it on Analyse traffic.", "tel-done");
-        location.hash = "#/new/prep/" + enc(j.job_id);
-        return;
-      }
-      ui.line("Prepared " + String(j.set_name).split("/").pop() + " in the cloud. Sending the prepared flows to the GPU server…");
-      cloudImport(j).then(function (imp) {
-        ui.end();
-        if (!imp.ok) { ui.line("The GPU server did not accept it: " + (imp.data.error || imp.status), "tel-failed"); showError(err, imp.data); return; }
-        remember(null);
-        ui.line("Stored on the GPU server as " + imp.data.prepared_set + ".", "tel-done");
-        location.hash = "#/new/models?set=" + enc(imp.data.prepared_set);
-      });
-    });
-  };
-  tick();
-}
-function cloudImport(j) {
+function cloudImportFiles(j) {
   return Promise.all(j.files.map(function (n) {
     if (n === "ids_flows_identity.csv") return Promise.resolve(null);
     return cpFetch("/api/prep/jobs/" + enc(j.job_id) + "/files/" + n, { raw: true }).then(function (r) { return r && r.ok ? r.blob() : null; });
@@ -264,16 +170,6 @@ function cloudImport(j) {
     return api("/api/prepared/import", { method: "POST", body: fd });
   });
 }
-// a cloud preparation started earlier (the page was reloaded or left): follow it again
-function resumeCloud() {
-  var job = null;
-  try { job = JSON.parse(localStorage.getItem(CLOUD_KEY) || "null"); } catch (e) { job = null; }
-  if (!job || !job.id || !CP || !$("svc-local-prep").hidden) return;
-  remember(null); location.replace("#/new/prep/" + enc(job.id)); return;
-  var ui = prepLogUi();
-  ui.start(); ui.line("Following the cloud preparation of " + job.name + " started earlier.");
-  watchCloud(job, ui);
-}
 var drop = $("svc-drop");
 ["dragover", "dragenter"].forEach(function (e) { drop.addEventListener(e, function (ev) { ev.preventDefault(); drop.classList.add("over"); }); });
 ["dragleave", "drop"].forEach(function (e) { drop.addEventListener(e, function () { drop.classList.remove("over"); }); });
@@ -281,117 +177,15 @@ drop.addEventListener("drop", function (ev) {
   ev.preventDefault();
   if (ev.dataTransfer && ev.dataTransfer.files.length) $("svc-file").files = ev.dataTransfer.files;
 });
-function loadRecentSets() {
-  if (CP && !ONLINE) {        // sets on the GPU server's own disk: none to list while it is off
-    $("svc-recent-sets").textContent = "The GPU is offline. Sets prepared on the GPU server are listed here while it runs, and saved sets above stay available.";
-    return;
-  }
-  Promise.all([api("/api/jobs?limit=50"), datasetMeta()]).then(function (rs) {
-    var r = rs[0], gone = function (j) { return dsGone(rs[1], "name:" + j.prepared, [j.prepared], j.finished_at); };   // Data sets › Delete
-    var sets = ((r.ok && r.data.jobs) || []).filter(function (j) { return j.kind === "prepare" && j.status === "done" && j.prepared && !gone(j); });
-    $("svc-recent-sets").innerHTML = !r.ok ? esc(r.data.error) : !sets.length ? "Nothing prepared on this server yet." :
-      '<div class="table-wrap"><table id="svc-sets-table"><thead><tr><th>Prepared set</th><th>From</th><th>Prepared</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
-      sets.slice(0, 10).map(function (j) {
-        return '<tr><td class="mono">' + esc(j.prepared) + '</td><td>' + esc(j.run_name) + '</td><td class="small">' + esc(fmtDate(j.finished_at)) +
-          '</td><td><a href="#/new/models?set=' + enc(j.prepared) + '" data-set="' + esc(j.prepared) + '">Use</a></td></tr>';
-      }).join("") + '</tbody></table></div>';
-  });
-}
-// Phase 47 follow-up: prepared sets stored with sessions in the control plane (R2)
-function loadStoredSets() {
-  $("svc-stored-card").hidden = !CP;
-  if (!CP) return;
-  $("svc-stored-error").hidden = true;
-  Promise.all([allSessions(), datasetMeta()]).then(function (rs) {
-    var r = rs[0], gone = function (s) {                                 // Data sets › Delete
-      return dsGone(rs[1], s.prepared_set_sha256 || "name:" + s.run_name, s.run_name ? [s.run_name] : [], s.finished_at || s.created_at);
-    };
-    var seen = {}, sets = ((r.ok && r.data.sessions) || []).filter(function (s) {
-      var ok = (s.status === "Done" || s.status === "Demo") && (s.files || []).indexOf("manifest.json") >= 0 && (s.files || []).indexOf("features.csv") >= 0 && !gone(s);
-      var key = s.prepared_set_sha256 || s.session_id;
-      if (!ok || seen[key]) return false;
-      seen[key] = 1; return true;
-    });
-    $("svc-stored-sets").innerHTML = !r.ok ? esc(r.data.error) : !sets.length ? "No stored prepared sets yet. They appear here after a session finishes." :
-      '<div class="table-wrap"><table id="svc-stored-table"><thead><tr><th>Prepared set</th><th>Input</th><th class="num">Flows</th><th>From session</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
-      sets.slice(0, 20).map(function (s) {
-        return '<tr><td class="mono">' + esc(s.run_name || "—") + '<br><span class="muted small" title="Prepared-set hash">set ' + esc(String(s.prepared_set_sha256 || "").slice(0, 12)) + '</span></td><td>' +
-          esc(s.input_type || "—") + '</td><td class="num">' + fmtNum(s.n_flows) + '</td><td class="mono small" title="' + esc(s.session_id) + '">' + esc(shortId(s.session_id)) +
-          '</td><td><button type="button" class="btn small-btn" data-restore="' + esc(s.session_id) + '" data-set="' + esc(s.run_name || "") + '">Use</button></td></tr>';
-      }).join("") + '</tbody></table></div>';
-    $("svc-stored-sets").querySelectorAll("[data-restore]").forEach(function (b) {
-      b.addEventListener("click", function () {
-        b.disabled = true; $("svc-stored-error").hidden = true;
-        useStoredSet(b.getAttribute("data-restore"), b.getAttribute("data-set")).then(function (r) {
-          b.disabled = false;
-          if (!r.ok) { showError($("svc-stored-error"), r.data); return; }
-          location.hash = "#/new/models?set=" + enc(r.set);
-        });
-      });
-    });
-  });
-}
-// the backend still has the set -> use it; otherwise re-import the session's stored copy
-function useStoredSet(sessionId, set) {
-  if (CP && !ONLINE) return Promise.resolve({ ok: false, data: { error: "The GPU is offline. A saved set can be used once the GPU backend runs, which benchmarks need anyway.", code: "backend_offline" } });
-  var have = set ? api("/api/prepared/" + setPath(set)) : Promise.resolve({ ok: false });
-  return have.then(function (h) {
-    if (h.ok) return { ok: true, set: set };
-    if (!ONLINE) return { ok: false, data: { error: "The GPU is offline. A stored set can be restored once the GPU backend runs.", code: "backend_offline" } };
-    return restoreStoredSet(sessionId);
-  });
-}
-function restoreStoredSet(sessionId) {
-  var names = ["manifest.json", "features.csv", "labels.csv"];
-  return Promise.all(names.map(function (n) {
-    return cpFetch("/api/sessions/" + enc(sessionId) + "/files/" + n, { raw: true }).then(function (r) {
-      return r && r.ok ? r.blob() : null;                // labels.csv is absent for unlabelled sets
-    });
-  })).then(function (blobs) {
-    if (!blobs[0] || !blobs[1]) return { ok: false, data: { error: "This session has no stored copy of its prepared set." } };
-    var fd = new FormData();
-    fd.append("manifest", blobs[0], "manifest.json"); fd.append("features", blobs[1], "features.csv");
-    if (blobs[2]) fd.append("labels", blobs[2], "labels.csv");
-    return api("/api/prepared/import", { method: "POST", body: fd }).then(function (r) {
-      return r.ok ? { ok: true, set: r.data.prepared_set, restored: true } : r;
-    });
-  });
-}
-$("svc-bench-id-form").addEventListener("submit", function (ev) {
-  ev.preventDefault();
-  var id = $("svc-bench-id").value.trim().replace(/^\/+|\/+$/g, ""), err = $("svc-bench-id-error");
-  err.hidden = true;
-  if (!/^(csv_runs|pcap_runs)\/[A-Za-z0-9_.-]+$/.test(id)) { showError(err, { error: "A prepared-set id looks like csv_runs/<name> or pcap_runs/<name>." }); return; }
-  api("/api/prepared/" + setPath(id)).then(function (r) {
-    if (!r.ok) { showError(err, r.data); return; }
-    location.hash = "#/new/models?set=" + enc(id);
-  });
-});
-$("svc-import-form").addEventListener("submit", function (ev) {
-  ev.preventDefault();
-  var err = $("svc-import-error"), fd = new FormData();
-  err.hidden = true;
-  var m = $("svc-imp-manifest").files[0], f = $("svc-imp-features").files[0], l = $("svc-imp-labels").files[0];
-  if (!m || !f) { showError(err, { error: "Choose the manifest.json and features.csv of the prepared set (and labels.csv if it is labelled)." }); return; }
-  fd.append("manifest", m); fd.append("features", f); if (l) fd.append("labels", l);
-  $("svc-import-btn").disabled = true;
-  api("/api/prepared/import", { method: "POST", body: fd }).then(function (r) {
-    $("svc-import-btn").disabled = false;
-    if (!r.ok) { showError(err, r.data); return; }
-    location.hash = "#/new/models?set=" + enc(r.data.prepared_set);
-  });
-});
-
 // step 2
 var PHASES = { queued: "Queued", downloading: "Downloading", downloaded: "Downloaded", validating: "Validating",
   sampling: "Sampling rows across the file", indexing: "Indexing the capture", windowing: "Copying time windows",
   extracting: "Extracting flows", selecting: "Selecting flows", writing: "Writing the prepared set", ids: "Scoring with the IDS", done: "Done" };
 function wizModels(q) {
-  WIZ.prep = q.prep || null; WIZ.set = q.set || null; WIZ.summary = null; WIZ.from = q.from || null;
-  WIZ.want = q.models ? q.models.split(",").filter(Boolean) : null;          // Run again / a preset: these models
+  WIZ.prep = q.prep || null; WIZ.set = q.set || null; WIZ.summary = null;
+  WIZ.want = q.models ? q.models.split(",").filter(Boolean) : null;          // a preset: these models
   fillPresets();
   $("wiz-again").hidden = true;
-  if (q.again) applyAgain(q.again);
   $("wiz-back").setAttribute("href", "#/new?src=" + enc(WIZ.src || "file"));
   $("svc-summary").innerHTML = ""; $("wiz-data-error").hidden = true; $("svc-run-error").hidden = true;
   renderModels();
@@ -438,15 +232,6 @@ function pollPrepare(id, token) {
 }
 function dataReady(set) {
   api("/api/prepared/" + setPath(set)).then(function (r) {
-    if (!r.ok && r.status === 404 && CP && WIZ.from && ONLINE) {    // not on this rental: restore the stored copy
-      var from = WIZ.from;
-      WIZ.from = null;
-      setDataState("preparing", "Restoring the prepared set stored with session " + shortId(from) + "…", null);
-      return restoreStoredSet(from).then(function (x) {
-        if (!x.ok) { setDataState("failed", ""); showError($("wiz-data-error"), x.data); return; }
-        location.replace("#/new/models?set=" + enc(x.set));
-      });
-    }
     if (!r.ok) { setDataState("failed", ""); showError($("wiz-data-error"), r.data); return; }
     WIZ.summary = r.data;
     setDataState("ready", fmtNum(r.data.rows_selected) + " flows ready, prepared set " + r.data.prepared_set);
@@ -557,20 +342,6 @@ $("wiz-preset-del").addEventListener("click", function () {
     if (yes) { list.splice(i, 1); saveRunPresets(list); fillPresets(); }
   });
 });
-// Run again: the options of an earlier session (models come from the link)
-function applyAgain(id) {
-  api("/api/jobs/" + enc(id)).then(function (r) {
-    var j = r.ok ? r.data : null, note = $("wiz-again");
-    if (j) {
-      if (!$("svc-ids").disabled) { $("svc-ids").checked = !!j.ids; $("svc-ids-box").hidden = !j.ids; $("svc-ids-tau").value = j.ids && j.ids.threshold ? j.ids.threshold : ""; }
-    }
-    note.innerHTML = '<b>Run again</b> of <a class="mono" href="#/session/' + enc(id) + '">' + esc(shortId(id)) + '</a>: the same data set and models' +
-      (j ? ' and options' : '; its options were not found on this GPU server, so check them below') +
-      '. Running it again on the same GPU adds a run to <a href="#/trends">Consistency</a>.';
-    note.hidden = false;
-    syncRun();
-  });
-}
 // study models: on this server already, or downloaded the first time a benchmark uses them
 function renderStudyNotes(cat) {
   if (!cat || !(HEALTH && HEALTH.provider === "real")) return;
@@ -802,9 +573,9 @@ function renderProgress(j, target) {
   }
   if (j.status === "stopped") {
     phase = "Benchmark stopped";
-    if (j.run_name && !target.text.parentNode.querySelector(".again-link")) {
+    if (!target.text.parentNode.querySelector(".again-link")) {
       var a = document.createElement("div"); a.className = "actions again-link";
-      a.innerHTML = '<a class="btn" href="#/new/models?set=' + enc(j.run_name) + '">Benchmark these flows again</a>';
+      a.innerHTML = '<a class="btn" href="#/new">New benchmark</a><span class="small muted">Upload the same file and pick the same number of flows to measure them again.</span>';
       target.text.parentNode.insertBefore(a, target.error);
     }
   }
@@ -936,7 +707,7 @@ function wireStop(j, t) {
   b.setAttribute("data-wired", t.id);
   b.onclick = function () {
     confirmAction({ title: "Stop this benchmark?", ok: "Stop benchmark", cancel: "Keep running", danger: true,
-      body: "Flows finished so far will not be scored. You can start it again later with \u201cBenchmark these flows again\u201d." }).then(function (yes) {
+      body: "Flows finished so far will not be scored. To measure them again later, start a new benchmark with the same file." }).then(function (yes) {
     if (!yes) return;
     b.disabled = true;
     api("/api/jobs/" + enc(t.id) + "/stop", { method: "POST" }).then(function (r) {

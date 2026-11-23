@@ -86,7 +86,7 @@ async function frameOf(p) {
   const steps = await p.$$eval('#wiz-steps li:not([hidden])', ls => ls.map(l => l.textContent.trim()));
   log(steps.join('|') === '1Upload|2Models and settings|3Run', 'wizard has 3 steps without a control plane: ' + steps.join(', '));
   const tabs = await p.$$eval('#wiz-step-data [role=tab]', ts => ts.map(t => t.textContent.trim()));
-  log(tabs.join('|') === 'Upload a file|Import from a link|Reuse a prepared set', 'data tabs: ' + tabs.join(', '));
+  log(tabs.join('|') === 'Upload a file|Import from a link', 'data tabs (no reuse): ' + tabs.join(', '));
   log(!(await p.$('#svc-other-attack')), 'no Other Attack option on the data step');
   await p.screenshot({ path: S + '/02-wizard-data.png', fullPage: true });
   await p.setInputFiles('#svc-file', REPO + '/data/sample_csv/cicids2017_sample.csv');
@@ -266,16 +266,16 @@ async function frameOf(p) {
   await tab(p, 'performance', 'statistics');
   log(/single-model|two models/i.test(await p.textContent('#stats-effects-card')), 'PCAP 1-model session: effect sizes explain they need two models');
 
-  // 7. reuse the CSV's prepared set with the same 2 models -> a like-for-like pair
-  await p.goto(BASE + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
-  await p.click('#tab-src-reuse'); await p.waitForSelector('#svc-sets-table a[data-set]');
-  const sets = await p.$$eval('#svc-sets-table a[data-set]', as => as.map(a => a.getAttribute('data-set')));
-  const csvSet = await p.evaluate(id => fetch('/api/jobs/' + id).then(r => r.json()).then(j => j.run_name), job1);
-  log(sets.includes(csvSet), 'Reuse lists the prepared set of session 1 (' + csvSet + ')');
-  await p.click(`#svc-sets-table a[data-set="${csvSet}"]`);
-  await p.waitForFunction(() => document.querySelector('#wiz-data-chip').textContent === 'Ready', null, { timeout: 30000 });
-  const job3 = await pickAndRun(p, [1, 3]);
-  log(true, 'reused prepared set ' + csvSet + ' -> session ' + job3);
+  // 7. no reuse: the session page offers a New benchmark; uploading the SAME file with the same number
+  // of flows gives the same prepared set fingerprint -> a like-for-like pair on the same setup
+  await p.goto(BASE + '/app.html#/session/' + job1); await p.waitForSelector('#session-again:not([hidden])');
+  log((await p.getAttribute('#session-again', 'href')) === '#/new' && /upload the same file and pick the same number of flows/.test(await p.textContent('#session-again-note')),
+      'the session page offers New benchmark, with how to compare like for like');
+  const job3 = await wizardUpload(p, REPO + '/data/sample_csv/cicids2017_sample.csv', 10, [1, 3]);
+  await p.waitForFunction(id => location.hash.indexOf('#/session/' + id) === 0, job3, { timeout: 180000 });
+  const shaOf = id => p.evaluate(i => fetch('/api/jobs/' + i + '/result').then(r => r.json()).then(j => (j.session_identity || {}).prepared_set_sha256), id);
+  const [sha1, sha3] = [await shaOf(job1), await shaOf(job3)];
+  log(!!sha1 && sha1 === sha3, 'the same file and flow count, uploaded again, gives the same fingerprint (' + String(sha1).slice(0, 12) + ') -> session ' + job3);
 
   // 8. A session's "On the Leaderboard" opens By setup on that session's setup (Compare models was folded in)
   await p.click('#session-compare'); await p.waitForSelector('#lb-demo-only, #lb-table-0');
@@ -319,24 +319,15 @@ async function frameOf(p) {
   await p.selectOption('#tr-f-measure', 'max_peak_vram_mb'); await p.waitForFunction(() => /not measured/i.test(document.querySelector('#tr-cards')?.textContent || ''));
   log(true, 'a measure the demo never records says so on the card');
   await p.selectOption('#tr-f-measure', 'mean_latency_s');
-  log(/No schedules yet/.test(await p.textContent('#tr-schedules')), 'Consistency: no schedules yet');
+  log(!(await p.$('#tr-schedules')), 'Consistency: no schedules (removed: every run starts from an upload)');
   await p.goto(BASE + '/app.html#/session/' + job3 + '/overview'); await p.waitForSelector('#svc-rep-line:not([hidden])');
   const repLine = await p.textContent('#svc-rep-line');
   log(/Is this result consistent/.test(repLine) && /2 runs on this setup/.test(repLine) && !!(await p.$('#svc-rep-list a[href^="#/trends?model="]')), 'Session Overview: is this result consistent, per model, linking to its runs');
   await p.click('#svc-rep-list a'); await p.waitForSelector('#tr-chart-card');
   log((await p.$$('#tr-table tbody tr')).length === 2 && !!(await p.$('#tr-cards .cs-card.sel')), 'the Overview link opens that model\'s card and runs on Consistency');
   await p.screenshot({ path: S + '/11d-trends.png', fullPage: true });
-  // Repeat on a schedule (session Overview) -> listed on Trends -> cancel
-  await p.goto(BASE + '/app.html#/session/' + job1 + '/overview'); await p.waitForSelector('#svc-schedule');
-  await p.fill('#sch-runs', '31'); await p.click('#sch-save');
-  log(/1 to 30/.test(await p.textContent('#sch-error')), 'Schedule: the number of runs is checked before sending');
-  await p.fill('#sch-runs', '5'); await p.selectOption('#sch-every', '12'); await p.click('#sch-save');
-  await p.waitForSelector('#sch-list [data-sch]');
-  log(/every 12 hours, 0 of 5 runs done/.test(await p.textContent('#sch-list')), 'Schedule: started from the session, shown with its next run');
-  await p.click('.mainnav a[data-nav="leaderboard"]'); await p.click('#lbtab-repeat'); await p.waitForSelector('#tr-sched-table');
-  log(/every 12 hours/.test(await p.textContent('#tr-sched-table')) && /0 \/ 5/.test(await p.textContent('#tr-sched-table')), 'Trends: the schedule is listed');
-  await p.click('#tr-sched-table [data-sch-cancel]'); await p.click('#confirm-ok'); await p.waitForFunction(() => /cancelled/.test(document.querySelector('#tr-sched-table').textContent));
-  log(true, 'Trends: a schedule can be cancelled (runs already made are kept)');
+  await p.goto(BASE + '/app.html#/session/' + job1 + '/overview'); await p.waitForSelector('#svc-notes');
+  log(!(await p.$('#svc-schedule')), 'Session Overview: no Repeat on a schedule card');
 
   // How to use: a sidebar page; its contents links scroll within the page; the tips come back
   await p.click('.sidenav-account a[data-nav="help"]'); await p.waitForSelector('#view-help:not([hidden])');

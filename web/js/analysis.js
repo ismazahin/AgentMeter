@@ -6,12 +6,10 @@
 // Do you get the same result twice? One card per model on a setup that ran 2 or more times: its runs
 // as dots against the "same result" band, a verdict (the rules in insights.js: repeatSummary and its
 // drift rule, unchanged), one plain sentence and the next step. Models run once are one line below.
-var TR = { data: null, series: null, metric: null, sched: [], focus: null };
+var TR = { data: null, series: null, metric: null, focus: null };
 var TRF = { model: "", set: "", gpu: "", measure: "mean_latency_s", status: "" };
 var TR_MEASURES = [["mean_latency_s", "Speed", 0.10], ["mean_tokens_per_flow", "Tokens", 0.05], ["max_peak_vram_mb", "GPU memory", 0.05]];
 var TR_VERDICT = { stable: ["Steady", "ok"], varies: ["Varies", "warn"], moved: ["Changed recently", "bad"], few: ["One more run for a verdict", "none"] };
-var SCHED_EVERY = [[6, "every 6 hours"], [12, "every 12 hours"], [24, "daily"], [48, "every 2 days"], [168, "weekly"]];
-function everyLabel(h) { var e = SCHED_EVERY.filter(function (x) { return x[0] === h; })[0]; return e ? e[1] : "every " + h + " hours"; }
 function loadTrends(q) {
   q = q || {};
   TR.series = q.series || (q.model && q.setup ? q.model + "||" + q.setup : null);
@@ -28,7 +26,6 @@ function loadTrends(q) {
     renderTrends();
     if (TR.series) trOpen(TR.series);
   });
-  loadSchedules();
 }
 // demo runs are simulated: checked only when there are no real runs at all (as on the Leaderboard)
 function trDemo(data) { return !data.some(function (s) { return s.status === "Done"; }) && data.some(function (s) { return s.status === "Demo"; }); }
@@ -93,7 +90,6 @@ function trCard(x, s) {
   } else say = "Two runs so far: " + trFmt(key, vals[0]) + " and " + trFmt(key, vals[vals.length - 1]) + (key === "mean_latency_s" ? " per flow" : "") + ". One more run gives a verdict.";
   var focus = TR.focus ? ts.points.map(function (p) { return p.session_id; }).indexOf(TR.focus) : -1;
   var titles = ts.points.map(function (p) { return fmtDate(p.at) + ": " + (p.v == null ? "not measured" : trFmt(key, p.v)); });
-  var lastSid = s.points[s.points.length - 1].session_id;
   return '<div class="cs-card' + (TR.series === s.id ? " sel" : "") + '" data-series="' + esc(s.id) + '">' +
     '<div class="cs-card-h"><div><h3>' + mdot(x.model) + esc(nick(x.model)) + extraTag(x.model) + '</h3><div class="sub">' + esc(name + ", " + (s.setup.gpu || "GPU") + ", " + x.runs + " runs") + '</div></div>' +
       '<span class="cs-chip ' + v[1] + '"><span class="cs-dot ' + v[1] + '"></span>' + esc(v[0]) + '</span></div>' +
@@ -101,7 +97,7 @@ function trCard(x, s) {
     '<div class="cs-axis" aria-hidden="true"><span>first run</span><span>' + esc(m[1].toLowerCase()) + ', each dot one run</span><span>latest</span></div>' +
     '<p class="say">' + esc(say) + '</p>' + (next ? '<p class="next">' + esc(next) + '</p>' : "") +
     '<div class="cs-card-f"><span>Last run ' + esc(x.last_at ? fmtDate(x.last_at) : "") + '</span><span class="actions">' +
-      (x.status === "few" ? '<a class="btn primary small-btn" href="#/session/' + enc(lastSid) + '">Run it again</a>' : "") +
+      (x.status === "few" ? '<a class="btn primary small-btn" href="#/new" title="Upload the same file and pick the same number of flows">New benchmark</a>' : "") +
       '<button type="button" class="btn small-btn" data-tr-open="' + esc(s.id) + '">See every run</button></span></div></div>';
 }
 function renderTrends() {
@@ -159,7 +155,7 @@ function historyCard(s, ts, t) {
   return head + verdict + '<div id="tr-plot">' + trendSvg(ts, pts, d) + '</div>' +
     '<div class="table-wrap"><table id="tr-table"><thead><tr><th>Finished</th><th>Session</th><th class="num">' + esc(ts.label) + '</th><th class="num">Change vs previous</th><th>What was different</th></tr></thead><tbody>' +
     ts.points.slice().reverse().map(function (p) {
-      return '<tr><td>' + esc(fmtDate(p.at)) + '</td><td><a class="mono" href="#/session/' + enc(p.session_id) + '">' + esc(shortId(p.session_id)) + '</a>' + (p.scheduled ? ' <span class="chip">scheduled</span>' : "") +
+      return '<tr><td>' + esc(fmtDate(p.at)) + '</td><td><a class="mono" href="#/session/' + enc(p.session_id) + '">' + esc(shortId(p.session_id)) + '</a>' +
         '</td><td class="num">' + esc(fmtUnit(ts.unit, p.v)) + '</td><td class="num">' + (p.delta == null ? "—" : (p.delta > 0 ? "+" : "") + fmtNum(100 * p.delta, 1) + "%") +
         '</td><td class="small">' + ([p.changed.length ? p.changed.map(INSIGHTS.changeText).join(", ") : null,
           p.health && p.health.status === "check" ? "GPU not normal. " + (p.health.reasons || []).slice(0, 2).join(". ") : null].filter(Boolean).map(esc).join("<br>") || '<span class="muted">—</span>') + '</td></tr>';
@@ -178,38 +174,9 @@ function trendSvg(ts, pts, d) {
     (d.enough ? '<line class="base" x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(d.baseline) + '" y2="' + Y(d.baseline) + '"/><text class="ax" x="' + (W - R) + '" y="' + (Y(d.baseline) - 5) + '" text-anchor="end">earlier median</text>' : "") +
     (pts.length > 1 ? '<path class="tline" d="' + line + '"/>' : "") +
     pts.map(function (p, i) {
-      var tip = fmtDate(p.at) + ": " + fmtUnit(ts.unit, p.v) + (p.scheduled ? " (scheduled run)" : "");
-      return '<g tabindex="0" data-hover="' + esc(tip) + '" aria-label="' + esc(tip) + '"><circle cx="' + X(xs[i]) + '" cy="' + Y(p.v) + '" r="6" style="fill:var(--series-1)"' + (p.scheduled ? ' class="sched"' : "") + '/></g>';
+      var tip = fmtDate(p.at) + ": " + fmtUnit(ts.unit, p.v);
+      return '<g tabindex="0" data-hover="' + esc(tip) + '" aria-label="' + esc(tip) + '"><circle cx="' + X(xs[i]) + '" cy="' + Y(p.v) + '" r="6" style="fill:var(--series-1)"/></g>';
     }).join("") + '</svg>';
-}
-function loadSchedules() {
-  var host = $("tr-schedules");
-  backendFetch("/api/schedules").then(function (r) {
-    if (!r.ok) {
-      host.innerHTML = '<h2>Repeat a run automatically</h2><p class="muted" style="margin-bottom:0">' + esc(r.data.code === "backend_offline" || r.status === 0 ? "The GPU backend is offline. Schedules run there, so they cannot be listed now." : (r.data.error || "Could not load the schedules.")) + '</p>';
-      return;
-    }
-    TR.sched = r.data.schedules || [];
-    host.innerHTML = '<h2>Repeat a run automatically</h2><p class="muted small" style="margin-top:0">Pick a session and AgentMeter runs it again on a schedule, for example every night for a week, so this page fills in by itself. Start one from a session\'s Overview tab (Repeat on a schedule).</p>' +
-      (TR.sched.length ? '<div class="table-wrap"><table id="tr-sched-table"><thead><tr><th>Repeats</th><th>Models</th><th>How often</th><th class="num">Runs</th><th>Next</th><th>Owner</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
-        TR.sched.map(schedRow).join("") + '</tbody></table></div>' : '<p class="muted" id="tr-sched-none" style="margin-bottom:0">No schedules yet.</p>');
-  });
-}
-function schedRow(x) {
-  var state = x.active ? (x.waiting ? '<span class="small muted">' + esc(fmtDate(x.next_at)) + ' — ' + esc(x.waiting) + '</span>' : esc(fmtDate(x.next_at)))
-    : '<span class="chip">' + esc(x.ended || "ended") + '</span>' + (x.last_error ? ' <span class="small muted">' + esc(x.last_error) + '</span>' : "");
-  return '<tr data-sch="' + esc(x.schedule_id) + '"><td><a class="mono" href="#/session/' + enc(x.source_job_id) + '">' + esc(shortId(x.source_job_id)) + '</a></td><td class="small">' + esc((x.models || []).map(short).join(", ")) +
-    '</td><td>' + esc(everyLabel(x.every_hours)) + '</td><td class="num">' + x.runs_done + ' / ' + x.runs_total + '</td><td>' + state + '</td><td>' + esc(x.owner || "—") + '</td><td>' +
-    (x.active ? '<button type="button" class="btn small-btn danger-lite" data-sch-cancel="' + esc(x.schedule_id) + '" data-sch-job="' + esc(x.source_job_id) + '">Cancel</button>' : "") + '</td></tr>';
-}
-function cancelSchedule(id, jobId, done) {
-  confirmAction({ title: "Cancel this schedule?", body: "No further runs start. Runs already made are kept.", ok: "Cancel schedule", cancel: "Keep schedule", danger: true }).then(function (yes) {
-  if (!yes) return;
-  backendFetch("/api/schedules/" + enc(id) + "/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ job_id: jobId }) }).then(function (r) {
-    if (!r.ok) { alert(r.data.error || "Could not cancel the schedule."); return; }
-    done();
-  });
-  });
 }
 document.addEventListener("change", function (ev) {
   var k = { "tr-f-model": "model", "tr-f-set": "set", "tr-f-gpu": "gpu", "tr-f-measure": "measure" }[ev.target.id];
@@ -221,8 +188,6 @@ document.addEventListener("click", function (ev) {
   var o = ev.target.closest && ev.target.closest("[data-tr-open]");
   if (o) { trOpen(o.getAttribute("data-tr-open")); return; }
   if (ev.target.closest && ev.target.closest("[data-tr-close]")) { TR.series = null; renderTrends(); return; }
-  var c = ev.target.closest && ev.target.closest("[data-sch-cancel]");
-  if (c && c.closest("#tr-schedules")) cancelSchedule(c.getAttribute("data-sch-cancel"), c.getAttribute("data-sch-job"), loadSchedules);
 });
 // Overview: how often this session's models were measured on its setup, and whether they held
 function wireRepLine(job) {
@@ -243,51 +208,8 @@ function wireRepLine(job) {
       var what = x.runs === 1 ? "run once on this setup, run it again to check" : x.runs < 3 ? x.runs + " runs on this setup, one more gives a verdict" :
         x.runs + " runs, " + (x.status === "stable" ? "steady" : x.status === "moved" ? "changed recently" : "varies");
       return '<li><b>' + esc(nick(x.model)) + '</b>: <a href="' + repLink(x.model, key) + '&session=' + enc(job.job_id) + '">' + esc(what) + '</a></li>';
-    }).join("") + '</ul>' + (rows.every(function (x) { return x.runs < 3; }) ? '<p class="small muted" style="margin:6px 0 0">Run this setup again (or repeat it on a schedule below) to check that the results hold.</p>' : "");
+    }).join("") + '</ul>' + (rows.every(function (x) { return x.runs < 3; }) ? '<p class="small muted" style="margin:6px 0 0">Benchmark it again (upload the same file and pick the same number of flows) to check that the results hold.</p>' : "");
     host.hidden = false;
-  });
-}
-// Overview: repeat this session on a schedule (finished sessions; the owner or an admin)
-function scheduleCard(job) {
-  var st = String(job.status || "").toLowerCase();
-  if (!(st === "done" || st === "demo") || !canEditNotes(job)) return "";
-  return '<form class="card" id="svc-schedule" novalidate><h2>Repeat on a schedule</h2><p class="muted small" style="margin-top:0">Runs this session again on this GPU with the same flows, models and settings, so <a href="#/trends">Leaderboard › Consistency</a> can show whether the numbers hold over time. Each run is an ordinary session in the queue, and a run waits while the previous one is still going.</p>' +
-    '<div class="row" style="gap:16px;flex-wrap:wrap;align-items:flex-end"><div class="field" style="margin:0"><label for="sch-every">How often</label><select id="sch-every">' +
-    SCHED_EVERY.map(function (e) { return '<option value="' + e[0] + '"' + (e[0] === 24 ? " selected" : "") + '>' + esc(e[1]) + '</option>'; }).join("") + '</select></div>' +
-    '<div class="field" style="margin:0"><label for="sch-runs">Number of runs <span class="hint">(1–30)</span></label><input type="number" id="sch-runs" min="1" max="30" step="1" value="7" inputmode="numeric"></div>' +
-    '<div class="actions" style="margin:0"><button type="submit" class="btn" id="sch-save">Start schedule</button></div></div>' +
-    '<div id="sch-error" class="notice error" role="alert" hidden></div><div id="sch-list" class="small" style="margin-top:10px"></div></form>';
-}
-function wireSchedule(job) {
-  var f = $("svc-schedule");
-  if (!f) return;
-  var list = function () {
-    backendFetch("/api/schedules").then(function (r) {
-      if (!r.ok || !$("sch-list")) return;
-      var mine = (r.data.schedules || []).filter(function (x) { return x.source_job_id === job.job_id && x.active; });
-      $("sch-list").innerHTML = mine.map(function (x) {
-        return '<div class="row" style="margin:4px 0;gap:8px;align-items:center" data-sch="' + esc(x.schedule_id) + '"><span class="chip ok">active</span> ' + esc(everyLabel(x.every_hours)) + ', ' + x.runs_done + ' of ' + x.runs_total + ' runs done, next ' + esc(fmtDate(x.next_at)) +
-          (x.waiting ? ' (' + esc(x.waiting) + ')' : "") + ' <button type="button" class="btn small-btn danger-lite" data-sch-cancel="' + esc(x.schedule_id) + '">Cancel</button></div>';
-      }).join("");
-    });
-  };
-  list();
-  f.addEventListener("click", function (ev) {
-    var c = ev.target.closest("[data-sch-cancel]");
-    if (c) cancelSchedule(c.getAttribute("data-sch-cancel"), job.job_id, list);
-  });
-  f.addEventListener("submit", function (ev) {
-    ev.preventDefault();
-    $("sch-error").hidden = true;
-    var runs = +$("sch-runs").value;
-    if (!(runs >= 1 && runs <= 30 && Math.floor(runs) === runs)) { showError($("sch-error"), { error: "The number of runs must be a whole number from 1 to 30." }); return; }
-    $("sch-save").disabled = true;
-    backendFetch("/api/schedules", { method: "POST", headers: { "Content-Type": "application/json" },
-                                     body: JSON.stringify({ job_id: job.job_id, every_hours: +$("sch-every").value, runs: runs }) }).then(function (r) {
-      $("sch-save").disabled = false;
-      if (!r.ok) { showError($("sch-error"), r.data); return; }
-      list();
-    });
   });
 }
 // Overview: notes and tags (owner or admin edits; with a control plane the Worker stores them)
@@ -343,14 +265,14 @@ var REP_FMT = { s: fmtTime, tokens: function (v) { return fmtNum(v, 1); }, MB: f
 function wireRepeat(res, job) {
   var host = $("svc-repeat-host"), id = job.job_id;
   if (!host || !window.INSIGHTS) return;
-  var again = '<a class="btn" href="#/new/models?set=' + enc(job.run_name || "") + (CP && job.stored ? "&from=" + enc(id) : "") + '">Benchmark these flows again</a>';
+  var again = '<a class="btn" href="#/new">New benchmark</a><span class="small muted">Upload the same file and pick the same number of flows.</span>';
   var head = '<h2>Consistency across runs</h2><p class="muted small" style="margin-top:0">The same models on the same flows, GPU and settings in other sessions. How much do the numbers move from run to run?</p>';
   sameSetup(id).then(function (d) {
     if (SESSION.id !== id) return;
     var r = { ok: d.ok, data: { error: d.error } };
     if (!d.merged) {
       host.innerHTML = '<div class="card" id="svc-repeat">' + head + '<p>' + (r.ok ? "No other session ran on these flows, GPU and settings yet." : "Could not look for other sessions: " + esc((r.data || {}).error || "")) +
-        ' Run the same models again to see how stable these numbers are.</p><div class="actions">' + again + '</div></div>';
+        ' Benchmark the same models again (a new upload of the same file) to see how stable these numbers are.</p><div class="actions">' + again + '</div></div>';
       return;
     }
     host.innerHTML = repeatCard(INSIGHTS.repeatability(d.merged, id), head, again, id);
@@ -851,9 +773,9 @@ function downloadsTab(res, job) {
     '<h3 style="margin-top:16px">Reproducibility package</h3><p class="muted small" style="margin-top:0">One .zip with everything needed to check or repeat this session: the results, the exact settings and pipeline, ' +
     'the GPU, driver and library versions, the prepared flows with their fingerprint, the PDF and a README saying how to run it again.</p>' +
     '<div class="actions"><button type="button" class="btn" id="svc-dl-repro">Download reproducibility package (.zip)</button><span class="small muted" id="svc-repro-status" aria-live="polite"></span></div></div>' +
-    '<div class="card"><h2>Prepared set</h2><p class="muted small">The exact flows this session measured. Download them to keep them, or reuse them in a new benchmark.</p>' +
+    '<div class="card"><h2>Prepared set</h2><p class="muted small">The exact flows this session measured. Download them to keep them. To measure them again, start a new benchmark: upload the same file and pick the same number of flows, and the fingerprint will match.</p>' +
     '<p class="mono small">' + esc(job.run_name || "") + '</p><div class="actions" id="svc-downloads"></div>' +
-    '<div class="actions"><a class="btn" id="svc-again" href="#/new/models?set=' + enc(job.run_name || "") + (CP && job.stored ? "&from=" + enc(job.job_id) : "") + '">Benchmark these flows again</a></div></div>' +
+    '<div class="actions"><a class="btn" id="svc-again" href="#/new">New benchmark</a></div></div>' +
     (CP && job.can_delete ? '<div class="card"><h2>Delete this session</h2><p class="muted small">Removes the stored session (results, PDF, prepared-set copy) for everyone. ' +
       'Only its owner or an admin can do this.</p><div class="actions"><button type="button" class="btn" id="svc-delete">Delete session</button></div>' +
       '<div id="svc-delete-error" class="notice error" role="alert" hidden></div></div>' : "");
@@ -895,7 +817,7 @@ function reproPackage(res, job, btn) {
                 models: job.models || (res.session || {}).models || [], prepared_set: job.run_name || null, n_flows: (res.session || {}).n_flows,
                 pipeline: job.pipeline || null, provider: env.provider || null,
                 quantization: "4-bit NF4", settings: ident.settings || null };
-    var again = location.origin + location.pathname + "#/new/models?set=" + enc(job.run_name || "") + "&models=" + (run.models || []).map(enc).join(",") + "&again=" + enc(id);
+    var again = location.origin + location.pathname + "#/new";
     var readme = "# AgentMeter reproducibility package\n\nSession: " + id + "\nCreated: " + new Date().toISOString() + "\n\n" +
       "AgentMeter measures how efficiently open-source LLMs (4-bit NF4) run a fixed multi-agent analysis of network flows. It measures latency, GPU memory, tokens, cost and energy.\n\n" +
       "## What is in this package\n\n" +
@@ -911,8 +833,8 @@ function reproPackage(res, job, btn) {
       "- Settings fingerprint: `" + (ident.settings_fingerprint || "unknown") + "`\n" +
       "- Driver / CUDA: " + (env.driver_version || "—") + " / " + (env.cuda_runtime_version || "—") + ", torch " + (env.torch || "—") + ", transformers " + (env.transformers || "—") + ", bitsandbytes " + (env.bitsandbytes || "—") + "\n" +
       "\n## How to run it again\n\n" +
-      "1. Open AgentMeter and use **Run again** on the session page, or open " + again + "\n" +
-      "   (if the prepared set is not on the GPU server, import `prepared_set/` under New benchmark › Reuse a prepared set, and its hash stays the same).\n" +
+      "1. Open AgentMeter's New benchmark (" + again + "), upload the same file and pick the same number of flows (" + fmtNum(run.n_flows || job.n_flows) + ").\n" +
+      "   Preparation is repeatable (fixed seed), so the prepared set's SHA-256 above comes out the same. The models were: " + (run.models || []).join(", ") + ".\n" +
       "2. Use the same GPU type. Results are only comparable on the same prepared set, GPU and settings.\n" +
       "3. The new session appears on Leaderboard > Consistency next to this one, and a change beyond the usual spread is flagged.\n";
     var files = [{ name: "README.md", data: readme }, { name: "run.json", data: JSON.stringify(run, null, 2) },

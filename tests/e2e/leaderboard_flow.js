@@ -45,7 +45,8 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     // the one-model setup: not enough, with the next step
     await p.click('#lb-slist .sitem:nth-child(3)'); await p.waitForSelector('#lb-not-enough');
     log(/Not enough to rank yet/.test(await p.textContent('#lb-not-enough')) && /at least 2 models/.test(await p.textContent('#lb-not-enough')), 'one model: Not enough to rank yet, and why');
-    log((await p.getAttribute('#lb-run-another', 'href')) === '#/new/models?set=' + encodeURIComponent(sd.b), 'Run another model on this set opens New Benchmark on that set');
+    log((await p.getAttribute('#lb-run-another', 'href')) === '#/new' && /Upload the same file and pick the same number of flows/.test(await p.textContent('#lb-not-enough')),
+        'one model: New benchmark, with how to land on the same setup (upload the same file, same flows)');
     log(/setup=/.test(await p.evaluate(() => location.hash)), 'the chosen setup is in the address');
     await p.reload(); await p.waitForSelector('#lb-not-enough');
     log(true, 'a reload keeps the chosen setup');

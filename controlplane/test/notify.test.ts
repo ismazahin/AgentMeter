@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import FIX from "./fixtures/parity.json" with { type: "json" };
-import { api, backendCall, register, user } from "./helpers.ts";
+import { api, backendCall, register, user, benchAuth } from "./helpers.ts";
 
 const F = FIX as any;
 const SID = "job_20261010_100000_" + "e".repeat(32);
@@ -20,9 +20,9 @@ function spyTelegram() {
 }
 afterEach(() => vi.restoreAllMocks());
 
-async function ownedSession(u: { token: string }) {
+async function ownedSession(u: { id: string; token: string }) {
   await register();
-  const g = await api("/api/runs/authorize", { body: { kind: "benchmark", run: "csv_runs/x_1" }, token: u.token });
+  const g = await benchAuth(u, "csv_runs/x_1");
   await backendCall("POST", "/api/backend/jobs", { job_id: SID, kind: "benchmark", status: "running", jti: g.data.jti, models: ["m/a", "m/b"] });
 }
 

@@ -18,7 +18,7 @@ export interface Env {
   ALLOW_HTTP_BACKEND?: string;
   CLOUD_PREP_SECRET?: string;      // the preparation service on the GPU machine signs with it (the same value on both)
   CLOUD_PREP_MAX_MB?: string;      // largest upload (default 50: one Storage file on the free plan)
-  CLOUD_PREP_MAX_URL_MB?: string;  // largest linked file the service downloads (default 10240)
+  CLOUD_PREP_MAX_URL_MB?: string;  // largest linked file the service downloads (default 2048: 2 GB)
   PREP_STORAGE_MAX_MB?: string;    // waiting uploads held in Storage at most (default 800: the free plan has 1 GB)
   PUBLIC_BASE_URL?: string;        // this API's public URL (default: SUPABASE_URL + /functions/v1/agentmeter)
   SUPABASE_URL?: string;

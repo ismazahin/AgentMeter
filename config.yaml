@@ -212,7 +212,7 @@ service:
   # Browser uploads go through the tunnel (Cloudflare free/pro plans cap a request
   # body at 100 MB), so the default stays below that; larger files use URL import.
   max_upload_mb: 90
-  max_url_download_gb: 10     # URL import: refused above this (Content-Length or mid-stream)
+  max_url_download_gb: 2      # URL import: refused above this (Content-Length or mid-stream)
   url_timeout_s: 3600         # URL import: total download time limit
   # PCAP parsing is the slow part (~0.6 ms/packet on CPU: validation + CICFlowMeter).
   # A capture with more packets than this is sampled as pcap_windows evenly spaced

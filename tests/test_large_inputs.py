@@ -98,8 +98,8 @@ def test_limits_come_from_config_with_env_overrides(make, monkeypatch):
     assert lim["max_upload_label"] == f"{cfg['max_upload_mb']} MB"
     assert (lim["max_pcap_flows"], lim["max_csv_rows"], lim["max_pcap_packets"]) == \
         (cfg["max_pcap_flows"], cfg["max_csv_rows"], cfg["max_pcap_packets"])
-    assert lim["max_url_download_gb"] == cfg["max_url_download_gb"] == 10
-    assert lim["max_url_download_bytes"] == 10 * 1024 ** 3 and lim["max_url_download_label"] == "10 GB"
+    assert lim["max_url_download_gb"] == cfg["max_url_download_gb"] == 2
+    assert lim["max_url_download_bytes"] == 2 * 1024 ** 3 and lim["max_url_download_label"] == "2 GB"
     monkeypatch.setenv("AGENTMETER_MAX_CSV_ROWS", "7")
     monkeypatch.setenv("AGENTMETER_MAX_UPLOAD_BYTES", "12345")      # pre-Phase-43 override still wins
     lim = service_api.service_limits()

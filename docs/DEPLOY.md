@@ -131,7 +131,7 @@ allows larger bodies.
 
 **Larger files: Import from URL.** The Prepare page accepts a direct `https://` link.
 The server downloads the file itself, server to server, so nothing large crosses
-the tunnel. Limits: `service.max_url_download_gb` (default 10 GB) and
+the tunnel. Limits: `service.max_url_download_gb` (default 2 GB) and
 `service.url_timeout_s` (default 3600 s). The size is refused up front from
 Content-Length and enforced again while streaming. SSRF protection is always on:
 https only, port 443, public addresses only (DNS checked on every redirect and the
@@ -260,7 +260,7 @@ upload.
 `CLOUD_PREP_MAX_MB` lowers it), and waiting files may use at most 800 MB together
 (`PREP_STORAGE_MAX_MB`; the plan has 1 GB): above that a new upload is refused with "Too many
 uploads are waiting". A larger dataset comes in through Import from a link: the service downloads it
-itself, up to 10 GB (`CLOUD_PREP_MAX_URL_MB`). Each user has at most 3 uploads waiting or preparing.
+itself, up to 2 GB (`CLOUD_PREP_MAX_URL_MB`). Each user has at most 3 uploads waiting or preparing.
 Local rehearsal, no accounts: `bash tests/e2e/cloudprep_stack.sh`.
 
 **The traffic analysis.** When an IDS model is stored (Admin › IDS model), every
@@ -380,7 +380,7 @@ says either **Real GPU: <name>** or **DEMO (mock)**.
 |---|---|
 | GPU VRAM | **≥ 16 GB minimum, 24 GB recommended.** The largest model, gemma-2-9b, is about 6-7 GB in 4-bit NF4, plus KV cache and activations, one model at a time. |
 | Recommended GPUs | **NVIDIA L4 24 GB** (same as the locked study, so the most comparable numbers), RTX 4090 / 3090 24 GB, RTX A5000 24 GB, L40S / A6000 48 GB |
-| Disk | **≥ 150 GB.** The 5 models' safetensors are about 72 GB, plus Python/CUDA wheels about 10 GB, plus inputs (URL imports up to 10 GB each are kept under `results/uploads/`). Extra models (`configs/model_catalog.yaml`) are downloaded on first use and need their own space: about 3 GB (1.5B) to 30 GB (14B) each; a download that would leave less than 2 GB free is refused with a clear message. |
+| Disk | **≥ 150 GB.** The 5 models' safetensors are about 72 GB, plus Python/CUDA wheels about 10 GB, plus inputs (URL imports up to 2 GB each are kept under `results/uploads/`). Extra models (`configs/model_catalog.yaml`) are downloaded on first use and need their own space: about 3 GB (1.5B) to 30 GB (14B) each; a download that would leave less than 2 GB free is refused with a clear message. |
 | Image | a Vast **PyTorch** template with CUDA ≥ 12.1 (e.g. `pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime`) |
 | Network | download ≥ 500 Mbps: each model downloads on its first use (a 7B model, ~15 GB, takes about 3–5 min) |
 | Ports | none: the tunnel dials **out**, so no open or mapped port is needed |

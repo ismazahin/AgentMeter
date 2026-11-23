@@ -329,7 +329,7 @@ export async function createPrepJob(req: Request, env: Env): Promise<Response> {
     if (!/^https:\/\/[^\s]{4,2000}$/i.test(b.url)) fail(400, "bad_url", "give a direct https:// link");
     row = { id, owner_id: a.user.id, status: "waiting", source_kind: "url", filename: null, url: b.url, size_bytes: null,
             options_json: JSON.stringify({ max_flows: maxFlows, other_attack: !!b.other_attack, limits,
-                                           max_bytes: Math.min(limits.max_url_download_bytes ?? Infinity, intVar(env.CLOUD_PREP_MAX_URL_MB, 10240) * 1024 * 1024) }),
+                                           max_bytes: Math.min(limits.max_url_download_bytes ?? Infinity, intVar(env.CLOUD_PREP_MAX_URL_MB, 2048) * 1024 * 1024) }),
             phase: "waiting", message: null, log_json: "[]", set_name: null, files_json: null, error: null, error_code: null,
             created_at: t, updated_at: t, finished_at: null };
   } else {

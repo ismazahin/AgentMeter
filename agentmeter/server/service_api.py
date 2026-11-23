@@ -49,7 +49,7 @@ from .prepare import (MAX_IMPORT_BYTES, MAX_IMPORT_IDS_BYTES, PrepareError, prep
 DEFAULT_SERVICE_MAX_FLOWS = 50
 # config.yaml `service:` key -> (env override, default when neither is set, type)
 _LIMITS = {"max_upload_mb": ("AGENTMETER_MAX_UPLOAD_MB", 90, int),
-           "max_url_download_gb": ("AGENTMETER_MAX_URL_DOWNLOAD_GB", 10, float),
+           "max_url_download_gb": ("AGENTMETER_MAX_URL_DOWNLOAD_GB", 2, float),
            "url_timeout_s": ("AGENTMETER_URL_TIMEOUT_S", 3600, int),
            "max_pcap_packets": ("AGENTMETER_MAX_PCAP_PACKETS", 100_000, int),
            "max_pcap_flows": ("AGENTMETER_MAX_PCAP_FLOWS", 20_000, int),

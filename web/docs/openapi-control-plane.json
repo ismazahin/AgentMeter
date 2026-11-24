@@ -1561,6 +1561,44 @@
       }
      }
     ]
+   },
+   "get": {
+    "operationId": "get__api_backend_sessions_id_results",
+    "tags": [
+     "Backend ↔ control plane"
+    ],
+    "summary": "Read a stored session_results.json (rebuild its PDF, scripts/rebuild_pdfs.py)",
+    "security": [
+     {
+      "backendSignature": []
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "id",
+      "in": "path",
+      "required": true,
+      "description": "Session id (job_YYYYMMDD_HHMMSS_<32 hex>)",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
    }
   },
   "/api/backend/sessions/{id}/summary": {

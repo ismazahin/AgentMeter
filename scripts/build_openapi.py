@@ -164,6 +164,7 @@ for m, path, s in [("put", "/api/backend/sessions/{id}/results", "Store a sessio
 op(CP, "put", "/api/backend/sessions/{id}/files/{name}", "Backend ↔ control plane", "Store a small file with a session", BACKEND_SIGNED, [ID, FILE])
 op(CP, "get", "/api/backend/sessions", "Backend ↔ control plane", "Sessions the control plane holds (backfill)", BACKEND_SIGNED)
 op(CP, "get", "/api/backend/sessions/{id}/files/{name}", "Backend ↔ control plane", "Read a stored file (restore a prepared set on a new rental)", BACKEND_SIGNED, [ID, FILE])
+op(CP, "get", "/api/backend/sessions/{id}/results", "Backend ↔ control plane", "Read a stored session_results.json (rebuild its PDF, scripts/rebuild_pdfs.py)", BACKEND_SIGNED, [ID])
 
 # ------------------------------------------------------------------ GPU backend
 RT = "Authorization: Bearer <run token from POST /api/runs/authorize>. Without a control plane (one-user mode) no token is needed."

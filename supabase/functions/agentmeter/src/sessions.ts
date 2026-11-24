@@ -476,6 +476,17 @@ export async function backendGetFile(req: Request, env: Env, id: string, name: s
   return new Response(o!.body, { headers: { "content-type": CONTENT_TYPE[name], "cache-control": "no-store" } });
 }
 
+/** GET /api/backend/sessions/:id/results — the stored session_results.json, for rebuilding its PDF
+ *  with the current layout (scripts/rebuild_pdfs.py on the GPU machine). */
+export async function backendGetResults(req: Request, env: Env, id: string): Promise<Response> {
+  await verifyBackend(req, env, 0);
+  const r = await getRow(env, id);
+  if (r.results_json) return new Response(r.results_json, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
+  const o = r.results_key ? await env.STORE.get(r.results_key) : null;
+  if (!o) fail(404, "not_found", "no results stored for this session");
+  return new Response(o!.body, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
+}
+
 /** POST /api/backend/sessions/:id/identity {prepared_set_sha256, prepared_set_hash_version} —
  *  replaces ONLY the stored prepared-set hash (no status change, no notification). */
 export async function backendSetIdentity(req: Request, env: Env, id: string): Promise<Response> {

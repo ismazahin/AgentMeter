@@ -5,7 +5,7 @@ import { credentials, deleteUser, listUsers, patchUser, postUser } from "./admin
 import { changePassword, errorResponse, listDevices, login, logout, me, refresh, revokeDevice } from "./auth.ts";
 import { getBackend, heartbeat, register } from "./backend.ts";
 import { authorize } from "./runs.ts";
-import { backendGetFile, backendListSessions, backendSetIdentity, compareCandidatesRoute, compareMergedRoute, compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus, commitUpload, leaderboardRoute, listSessions, patchSession, putFile, putResults, putSummary, uploadUrl } from "./sessions.ts";
+import { backendGetFile, backendGetResults, backendListSessions, backendSetIdentity, compareCandidatesRoute, compareMergedRoute, compareRoute, constraintsRoute, deleteSession, getFile, getResults, getSession, jobCreated, jobStatus, commitUpload, leaderboardRoute, listSessions, patchSession, putFile, putResults, putSummary, uploadUrl } from "./sessions.ts";
 import { telegramLinkCheck, telegramLinkStart, telegramTest } from "./notify.ts";
 import { cancelPrepJob, createPrepJob, getPrepFile, getPrepJob, listAnalyses, listMyPrep, prepClaim, prepEvents, prepPending, prepRegister, startPrepJob } from "./prep.ts";
 import { getLimits, getSettings, putLimits, putSettings } from "./settings.ts";
@@ -97,6 +97,7 @@ const ROUTES: [string, RegExp, Handler][] = [
   // prepared-set hash migration (scripts/migrate_prepared_set_hash.py)
   ["GET", /^\/api\/backend\/sessions$/, backendListSessions],
   ["GET", /^\/api\/backend\/sessions\/([^/]+)\/files\/([a-z_.]+)$/, backendGetFile],
+  ["GET", /^\/api\/backend\/sessions\/([^/]+)\/results$/, backendGetResults],
   ["POST", /^\/api\/backend\/sessions\/([^/]+)\/identity$/, backendSetIdentity],
 ];
 

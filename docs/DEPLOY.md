@@ -473,6 +473,10 @@ still points the app straight at a backend.
      line with the driver and CUDA versions under Overview, and no demo banner. (The full
      report needs WeasyPrint and Pango, which `vast_up.sh` installs. If either is missing the
      plain one-table report is served instead. `AGENTMETER_PDF_LAYOUT=plain` forces it.);
+   - sessions finished before a report change keep their old PDF. To rebuild every stored session's
+     PDF with the current layout, run on the GPU machine (Jupyter terminal):
+     `cd /workspace/AgentMeter && . /root/agentmeter.env && python scripts/rebuild_pdfs.py`
+     (`--dry-run` lists them first, `--session <id>` does one);
    - Downloads → `session_results.json` → `"environment"`: `"provider": "real"`, `"gpu_name"`,
      `"driver_version"`, `"cuda_runtime_version"`;
    - `curl -s -o /dev/null -w '%{http_code}' -X POST https://<backend>/api/prepare` → **401**

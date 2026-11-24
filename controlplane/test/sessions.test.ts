@@ -80,6 +80,9 @@ describe("session lifecycle (backend writes, users read)", () => {
     expect((await E.DB.prepare("SELECT results_json, results_key FROM sessions WHERE id=?").bind(SID).first()))
       .toEqual({ results_json: null, results_key: `sessions/${SID}/session_results.json` });
     expect((await api(`/api/sessions/${SID}/results`, { token: u.token })).text).toBe(big);
+    // the GPU machine reads them back, signed, to rebuild the PDF (scripts/rebuild_pdfs.py)
+    expect((await backendCall("GET", `/api/backend/sessions/${SID}/results`, null, { raw: "" })).text).toBe(big);
+    expect((await backendCall("GET", `/api/backend/sessions/${SID}/results`, null, { raw: "", secret: "wrong-secret-0123456789abcdef" })).status).toBe(401);
     const s = { ...F.summaries[0], session_id: SID, job_id: SID };
     expect((await backendCall("PUT", `/api/backend/sessions/${SID}/summary`, { summary: s })).status).toBe(200);
     const got = (await api(`/api/sessions/${SID}`, { token: u.token })).data;

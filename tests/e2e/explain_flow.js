@@ -67,6 +67,18 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     log((await fr.locator('#ds-optim').textContent()).includes(first(sec.optimisation)), 'Optimisation guidance: the written opening');
     log(await fr.locator('#ds-rec-detail table').count() === 1, 'the computed points table stays under it');
     await p.screenshot({ path: S + '/explain.png', fullPage: true });
+
+    // the PDF report: a reading paragraph under the sections, and "Why each model performed this way"
+    log(Object.keys((ex.report || {}).cards || {}).length >= 10 && Object.keys((ex.report || {}).why || {}).length === 2,
+        'explanation.json: the report part, reading paragraphs for the sections and a why block per model');
+    const pdfRes = await fetch(ORIGIN + '/api/jobs/' + encodeURIComponent(id) + '/report.pdf');
+    const pdfFile = path.join(S, 'report.pdf');
+    fs.writeFileSync(pdfFile, Buffer.from(await pdfRes.arrayBuffer()));
+    const pdfText = require('child_process').execFileSync(process.env.PYTHON || 'python', ['-c',
+      'import sys,pypdf;print(" ".join(p.extract_text() for p in pypdf.PdfReader(sys.argv[1]).pages))', pdfFile]).toString().replace(/\s+/g, ' ');
+    const para = Object.values(ex.report.cards)[0].sentences[0].text;
+    log(/Why each model performed this way/.test(pdfText) && pdfText.includes(para.slice(0, 40)),
+        'PDF: the why part and the sections\' reading paragraphs');
   } catch (e) { log(false, 'walk-through crashed: ' + e.message); }
   log(errs.length === 0, 'no JS errors ' + errs.join(' | '));
   await b.close();

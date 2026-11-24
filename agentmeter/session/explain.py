@@ -45,6 +45,8 @@ ROOT = Path(__file__).resolve().parents[2]
 CONFIG_PATH = ROOT / "configs" / "explainer.yaml"
 PROMPT_PATH = Path(__file__).with_name("explain_prompt.md")
 PATTERN_PROMPT_PATH = Path(__file__).with_name("explain_patterns_prompt.md")
+CARD_PROMPT_PATH = Path(__file__).with_name("explain_card_prompt.md")
+CARDS_PER_REQUEST = 4
 OUT_NAME = "explanation.json"
 
 TABS = ("ranking", "reliability", "performance", "agents", "cost", "recommendations")
@@ -488,6 +490,91 @@ def check_sentence(text: str, uses: list[str], by_id: dict[str, dict], digest: d
     return None
 
 
+_AVOID = re.compile(r"\b(delve|notably|it is worth noting|crucial(ly)?|plays? a key role|showcases?|robust|seamless(ly)?|moreover|"
+                    r"furthermore|in summary|overall|in conclusion|landscape|testament)\b", re.I)
+_FIRST_PERSON = re.compile(r"\b(I|[Ww]e|[Ww]e're|[Oo]urs?|[Uu]s|[Yy]ou|[Yy]ours?)\b")
+_HEDGE = re.compile(r"\b(likely|probably|usually|would|may|might|suggests?|typically|expected)\b", re.I)
+
+
+def check_card_sentence(text: str, uses: list[str], by_id: dict[str, dict], digest: dict) -> Optional[str]:
+    """check_sentence, plus the reading paragraphs' rules: a design fact only in a hedged sentence,
+    no first person, nothing from the avoid list, at most 40 words."""
+    t = str(text or "").strip()
+    if len(t.split()) > 40:
+        return "too long"
+    why = check_sentence(t, uses, by_id, digest)
+    if why:
+        return why
+    if _FIRST_PERSON.search(t):
+        return "writes in the first or second person"
+    m = _AVOID.search(t)
+    if m:
+        return f"uses the stock phrase {m.group(0).lower()!r}"
+    if any(by_id[u].get("kind") == "design" for u in uses) and not _HEDGE.search(t):
+        return "states a design fact without saying it is likely"
+    return None
+
+
+def card_messages(cards: dict[str, dict], digest: dict, retry: Optional[dict] = None) -> list[dict]:
+    ask = {"only_one_model_ran": (digest.get("session") or {}).get("n_models") == 1,
+           "sections": {k: {"question": v.get("question") or v.get("model"),
+                            "facts": [{"id": f["id"], "kind": f["kind"], "text": f["text"]} for f in v["facts"]]}
+                        for k, v in cards.items()}}
+    user = "Write these sections.\nINPUT\n" + json.dumps(ask, ensure_ascii=False)
+    if retry:
+        user += ("\n\nYour earlier paragraphs for these sections broke a rule. Write them again and avoid these problems.\n"
+                 + json.dumps(retry, ensure_ascii=False))
+    return [{"role": "system", "content": CARD_PROMPT_PATH.read_text(encoding="utf-8")}, {"role": "user", "content": user}]
+
+
+def orchestrate_cards(ask: Callable[[list[dict]], str], plan_cards: dict, digest: dict) -> dict:
+    """The report's reading paragraphs: a few sections per request, every sentence checked against
+    its facts; sections that fail are asked once more together, then left to the standard text."""
+    out: dict[str, Any] = {"cards": {}, "why": {}, "dropped": {}, "facts": {}, "design": plan_cards.get("design") or {}}
+    for group in ("cards", "why"):
+        items = plan_cards.get(group) or {}
+        for v in items.values():
+            for f in v["facts"]:
+                out["facts"][f["id"]] = {"text": f["text"], "kind": f["kind"]}
+        keys = list(items)
+        batches = [keys[i:i + CARDS_PER_REQUEST] for i in range(0, len(keys), CARDS_PER_REQUEST)]
+        openings: set[str] = set()
+        for batch in batches:
+            todo, retry = {k: items[k] for k in batch}, None
+            for _attempt in (1, 2):
+                if not todo:
+                    break
+                try:
+                    got = _json_reply(ask(card_messages(todo, digest, retry)))
+                    reply = (got or {}).get("cards") if isinstance(got, dict) else None
+                except ValueError as e:
+                    reply, retry = None, {"all": str(e) + ", reply with the JSON object only"}
+                    continue
+                retry = {}
+                for k in list(todo):
+                    by_id = {f["id"]: f for f in todo[k]["facts"]}
+                    kept, bad = [], []
+                    for s in (reply or {}).get(k) or []:
+                        text, uses = str((s or {}).get("text") or "").strip(), [str(u) for u in (s or {}).get("uses") or []]
+                        why = check_card_sentence(text, uses, by_id, digest)
+                        (bad if why else kept).append({"text": text, "uses": uses, **({"why": why} if why else {})})
+                    opening = " ".join(kept[0]["text"].lower().split()[:4]) if kept else ""
+                    if len(kept) >= 2 and not bad and opening not in openings:
+                        for x in kept:
+                            x["likely"] = any(by_id[u].get("kind") == "design" for u in x["uses"])
+                        out[group][k] = {"text": " ".join(x["text"] for x in kept), "sentences": kept,
+                                         **({"model": items[k]["model"]} if items[k].get("model") else {}),
+                                         **({"question": items[k]["question"]} if items[k].get("question") else {})}
+                        openings.add(opening)
+                        del todo[k]
+                    else:
+                        retry[k] = [{"sentence": b["text"], "problem": b["why"]} for b in bad] or \
+                            [{"problem": "too few sentences" if len(kept) < 2 else "starts like another paragraph"}]
+            for k in todo:
+                out["dropped"][f"{group}.{k}"] = "; ".join(r.get("problem", "") for r in (retry or {}).get(k, []))[:300] or "no reply"
+    return out
+
+
 # ---------------------------------------------------------------------------- requests
 def _json_reply(text: str) -> Any:
     """The JSON object in a model's reply (gpt-oss: its final channel), code fences allowed."""
@@ -557,7 +644,7 @@ def _assemble(section: str, kept: list[dict]) -> dict[str, str]:
 
 
 def orchestrate(gen: Callable[[list[dict]], tuple[str, int, int]], statements: dict[str, list[dict]],
-                groups: list[dict], digest: dict, cfg: dict) -> dict:
+                groups: list[dict], digest: dict, cfg: dict, cards: Optional[dict] = None) -> dict:
     """One request per section, then per answer group, checked as described in the module's
     docstring. `gen(messages) -> (text, input tokens, output tokens)`."""
     from .answer_patterns import check_pattern
@@ -632,11 +719,14 @@ def orchestrate(gen: Callable[[list[dict]], tuple[str, int, int]], statements: d
         if not any(p["group"] == g.get("id") for p in patterns):
             patterns_dropped.append({"group": g.get("id"), "describe": g.get("describe"), "why": why})
 
+    report = orchestrate_cards(ask, cards, digest) if cards else None
     status = "ok" if sections and not dropped else "partial" if sections else "failed"
     out = {"status": status, "sections": sections, "detail": detail, "dropped": dropped,
            "patterns": patterns, "patterns_dropped": patterns_dropped,
            "statements": {s["id"]: s["text"] for v in statements.values() for s in v},
            "tokens": tokens, "seconds": round(time.time() - t0, 1)}
+    if report is not None:
+        out["report"] = report
     if status == "failed":
         out["reason"] = "no section passed the checks"
     if status != "ok":
@@ -654,6 +744,20 @@ def _fake_gen(statements: dict[str, list[dict]], groups: list[dict]) -> Callable
     def gen(msgs):
         user = msgs[-1]["content"]
         req = json.loads(user.split("INPUT\n", 1)[1].split("\n\n", 1)[0])
+        if "sections" in req:                       # the report's reading paragraphs
+            cards = {}
+            for k, v in req["sections"].items():
+                fs = v["facts"]
+                meas = [f for f in fs if f["kind"] == "measured"][:2]
+                des = [f for f in fs if f["kind"] == "design"][:1]
+                ctx = [f for f in fs if f["kind"] == "context"][:1]
+                lead = [f for f in ctx if f["text"] not in used]                    # varied openings
+                used.update(f["text"] for f in lead)
+                sents = [{"text": f["text"], "uses": [f["id"]]} for f in lead]
+                sents += [{"text": f["text"], "uses": [f["id"]]} for f in meas]
+                sents += [{"text": "This is likely because " + f["text"], "uses": [f["id"]]} for f in des]
+                cards[k] = sents
+            return json.dumps({"cards": cards}), 0, 0
         if "section" in req:
             st = req["statements"]
             fresh = [s for s in st if s["text"] not in used] if req["section"] != "summary" else st
@@ -719,7 +823,7 @@ def _worker_main(argv: list[str]) -> int:
     try:
         gen, load_s = _load_generator(spec)
         plan = spec["plan"]
-        res = orchestrate(gen, plan["statements"], plan["groups"], plan["digest"], plan["cfg"])
+        res = orchestrate(gen, plan["statements"], plan["groups"], plan["digest"], plan["cfg"], plan.get("cards"))
         res["load_s"] = load_s
         out.write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
         return 0
@@ -807,7 +911,24 @@ def plan_for(results: dict, run_dir: str | Path, cfg: dict) -> dict:
     names = {pm.get("model"): nick(pm.get("model")) for pm in results.get("per_model") or [] if pm.get("model")}
     flows = _flows_file(Path(run_dir) if run_dir else None, (results.get("session") or {}).get("run_id"))
     return {"statements": build_statements(results, digest), "groups": build_groups(results, flows or {}, names, cfg),
-            "digest": digest, "cfg": cfg}
+            "digest": digest, "cfg": cfg, "cards": report_facts(results)}
+
+
+def report_facts(results: dict, design: Optional[dict] = None) -> Optional[dict]:
+    """The facts of the PDF report's reading paragraphs (card_facts.py), or None when they cannot be
+    worked out here (the report then keeps its standard one-line answers)."""
+    try:
+        from .card_facts import build_all
+        from .model_design import read_all
+        from .report_js import Insights
+        models = [pm.get("model") for pm in results.get("per_model") or [] if pm.get("model")]
+        design = design if design is not None else read_all(models)
+        facts = build_all(results, design, Insights(results))
+        facts["design"] = design
+        return facts
+    except Exception as e:  # noqa: BLE001 — the paragraphs are optional, never fail the session
+        log.warning("report facts not built: %s", e)
+        return None
 
 
 def explain_session(results: dict, run_dir: str | Path, *, real: bool, cfg: Optional[dict] = None,
@@ -858,13 +979,14 @@ def _try_models(plan: dict, cands: list[dict], cfg: dict, runner: Optional[Calla
             continue
         try:
             if fake:
-                res = orchestrate(_fake_gen(plan["statements"], plan["groups"]), plan["statements"], plan["groups"], plan["digest"], cfg)
+                res = orchestrate(_fake_gen(plan["statements"], plan["groups"]), plan["statements"], plan["groups"], plan["digest"], cfg,
+                                  plan.get("cards"))
             elif runner is not None:
                 def gen(msgs, _m=mspec):
                     r = runner(_m, msgs, cfg)
                     tk = r.get("tokens") or {}
                     return r.get("text") or "", tk.get("input", 0), tk.get("output", 0)
-                res = orchestrate(gen, plan["statements"], plan["groups"], plan["digest"], cfg)
+                res = orchestrate(gen, plan["statements"], plan["groups"], plan["digest"], cfg, plan.get("cards"))
             else:
                 res = _run_child(mspec, plan, cfg)
         except Exception as e:  # noqa: BLE001 — try the next model

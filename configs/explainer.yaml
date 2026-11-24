@@ -15,7 +15,8 @@ models:
     min_free_vram_gb: 16
     reasoning: low                   # gpt-oss only: low reasoning keeps it fast
 max_new_tokens: 1800
-timeout_s: 480                       # the explainer process is killed after this (one request per section)
+timeout_s: 1200                      # the explainer process is killed after this. It writes the session explanations, then the
+                                     # report's reading paragraphs (4 sections per request) and the why part, about 15 requests
 retries: 1                           # one more request for a section that failed a check, with the reasons
 excerpts: 12                         # agent-answer excerpts sent (failures and mix-ups first)
 excerpt_chars: 200

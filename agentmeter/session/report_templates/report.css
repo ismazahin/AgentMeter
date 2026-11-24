@@ -134,6 +134,20 @@ table.mtab td:last-child { color: var(--muted); }
 .g-best { font-weight: 700; }
 .g-far { color: #A2470D; }
 
+/* reading paragraphs and the why part */
+.read { margin: 5px 0 0; padding-left: 9px; border-left: 2.2pt solid var(--rule); font-size: 8.7pt; line-height: 1.55; }
+.likely { background: #FFEBD8; }
+sup.r, sup.d { font: 700 6pt "Inter"; margin-left: 1px; }
+sup.r { color: #1E3F8A; } sup.d { color: #B4590F; }
+.whyp h2 { margin-top: 10px; }
+.wmodel { display: grid; grid-template-columns: 1fr 58mm; gap: 12px; margin-top: 10px; padding-top: 7px; border-top: 2.4pt solid; break-inside: avoid; }
+.wstory h3 { margin: 0 0 3px; font-size: 11pt; }
+.wstory .read { border-left: 0; padding-left: 0; }
+.wev { font-size: 7.4pt; color: var(--muted); border-left: 0.75pt solid var(--border); padding-left: 9px; }
+.wev h5 { margin: 0 0 3px; font: 700 8pt "Inter Tight"; color: var(--text); }
+.wev h5.dh { margin-top: 7px; color: #B4590F; }
+.wev div { margin-bottom: 3px; }
+.wh { font-size: 10pt; margin: 12px 0 2px; }
 /* detail parts */
 .part { page-break-before: always; }
 .part:first-child { page-break-before: auto; }

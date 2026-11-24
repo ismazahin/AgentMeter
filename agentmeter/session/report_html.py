@@ -96,8 +96,11 @@ def e(s: Any) -> str:
 # ---------------------------------------------------------------- the report
 class Report:
     def __init__(self, res: dict[str, Any], *, job: Optional[dict] = None, input_meta: Optional[dict] = None,
-                 audit: Optional[dict] = None, prepared: Optional[dict] = None, decision: Optional[dict] = None):
+                 audit: Optional[dict] = None, prepared: Optional[dict] = None, decision: Optional[dict] = None,
+                 explanation: Optional[dict] = None):
         self.res, self.job = res, job or {}
+        # the reading paragraphs the session's explainer wrote and checked (explanation.json "report")
+        self.ex = ((explanation or {}).get("report")) or {}
         self.input_meta, self.audit, self.prepared = input_meta or {}, audit or {}, prepared or {}
         self.decision = decision
         self.s = res.get("session") or {}
@@ -158,12 +161,35 @@ class Report:
              key: Optional[str] = None, keep: bool = True, keep_note: bool = False) -> str:
         """One web card: its question, the web's one-line answer, a short intro, then the content."""
         a = self.answers.get(key or q) if answer is None else answer
-        if not body and not a and not intro:
+        reading = self.reading(q)
+        if not body and not a and not intro and not reading:
             return ""
         return (f'<section class="q{" keep" if keep else ""}"><h3>{e(q)}</h3>'
-                + (f'<p class="ans">{e(self.plain(a))}</p>' if a else "")
+                + (f'<p class="ans">{e(self.plain(a))}</p>' if a and not reading else "")
                 + (f'<p class="intro">{e(self.plain(intro))}</p>' if intro else "")
-                + body + (f'<p class="note">{e(self.plain(note))}</p>' if note and keep_note else "") + "</section>")
+                + body + reading
+                + (f'<p class="note">{e(self.plain(note))}</p>' if note and keep_note else "") + "</section>")
+
+    def reading(self, q: str) -> str:
+        """The section's reading paragraph, when the explainer wrote one that passed its checks.
+        A sentence resting on a model's design is highlighted as a likely reason."""
+        from .card_facts import slug
+        c = (self.ex.get("cards") or {}).get(slug(q))
+        if not c:
+            return ""
+        return '<p class="read">' + " ".join(self._sent(x) for x in c.get("sentences") or []) + "</p>"
+
+    def _sent(self, x: dict, refs: Optional[dict] = None) -> str:
+        t = e(x.get("text"))
+        sup = ""
+        if refs is not None:
+            marks = [refs[u] for u in x.get("uses") or [] if u in refs]
+            if marks:
+                cls = "d" if all(m.startswith("D") for m in marks) else "r"
+                sup = f'<sup class="{cls}">{e(", ".join(dict.fromkeys(marks)))}</sup>'
+        if x.get("likely"):
+            return f'<span class="likely">{t}</span>{sup}'
+        return t + sup
 
     def lead(self, tab: str) -> str:
         sm = self.summ.get(tab)
@@ -464,7 +490,9 @@ class Report:
                f"{'GPU' if self.real else 'machine'}. A difference only counts when it holds up statistically.")
         key = (f'<p class="key"><span class="tag best">Best</span> a gap that passed the session\'s test (over {self.tie_pct()} and p below '
                f'{self.alpha():g}). <span class="tag tie">Tie</span> within {self.tie_pct()} or could be chance. '
-               '<span class="tag nt">Not tested</span> shown for context.</p>')
+               '<span class="tag nt">Not tested</span> shown for context.'
+               + (' <span class="likely">Highlighted text</span> is a likely reason from a model\'s design, not a measurement.'
+                  if self.ex.get("cards") or self.ex.get("why") else "") + '</p>')
         return (f'<section class="page front">{self.head(True)}{demo}<p class="kicker">Verdict</p>'
                 f'<h1>{e(self.headline())}</h1><p class="sub">{e(sub)}</p>'
                 f'<p class="kicker">In plain words</p>{self.takeaways()}{self.picks()}{key}{self.setup()}{self.caveats()}</section>')
@@ -523,6 +551,50 @@ class Report:
             parts.append("Not measured, " + self.andlist([self.metric_label(m["metric"]) for m in na]) + ".")
         parts.append("The slow tail, total memory, cost, energy and the score are shown for context and not tested on their own.")
         return f'<div class="sum"><b class="h">Putting it together</b>{e(" ".join(parts))}</div>'
+
+    def why_part(self) -> str:
+        why = self.ex.get("why") or {}
+        if not why:
+            return ""
+        facts, design = self.ex.get("facts") or {}, self.ex.get("design") or {}
+        blocks = []
+        for w in why.values():
+            refs, nm, nd = {}, 0, 0
+            for x in w.get("sentences") or []:
+                for u in x.get("uses") or []:
+                    k = (facts.get(u) or {}).get("kind")
+                    if u in refs or k == "context":
+                        continue
+                    if k == "design":
+                        nd += 1
+                        refs[u] = f"D{nd}"
+                    else:
+                        nm += 1
+                        refs[u] = str(nm)
+            m = next((x for x in self.models if self.nick(x) == w.get("model")), None)
+            story = " ".join(self._sent(x, refs) for x in w.get("sentences") or [])
+            ev_m = "".join(f'<div><sup class="r">{r}</sup> {e(facts[u]["text"])}</div>' for u, r in refs.items() if not r.startswith("D"))
+            ev_d = "".join(f'<div><sup class="d">{r}</sup> {e(facts[u]["text"])}</div>' for u, r in refs.items() if r.startswith("D"))
+            blocks.append(f'<div class="wmodel" style="border-top-color:{self.color.get(m, "#0F1B33")}">'
+                          f'<div class="wstory"><h3>{self.swatch(m) if m else ""}{e(w.get("model"))}</h3><p class="read">{story}</p></div>'
+                          f'<div class="wev"><h5>Measured in this session</h5>{ev_m or "<div>None cited.</div>"}'
+                          + (f'<h5 class="dh">From the model\'s design</h5>{ev_d}' if ev_d else "") + "</div></div>")
+        dtab = ""
+        dm = {self.nick(k): v for k, v in design.items()}
+        if dm:
+            rows_def = [("Parameters", "params_b", lambda v: f"{v:.2f} B"), ("Layers", "layers", fint),
+                        ("Key-value heads per layer", "kv_heads", fint), ("Attention cache per token", "kv_cache_per_token", fint),
+                        ("Vocabulary", "vocab_size", fint), ("Context window", "context_window", fint)]
+            names = [self.nick(x) for x in self.models if self.nick(x) in dm]
+            rows = [[label] + [fn(dm[n].get(k)) if dm[n].get(k) is not None else "–" for n in names] for label, k, fn in rows_def]
+            dtab = ('<h3 class="wh">The design facts, side by side</h3>'
+                    + self.table(["Design fact"] + [e(n) for n in names], rows, num=tuple(range(1, len(names) + 1))))
+        return (f'<section class="page whyp">{self.head()}<h2>Why each model performed this way</h2>'
+                '<p class="key">Numbers¹ point to values measured in this session. <span class="likely">Highlighted text</span> '
+                'with a D reference rests on the model\'s published design and is a likely reason, not a measurement.</p>'
+                + "".join(blocks) + dtab
+                + '<p class="note">Written by the session\'s explainer model from the facts listed beside each model. '
+                  'Every number and model name was checked against them.</p></section>')
 
     def page3(self) -> str:
         ef = self.I.call("efficiencyFrontier", default={}) or {}
@@ -957,7 +1029,7 @@ class Report:
         css = (_DIR / "report.css").read_text(encoding="utf-8").replace("{FONTS}", (_DIR / "fonts").as_uri())
         gen = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         foot = f"AgentMeter session report · {self.job.get('job_id') or self.s.get('run_id') or ''} · generated {gen}"
-        body = (self.page1() + self.page2() + self.page3()
+        body = (self.page1() + self.page2() + self.page3() + self.why_part()
                 + '<section class="detail">' + self.overview() + self.ranking() + self.reliability() + self.performance()
                 + self.agents() + self.cost() + self.recommendations() + "</section>")
         title = f"AgentMeter session report {self.job.get('job_id') or ''}".strip()

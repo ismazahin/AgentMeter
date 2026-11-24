@@ -440,7 +440,8 @@ function renderSession(res, job) {
     '<span class="chip">' + fmtNum(s.n_flows) + ' flows</span><span class="chip">' + esc((s.source_type || "").toUpperCase()) + '</span>' +
     '<span class="chip">' + (s.accuracy_available ? "labelled" : "no reference labels") + '</span>' +
     (job.title && vs ? '<span class="chip">' + esc(vs) + '</span>' : "") +
-    '<span class="chip mono" title="Session id ' + esc(job.job_id) + '">' + esc(shortId(job.job_id)) + '</span>' +
+    '<button type="button" class="chip mono copy-id" data-copy="' + esc(job.job_id) + '" title="Copy the session id ' + esc(job.job_id) + '">ID ' +
+      esc((/_([0-9a-f]{32})$/.exec(job.job_id) || [0, job.job_id])[1].slice(0, 8)) + '</button>' +
     (job.owner ? '<span class="chip" title="Started by">' + esc(job.owner) + '</span>' : "");
   setDl($("svc-dl-pdf"), pdfPath(job), "agentmeter_report_" + job.job_id + ".pdf");
   $("svc-dl-pdf").hidden = false;
@@ -657,7 +658,9 @@ function overviewTab(res) {
   var mm = {}; ((res.memory || {}).per_model || []).forEach(function (r) { mm[r.model] = r; });
   var vr = {}; ((res.output_reliability || {}).per_model || []).forEach(function (r) { vr[r.model] = r; });
   var real = env.provider === "real";
-  h.push('<div class="card" id="svc-verdict-card"><h2 class="headline" id="svc-headline">' + esc(headline(rel, pm)) + '</h2>' + tiles(res) +
+  var vNote = window.INSIGHTS ? INSIGHTS.verdictVsScore(res) : null;   // headline and score disagree: say why
+  h.push('<div class="card" id="svc-verdict-card"><h2 class="headline" id="svc-headline">' + esc(headline(rel, pm)) + '</h2>' +
+    (vNote ? '<p class="verdict-note" id="svc-verdict-note">' + esc(vNote) + '</p>' : '') + tiles(res) +
     '<p id="svc-env" class="small" style="margin:6px 0 0">' + (real ? '<span class="chip ok">Real GPU, ' + esc(gpuShort(env.gpu_name) || "unknown") + '</span>'
       : '<span class="chip warn">Demo (mock), not a model measurement</span>') + (lab ? "" : ' <span class="chip">Efficiency only</span>') + '</p>' +
     '<details class="info" id="svc-full-verdict"><summary>Show full verdict</summary><p class="verdict" id="svc-verdict">' +
@@ -1853,3 +1856,11 @@ function flowDetail() {
         }).join("") + '</div>';
     }).join("") + '</div></div>';
 }
+
+// the session id chip copies the full id
+$("session-chips").addEventListener("click", function (ev) {
+  var b = ev.target.closest(".copy-id");
+  if (!b) return;
+  var id = b.getAttribute("data-copy"), done = function () { var t = b.textContent; b.textContent = "Copied"; setTimeout(function () { b.textContent = t; }, 1200); };
+  try { navigator.clipboard.writeText(id).then(done, done); } catch (e) { done(); }
+});

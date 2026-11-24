@@ -294,7 +294,8 @@ async function frameOf(p) {
   log(groups.length === 2, 'Leaderboard: 2 setups (CSV set, PCAP set) listed, ' + groups.length);
   log(/2 sessions/.test(await p.textContent('#lb-slist .sitem')), 'Leaderboard: the CSV setup pools its 2 sessions');
   const ranks = await p.$$eval('#lb-table-0 tbody tr td:first-child', ts => ts.map(t => t.textContent));
-  log(ranks.join(',') === '1,2', 'Leaderboard: ranks restart within each setup (' + ranks + ')');
+  // a real gap ranks 1 and 2; models equal at the precision shown share first place (=1), never a 1 and a 2
+  log(['1,2', '=1,=1'].includes(ranks.join(',')), 'Leaderboard: ranks restart within each setup, ties shown as =1 (' + ranks + ')');
   await p.click('#lb-sort [data-sort="vram"]');
   await p.waitForFunction(() => /not ranked/.test(document.querySelector('#lb-table-0 tbody')?.textContent || ''));
   log(true, 'Leaderboard: rank by VRAM on mock data -> not ranked (no VRAM reading)');

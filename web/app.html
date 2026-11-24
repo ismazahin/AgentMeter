@@ -184,7 +184,11 @@
   .drop { display: block; border: 1.5px dashed var(--border-2); border-radius: var(--radius-lg); padding: 28px 16px; text-align: center; background: var(--surface-2); cursor: pointer; font-weight: 500; }
   .drop:hover, .drop.over { border-color: var(--accent); }
   .drop strong { display: block; font-size: 17px; margin-bottom: 4px; }
-  .drop input { display: block; margin: 12px auto 0; }
+  .drop .vh-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }   /* the box is the control */
+  .drop { position: relative; }
+  .drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .drop-pick { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 14px; }
+  .drop-chosen { display: inline-block; margin-top: 12px; padding: 6px 12px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); font-weight: 600; }
 
   /* tabs */
   .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin: 0 0 16px; }
@@ -476,6 +480,13 @@
   .sitem .m { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
   .sitem .lead { font-size: 12.5px; margin-top: 6px; display: flex; align-items: center; gap: 6px; color: var(--muted-2); }
   .sitem .lead .avs { margin-left: auto; }
+  .trophy.tie { background: var(--surface-2, #E9EDF6); color: var(--muted); }
+  .guide-line { margin: 0 0 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 0 14px; }
+  .guide-line > summary { cursor: pointer; padding: 10px 0; font-weight: 600; list-style-position: inside; }
+  .guide-line[open] > summary { border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+  .guide-line .guide-head { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+  .chip.copy-id { cursor: pointer; font: inherit; font-size: 12px; }
+  .verdict-note { margin: -6px 0 12px; max-width: 760px; font-size: 14px; color: var(--muted); }
   .trophy { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--cta); color: var(--cta-ink); font-size: 10px; font-weight: 800; flex: none; }
   .badge-ne { font-size: 11px; font-weight: 700; color: var(--warn-text); background: var(--warn-soft); padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
   .mini { display: inline-flex; gap: 2px; vertical-align: middle; margin-right: 4px; }
@@ -1108,7 +1119,7 @@
   /* navigation icons (all widths) */
   .ni { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .mainnav a { gap: 10px; }
-  .mainnav a.nav-primary { color: var(--accent-text); }
+  .mainnav a.nav-primary .ni { color: var(--accent-text); }
   .nav-group, .sidenav-account, .side-collapse { display: none; }
 
   /* left sidebar on wide screens (the header becomes a fixed column).
@@ -1130,7 +1141,7 @@
       font-size: 14px; font-weight: 600; color: var(--muted-2); text-decoration: none; white-space: nowrap; }
     @media (hover: hover) { .mainnav a:hover, .sidenav-account a:hover { background: var(--surface-2); color: var(--text); } }
     .mainnav a[aria-current="page"], .sidenav-account a[aria-current="page"] { border-left-color: var(--accent); background: var(--surface-2); box-shadow: none; font-weight: 700; color: var(--text); border-radius: 0 var(--radius) var(--radius) 0; }
-    .mainnav a.nav-primary { color: var(--accent-text); }
+    .mainnav a.nav-primary .ni { color: var(--accent-text); }
     .mainnav a[aria-current="page"] .ni, .sidenav-account a[aria-current="page"] .ni { color: var(--accent-text); }
     #nav-settings-icon { display: none; }                      /* Settings is in the sidebar */
     .top-right { margin: auto 0 0; padding-top: 14px; border-top: 1px solid var(--border); flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -1520,7 +1531,7 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
     <div class="card" id="help-run">
       <h2>1. Run a benchmark</h2>
       <ol class="guide-steps">
-        <li><b>Upload.</b> Open <a href="#/new">New Benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for the reference-label check) or a PCAP, and choose how many flows the benchmark samples. No GPU is needed, because the preparation service on your computer does it. If it is not running, <b>Continue</b> starts it. The first time on a PC, run <span class="mono">python scripts/prep_local.py install</span> once.</li>
+        <li><b>Upload.</b> Open <a href="#/new">New Benchmark</a> and upload a CSV of flows (CIC-IDS2017 or another CICFlowMeter export, with a <span class="mono">Label</span> column for the reference-label check) or a PCAP, and choose how many flows the benchmark samples. The file is prepared on the GPU machine. If a benchmark is running there, your upload is saved and waits, and it is prepared as soon as the benchmark ends, so preparing never changes a reading. Each upload starts one benchmark.</li>
         <li><b>Preparing and your data.</b> The data is prepared and the IDS scores every flow. Then you see what is in it, the alerts, what the IDS caught and missed (labelled CSV), a threshold to try, and the projected LLM cost. <b>Continue</b> when the GPU server is running.</li>
         <li><b>Models.</b> Pick one to four open models. Every model runs in 4-bit NF4 on the same GPU, one at a time, so the numbers are comparable. The wizard estimates time and cost from earlier runs.</li>
         <li><b>Run.</b> The session page shows live progress. If the GPU is busy, your run is queued and starts by itself. With a Telegram chat in Settings you get a message when it finishes. You can leave the page, and the run continues on the GPU server. Stop it from the same page if needed.</li>
@@ -1639,7 +1650,9 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
             <span class="muted">A CSV with labels gets efficiency and the reference-label check. A PCAP or a CSV without labels gets efficiency and validity only.</span><br>
             <span class="muted small">CSV means CICFlowMeter flow exports such as CIC-IDS2017, CSE-CIC-IDS2018, CIC-DDoS2019, CICFlowMeter V3/V4 and Python CICFlowMeter</span><br>
             <span class="muted small" id="svc-limits">Maximum upload 50 MB. Use Import from a link for bigger files.</span>
-            <input type="file" id="svc-file" name="file" accept=".csv,.pcap,.pcapng">
+            <span class="drop-pick"><span class="btn" aria-hidden="true">Browse files</span> <span class="muted small">or drop a file here</span></span>
+            <span class="drop-chosen" id="svc-file-name" hidden></span>
+            <input type="file" id="svc-file" name="file" accept=".csv,.pcap,.pcapng" class="vh-input">
           </label>
         </div>
         <div id="src-url" role="tabpanel" aria-labelledby="tab-src-url" hidden>
@@ -1741,7 +1754,7 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
   <!-- SESSIONS -->
   <section id="view-sessions" class="view" hidden aria-labelledby="h-sessions">
     <div class="page-head"><div><h1 id="h-sessions">Sessions</h1>
-      <p><span id="sessions-lede">All your benchmark runs.</span><span class="info-i" tabindex="0" role="button" data-tip="Sessions are non-validated user runs and never merge into the locked study.">i</span></p></div>
+      <p><span id="sessions-lede">All your benchmark runs.</span><span class="info-i" tabindex="0" role="button" data-tip="Every benchmark you ran, newest first. Open one to see its results and download its PDF.">i</span></p></div>
       <a class="btn primary" href="#/new">New benchmark</a></div>
     <div class="card">
       <div id="sess-admin-note"></div>
@@ -1777,8 +1790,9 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
     <p class="small muted" id="session-again-note" hidden>To compare like for like, upload the same file and pick the same number of flows. The fingerprint will match.</p>
     <div id="session-watch" hidden></div>
     <div id="session-body" hidden>
-      <div id="session-guide" class="card guide" hidden>
-        <div class="guide-head"><h2>How to read a session</h2><button type="button" class="btn" id="session-guide-hide">Got it</button></div>
+      <details id="session-guide" class="guide guide-line" hidden>
+        <summary>How to read a session <span class="muted small">what each tab answers</span></summary>
+        <div class="guide-head"><span></span><button type="button" class="btn" id="session-guide-hide">Got it, hide this</button></div>
         <dl class="read-guide">
           <div><dt>Overview</dt><dd>The verdict, the key findings and your notes.</dd></div>
           <div><dt>Model Ranking</dt><dd>The overall score, its weights, and how sure the order is.</dd></div>
@@ -1789,7 +1803,7 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
           <div><dt>Recommendations</dt><dd>Which model fits your limits, and what to do next.</dd></div>
           <div><dt>Data &amp; Exports</dt><dd>The report, the raw results and the flows. Tables and charts download as CSV or PNG.</dd></div>
         </dl>
-      </div>
+      </details>
       <div class="tabs stabs" role="tablist" aria-label="Session sections" id="session-tabs">
         <a role="tab" href="#" data-tab="overview" id="stab-overview" aria-controls="spanel-overview">Overview</a>
         <a role="tab" href="#" data-tab="ranking" id="stab-ranking" aria-controls="spanel-ranking">Model Ranking</a>

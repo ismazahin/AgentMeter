@@ -237,7 +237,9 @@ function renderBySetup() {
           : '<span class="small muted"><span class="mini" aria-hidden="true">' + [0, 1, 2, 3].map(function (i) { return '<i class="' + (i < n ? "f" : "") + '"></i>'; }).join("") + '</span>' + n + ' models</span>') + '</span>' +
         '<span class="m">' + esc((x.gpu || "GPU") + ", " + (x.input_type || "") + ", " + fmtNum(x.n_flows_per_session) + " flows, " + x.n_sessions + " session" + (x.n_sessions === 1 ? "" : "s")) + (x.demo ? ", demo" : "") + '</span>' +
         '<span class="lead">' + (rk.length < 2 ? '<span class="muted">Only ' + esc(nick((x.rows[0] || {}).model || "")) + ' so far</span>'
-          : '<span class="trophy" aria-hidden="true">1</span><b>' + esc(nick(lead.model)) + '</b> ' + esc(colOf(LB.data.sort_metric)[2](lead[LB.data.sort_metric]))) +
+          : (rk.length > 1 && lead[LB.data.sort_metric] != null && colOf(LB.data.sort_metric)[2](rk[1][LB.data.sort_metric]) === colOf(LB.data.sort_metric)[2](lead[LB.data.sort_metric])
+             ? '<span class="trophy tie" aria-hidden="true">=</span><b>Tie</b> ' + esc(colOf(LB.data.sort_metric)[2](lead[LB.data.sort_metric]))
+             : '<span class="trophy" aria-hidden="true">1</span><b>' + esc(nick(lead.model)) + '</b> ' + esc(colOf(LB.data.sort_metric)[2](lead[LB.data.sort_metric])))) +
         (showOwners() ? avatars(gPeople(x.sessions)) : "") + '</span></button>';
     }).join("") + '</div><div class="lpanel card" id="lb-panel">' + setupPanel(g) + '</div></div>';
   host.querySelectorAll("[data-setup]").forEach(function (b) {
@@ -259,9 +261,14 @@ function setupPanel(g) {
     ((g.rows || []).length ? ", " + esc((g.rows || []).map(function (r) { return nick(r.model); }).join(", ")) : "") + '. A ranking needs <b>at least 2 models</b> on the same flows, GPU and settings.</p>' +
     '<ol class="small"><li>Start a new benchmark with another model. Upload the same file and pick the same number of flows, so the setup stays the same and it lands here.</li><li>Then open Compare models to see them side by side.</li></ol>' +
     '<div class="actions" style="margin-top:12px"><a class="btn primary" id="lb-run-another" href="#/new">New benchmark</a></div></div>' : "";
+  // models equal to the leader at the precision shown share first place: "=1", never a 1 and a 2
+  var leadTxt = rk.length && rk[0][key] != null ? col[2](rk[0][key]) : null;
+  var tiedLead = function (r) { return r.rank != null && leadTxt != null && r[key] != null && col[2](r[key]) === leadTxt; };
+  var nTied = (g.rows || []).filter(tiedLead).length;
   var rows = (g.rows || []).map(function (r, i) {
-    var sids = r.sessions || [], v = r[key];
-    return '<tr class="' + (r.rank === 1 ? "first" : "") + '" data-model="' + esc(r.model) + '"><td class="rn">' + (r.rank == null ? '<span class="muted small">not ranked</span>' : '<span>' + r.rank + '</span>') +
+    var sids = r.sessions || [], v = r[key], tie = nTied > 1 && tiedLead(r);
+    return '<tr class="' + (r.rank === 1 || tie ? "first" : "") + (tie ? " tied" : "") + '" data-model="' + esc(r.model) + '"><td class="rn">' +
+      (r.rank == null ? '<span class="muted small">not ranked</span>' : '<span' + (tie ? ' title="Tied for first"' : '') + '>' + (tie ? "=1" : r.rank) + '</span>') +
       '</td><td class="nm">' + mdot(r.model) + esc(nick(r.model)) + extraTag(r.model) + '</td><td class="bar-c" aria-hidden="true"><div class="rbar"><b style="width:' + w(v) + '%;--mc:' + modelVar(r.model) + '"></b></div></td>' +
       '<td class="v">' + (v == null ? '<span class="muted">not measured</span>' : esc(col[2](v))) + '</td>' +
       '<td>' + (showOwners() ? avatars(gPeople(sids)) + " " : "") + '<span class="small muted">' + r.n_sessions + ' run' + (r.n_sessions === 1 ? "" : "s") + '</span></td>' +

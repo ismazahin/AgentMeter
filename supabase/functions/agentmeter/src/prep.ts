@@ -141,10 +141,15 @@ export async function prepRegister(req: Request, env: Env): Promise<Response> {
   return json({ ok: true, url, heartbeat_s: PREP_HEARTBEAT_S, online_for_s: PREP_ONLINE_S, pending: await pendingCount(env) });
 }
 
-/** Jobs the service had picked up go back to the waiting list (the machine went away). */
+/** Jobs the service had picked up go back to the waiting list (the machine went away), unless they
+ *  were already picked up MAX_ATTEMPTS times: a file that takes the machine down each time fails
+ *  instead of blocking every benchmark behind it. */
 async function requeueRunning(env: Env, why: string): Promise<void> {
-  await env.DB.prepare(`UPDATE prep_jobs SET status='waiting', phase='waiting', message=?, updated_at=? WHERE status='running'`)
-    .bind(`${why}: waiting to start again`, nowIso()).run();
+  await env.DB.prepare(`UPDATE prep_jobs SET status='waiting', phase='waiting', message=?, updated_at=? WHERE status='running' AND attempts < ?`)
+    .bind(`${why}: waiting to start again`, nowIso(), MAX_ATTEMPTS).run();
+  const spent = await env.DB.prepare("SELECT * FROM prep_jobs WHERE status='running' AND attempts >= ?").bind(MAX_ATTEMPTS).all<Row>();
+  for (const r of spent.results)
+    await finishFailed(env, r, `${why} while preparing this file, ${MAX_ATTEMPTS} times`, "cloud_prep_stalled");
 }
 
 const pendingCount = async (env: Env) =>
@@ -437,6 +442,10 @@ export async function prepEvents(req: Request, env: Env, id: string): Promise<Re
   const r = await load(env, id);
   if (r.status !== "running") return json({ ok: true, ignored: r.status });   // finished (or never started): late news
   const t = nowIso();
+  if (b.keepalive === true) {                    // still working on a long step: no log entry, only "heard from"
+    await env.DB.prepare("UPDATE prep_jobs SET updated_at=? WHERE id=? AND status='running'").bind(t, id).run();
+    return json({ ok: true });
+  }
   if (b.event && typeof b.event === "object") {
     const ev = { t, phase: String(b.event.phase || "").slice(0, 40) || null, message: String(b.event.message || "").slice(0, 300) || null,
                  ...(Number.isFinite(b.event.percent) ? { percent: b.event.percent } : {}) };
@@ -464,7 +473,7 @@ export async function prepEvents(req: Request, env: Env, id: string): Promise<Re
     await tellOwner(env, r.owner_id, `AgentMeter: your data ${r.filename || r.url || ""} could not be prepared. ${String(b.failed.error || "").slice(0, 300)}`);
     return json({ ok: true });
   }
-  return fail(400, "bad_request", "send {event}, {done} or {failed}");
+  return fail(400, "bad_request", "send {event}, {keepalive}, {done} or {failed}");
 }
 
 /** What a finished job records for listings: the prepared set's fingerprint (the Data sets key) and

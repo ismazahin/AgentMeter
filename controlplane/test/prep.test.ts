@@ -206,6 +206,33 @@ describe("data preparation on the GPU machine", () => {
     expect(g).toMatchObject({ status: "failed", code: "cloud_prep_stalled" });
   });
 
+  it("a file that takes the machine down each time fails after three tries, also on restarts", async () => {
+    spyOut();
+    await online();
+    const u = await user();
+    const id = await started(u);
+    for (let i = 1; i <= 3; i++) {
+      expect((await claim()).job_id).toBe(id);
+      await online(`https://machine-${i}.trycloudflare.com`);                       // the machine restarted
+    }
+    const g = (await api(`/api/prep/jobs/${id}`, { token: u.token })).data;
+    expect(g).toMatchObject({ status: "failed", code: "cloud_prep_stalled", attempts: 3 });
+    expect(await claim()).toBeNull();                                              // nothing left to hand out
+  });
+
+  it("a keep-alive during a long step keeps the job running, without a log entry", async () => {
+    spyOut();
+    await online();
+    const u = await user();
+    const id = await started(u);
+    await claim();
+    await E.DB.prepare("UPDATE prep_jobs SET updated_at='2020-01-01T00:00:00Z' WHERE id=?").bind(id).run();
+    expect((await report(id, { keepalive: true })).status).toBe(200);
+    const g = (await api(`/api/prep/jobs/${id}`, { token: u.token })).data;
+    expect(g).toMatchObject({ status: "running", attempts: 1 });                    // not taken for a dead machine
+    expect((g.log || []).length).toBe(0);
+  });
+
   it("records a failure and tells the owner", async () => {
     const out = spyOut();
     await online();

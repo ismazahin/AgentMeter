@@ -775,6 +775,25 @@
   // ---- Report sections: one plain answer line per section question (2026-11-10 report layout) ----
   // Keyed by the section's question. Only where the stored results support one sentence; a section
   // without an entry keeps its own introduction as its first line.
+  // The headline follows the head-to-head comparison (a model wins a measure only when the gap passes
+  // the test), the efficiency score is a separate weighted sum against fixed targets. When the two
+  // point different ways, say so in one sentence instead of leaving a contradiction on the page.
+  function verdictVsScore(res) {
+    var rel = res.relative_comparison, ev = (rel || {}).efficiency_verdict || {};
+    if (!rel || ev.verdict !== "more_efficient" || !ev.model) return null;
+    var sc = (res.per_model || []).map(function (m) { return { model: m.model, v: num((m.saw_efficiency_only || m.saw || {}).composite_100) }; })
+      .filter(function (x) { return x.v != null; }).sort(function (a, b) { return b.v - a.v; });
+    if (sc.length < 2) return null;
+    var tie = Math.abs(sc[0].v - sc[1].v) < 0.05, w = bare(ev.model);
+    if (!tie && bare(sc[0].model) === w) return null;                       // they agree
+    var LABEL = { mean_latency_s: "speed", mean_peak_vram_mb: "working memory", mean_tokens_per_flow: "tokens per flow" };
+    var wins = ((ev.wins || {})[ev.model] || []).map(function (k) { return LABEL[k] || k; });
+    var head = nick(ev.model) + (wins.length ? " is ahead on " + andList(wins) + ", which decides the headline." : " leads the head-to-head comparison.");
+    return head + " The efficiency score is a separate weighted sum against fixed targets, and on it " +
+      (tie ? (sc.length > 2 ? "the top two tie" : "the two tie") + " at " + sc[0].v.toFixed(1) + "."
+           : nick(sc[0].model) + " comes first, " + sc[0].v.toFixed(1) + " against " + sc[1].v.toFixed(1) + ".");
+  }
+
   function sectionAnswers(res) {
     var out = {}, sec = function (s) { return time(s); };
     // Performance > Latency
@@ -1480,7 +1499,7 @@
               latencyHistogram: latencyHistogram, effectSizes: effectSizes, handoffGraph: handoffGraph, classAgentTime: classAgentTime,
               workloadProjection: workloadProjection, costPerValid: costPerValid, queueSim: queueSim, energyEfficiency: energyEfficiency, priceCompare: priceCompare, idleCost: idleCost, recommend: recommend, removeAgent: removeAgent, budgetTuning: budgetTuning, scorecard: scorecard, whatChanged: whatChanged, efficiencyFrontier: efficiencyFrontier, deploymentFit: deploymentFit,
               latencyTrend: latencyTrend, gpuTimeline: gpuTimeline, runningAt: runningAt, repeatability: repeatability,
-              trends: trends, trendSeries: trendSeries, setupKey: setupKey, compareSetups: compareSetups, excludedFrom: excludedFrom, repeatSummary: repeatSummary, STABLE_WITHIN: STABLE_WITHIN, STABLE_BY: STABLE_BY, envChanges: envChanges, changeText: changeText, runStats: runStats, welch: welch, compareRuns: compareRuns, tTwoSided: tTwoSided, runEstimate: runEstimate, flowGuidance: flowGuidance, sampleSize: sampleSize, tabSummaries: tabSummaries, nick: nick, plainText: plainText, sectionAnswers: sectionAnswers };
+              trends: trends, trendSeries: trendSeries, setupKey: setupKey, compareSetups: compareSetups, excludedFrom: excludedFrom, repeatSummary: repeatSummary, STABLE_WITHIN: STABLE_WITHIN, STABLE_BY: STABLE_BY, envChanges: envChanges, changeText: changeText, runStats: runStats, welch: welch, compareRuns: compareRuns, tTwoSided: tTwoSided, runEstimate: runEstimate, flowGuidance: flowGuidance, sampleSize: sampleSize, tabSummaries: tabSummaries, verdictVsScore: verdictVsScore, nick: nick, plainText: plainText, sectionAnswers: sectionAnswers };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   global.INSIGHTS = api;
 })(typeof window !== "undefined" ? window : globalThis);

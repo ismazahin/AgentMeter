@@ -68,6 +68,7 @@ IDS_OUT = ("ids_scores.csv", "ids_pool.json", "ids_flows_identity.csv")
 IDS_MODEL_FILES = ("ids_rf.joblib", "ids_rf.json", "ids_rf.hashes.npy")
 IDS_MODEL_MAX = 60 * 2 ** 20            # per model file (the control plane stores up to 50 MB)
 _ids_lock = threading.Lock()
+KEEPALIVE_S = float(os.environ.get("CLOUD_PREP_KEEPALIVE_S", "120"))   # "still working" while a job runs
 REPORT_EVERY_S = 1.0
 ENVIRONMENT = {"provider": "cloud",
                "prepared_on": os.environ.get("CLOUD_PREP_WHERE") or "the AgentMeter preparation service on the GPU machine",
@@ -125,6 +126,11 @@ class Reporter:
         ev = {k: v for k, v in kw.items() if k in ("phase", "message", "bytes", "total", "percent")}
         if ev:
             self._send({"event": ev})
+
+    def keepalive(self) -> None:
+        """Still working: tells the control plane the job is alive during a long silent step (a big
+        prepare pass, IDS scoring), so it is not taken for a machine that went away."""
+        self._send({"keepalive": True})
 
     def done(self, **kw: Any) -> bool:
         return self._send({"done": kw}, tries=5)
@@ -376,7 +382,17 @@ class Service:
                         if job.get("report_url") and job.get("report_path"):
                             Reporter(self.secret, job["report_url"], job["report_path"], post=self.post).failed(err, "bad_request")
                         continue
-                    run_job(job, Reporter(self.secret, job["report_url"], job["report_path"], post=self.post), self.work_root)
+                    rep = Reporter(self.secret, job["report_url"], job["report_path"], post=self.post)
+                    alive = threading.Event()
+
+                    def _beat(rep=rep, alive=alive):
+                        while not alive.wait(KEEPALIVE_S):
+                            rep.keepalive()
+                    threading.Thread(target=_beat, daemon=True).start()
+                    try:
+                        run_job(job, rep, self.work_root)
+                    finally:
+                        alive.set()
                     ran += 1
         finally:
             keep.set()

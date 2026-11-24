@@ -538,7 +538,7 @@ def build_all(res: dict, design: Optional[dict] = None, insights: Any = None) ->
     out: dict[str, Any] = {"cards": {}, "why": {}}
     for tab, q, build in card_specs(res):
         key = slug(q)
-        f = Facts("c." + key[:24], names, x.steps)
+        f = Facts("c." + key, names, x.steps)                       # the full key: ids never collide
         try:
             build(f, x)
         except Exception:                       # an older or partial block: the section keeps its one-line answer

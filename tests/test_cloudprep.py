@@ -301,3 +301,15 @@ def test_an_ids_job_needs_its_model_urls_and_outputs(service):
     bad["ids"]["files"]["ids_rf.json"] = "file:///etc/passwd"
     assert C.validate(bad)
     assert C.validate(_ids_job(stub, "a.csv")) is None
+
+
+def test_keepalive_is_a_signed_heartbeat_without_a_log_entry():
+    """A long silent step sends {"keepalive": true} so the control plane does not re-queue the job."""
+    from cloudprep.app import Reporter, sign
+    sent = []
+    rep = Reporter("s3cret", "https://cp.test/x", "/api/prep/jobs/j1/events",
+                   post=lambda url, headers, body: sent.append((headers, body)) or 200)
+    rep.keepalive()
+    headers, body = sent[0]
+    assert json.loads(body) == {"keepalive": True}
+    assert headers["X-AM-Signature"] == sign("s3cret", "POST", "/api/prep/jobs/j1/events", headers["X-AM-Timestamp"], body)

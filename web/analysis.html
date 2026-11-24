@@ -3856,7 +3856,9 @@
         s3.notes.map(function (n) { return "<li><code>" + esc(n.rule) + "</code> " + esc(n.note) + " <span class='note'>(" + esc((n.sources || []).join(", ")) + ")</span></li>"; }).join("") + "</ul>"
         : "<p class='note' id='session-stage3'>No context rule fired (Hugging Face metadata " + esc(s3.metadata_status || "unavailable") + ").</p>") : "") +
       "<h3 style='margin:12px 0 4px;font-size:14px'>Caveats</h3><ul id='session-caveats'>" +
-      ((d.relative_comparison ? d.relative_comparison.caveats : s.caveats) || []).map(function (c) { return "<li>" + esc(c) + "</li>"; }).join("") + "</ul>" +
+      ((d.relative_comparison ? d.relative_comparison.caveats : s.caveats) || [])
+        .filter(function (c) { return !/^(NON-VALIDATED|Measured on .+?: absolute numbers are not comparable)/.test(c); })   // retired locked-study (L4) caveats
+        .map(function (c) { return "<li>" + esc(c.replace(/; it does not use the fixed L4 targets \(the absolute SAW does\)/, "")) + "</li>"; }).join("") + "</ul>" +
       "<p class='actions' style='margin-top:10px'><a href='/app.html#/session/" + encodeURIComponent(jobId) + "'>Back to this session</a>" +
       "<a href='" + api + "/report.pdf'>PDF report</a><a href='" + api + "/result' download='session_results.json'>Results JSON</a></p>";
     el.hidden = false;

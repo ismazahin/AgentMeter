@@ -494,7 +494,9 @@ class Report:
                + (' <span class="likely">Highlighted text</span> is a likely reason from a model\'s design, not a measurement.'
                   if self.ex.get("cards") or self.ex.get("why") else "") + '</p>')
         return (f'<section class="page front">{self.head(True)}{demo}<p class="kicker">Verdict</p>'
-                f'<h1>{e(self.headline())}</h1><p class="sub">{e(sub)}</p>'
+                f'<h1>{e(self.headline())}</h1>'
+                + (f'<p class="vnote">{e(self.plain(self.I.call("verdictVsScore")))}</p>' if self.I.call("verdictVsScore") else "")
+                + f'<p class="sub">{e(sub)}</p>'
                 f'<p class="kicker">In plain words</p>{self.takeaways()}{self.picks()}{key}{self.setup()}{self.caveats()}</section>')
 
     def alpha(self) -> float:

@@ -175,8 +175,17 @@ var drop = $("svc-drop");
 ["dragleave", "drop"].forEach(function (e) { drop.addEventListener(e, function () { drop.classList.remove("over"); }); });
 drop.addEventListener("drop", function (ev) {
   ev.preventDefault();
-  if (ev.dataTransfer && ev.dataTransfer.files.length) $("svc-file").files = ev.dataTransfer.files;
+  if (ev.dataTransfer && ev.dataTransfer.files.length) { $("svc-file").files = ev.dataTransfer.files; showChosen(); }
 });
+// the chosen file, by name and size, in place of the browser's "No file chosen"
+function showChosen() {
+  var f = $("svc-file").files[0], el = $("svc-file-name");
+  if (!f) { el.hidden = true; return; }
+  var mb = f.size / 1048576;
+  el.textContent = f.name + " · " + (mb >= 1 ? mb.toFixed(1) + " MB" : Math.max(1, Math.round(f.size / 1024)) + " KB");
+  el.hidden = false;
+}
+$("svc-file").addEventListener("change", showChosen);
 // step 2
 var PHASES = { queued: "Queued", downloading: "Downloading", downloaded: "Downloaded", validating: "Validating",
   sampling: "Sampling rows across the file", indexing: "Indexing the capture", windowing: "Copying time windows",

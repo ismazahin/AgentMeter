@@ -67,7 +67,8 @@ def test_scored_keys_are_byte_identical_to_the_pre_phase46_output(tmp_path):
         assert key in golden, key
         assert _dump(_numbers(key, now[key])) == _dump(_numbers(key, golden[key])), f"{key} changed"
     assert any(c.startswith(PLACEHOLDER) for c in now["relative_comparison"]["caveats"])
-    assert not any("L4" in c or "locked" in c or c.startswith("NON-VALIDATED") for c in now["relative_comparison"]["caveats"])
+    for cs in (now["relative_comparison"]["caveats"], now["session"].get("caveats") or []):
+        assert not any("L4" in c or "locked" in c or c.startswith("NON-VALIDATED") for c in cs)
     assert "more accurate" not in now["comparison"]["statement"] and "validity check" in now["comparison"]["statement"]
     assert "Accuracy:" not in now["relative_comparison"]["verdict"] and "Validity check" in now["relative_comparison"]["verdict"]
     assert now["relative_comparison"]["verdict"].split(". Validity")[0] == golden["relative_comparison"]["verdict"].split(". Accuracy")[0]

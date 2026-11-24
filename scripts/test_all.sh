@@ -34,6 +34,9 @@ start_backend() {   # start_backend VAR=value ...  -> a fresh mock backend on :8
 }
 trap stop_backend EXIT
 
+# every web script parses (a broken quote once took the session page down)
+if "$PY" scripts/check_web.py; then note "web scripts: all parse"; else note "web scripts: SYNTAX ERROR (see above)"; FAILED=1; fi
+
 flow() {            # flow <name> [VAR=value ...]
   local name=$1; shift
   if ! start_backend "$@"; then note "$name: backend did not start"; FAILED=1; return; fi

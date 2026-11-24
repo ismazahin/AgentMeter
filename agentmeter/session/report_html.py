@@ -428,9 +428,21 @@ class Report:
         return ('<p class="kicker">Which one to pick</p><div class="pick">' + "".join(cells) + "</div>"
                 + (f'<p class="pick-note">{e(note)}</p>' if note else ""))
 
+    _OLD_STUDY = re.compile(r"locked|\bL4\b|NON-VALIDATED|absolute numbers are not comparable", re.I)
+
+    def session_caveats(self) -> list[str]:
+        """The session's caveats without the retired locked-study (NVIDIA L4) comparison."""
+        out = []
+        for c in (self.rel or {}).get("caveats") or self.s.get("caveats") or []:
+            c = re.sub(r",?\s*it does not use the fixed L4 targets \(the absolute SAW does\)", "", c)
+            c = re.sub(r"\s*\([^()]*\bL4\b[^()]*\)", "", c)
+            if not self._OLD_STUDY.search(c):
+                out.append(c)
+        return out
+
     def caveats(self) -> str:
-        cav = list((self.rel or {}).get("caveats") or self.s.get("caveats") or [])
-        rules = [(r"^Relative view", "Fair comparison", False), (r"^Measured on (.+?): absolute", "Different GPU from the study", True),
+        cav = self.session_caveats()
+        rules = [(r"^Relative view", "Fair comparison", False),
                  (r"^NON-VALIDATED", "Exploratory run", True), (r"^Efficiency only", "No labels, efficiency only", True),
                  (r"^PCAP features", "PCAP features approximate", True), (r"^Balanced sample", "Balanced sample", False),
                  (r"^6-class run", "6 classes", False), (r"^No VRAM readings", "No memory readings", True),

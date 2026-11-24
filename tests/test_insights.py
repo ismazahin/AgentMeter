@@ -617,3 +617,20 @@ def test_scorecard_answer_names_every_leader():
     s["per_model"].append({"model": "microsoft/Phi-3-mini-4k-instruct", "efficiency": {"end_to_end": {"mean_latency_s": 2.05, "p95_latency_s": 3.05, "mean_tokens_per_flow": 800}}})
     out = call("sectionAnswers", s)["How do the models compare, criterion by criterion?"]
     assert out == "Mistral 7B is best (or within 5% of it) on 5 of 6 measured criteria, and Phi-3 mini on 3."
+
+
+# ---- the headline and the efficiency score: one sentence when they point different ways (2026-11-24)
+def _verdict_session(scores):
+    rel = {"models": ["A/Alpha-7B", "B/Beta-8B"],
+           "efficiency_verdict": {"verdict": "more_efficient", "model": "A/Alpha-7B",
+                                  "wins": {"A/Alpha-7B": ["mean_peak_vram_mb"], "B/Beta-8B": []}}}
+    return {"relative_comparison": rel,
+            "per_model": [{"model": m, "saw_efficiency_only": {"composite_100": v}} for m, v in zip(rel["models"], scores)]}
+
+
+def test_verdict_vs_score_explains_a_tie_or_a_disagreement_and_stays_quiet_otherwise():
+    tie = call("verdictVsScore", _verdict_session([62.34, 62.34]))
+    assert "ahead on working memory" in tie and "the two tie at 62.3" in tie
+    other = call("verdictVsScore", _verdict_session([62.3, 64.1]))
+    assert "comes first, 64.1 against 62.3" in other
+    assert call("verdictVsScore", _verdict_session([70.0, 62.3])) is None        # they agree

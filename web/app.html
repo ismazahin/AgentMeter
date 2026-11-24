@@ -1099,6 +1099,24 @@
   #adm-models-table td.mono { overflow-wrap: break-word; }
 
   /* phone: wide tables scroll inside their box instead of squeezing every cell */
+  /* phones: the session list as one compact row per session (no sideways scrolling), and the
+     main navigation as one scrollable row instead of three wrapped ones */
+  @media (max-width: 640px) {
+    .table-wrap table.stable { min-width: 0; }
+    table.stable thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+    table.stable, table.stable tbody { display: block; }
+    table.stable tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 12px 2px; border-bottom: 1px solid var(--border); }
+    table.stable td { display: block; border: 0; padding: 0; text-align: left; }
+    table.stable td:first-child { flex: 1 1 100%; }
+    table.stable td[data-l] { font-size: 13px; }
+    table.stable td[data-l]::before { content: attr(data-l) " "; color: var(--muted); font-size: 12px; }
+    table.stable td.row-status { margin-left: auto; }
+    table.stable td.row-acts { flex: 1 1 100%; display: flex; gap: 8px; }
+    .mainnav { flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .mainnav::-webkit-scrollbar { display: none; }
+    .mainnav a { flex: none; }
+    .notice { padding: 8px 12px; font-size: 13px; }
+  }
   @media (max-width: 720px) {
     .table-wrap table { min-width: 620px; }
     .table-wrap td.mono, .table-wrap td .mono { overflow-wrap: normal; }

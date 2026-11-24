@@ -586,16 +586,16 @@ function dsGone(meta, key, names, lastIso) {
 
 function sessionsTable(rows, id, actions) {
   var own = seesAll();                               // admins: whose each session is
-  return '<table id="' + id + '"><thead><tr><th>Session</th>' + (own ? "<th>Owner</th>" : "") + '<th>Input</th><th class="num">Flows</th><th>GPU</th><th>More efficient</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
+  return '<table class="stable" id="' + id + '"><thead><tr><th>Session</th>' + (own ? "<th>Owner</th>" : "") + '<th>Input</th><th class="num">Flows</th><th>GPU</th><th>More efficient</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>' +
     rows.map(function (s) {
       var tags = (s.tags || []).map(function (t) { return '<button type="button" class="chip tag-chip" data-tag="' + esc(t) + '" title="Show sessions tagged ' + esc(t) + '">' + esc(t) + '</button>'; }).join("");
       var sid = esc(s.session_id), canDel = actions && s.can_edit && CP && s.status !== "Running";
       return '<tr><td>' + (s.title ? '<span class="row-name">' + esc(s.title) + '</span><span class="row-sub mono small muted" title="' + sid + '">' + esc(shortId(s.session_id)) + '</span>'
           : '<span class="mono" title="' + sid + '">' + esc(shortId(s.session_id)) + '</span>') + '<span class="muted small' + (s.title ? "" : " row-sub") + '">' + esc((s.models || []).map(short).join(" vs ")) +
         '</span>' + (tags ? '<div class="tag-row">' + tags + '</div>' : "") + (s.notes ? '<div class="small note-snip" title="' + esc(s.notes) + '">' + esc(s.notes.length > 90 ? s.notes.slice(0, 88) + "…" : s.notes) + '</div>' : "") +
-        '</td>' + (own ? '<td>' + whoTag(s.owner) + '</td>' : "") + '<td>' + esc(s.input_type || "—") + '</td><td class="num">' + fmtNum(s.n_flows) + '</td><td>' + esc(s.gpu || "—") +
-        '</td><td>' + esc(s.more_efficient ? (s.more_efficient.indexOf("/") > 0 ? short(s.more_efficient) : s.more_efficient) : "—") +
-        '</td><td>' + statusChip(s.status) + '</td><td class="row-acts">' + sessionLink(s) +
+        '</td>' + (own ? '<td data-l="Owner">' + whoTag(s.owner) + '</td>' : "") + '<td data-l="Input">' + esc(s.input_type || "—") + '</td><td class="num" data-l="Flows">' + fmtNum(s.n_flows) + '</td><td data-l="GPU">' + esc(s.gpu || "—") +
+        '</td><td data-l="More efficient">' + esc(s.more_efficient ? (s.more_efficient.indexOf("/") > 0 ? short(s.more_efficient) : s.more_efficient) : "—") +
+        '</td><td class="row-status">' + statusChip(s.status) + '</td><td class="row-acts">' + sessionLink(s) +
         (actions && s.can_edit ? rowMenu("More actions for session " + (s.title || shortId(s.session_id)), [
           { label: "Rename", icon: "rename", attr: 'data-rename="' + sid + '"' },
           { label: s.notes ? "Edit note" : "Add note", icon: "note", attr: 'data-note="' + sid + '"' },

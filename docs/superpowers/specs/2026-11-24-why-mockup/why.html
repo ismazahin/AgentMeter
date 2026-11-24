@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Why each model (mockup)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Inter+Tight:wght@500..800&display=swap" rel="stylesheet">
+<style>
+/* mockup only . "Why each model performed this way" part of the PDF report (approach A)
+ * data: RTX 3090 session job_20261021_053653 (DESIGN_BRIEF.md section 6); values marked † are illustrative
+ * design facts: Qwen2.5-3B-Instruct and Llama-3.2-3B-Instruct config.json on Hugging Face */
+:root { --paper: #F6F8FC; --text: #0F1B33; --muted: #5A657A; --faint: #8A94A8; --border: #DCE2EE; --rule: #0F1B33;
+  --qwen: #0B86A6; --llama: #2E5BD8; --best: #C8F25A; --likely: #B4590F; --likely-bg: #FFF4EA; --m-bg: #E9EEF9; --m-ink: #1E3F8A;
+  --font: "Inter", sans-serif; --head: "Inter Tight", "Inter", sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #E4E8F0; color: var(--text); font: 11.5px/1.5 var(--font); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { width: 210mm; height: 297mm; margin: 0 auto 10mm; background: #fff; padding: 13mm 14mm 12mm; position: relative; overflow: hidden; }
+@media print { html, body { background: #fff; } .page { margin: 0; page-break-after: always; } }
+.top { display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 2px solid var(--rule); }
+.brand { display: flex; align-items: center; gap: 8px; font: 700 15px var(--head); }
+.brand i { display: inline-grid; grid-template-columns: repeat(4, 4px); align-items: end; height: 16px; }
+.brand i b { display: block; width: 4px; background: #9AA3AE; }
+.brand i b:nth-child(1) { height: 4px; } .brand i b:nth-child(2) { height: 8px; } .brand i b:nth-child(3) { height: 12px; } .brand i b:nth-child(4) { height: 16px; background: #C8F25A; }
+.meta { text-align: right; color: var(--muted); font-size: 10px; line-height: 1.5; } .meta b { color: var(--text); font-weight: 600; }
+.mock { position: absolute; top: 5mm; right: 14mm; background: var(--best); font: 700 9px var(--font); letter-spacing: .08em; padding: 3px 7px; border-radius: 4px; }
+.kicker { margin: 14px 0 3px; font: 600 10px var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font: 700 21px/1.2 var(--head); letter-spacing: -.02em; margin: 0 0 6px; }
+h2 { font: 700 14px var(--head); margin: 14px 0 4px; }
+p { margin: 0 0 7px; }
+.lede { color: var(--muted); font-size: 11.5px; max-width: 168mm; }
+/* evidence tags */
+.m, .l { display: inline-block; font: 600 8.5px var(--font); padding: 0 5px; border-radius: 3px; vertical-align: 1px; margin-left: 2px; white-space: nowrap; }
+.m { background: var(--m-bg); color: var(--m-ink); }
+.l { background: var(--likely-bg); color: var(--likely); border: 1px dashed #E0A06A; padding: 0 4px; }
+.likely { background: linear-gradient(transparent 62%, #FFE9D3 62%); }
+.read { display: flex; gap: 22px; padding: 8px 12px; background: var(--paper); border-radius: 8px; font-size: 10.5px; color: var(--muted); margin: 6px 0 4px; }
+.read b { color: var(--text); }
+/* comparison table */
+table { width: 100%; border-collapse: collapse; font-size: 10.3px; }
+th { text-align: left; font-weight: 600; color: var(--muted); padding: 5px 6px; border-bottom: 1.4px solid var(--rule); vertical-align: bottom; }
+td { padding: 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+td.res { font-weight: 600; white-space: nowrap; }
+.tag { display: inline-block; font-size: 9px; font-weight: 600; padding: 1px 7px; border-radius: 99px; }
+.tag.best { background: var(--best); } .tag.tie { background: #E9EDF6; color: var(--muted); }
+/* model block */
+.model { display: grid; grid-template-columns: 1fr 58mm; gap: 14px; margin-top: 8px; padding-top: 10px; border-top: 3px solid var(--c); }
+.model h2 { margin: 0 0 6px; display: flex; align-items: baseline; gap: 8px; }
+.model h2 i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); display: inline-block; }
+.model h2 small { font: 500 10.5px var(--font); color: var(--muted); }
+.story p { font-size: 11.3px; line-height: 1.58; }
+.story h4 { font: 700 11px var(--head); margin: 9px 0 2px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-size: 9.5px; }
+.ev { font-size: 9.6px; color: var(--muted); border-left: 1px solid var(--border); padding-left: 12px; }
+.ev h5 { font: 700 10px var(--head); color: var(--text); margin: 0 0 4px; }
+.ev div { margin-bottom: 6px; line-height: 1.4; }
+.ev div b { color: var(--text); font-weight: 600; }
+.split { display: flex; height: 18px; border-radius: 3px; overflow: hidden; margin: 4px 0 2px; }
+.split div { color: #fff; font: 600 8.5px var(--font); display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
+.facts { margin-top: 4px; }
+.facts td:not(:first-child), .facts th:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.howbox { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 10.3px; color: var(--muted); display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.howbox b { display: block; color: var(--text); font: 700 11px var(--head); margin-bottom: 2px; }
+.foot { position: absolute; left: 14mm; right: 14mm; bottom: 8mm; display: flex; justify-content: space-between; color: var(--faint); font-size: 9px; border-top: 1px solid var(--border); padding-top: 6px; }
+.illu { font-size: 9px; color: var(--faint); margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<!-- ============================== PAGE 1 ============================== -->
+<section class="page">
+  <span class="mock">MOCKUP</span>
+  <div class="top">
+    <div class="brand"><i><b></b><b></b><b></b><b></b></i>AgentMeter</div>
+    <div class="meta"><b>Session report</b> · Qwen2.5 3B vs Llama 3.2 3B<br>job_20261021_053653</div>
+  </div>
+
+  <p class="kicker">Analysis</p>
+  <h1>Why each model performed this way</h1>
+  <p class="lede">The charts show what happened. This part explains why. It traces each result back to a measured cause in this session, and where the session cannot show the cause, to the model's design.</p>
+
+  <div class="read">
+    <span><span class="m">M3</span> <b>Measured.</b> A fact recorded in this session. The list beside each model says where.</span>
+    <span><span class="l">Likely</span> <b class="likely">Likely reason.</b> From the model's published design, not measured here.</span>
+  </div>
+
+  <h2>What separates the two models</h2>
+  <table>
+    <thead><tr><th style="width:17%">Measure</th><th style="width:19%">Result</th><th style="width:31%">Measured cause</th><th>Likely reason, from the design</th></tr></thead>
+    <tbody>
+      <tr><td>Working memory</td><td class="res">157 against 243 MB <span class="tag best">Qwen, 35% less</span></td>
+          <td>Both models read prompts of about the same length <span class="m">M4</span>, so the gap is not from longer input.</td>
+          <td>Qwen keeps about a third as much attention cache per token, 2 key-value heads in each of 36 layers against 8 in each of 28 <span class="l">Likely</span></td></tr>
+      <tr><td>Latency per flow</td><td class="res">10.80 against 9.89 s <span class="tag tie">Tie</span></td>
+          <td>The gap could be chance, p = 0.168 <span class="m">M1</span>. Both spend most of a flow writing the Reason answer <span class="m">M2</span>.</td>
+          <td>Similar size, 3.09 against 3.21 billion parameters, so similar work per token is expected <span class="l">Likely</span></td></tr>
+      <tr><td>Tokens per flow</td><td class="res">3,401 against 3,359 <span class="tag tie">Tie</span></td>
+          <td>Within 2% <span class="m">M4</span>. Flow features make up most of every prompt <span class="m">M5</span>, so both read nearly the same text.</td>
+          <td>Qwen's larger vocabulary, 151,936 against 128,256 entries, would usually mean fewer tokens. On these number-heavy prompts it made no difference <span class="l">Likely</span></td></tr>
+      <tr><td>Slowest 5% of flows</td><td class="res">12.99 against 10.86 s <span class="tag tie" style="background:#fff;border:1px solid var(--border)">Not tested</span></td>
+          <td>Qwen's slowest flows were the ones with the longest Reason answers† <span class="m">M6</span>.</td>
+          <td>No design fact explains this. More flows would show whether it holds.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="model" style="--c:var(--qwen)">
+    <div class="story">
+      <h2><i></i>Qwen2.5 3B <small>same speed, less memory</small></h2>
+      <h4>Where the time goes</h4>
+      <p>Qwen2.5 3B took 10.80 s per flow <span class="m">M1</span>. The Reason agent took the largest share, 4.06 s, because it writes the longest answer of the four steps <span class="m">M2</span>. Perceive and Act took about 3.2 s each. Decide took 0.27 s, since it only picks one label from a fixed list <span class="m">M2</span>.</p>
+      <div class="split"><div style="width:30.2%;background:#1E4BB8">perceive 3.26 s</div><div style="width:37.6%;background:#4F7FE0">reason 4.06 s</div><div style="width:2.5%;background:#A2470D"></div><div style="width:29.7%;background:#E8742A">act 3.20 s</div></div>
+      <h4>Why it needs less memory</h4>
+      <p>While answering, it used 157 MB of working memory on top of its weights, 35% less than Llama 3.2 3B <span class="m">M3</span>. The prompts were about the same length <span class="m">M4</span>, so the input does not explain the gap. <span class="likely">A likely reason is its smaller attention cache. It keeps 2 key-value heads in each of its 36 layers, so for every token it stores about a third of what Llama 3.2 3B stores</span> <span class="l">Likely</span>.</p>
+      <h4>Why the tokens did not drop</h4>
+      <p>It read and wrote 3,401 tokens per flow, within 2% of Llama 3.2 3B <span class="m">M4</span>. <span class="likely">Its larger vocabulary would usually split text into fewer tokens</span> <span class="l">Likely</span>, but most of each prompt is flow features, long runs of numbers <span class="m">M5</span>. <span class="likely">Both vocabularies likely split numbers in much the same way</span> <span class="l">Likely</span>.</p>
+    </div>
+    <div class="ev">
+      <h5>Evidence</h5>
+      <div><span class="m">M1</span> <b>10.80 s</b> latency per flow, p = 0.168 against Llama. Performance</div>
+      <div><span class="m">M2</span> <b>Reason 4.06 s</b>, perceive 3.26, act 3.20, decide 0.27. Agents</div>
+      <div><span class="m">M3</span> <b>157 MB</b> working memory, mean of every agent step. GPU memory</div>
+      <div><span class="m">M4</span> <b>3,401</b> tokens per flow, within 2% of Llama. Comparison</div>
+      <div><span class="m">M5</span> <b>83%†</b> of every prompt is flow features. Prompt make-up</div>
+      <div style="margin-top:8px"><span class="l">Likely</span> <b>36 layers, 2 KV heads, vocabulary 151,936, 3.09 B parameters</b>. config.json on Hugging Face, read when the session ended</div>
+    </div>
+  </div>
+
+  <div class="foot"><span>AgentMeter measures how efficiently LLMs run. It is not a threat detector.</span><span>Page 5 of 23</span></div>
+</section>
+
+<!-- ============================== PAGE 2 ============================== -->
+<section class="page">
+  <span class="mock">MOCKUP</span>
+  <div class="top">
+    <div class="brand"><i><b></b><b></b><b></b><b></b></i>AgentMeter</div>
+    <div class="meta"><b>Session report</b> · Qwen2.5 3B vs Llama 3.2 3B<br>job_20261021_053653</div>
+  </div>
+
+  <div class="model" style="--c:var(--llama);margin-top:14px">
+    <div class="story">
+      <h2><i></i>Llama 3.2 3B <small>steadier on hard flows, more memory</small></h2>
+      <h4>Where the time goes</h4>
+      <p>Llama 3.2 3B took 9.89 s per flow, close enough to Qwen2.5 3B that the gap could be chance <span class="m">M1</span>. Like Qwen, its Reason agent took the largest share, 3.71 s† <span class="m">M2</span>.</p>
+      <div class="split"><div style="width:31%;background:#1E4BB8">perceive 3.07 s†</div><div style="width:37.5%;background:#4F7FE0">reason 3.71 s†</div><div style="width:2.5%;background:#A2470D"></div><div style="width:29%;background:#E8742A">act 2.86 s†</div></div>
+      <h4>Why its slow flows were shorter</h4>
+      <p>Its slowest 5% of flows finished in 10.86 s, against 12.99 s for Qwen2.5 3B <span class="m">M6</span>. Its Reason answers varied less in length from flow to flow, 95% of them stayed under 210 tokens† <span class="m">M7</span>, so no single flow ran much longer than the rest. The slow tail is not tested on its own, so this is a pattern in these 20 flows, not a proven difference.</p>
+      <h4>Why it needs more memory</h4>
+      <p>It used 243 MB of working memory, the larger of the two <span class="m">M3</span>. <span class="likely">A likely reason is its attention cache. It keeps 8 key-value heads in each of 28 layers, about three times what Qwen2.5 3B keeps for every token</span> <span class="l">Likely</span>. Its total peak was also higher, 3,276 against 3,128 MB <span class="m">M8</span>. <span class="likely">Its slightly larger weights, 3.21 against 3.09 billion parameters, likely account for part of that</span> <span class="l">Likely</span>.</p>
+    </div>
+    <div class="ev">
+      <h5>Evidence</h5>
+      <div><span class="m">M1</span> <b>9.89 s</b> latency per flow, p = 0.168 against Qwen. Performance</div>
+      <div><span class="m">M2</span> <b>Reason 3.71 s†</b>, the largest share. Agents</div>
+      <div><span class="m">M3</span> <b>243 MB</b> working memory. GPU memory</div>
+      <div><span class="m">M6</span> <b>10.86 s</b> slowest 5% of flows. Latency</div>
+      <div><span class="m">M7</span> <b>210 tokens†</b> p95 length of the Reason answer. Token budgets</div>
+      <div><span class="m">M8</span> <b>3,276 MB</b> total peak. GPU memory</div>
+      <div style="margin-top:8px"><span class="l">Likely</span> <b>28 layers, 8 KV heads, vocabulary 128,256, 3.21 B parameters</b>. config.json on Hugging Face</div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:16px">The design facts, side by side</h2>
+  <p class="lede" style="margin-bottom:4px">Read from each model's published configuration when the session ended. They are not measured here and are used only as likely reasons.</p>
+  <table class="facts">
+    <thead><tr><th>Design fact</th><th>Qwen2.5 3B</th><th>Llama 3.2 3B</th><th style="text-align:left;padding-left:16px">What it usually affects</th></tr></thead>
+    <tbody>
+      <tr><td>Parameters</td><td>3.09 B</td><td>3.21 B</td><td style="text-align:left;padding-left:16px">Weights in memory, work per token</td></tr>
+      <tr><td>Layers</td><td>36</td><td>28</td><td style="text-align:left;padding-left:16px">Steps per token, so time per token</td></tr>
+      <tr><td>Key-value heads per layer</td><td>2</td><td>8</td><td style="text-align:left;padding-left:16px">Attention cache, so working memory</td></tr>
+      <tr><td>Attention cache per token (layers × KV heads)</td><td>72</td><td>224</td><td style="text-align:left;padding-left:16px">Working memory grows with this</td></tr>
+      <tr><td>Vocabulary</td><td>151,936</td><td>128,256</td><td style="text-align:left;padding-left:16px">How many tokens the same text becomes</td></tr>
+      <tr><td>Context window</td><td>32,768</td><td>131,072</td><td style="text-align:left;padding-left:16px">Longest prompt it accepts, not speed</td></tr>
+    </tbody>
+  </table>
+
+  <div class="howbox">
+    <div><b>Who wrote this</b>The session's explainer model, after the benchmark finished, on the same GPU. It writes only from the facts listed beside each model.</div>
+    <div><b>How it was checked</b>Every sentence was checked by code. Each number and model name must match the facts it cites. Sentences that failed were rewritten once, then replaced by plain code-written text.</div>
+    <div><b>What it cannot do</b>Prove a cause. Measured facts show what happened in this run. Likely reasons are the usual effect of a design, labelled so a reader can weigh them.</div>
+  </div>
+  <p class="illu">† Illustrative in this mockup only. The stored session behind this mockup does not include Llama's per-agent split. The real report uses the session's own numbers.</p>
+
+  <div class="foot"><span>AgentMeter measures how efficiently LLMs run. It is not a threat detector.</span><span>Page 6 of 23</span></div>
+</section>
+</body>
+</html>

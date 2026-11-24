@@ -53,7 +53,7 @@ h1 em { font-style: normal; color: var(--qwen); }
 .tag.tie { background: var(--tie); color: var(--muted); }
 
 /* page 2 */
-h2 { font: 700 15px var(--head); margin: 18px 0 2px; letter-spacing: -.01em; }
+h2 { font: 700 15px var(--head); margin: 16px 0 2px; letter-spacing: -.01em; }
 h2 + p { margin: 0 0 10px; color: var(--muted); font-size: 11px; }
 .two { display: grid; grid-template-columns: 1.15fr 1fr; gap: 14px; align-items: start; }
 .panel { border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
@@ -80,6 +80,33 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .chips span { font-size: 10px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
 .chips span.warn { border-color: #E8742A; color: #A2470D; }
+.means { margin: 7px 0 0; font-size: 10.5px; line-height: 1.45; color: var(--text); }
+.takes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 6px 0 18px; }
+.takes div { border-top: 3px solid var(--rule); padding-top: 9px; }
+.takes .big { font: 800 26px/1 var(--head); letter-spacing: -.02em; }
+.takes .big small { font: 600 11px var(--font); color: var(--muted); margin-left: 4px; }
+.takes h4 { font: 700 13px var(--head); margin: 7px 0 4px; }
+.takes p { margin: 0; font-size: 11px; line-height: 1.5; color: var(--text); }
+.pick { display: grid; grid-template-columns: 1fr 1fr; gap: 0; background: var(--paper); border-radius: 8px; margin-bottom: 18px; }
+.pick div { padding: 12px 14px; }
+.pick div + div { border-left: 1px solid var(--border); }
+.pick h4 { margin: 0 0 4px; font: 700 13px var(--head); display: flex; align-items: center; gap: 7px; }
+.pick h4 i { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+.pick p { margin: 0; font-size: 11px; line-height: 1.5; }
+.pick-note { margin: -10px 0 18px; font-size: 11px; color: var(--muted); }
+.howto { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.howto div { font-size: 10.5px; line-height: 1.5; color: var(--muted); }
+.howto b { display: block; color: var(--text); font: 700 11.5px var(--head); margin: 6px 0 2px; }
+.ex { display: flex; align-items: center; gap: 6px; }
+.ex i { display: inline-block; height: 10px; border-radius: 2px; }
+.explain { margin: 8px 0 0; font-size: 11px; line-height: 1.5; }
+.cav { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; margin-top: 10px; }
+.cav div { font-size: 10.5px; line-height: 1.45; color: var(--muted); padding-left: 10px; border-left: 3px solid var(--border); }
+.cav div.warn { border-left-color: #E8742A; }
+.cav b { display: block; color: var(--text); font-size: 11px; }
+.gloss { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; font-size: 10.5px; line-height: 1.45; color: var(--muted); margin: 0; }
+.gloss dt { color: var(--text); font-weight: 700; float: left; margin-right: 5px; }
+.gloss dd { margin: 0; }
 .foot { position: absolute; left: 14mm; right: 14mm; bottom: 8mm; display: flex; justify-content: space-between; color: var(--faint); font-size: 9.5px; border-top: 1px solid var(--border); padding-top: 6px; }
 .mock { position: absolute; top: 5mm; right: 14mm; background: var(--best); color: var(--best-ink); font: 700 9px var(--font); letter-spacing: .08em; padding: 3px 7px; border-radius: 4px; }
 </style>
@@ -98,6 +125,54 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   <h1><em>Qwen2.5 3B</em> uses 35% less working memory than Llama 3.2 3B. Speed and token use are a tie.</h1>
   <p class="sub">Both models ran the same four-agent triage on the same 20 network flows, one after the other on the same GPU. A difference only counts when it holds up statistically.</p>
 
+  <p class="kicker">In plain words</p>
+  <div class="takes">
+    <div><span class="big">35%<small>less</small></span><h4>Qwen needs less working memory</h4>
+      <p>While answering, Qwen2.5 3B used 157 MB on top of its weights and Llama 3.2 3B used 243 MB. That extra room matters when inputs get long or several agents share one GPU.</p></div>
+    <div><span class="big">0.9 s<small>faster, not proven</small></span><h4>Speed is too close to call</h4>
+      <p>Llama answered a flow in 9.89 s on average and Qwen in 10.80 s. With only 20 flows that gap could be chance. On the slowest flows Llama stayed clearly quicker, 10.86 s against 12.99 s.</p></div>
+    <div><span class="big">&lt;5%<small>apart</small></span><h4>Tokens, cost and energy match</h4>
+      <p>Both models wrote about 3,400 tokens per flow and drew the same power. Running 1,000 flows costs $0.70 to $0.77 either way, so neither model saves money.</p></div>
+  </div>
+
+  <p class="kicker">Which one to pick</p>
+  <div class="pick">
+    <div><h4><i style="background:var(--qwen)"></i>Pick Qwen2.5 3B if</h4>
+      <p>GPU memory is tight, you plan longer inputs, or you want to run more agents on the same card. It also has the higher overall efficiency score, 46.87 against 43.00.</p></div>
+    <div><h4><i style="background:var(--llama)"></i>Pick Llama 3.2 3B if</h4>
+      <p>People wait on each answer and slow outliers hurt. Its slowest 5% of flows finished about 2 s sooner, so it feels steadier in use.</p></div>
+  </div>
+  <p class="pick-note">To settle the speed question, run the same pair again on 100 or more flows. Small gaps need more flows before they count.</p>
+
+  <p class="kicker">How to read the charts</p>
+  <div class="howto">
+    <div><span class="ex"><i style="width:46px;background:var(--qwen)"></i><i style="width:30px;background:var(--llama)"></i></span><b>Shorter bar wins</b>Every chart says if lower or higher is better. Most measures are costs, so the shorter bar is the better result.</div>
+    <div><span class="tag best" style="margin:0">Best</span><b>The gap is real</b>A Best tag means the difference passed a statistical test, or is larger than 5%. You can rely on it.</div>
+    <div><span class="tag tie" style="margin:0">Tie</span><b>The gap may be noise</b>A Tie means the two results are within 5%, or the test could not rule out chance. Treat the models as equal there.</div>
+  </div>
+
+  <p class="kicker" style="margin-top:18px">Keep in mind</p>
+  <div class="cav">
+    <div><b>Fair A vs B</b>Same flows, same GPU and same settings for both models.</div>
+    <div class="warn"><b>Small sample, 20 flows</b>Enough to show large gaps. Small gaps need 100 flows or more.</div>
+    <div class="warn"><b>Exploratory run</b>Made for trying things out. It is not part of the study's main results.</div>
+    <div><b>Balanced sample</b>Each traffic type appears equally often, so no type dominates.</div>
+    <div class="warn"><b>Different GPU from the study</b>The study uses an L4. Compare these numbers only with other RTX 3090 runs.</div>
+  </div>
+
+
+  <div class="foot"><span>AgentMeter measures how efficiently LLMs run. It is not a threat detector.</span><span>Page 1 of 3</span></div>
+</section>
+
+<!-- ============================== PAGE 2 ============================== -->
+<section class="page">
+  <span class="mock">MOCKUP</span>
+  <div class="top">
+    <div class="brand"><i><b></b><b></b><b></b><b></b></i>AgentMeter</div>
+    <div class="meta"><b>Session report</b> · Qwen2.5 3B vs Llama 3.2 3B<br>job_20261021_053653</div>
+  </div>
+  <h2>Every measure, one chart each</h2>
+  <p>Each chart compares the two models on one measure. The line under it says what the result means in practice.</p>
   <div class="legend">
     <span><i style="background:var(--qwen)"></i>Qwen2.5 3B Instruct</span>
     <span><i style="background:var(--llama)"></i>Llama 3.2 3B Instruct</span>
@@ -108,48 +183,56 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     <div class="chart"><h3>Latency per flow <small>lower is better</small></h3><p class="why">Mean time for all four agents to answer one flow</p>
       <div class="bar"><span class="n">Qwen2.5 3B</span><span class="t"><i style="width:100%;background:var(--qwen)"></i></span><span class="v">10.80 s</span></div>
       <div class="bar"><span class="n">Llama 3.2 3B</span><span class="t"><i style="width:91.6%;background:var(--llama)"></i></span><span class="v">9.89 s</span></div>
-      <span class="tag tie">Tie, difference not significant (p = 0.168)</span></div>
+      <span class="tag tie">Tie, difference not significant (p = 0.168)</span>
+      <p class="means">Llama was about 0.9 s quicker on average, but the test says this could be chance (p = 0.168). More flows would settle it.</p></div>
 
     <div class="chart"><h3>Slowest 5% of flows <small>lower is better</small></h3><p class="why">p95 latency, the wait on a bad flow</p>
       <div class="bar"><span class="n">Qwen2.5 3B</span><span class="t"><i style="width:100%;background:var(--qwen)"></i></span><span class="v">12.99 s</span></div>
       <div class="bar"><span class="n">Llama 3.2 3B</span><span class="t"><i style="width:83.6%;background:var(--llama)"></i></span><span class="v">10.86 s</span></div>
-      <span class="tag best">Best: Llama 3.2 3B</span></div>
+      <span class="tag best">Best: Llama 3.2 3B, 16% lower</span>
+      <p class="means">On hard flows Llama stays quicker by about 2 s. Someone waiting on a slow answer would notice this.</p></div>
 
     <div class="chart"><h3>Working GPU memory <small>lower is better</small></h3><p class="why">Memory used while answering, on top of the model weights</p>
       <div class="bar"><span class="n">Qwen2.5 3B</span><span class="t"><i style="width:64.6%;background:var(--qwen)"></i></span><span class="v">157 MB</span></div>
       <div class="bar"><span class="n">Llama 3.2 3B</span><span class="t"><i style="width:100%;background:var(--llama)"></i></span><span class="v">243 MB</span></div>
-      <span class="tag best">Best: Qwen2.5 3B, 35.5% less</span></div>
+      <span class="tag best">Best: Qwen2.5 3B, 35.5% less</span>
+      <p class="means">Qwen leaves more free memory, so it copes better with long inputs or several agents on one GPU.</p></div>
 
     <div class="chart"><h3>Total peak GPU memory <small>lower is better</small></h3><p class="why">Weights plus working memory, the size of GPU you need</p>
       <div class="bar"><span class="n">Qwen2.5 3B</span><span class="t"><i style="width:95.5%;background:var(--qwen)"></i></span><span class="v">3,128 MB</span></div>
       <div class="bar"><span class="n">Llama 3.2 3B</span><span class="t"><i style="width:100%;background:var(--llama)"></i></span><span class="v">3,276 MB</span></div>
-      <span class="tag tie">Tie, within 5%</span></div>
+      <span class="tag tie">Tie, within 5%</span>
+      <p class="means">Both need just over 3 GB in total, so either model fits on a small 8 GB GPU.</p></div>
 
     <div class="chart"><h3>Tokens per flow <small>lower is better</small></h3><p class="why">Text read and written by the four agents</p>
       <div class="bar"><span class="n">Qwen2.5 3B</span><span class="t"><i style="width:100%;background:var(--qwen)"></i></span><span class="v">3,401</span></div>
       <div class="bar"><span class="n">Llama 3.2 3B</span><span class="t"><i style="width:98.8%;background:var(--llama)"></i></span><span class="v">3,359</span></div>
-      <span class="tag tie">Tie, within 5%</span></div>
+      <span class="tag tie">Tie, within 5%</span>
+      <p class="means">Both models write about the same amount of text, so neither is wordier.</p></div>
 
     <div class="chart"><h3>Cost per 1,000 flows <small>lower is better</small></h3><p class="why">GPU rental time at the price paid for this run</p>
       <div class="bar"><span class="n">Qwen2.5 3B</span><span class="t"><i style="width:100%;background:var(--qwen)"></i></span><span class="v">$0.77</span></div>
       <div class="bar"><span class="n">Llama 3.2 3B</span><span class="t"><i style="width:90.9%;background:var(--llama)"></i></span><span class="v">$0.70</span></div>
-      <span class="tag tie">Follows latency, which is a tie</span></div>
+      <span class="tag tie">Follows latency, which is a tie</span>
+      <p class="means">Cost is GPU rental time, so it moves with speed. The two are 7 cents apart per 1,000 flows.</p></div>
 
     <div class="chart"><h3>Energy per flow <small>lower is better</small></h3><p class="why">GPU board energy, measured during the run</p>
       <div class="bar"><span class="n">Qwen2.5 3B</span><span class="t"><i style="width:100%;background:var(--qwen)"></i></span><span class="v">0.51 Wh</span></div>
       <div class="bar"><span class="n">Llama 3.2 3B</span><span class="t"><i style="width:98%;background:var(--llama)"></i></span><span class="v">0.50 Wh</span></div>
-      <span class="tag tie">Tie, within 5%</span></div>
+      <span class="tag tie">Tie, within 5%</span>
+      <p class="means">Both draw the same power for the same work. Energy does not separate them.</p></div>
 
     <div class="chart"><h3>Efficiency score (SAW) <small>higher is better</small></h3><p class="why">Weighted mix of latency, memory and tokens, 0 to 100</p>
       <div class="bar"><span class="n">Qwen2.5 3B</span><span class="t"><i style="width:100%;background:var(--qwen)"></i></span><span class="v">46.87</span></div>
       <div class="bar"><span class="n">Llama 3.2 3B</span><span class="t"><i style="width:91.7%;background:var(--llama)"></i></span><span class="v">43.00</span></div>
-      <span class="tag best">Best: Qwen2.5 3B</span></div>
+      <span class="tag best">Best: Qwen2.5 3B</span>
+      <p class="means">Qwen scores higher mostly because of its smaller working memory, which makes up a third of the score.</p></div>
   </div>
 
-  <div class="foot"><span>AgentMeter measures how efficiently LLMs run. It is not a threat detector.</span><span>Page 1 of 2</span></div>
+  <div class="foot"><span>AgentMeter measures how efficiently LLMs run. It is not a threat detector.</span><span>Page 2 of 3</span></div>
 </section>
 
-<!-- ============================== PAGE 2 ============================== -->
+<!-- ============================== PAGE 3 ============================== -->
 <section class="page">
   <span class="mock">MOCKUP</span>
   <div class="top">
@@ -158,7 +241,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
   </div>
 
   <h2>Speed against cost</h2>
-  <p>Each dot is one model. The best place to be is the lower left: fast and cheap.</p>
+  <p>Each dot is one model. The best place to be is the lower left, which is fast and cheap.</p>
   <div class="two">
     <div class="panel">
       <svg viewBox="0 0 360 250" width="100%" role="img" aria-label="Latency per flow against cost per 1,000 flows">
@@ -179,6 +262,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
         <circle cx="166" cy="149.9" r="8" fill="#2E5BD8"/><text x="178" y="153" font-size="10.5" font-weight="700" fill="#0F1B33">Llama 3.2 3B</text>
         <circle cx="250" cy="90.4" r="8" fill="#0B86A6"/><text x="262" y="94" font-size="10.5" font-weight="700" fill="#0F1B33">Qwen2.5 3B</text>
       </svg>
+      <p class="explain">Llama sits a little lower and further left, so in this run it was slightly faster and cheaper. The two dots are close and the speed gap did not pass the test, so read them as roughly equal here.</p>
     </div>
     <div class="panel">
       <table>
@@ -194,12 +278,12 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
           <tr><td>Efficiency score</td><td class="num"><b>46.87</b></td><td class="num">43.00</td></tr>
         </tbody>
       </table>
-      <p style="margin:8px 0 0;color:var(--muted);font-size:10px">Bold marks a difference that holds up. Everything else is within noise.</p>
+      <p class="explain">Bold marks a result that holds up. Llama's slowest 5% is also a real gap, shown on page 2. Everything else is within noise.</p>
     </div>
   </div>
 
   <h2>Where the time goes, agent by agent</h2>
-  <p>Qwen2.5 3B, mean per flow. The reason step is the slowest, so a smaller token budget there would save the most time.</p>
+  <p>Each flow passes through four agents in turn. This bar shows how long each one took for Qwen2.5 3B, on average per flow.</p>
   <div class="panel">
     <div class="stack">
       <div style="width:30.2%;background:#1E4BB8">perceive 3.26 s</div>
@@ -213,21 +297,28 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
       <div><i style="background:#A2470D"></i>Decide<b>2.5%</b>picks a label</div>
       <div><i style="background:#E8742A"></i>Act<b>30%</b>writes the action</div>
     </div>
-    <div class="stat"><b>8.9%</b><span>of all tokens are hand-offs: earlier agents' answers sent again to later agents (303 tokens per flow, an estimate).</span></div>
+    <div class="stat"><b>8.9%</b><span>of all tokens are hand-offs, where an earlier agent's answer is sent again to the next agent. That is about 303 tokens per flow, an estimate.</span></div>
+    <p class="explain">Reason takes the most time because it writes the longest answer. Giving it a smaller token limit is the change most likely to speed up the whole pipeline. Decide is almost free, since it only picks a label.</p>
   </div>
 
   <h2>How this was measured</h2>
-  <p>So the numbers can be checked and repeated.</p>
+  <p>The setup below lets anyone check these numbers or run the test again.</p>
   <dl class="method">
     <div><dt>GPU</dt><dd>NVIDIA GeForce RTX 3090, 24 GB</dd><dt>Precision</dt><dd>4-bit NF4, both models</dd></div>
     <div><dt>Data</dt><dd>20 flows, CIC-IDS2017, balanced sample</dd><dt>Pipeline</dt><dd>Perceive, Reason, Decide, Act</dd></div>
     <div><dt>Order</dt><dd>One model at a time, same flows</dd><dt>Score weights</dt><dd>Latency 0.42, memory 0.33, tokens 0.25</dd></div>
   </dl>
-  <div class="chips">
-    <span>Fair A vs B</span><span class="warn">GPU differs from the study GPU (L4)</span><span class="warn">Exploratory run</span><span>Balanced sample</span><span class="warn">Small sample (20 flows)</span>
-  </div>
+  <h2>Words used in this report</h2>
+  <dl class="gloss">
+    <div><dt>Flow</dt><dd>one network connection the agents read and judge.</dd></div>
+    <div><dt>p95</dt><dd>the time 95% of flows finished within.</dd></div>
+    <div><dt>Working memory</dt><dd>GPU memory used while answering, beyond the weights.</dd></div>
+    <div><dt>4-bit NF4</dt><dd>a way to shrink a model so it uses less memory.</dd></div>
+    <div><dt>Efficiency score</dt><dd>one 0 to 100 number mixing speed, memory and tokens.</dd></div>
+    <div><dt>Significant</dt><dd>unlikely to be chance, by a statistical test.</dd></div>
+  </dl>
 
-  <div class="foot"><span>AgentMeter measures how efficiently LLMs run. It is not a threat detector.</span><span>Page 2 of 2</span></div>
+  <div class="foot"><span>AgentMeter measures how efficiently LLMs run. It is not a threat detector.</span><span>Page 3 of 3</span></div>
 </section>
 </body>
 </html>

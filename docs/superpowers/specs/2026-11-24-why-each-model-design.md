@@ -1,6 +1,6 @@
 # "Why each model performed this way" in the PDF report (design)
 
-Status: proposed, waiting for the owner's approval.
+Status: approved 2026-11-24 (why part), extended the same day to every section (below).
 Mockup: `2026-11-24-why-mockup/` (`why.html`, `why-page-1.png`, `why-page-2.png`, `why-mockup.pdf`).
 Builds on: `2026-11-24-session-report-design.md` (the full PDF report) and
 `2026-11-11-checked-explanations-design.md` (the checked explainer).
@@ -122,3 +122,30 @@ and which sub-headings appear when a model has little to say.
 - The website does not show the new part yet.
 - Semicolons, em dashes and colons stay out of this section too. The style-2 sample read well
   without them.
+
+
+## Extension (approved 2026-11-24): a reading paragraph under every section
+Mockup: `2026-11-24-section-explanations-mockup/`. The owner wants every analysis in the report to
+say what its readings mean and what impact they have, in detail and in plain words, so the report is
+not "filled with graphs" without explanation. The general explanation of the system (method page,
+glossary, methodology, method notes) was removed in the same round; this is its replacement, about
+this session only.
+
+- **Shape.** Each section keeps its table or chart, then ONE paragraph of 2 to 5 sentences in the
+  style-2 voice. No fixed labels such as "What this shows" or "Impact": the paragraph opens with what
+  stands out in that section, uses its own numbers, and ends with the consequence for a real use
+  (a batch job against an analyst waiting, a service that restarts often, the number of GPUs).
+- **Facts.** Code builds a fact list per section (`agentmeter/session/card_facts.py`), from the
+  stored results and the web's own derived views (web/insights.js through QuickJS). Besides the
+  measured facts, a section may carry a few **context facts**: general, always-true statements that
+  let a sentence state an impact without inventing one ("a model kept in memory pays its load time
+  once", "the GPU is billed by the hour whatever it is doing"). They carry no numbers.
+- **Requests.** One request per session tab, asking for every section of that tab at once
+  (`{"cards": {"<section>": [{"text", "uses"}]}}`); sections that fail the checks are asked again
+  together in one more request, then fall back to the web's one-line answer as today. Roughly 7 to 9
+  requests per session instead of one per section, so the extra GPU time stays at a few minutes.
+- **Checks.** As in the why part: every number and model or step name from the cited facts, design
+  facts only in hedged sentences, the avoid-list, no first person, no semicolons, em dashes or colons.
+  A paragraph whose sentences all fail is dropped as a whole, never shown half-written.
+- **Where.** Stored in explanation.json under `cards` (and `why`), read by the PDF report when it is
+  built. The website can show the same paragraphs later.

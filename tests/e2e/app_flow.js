@@ -366,8 +366,8 @@ async function frameOf(p) {
     log(over <= 0, 'phone 375px: no horizontal page scroll on ' + hash + ' (' + over + ')');
   }
   await ph.goto(BASE + '/app.html#/session/' + job1); await ph.waitForSelector('#session-body:not([hidden])');
-  const navH = await ph.evaluate(() => document.querySelector('.mainnav').getBoundingClientRect().height);
-  log(navH > 44, 'phone: header nav wraps (' + Math.round(navH) + 'px)');
+  const pnav = await ph.evaluate(() => { const n = document.querySelector('.mainnav'); return { h: n.getBoundingClientRect().height, links: n.querySelectorAll('a').length, scrolls: getComputedStyle(n).overflowX }; });
+  log(pnav.h <= 56 && pnav.links >= 5 && pnav.scrolls === 'auto', 'phone: the nav is one scrollable row with every link (' + Math.round(pnav.h) + 'px, ' + pnav.links + ' links)');
   const small = await ph.$$eval('.mainnav a, .btn, .iconbtn', els => els.filter(e => e.offsetParent && e.getBoundingClientRect().height < 44).length);
   log(small === 0, 'phone: nav links and buttons are >= 44px tall');
   await ph.screenshot({ path: S + '/12-phone-session.png', fullPage: true });

@@ -72,3 +72,18 @@ Real GPU behaviour and the real explainer's wording, keyboard navigation and scr
 ## 7. Status
 
 **Needs follow-up.** The core product is coherent and far more honest than most benchmark tools, but the headline contradiction, the stale landing copy, the waiting-list bugs, the phone layout and the split design system should be addressed before the system is shown widely.
+
+## 8. Follow-up (24 November 2026, same day)
+
+Fixed before the mock presentation: the headline-vs-score sentence (session page, PDF) and "=1" for
+ties on the Leaderboard; the waiting-list retry cap on restart and a keep-alive for long
+preparations; the stale landing and Help text; the retired L4 wording on the analysis page (caveats
+and banner); `scripts/check_web.py` (every web script parses, `web/_headers` matches the inline
+scripts) in `test_all.sh` and pytest; the upload box, the session id chip, the one-line reading
+guide and the sidebar accent; the phone navigation (one scrollable row) and the session list on
+phones (compact rows); the two long-failing tests; `scripts/rebuild_pdfs.py` to rebuild stored
+sessions' PDFs; half-pixel font sizes and the 650/750 weights in the app styles.
+
+Left for after the presentation: one shared token file for the app, the analysis page, the landing
+page and the PDF (the design-system merge), the spacing and radius scales, moving inline styles out
+of the JavaScript, and folding the embedded analysis page into the app.

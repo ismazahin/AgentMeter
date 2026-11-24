@@ -3741,15 +3741,14 @@
     var prov = (state.data && state.data.provenance) || null;
     if (kind === "session") {
       b.className = "banner unvalidated";
-      b.innerHTML = "<b>⚠ Session analysis (non-validated)</b>" +
+      b.innerHTML = "<b>Session analysis</b>" +
         '<span class="src">' + esc(sourceLabel) + "</span>" +
-        "<span>One benchmark session on your data. It is <b>not</b> the Validation baseline (the locked " +
-        "5-model L4 study) and is never merged into it. <a href='/baseline'>Open the Validation baseline</a></span>";
+        "<span>One benchmark session on your data, measured on this session's GPU.</span>";
       return;
     }
     if (kind !== "sample" && prov && prov.non_validated) {
       b.className = "banner unvalidated";
-      b.innerHTML = "<b>⚠ USER / CUSTOM RUN, not the validated baseline</b>" +
+      b.innerHTML = "<b>User or custom run, not the validated baseline</b>" +
         '<span class="src">' + esc(sourceLabel) + "</span>" +
         "<span>Exploratory resource numbers from a custom config. These do <b>not</b> " +
         "change the locked study's SAW ranking or statistics.</span>";
@@ -3757,7 +3756,7 @@
     }
     b.className = "banner " + (kind === "sample" ? "sample" : "loaded");
     if (kind === "sample") {
-      b.innerHTML = "<b>⚠ Bundled SAMPLE data</b>" +
+      b.innerHTML = "<b>Bundled sample data</b>" +
         "<span>Accuracy, composite, rank and tier are the locked real L4 results; " +
         "latency/token magnitudes and all per-agent numbers are <b>ILLUSTRATIVE placeholders</b>. " +
         "Load a real <code>analysis.json</code> to replace them.</span>";
@@ -3765,7 +3764,7 @@
       var kindtxt = (prov && prov.validated_study)
         ? "<span>Showing the <b>validated baseline</b> study results.</span>"
         : "<span>Showing real measured results.</span>";
-      b.innerHTML = "<b>✓ Loaded analysis.json</b>" +
+      b.innerHTML = "<b>Loaded analysis.json</b>" +
         '<span class="src">' + esc(sourceLabel) + "</span>" + kindtxt;
     }
   }

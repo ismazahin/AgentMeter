@@ -31,6 +31,8 @@ p { margin: 0 0 7px; }
 .m, .l { display: inline-block; font: 600 8.5px var(--font); padding: 0 5px; border-radius: 3px; vertical-align: 1px; margin-left: 2px; white-space: nowrap; }
 .m { background: var(--m-bg); color: var(--m-ink); }
 .l { background: var(--likely-bg); color: var(--likely); border: 1px dashed #E0A06A; padding: 0 4px; }
+sup.r, sup.d { font: 700 7.5px var(--font); margin-left: 1px; }
+sup.r { color: var(--m-ink); } sup.d { color: var(--likely); }
 .likely { background: linear-gradient(transparent 62%, #FFE9D3 62%); }
 .read { display: flex; gap: 22px; padding: 8px 12px; background: var(--paper); border-radius: 8px; font-size: 10.5px; color: var(--muted); margin: 6px 0 4px; }
 .read b { color: var(--text); }
@@ -74,51 +76,52 @@ td.res { font-weight: 600; white-space: nowrap; }
 
   <p class="kicker">Analysis</p>
   <h1>Why each model performed this way</h1>
-  <p class="lede">The charts show what happened. This part explains why. It traces each result back to a measured cause in this session, and where the session cannot show the cause, to the model's design.</p>
+  <p class="lede">On paper these two models are close relatives, each with about three billion parameters, run on the same GPU against the same 20 flows. Where their results part ways, the paragraphs below trace the difference back to what this session measured and, where the measurements run out, to how each model is built.</p>
 
   <div class="read">
-    <span><span class="m">M3</span> <b>Measured.</b> A fact recorded in this session. The list beside each model says where.</span>
-    <span><span class="l">Likely</span> <b class="likely">Likely reason.</b> From the model's published design, not measured here.</span>
+    <span><b>Numbers¹</b> point to a value measured in this session, listed beside each model.</span>
+    <span><span class="likely">Highlighted text</span> with a <b style="color:var(--likely)">D</b> reference rests on the model's published design. It is a likely reason, not a measurement.</span>
   </div>
 
-  <h2>What separates the two models</h2>
+  <h2>Where the two models part ways</h2>
   <table>
-    <thead><tr><th style="width:17%">Measure</th><th style="width:19%">Result</th><th style="width:31%">Measured cause</th><th>Likely reason, from the design</th></tr></thead>
+    <thead><tr><th style="width:17%">Measure</th><th style="width:20%">Result</th><th style="width:30%">What the session shows</th><th>The likely reason, from the design</th></tr></thead>
     <tbody>
       <tr><td>Working memory</td><td class="res">157 against 243 MB <span class="tag best">Qwen, 35% less</span></td>
-          <td>Both models read prompts of about the same length <span class="m">M4</span>, so the gap is not from longer input.</td>
-          <td>Qwen keeps about a third as much attention cache per token, 2 key-value heads in each of 36 layers against 8 in each of 28 <span class="l">Likely</span></td></tr>
+          <td>Prompts were near-identical in length<sup class="r">4</sup>, so input size is not behind it.</td>
+          <td><span class="likely">Qwen shares its attention heads far more, leaving roughly a third of the cache per token</span><sup class="d">D1, D2</sup></td></tr>
       <tr><td>Latency per flow</td><td class="res">10.80 against 9.89 s <span class="tag tie">Tie</span></td>
-          <td>The gap could be chance, p = 0.168 <span class="m">M1</span>. Both spend most of a flow writing the Reason answer <span class="m">M2</span>.</td>
-          <td>Similar size, 3.09 against 3.21 billion parameters, so similar work per token is expected <span class="l">Likely</span></td></tr>
+          <td>A gap that could be chance (p = 0.168)<sup class="r">1</sup>, with the Reason step the heaviest for both<sup class="r">2</sup>.</td>
+          <td><span class="likely">Similar size, 3.09 and 3.21 billion parameters, means similar work per token</span><sup class="d">D1, D2</sup></td></tr>
       <tr><td>Tokens per flow</td><td class="res">3,401 against 3,359 <span class="tag tie">Tie</span></td>
-          <td>Within 2% <span class="m">M4</span>. Flow features make up most of every prompt <span class="m">M5</span>, so both read nearly the same text.</td>
-          <td>Qwen's larger vocabulary, 151,936 against 128,256 entries, would usually mean fewer tokens. On these number-heavy prompts it made no difference <span class="l">Likely</span></td></tr>
+          <td>Within 2%<sup class="r">4</sup>. Flow features fill most of every prompt<sup class="r">5</sup>.</td>
+          <td><span class="likely">Qwen's bigger vocabulary should have saved tokens, but numbers split much the same way in both</span><sup class="d">D1, D2</sup></td></tr>
       <tr><td>Slowest 5% of flows</td><td class="res">12.99 against 10.86 s <span class="tag tie" style="background:#fff;border:1px solid var(--border)">Not tested</span></td>
-          <td>Qwen's slowest flows were the ones with the longest Reason answers† <span class="m">M6</span>.</td>
-          <td>No design fact explains this. More flows would show whether it holds.</td></tr>
+          <td>Qwen's slowest flows were the ones with the longest Reason answers†<sup class="r">6</sup>.</td>
+          <td>Nothing in the design explains it. More flows would show whether it holds.</td></tr>
     </tbody>
   </table>
 
   <div class="model" style="--c:var(--qwen)">
     <div class="story">
-      <h2><i></i>Qwen2.5 3B <small>same speed, less memory</small></h2>
-      <h4>Where the time goes</h4>
-      <p>Qwen2.5 3B took 10.80 s per flow <span class="m">M1</span>. The Reason agent took the largest share, 4.06 s, because it writes the longest answer of the four steps <span class="m">M2</span>. Perceive and Act took about 3.2 s each. Decide took 0.27 s, since it only picks one label from a fixed list <span class="m">M2</span>.</p>
+      <h2><i></i>Qwen2.5 3B</h2>
+      <h4>Time</h4>
+      <p>Qwen2.5 3B averaged 10.80 s per flow, close enough to Llama 3.2 3B that the gap could be chance<sup class="r">1</sup>. Most of that time went into the Reason step, 4.06 s of it, the one agent asked to write a full explanation rather than a label. Perceive and Act took a little over 3 s each, and Decide, which only picks a class, barely registered at 0.27 s<sup class="r">2</sup>.</p>
       <div class="split"><div style="width:30.2%;background:#1E4BB8">perceive 3.26 s</div><div style="width:37.6%;background:#4F7FE0">reason 4.06 s</div><div style="width:2.5%;background:#A2470D"></div><div style="width:29.7%;background:#E8742A">act 3.20 s</div></div>
-      <h4>Why it needs less memory</h4>
-      <p>While answering, it used 157 MB of working memory on top of its weights, 35% less than Llama 3.2 3B <span class="m">M3</span>. The prompts were about the same length <span class="m">M4</span>, so the input does not explain the gap. <span class="likely">A likely reason is its smaller attention cache. It keeps 2 key-value heads in each of its 36 layers, so for every token it stores about a third of what Llama 3.2 3B stores</span> <span class="l">Likely</span>.</p>
-      <h4>Why the tokens did not drop</h4>
-      <p>It read and wrote 3,401 tokens per flow, within 2% of Llama 3.2 3B <span class="m">M4</span>. <span class="likely">Its larger vocabulary would usually split text into fewer tokens</span> <span class="l">Likely</span>, but most of each prompt is flow features, long runs of numbers <span class="m">M5</span>. <span class="likely">Both vocabularies likely split numbers in much the same way</span> <span class="l">Likely</span>.</p>
+      <h4>Memory</h4>
+      <p>Yet Qwen2.5 3B got through each flow with 35% less working memory, 157 MB against 243 MB<sup class="r">3</sup>, on prompts of near-identical length<sup class="r">4</sup>. <span class="likely">The explanation probably sits in how it handles attention. It shares its key-value heads aggressively, two per layer across 36 layers against Llama's eight across 28, so every token it reads costs it about a third of the cache memory</span><sup class="d">D1, D2</sup>.</p>
+      <h4>Tokens</h4>
+      <p><span class="likely">Going in, Qwen2.5 3B had an apparent edge on tokens. Its vocabulary is larger, 151,936 entries against 128,256, and a larger vocabulary usually turns the same text into fewer tokens</span><sup class="d">D1, D2</sup>. That edge never showed up here. The two finished within 2% of each other, 3,401 tokens per flow against 3,359<sup class="r">4</sup>, most likely because the bulk of every prompt is flow features<sup class="r">5</sup>, long strings of numbers that <span class="likely">either vocabulary splits in much the same way</span><sup class="d">D1</sup>.</p>
     </div>
     <div class="ev">
-      <h5>Evidence</h5>
-      <div><span class="m">M1</span> <b>10.80 s</b> latency per flow, p = 0.168 against Llama. Performance</div>
-      <div><span class="m">M2</span> <b>Reason 4.06 s</b>, perceive 3.26, act 3.20, decide 0.27. Agents</div>
-      <div><span class="m">M3</span> <b>157 MB</b> working memory, mean of every agent step. GPU memory</div>
-      <div><span class="m">M4</span> <b>3,401</b> tokens per flow, within 2% of Llama. Comparison</div>
-      <div><span class="m">M5</span> <b>83%†</b> of every prompt is flow features. Prompt make-up</div>
-      <div style="margin-top:8px"><span class="l">Likely</span> <b>36 layers, 2 KV heads, vocabulary 151,936, 3.09 B parameters</b>. config.json on Hugging Face, read when the session ended</div>
+      <h5>Measured in this session</h5>
+      <div><sup class="r">1</sup> <b>10.80 s</b> per flow, p = 0.168 against Llama. Performance</div>
+      <div><sup class="r">2</sup> <b>Reason 4.06 s</b>, perceive 3.26, act 3.20, decide 0.27. Agents</div>
+      <div><sup class="r">3</sup> <b>157 MB</b> working memory, mean over every agent step. GPU memory</div>
+      <div><sup class="r">4</sup> <b>3,401</b> tokens per flow, within 2% of Llama. Comparison</div>
+      <div><sup class="r">5</sup> <b>83%†</b> of every prompt is flow features. Prompt make-up</div>
+      <h5 style="margin-top:9px;color:var(--likely)">Design</h5>
+      <div><sup class="d">D1</sup> <b>Qwen2.5 3B</b>, 36 layers, 2 key-value heads, vocabulary 151,936, 3.09 B parameters. Its config.json on Hugging Face</div>
     </div>
   </div>
 
@@ -135,27 +138,27 @@ td.res { font-weight: 600; white-space: nowrap; }
 
   <div class="model" style="--c:var(--llama);margin-top:14px">
     <div class="story">
-      <h2><i></i>Llama 3.2 3B <small>steadier on hard flows, more memory</small></h2>
-      <h4>Where the time goes</h4>
-      <p>Llama 3.2 3B took 9.89 s per flow, close enough to Qwen2.5 3B that the gap could be chance <span class="m">M1</span>. Like Qwen, its Reason agent took the largest share, 3.71 s† <span class="m">M2</span>.</p>
+      <h2><i></i>Llama 3.2 3B</h2>
+      <h4>Time</h4>
+      <p>Llama 3.2 3B was marginally quicker on average, 9.89 s per flow<sup class="r">1</sup>, though not by enough to rule out chance. Its time was spread across the agents in much the same proportions as Qwen's, with Reason again the heaviest step at 3.71 s†<sup class="r">2</sup>.</p>
       <div class="split"><div style="width:31%;background:#1E4BB8">perceive 3.07 s†</div><div style="width:37.5%;background:#4F7FE0">reason 3.71 s†</div><div style="width:2.5%;background:#A2470D"></div><div style="width:29%;background:#E8742A">act 2.86 s†</div></div>
-      <h4>Why its slow flows were shorter</h4>
-      <p>Its slowest 5% of flows finished in 10.86 s, against 12.99 s for Qwen2.5 3B <span class="m">M6</span>. Its Reason answers varied less in length from flow to flow, 95% of them stayed under 210 tokens† <span class="m">M7</span>, so no single flow ran much longer than the rest. The slow tail is not tested on its own, so this is a pattern in these 20 flows, not a proven difference.</p>
-      <h4>Why it needs more memory</h4>
-      <p>It used 243 MB of working memory, the larger of the two <span class="m">M3</span>. <span class="likely">A likely reason is its attention cache. It keeps 8 key-value heads in each of 28 layers, about three times what Qwen2.5 3B keeps for every token</span> <span class="l">Likely</span>. Its total peak was also higher, 3,276 against 3,128 MB <span class="m">M8</span>. <span class="likely">Its slightly larger weights, 3.21 against 3.09 billion parameters, likely account for part of that</span> <span class="l">Likely</span>.</p>
+      <h4>The slow flows</h4>
+      <p>Where Llama 3.2 3B did stand out was on its worst flows. Its slowest 5% finished within 10.86 s, more than two seconds ahead of Qwen2.5 3B<sup class="r">6</sup>. Its Reason answers kept to a tighter length, with 95% of them under 210 tokens†<sup class="r">7</sup>, so no single flow dragged on. With only 20 flows, and no test on the slow tail alone, this is a pattern worth checking rather than a settled difference.</p>
+      <h4>Memory</h4>
+      <p>The flip side is memory. Llama 3.2 3B needed 243 MB of working memory<sup class="r">3</sup>, <span class="likely">most likely the cost of its more generous attention design, eight key-value heads in each of 28 layers, roughly three times the per-token cache of Qwen2.5 3B</span><sup class="d">D2</sup>. Its total peak was higher too, 3,276 MB against 3,128 MB<sup class="r">8</sup>, and <span class="likely">its slightly larger weights, 3.21 against 3.09 billion parameters, probably account for part of that</span><sup class="d">D1, D2</sup>.</p>
     </div>
     <div class="ev">
-      <h5>Evidence</h5>
-      <div><span class="m">M1</span> <b>9.89 s</b> latency per flow, p = 0.168 against Qwen. Performance</div>
-      <div><span class="m">M2</span> <b>Reason 3.71 s†</b>, the largest share. Agents</div>
-      <div><span class="m">M3</span> <b>243 MB</b> working memory. GPU memory</div>
-      <div><span class="m">M6</span> <b>10.86 s</b> slowest 5% of flows. Latency</div>
-      <div><span class="m">M7</span> <b>210 tokens†</b> p95 length of the Reason answer. Token budgets</div>
-      <div><span class="m">M8</span> <b>3,276 MB</b> total peak. GPU memory</div>
-      <div style="margin-top:8px"><span class="l">Likely</span> <b>28 layers, 8 KV heads, vocabulary 128,256, 3.21 B parameters</b>. config.json on Hugging Face</div>
+      <h5>Measured in this session</h5>
+      <div><sup class="r">1</sup> <b>9.89 s</b> per flow, p = 0.168 against Qwen. Performance</div>
+      <div><sup class="r">2</sup> <b>Reason 3.71 s†</b>, the largest share. Agents</div>
+      <div><sup class="r">3</sup> <b>243 MB</b> working memory. GPU memory</div>
+      <div><sup class="r">6</sup> <b>10.86 s</b> for the slowest 5% of flows. Latency</div>
+      <div><sup class="r">7</sup> <b>210 tokens†</b>, p95 length of the Reason answer. Token budgets</div>
+      <div><sup class="r">8</sup> <b>3,276 MB</b> total peak. GPU memory</div>
+      <h5 style="margin-top:9px;color:var(--likely)">Design</h5>
+      <div><sup class="d">D2</sup> <b>Llama 3.2 3B</b>, 28 layers, 8 key-value heads, vocabulary 128,256, 3.21 B parameters. Its config.json on Hugging Face</div>
     </div>
   </div>
-
   <h2 style="margin-top:16px">The design facts, side by side</h2>
   <p class="lede" style="margin-bottom:4px">Read from each model's published configuration when the session ended. They are not measured here and are used only as likely reasons.</p>
   <table class="facts">
@@ -171,7 +174,7 @@ td.res { font-weight: 600; white-space: nowrap; }
   </table>
 
   <div class="howbox">
-    <div><b>Who wrote this</b>The session's explainer model, after the benchmark finished, on the same GPU. It writes only from the facts listed beside each model.</div>
+    <div><b>Who wrote this</b>The session's explainer model, an open model run on the same GPU once the benchmark finished. It writes only from the facts listed beside each model.</div>
     <div><b>How it was checked</b>Every sentence was checked by code. Each number and model name must match the facts it cites. Sentences that failed were rewritten once, then replaced by plain code-written text.</div>
     <div><b>What it cannot do</b>Prove a cause. Measured facts show what happened in this run. Likely reasons are the usual effect of a design, labelled so a reader can weigh them.</div>
   </div>

@@ -578,14 +578,21 @@ def test_listings_and_stored_results_need_a_read_token(app, monkeypatch):
     secret = "test-run-token-secret-0123456789"
     monkeypatch.setenv("AGENTMETER_RUN_TOKEN_SECRET", secret)
     now = int(_t.time())
-    tok = runtoken.sign({"typ": "run", "aud": "agentmeter-backend", "jti": _s.token_hex(16), "sub": "u1",
-                         "uname": "alice", "kind": "read", "iat": now, "exp": now + 300}, secret)
+    def token(**extra):
+        return runtoken.sign({"typ": "run", "aud": "agentmeter-backend", "jti": _s.token_hex(16), "sub": "u1",
+                              "uname": "alice", "kind": "read", "iat": now, "exp": now + 300, **extra}, secret)
     c = app["srv"].create_app(local_results_dir=str(app["tmp"] / "results"), job_manager=app["mgr"]).test_client()
+    # each user sees only their own work, an admin everyone's (owner-only reads): these sessions were
+    # started before accounts, so they are an admin's only
+    admin = token(admin=True)
     for path in ("/api/sessions", "/api/leaderboard", "/api/jobs", f"/api/sessions/{app['j1']}",
                  f"/api/compare?a={app['j1']}&b={app['j3']}",
                  f"/api/jobs/{app['j1']}/constraints?max_mean_latency_s=1", f"/api/jobs/{app['j1']}/result"):
         assert c.get(path).status_code == 401, path
-        assert c.get(path, headers={"Authorization": f"Bearer {tok}"}).status_code == 200, path
+        assert c.get(path, headers={"Authorization": f"Bearer {admin}"}).status_code == 200, path
+    alice = token()
+    assert c.get("/api/sessions", headers={"Authorization": f"Bearer {alice}"}).status_code == 200
+    assert c.get(f"/api/sessions/{app['j1']}", headers={"Authorization": f"Bearer {alice}"}).status_code == 404
 
 
 def test_app_routes(app):

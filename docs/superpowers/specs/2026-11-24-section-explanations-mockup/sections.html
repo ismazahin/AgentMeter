@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Section explanations (mockup)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Inter+Tight:wght@500..800&display=swap" rel="stylesheet">
+<style>
+/* mockup only . every report section: its table or chart, then one paragraph reading it (style 2 voice)
+ * front numbers: RTX 3090 session job_20261021_053653; values marked † are illustrative */
+:root { --paper: #F6F8FC; --text: #0F1B33; --muted: #5A657A; --faint: #8A94A8; --border: #DCE2EE; --rule: #0F1B33;
+  --qwen: #0B86A6; --llama: #2E5BD8; --best: #C8F25A; --likely: #B4590F;
+  --font: "Inter", sans-serif; --head: "Inter Tight", "Inter", sans-serif; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #E4E8F0; color: var(--text); font: 11px/1.5 var(--font); -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { width: 210mm; height: 297mm; margin: 0 auto 10mm; background: #fff; padding: 13mm 14mm 12mm; position: relative; overflow: hidden; }
+@media print { html, body { background: #fff; } .page { margin: 0; page-break-after: always; } }
+.top { display: flex; justify-content: space-between; padding-bottom: 8px; border-bottom: 2px solid var(--rule); }
+.brand { display: flex; align-items: center; gap: 8px; font: 700 15px var(--head); }
+.brand i { display: inline-grid; grid-template-columns: repeat(4, 4px); align-items: end; height: 16px; }
+.brand i b { display: block; width: 4px; background: #9AA3AE; }
+.brand i b:nth-child(1) { height: 4px; } .brand i b:nth-child(2) { height: 8px; } .brand i b:nth-child(3) { height: 12px; } .brand i b:nth-child(4) { height: 16px; background: #C8F25A; }
+.meta { text-align: right; color: var(--muted); font-size: 10px; } .meta b { color: var(--text); font-weight: 600; }
+.mock { position: absolute; top: 5mm; right: 14mm; background: var(--best); font: 700 9px var(--font); letter-spacing: .08em; padding: 3px 7px; border-radius: 4px; }
+h1 { font: 700 20px var(--head); margin: 14px 0 2px; letter-spacing: -.02em; }
+.lead { padding: 8px 12px; background: var(--paper); border-radius: 8px; margin: 6px 0 4px; }
+.lead b { display: block; font: 700 12px var(--head); }
+.lead span { color: var(--muted); }
+section.q { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); break-inside: avoid; }
+section.q h3 { font: 700 13px var(--head); margin: 0 0 5px; }
+table { width: 100%; border-collapse: collapse; font-size: 10px; margin: 2px 0 7px; }
+th { text-align: left; font-weight: 600; color: var(--muted); padding: 4px 5px; border-bottom: 1.3px solid var(--rule); }
+td { padding: 4px 5px; border-bottom: 1px solid var(--border); }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+.read { font-size: 11.2px; line-height: 1.6; margin: 0; padding-left: 11px; border-left: 3px solid var(--rule); }
+.read + .read { margin-top: 5px; }
+sup.r { font: 700 7.5px var(--font); color: #1E3F8A; }
+.likely { background: #FFEBD8; border-radius: 2px; } sup.d { font: 700 7.5px var(--font); color: var(--likely); }
+.split { display: flex; height: 16px; border-radius: 3px; overflow: hidden; margin: 3px 0 6px; }
+.split div { color: #fff; font: 600 8.5px var(--font); display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
+.hist { display: grid; grid-template-columns: 78px 1fr; gap: 4px 8px; align-items: end; margin: 2px 0 8px; font-size: 10px; }
+.bars { display: flex; align-items: flex-end; gap: 2px; height: 30px; border-bottom: 1px solid var(--border); }
+.bars i { flex: 1; background: var(--c); border-radius: 1px 1px 0 0; }
+.axis { grid-column: 2; display: flex; justify-content: space-between; color: var(--faint); font-size: 9px; }
+.foot { position: absolute; left: 14mm; right: 14mm; bottom: 8mm; display: flex; justify-content: space-between; color: var(--faint); font-size: 9px; border-top: 1px solid var(--border); padding-top: 6px; }
+.illu { font-size: 9px; color: var(--faint); margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<section class="page">
+  <span class="mock">MOCKUP</span>
+  <div class="top"><div class="brand"><i><b></b><b></b><b></b><b></b></i>AgentMeter</div>
+    <div class="meta"><b>Session report</b> · Qwen2.5 3B vs Llama 3.2 3B<br>job_20261021_053653</div></div>
+
+  <h1>Performance</h1>
+  <div class="lead"><b>The two models are about equally fast.</b><span>9% apart, a gap that could be chance (p = 0.168).</span></div>
+
+  <section class="q">
+    <h3>How fast is each model?</h3>
+    <div class="hist">
+      <span><i class="sw" style="background:var(--qwen)"></i>Qwen2.5 3B</span>
+      <div class="bars" style="--c:var(--qwen)"><i style="height:8%"></i><i style="height:40%"></i><i style="height:100%"></i><i style="height:75%"></i><i style="height:30%"></i><i style="height:8%"></i><i style="height:0"></i><i style="height:0"></i><i style="height:8%"></i><i style="height:0"></i><i style="height:8%"></i></div>
+      <span><i class="sw" style="background:var(--llama)"></i>Llama 3.2 3B</span>
+      <div class="bars" style="--c:var(--llama)"><i style="height:20%"></i><i style="height:85%"></i><i style="height:100%"></i><i style="height:50%"></i><i style="height:12%"></i><i style="height:0"></i><i style="height:0"></i><i style="height:0"></i><i style="height:0"></i><i style="height:0"></i><i style="height:0"></i></div>
+      <div class="axis"><span>8 s</span><span>12 s</span><span>16 s</span><span>20 s</span></div>
+    </div>
+    <table><thead><tr><th>Model</th><th class="n">Typical (p50)</th><th class="n">Slowest 5% (p95)</th><th class="n">Slowest 1% (p99)</th><th class="n">Mean</th><th class="n">Mean without first 5</th></tr></thead>
+      <tbody><tr><td><i class="sw" style="background:var(--qwen)"></i>Qwen2.5 3B</td><td class="n">10.41 s†</td><td class="n">12.99 s</td><td class="n">19.80 s†</td><td class="n">10.80 s</td><td class="n">10.52 s†</td></tr>
+      <tr><td><i class="sw" style="background:var(--llama)"></i>Llama 3.2 3B</td><td class="n">9.81 s†</td><td class="n">10.86 s</td><td class="n">11.20 s†</td><td class="n">9.89 s</td><td class="n">9.85 s†</td></tr></tbody></table>
+    <p class="read">On a typical flow the two models are barely half a second apart, 10.41 s against 9.81 s. The difference sits in the tail. Qwen2.5 3B had a few flows that ran far longer than the rest, one close to 20 seconds, and those pull its slowest 5% out to 12.99 s. Llama 3.2 3B never went past 11.2 s. For a batch job that runs overnight, the extra seconds disappear into the total. For an analyst waiting on one verdict at a time, the long Qwen flows are the ones that would be noticed.</p>
+  </section>
+
+  <section class="q">
+    <h3>How many flows can one GPU handle?</h3>
+    <table><thead><tr><th>Model</th><th class="n">Flows per minute</th><th class="n">GPU busy at 60 flows/min</th><th class="n">Keeps up</th><th class="n">Queue after one hour</th></tr></thead>
+      <tbody><tr><td><i class="sw" style="background:var(--qwen)"></i>Qwen2.5 3B</td><td class="n">5.6</td><td class="n">100%</td><td class="n">no</td><td class="n">3,270 flows†</td></tr>
+      <tr><td><i class="sw" style="background:var(--llama)"></i>Llama 3.2 3B</td><td class="n">6.1</td><td class="n">100%</td><td class="n">no</td><td class="n">3,240 flows†</td></tr></tbody></table>
+    <p class="read">A single RTX 3090 clears about six flows a minute with either model. The simulation sends it sixty, the default load in the app, so the queue only ever grows, and after an hour more than three thousand flows are still waiting. At that volume the choice of model hardly matters. What matters is the number of GPUs, about ten for either one, or cutting the volume first, for example by letting an intrusion detection system pass on only the flows it flags.</p>
+  </section>
+
+  <section class="q">
+    <h3>How much does the first flow cost?</h3>
+    <table><thead><tr><th>Model</th><th class="n">Load time</th><th class="n">First flow</th><th class="n">Median of the rest</th><th class="n">Extra on the first flow</th></tr></thead>
+      <tbody><tr><td><i class="sw" style="background:var(--qwen)"></i>Qwen2.5 3B</td><td class="n">32.0 s†</td><td class="n">36.0 s†</td><td class="n">9.0 s†</td><td class="n">27.0 s†</td></tr>
+      <tr><td><i class="sw" style="background:var(--llama)"></i>Llama 3.2 3B</td><td class="n">22.0 s†</td><td class="n">9.8 s†</td><td class="n">8.3 s†</td><td class="n">1.4 s†</td></tr></tbody></table>
+    <p class="read">Qwen2.5 3B took 36 seconds on its first flow, four times a normal one, while Llama 3.2 3B started at nearly full speed. It is a one-off cost, paid every time the model is loaded. A service that keeps the model in memory pays it once and never again. One that loads the model on demand, or restarts often, pays it on every start, and for Qwen that is half a minute of waiting before the first answer.</p>
+  </section>
+
+  <div class="foot"><span>AgentMeter measures how efficiently LLMs run. It is not a threat detector.</span><span>Page 10 of 20</span></div>
+</section>
+
+<section class="page">
+  <span class="mock">MOCKUP</span>
+  <div class="top"><div class="brand"><i><b></b><b></b><b></b><b></b></i>AgentMeter</div>
+    <div class="meta"><b>Session report</b> · Qwen2.5 3B vs Llama 3.2 3B<br>job_20261021_053653</div></div>
+
+  <h1>Agents</h1>
+  <div class="lead"><b>Reason is the heaviest step for both models.</b><span>It writes the longest answer of the four agents.</span></div>
+
+  <section class="q">
+    <h3>Where does the time go?</h3>
+    <table><thead><tr><th>Model</th><th>Split of one flow</th></tr></thead><tbody>
+      <tr><td style="width:24%"><i class="sw" style="background:var(--qwen)"></i>Qwen2.5 3B</td><td><div class="split"><div style="width:30.2%;background:#1E4BB8">perceive 3.26 s</div><div style="width:37.6%;background:#4F7FE0">reason 4.06 s</div><div style="width:2.5%;background:#A2470D"></div><div style="width:29.7%;background:#E8742A">act 3.20 s</div></div></td></tr>
+      <tr><td><i class="sw" style="background:var(--llama)"></i>Llama 3.2 3B</td><td><div class="split"><div style="width:31%;background:#1E4BB8">perceive 3.07 s†</div><div style="width:37.5%;background:#4F7FE0">reason 3.71 s†</div><div style="width:2.5%;background:#A2470D"></div><div style="width:29%;background:#E8742A">act 2.86 s†</div></div></td></tr></tbody></table>
+    <p class="read">Both pipelines spend their time the same way, which says the split comes from the job each agent is given rather than from the model. Reason, the one agent asked to explain its thinking, takes close to 40% of every flow. Decide only picks a label and uses a quarter of a second. Any work to speed up the pipeline should start with Reason, because a second saved there is worth more than everything Decide does.</p>
+  </section>
+
+  <section class="q">
+    <h3>Are the token budgets right?</h3>
+    <table><thead><tr><th>Agent</th><th class="n">Budget</th><th class="n">Qwen2.5 3B writes (median, p95)</th><th class="n">Llama 3.2 3B writes (median, p95)</th><th class="n">Hit the budget</th></tr></thead>
+      <tbody><tr><td>Perceive</td><td class="n">160</td><td class="n">118, 151†</td><td class="n">104, 139†</td><td class="n">2 flows†</td></tr>
+      <tr><td>Reason</td><td class="n">200</td><td class="n">174, 200†</td><td class="n">158, 196†</td><td class="n">5 flows†</td></tr>
+      <tr><td>Decide</td><td class="n">12</td><td class="n">3, 4†</td><td class="n">3, 3†</td><td class="n">0</td></tr>
+      <tr><td>Act</td><td class="n">160</td><td class="n">121, 149†</td><td class="n">113, 140†</td><td class="n">0</td></tr></tbody></table>
+    <p class="read">Reason is running close to its limit. Five times in this session an answer reached the 200-token budget and was cut off, all of them from Qwen2.5 3B, which tends to write about 10% more than Llama in this step. That is also where its slowest flows came from. A larger Reason budget would let those answers finish, at the price of longer flows. A smaller one would save time and cut off more answers. Decide, by contrast, uses a quarter of its 12-token budget and could be cut without effect.</p>
+  </section>
+
+  <h1 style="margin-top:16px">Cost and energy</h1>
+  <section class="q" style="border-top:0">
+    <h3>What does it cost per 1,000 flows?</h3>
+    <table><thead><tr><th>Model</th><th class="n">Cost / 1,000 flows</th><th class="n">Energy / flow</th><th class="n">Net of idle</th><th class="n">Mean power</th></tr></thead>
+      <tbody><tr><td><i class="sw" style="background:var(--qwen)"></i>Qwen2.5 3B</td><td class="n">$0.77</td><td class="n">0.51 Wh</td><td class="n">0.39 Wh†</td><td class="n">170 W†</td></tr>
+      <tr><td><i class="sw" style="background:var(--llama)"></i>Llama 3.2 3B</td><td class="n">$0.70</td><td class="n">0.50 Wh</td><td class="n">0.38 Wh†</td><td class="n">170 W†</td></tr></tbody></table>
+    <p class="read">At the $0.256 an hour paid for this GPU, a thousand flows cost 77 cents on Qwen2.5 3B and 70 cents on Llama 3.2 3B. The gap comes entirely from speed, since the GPU is billed by the hour whatever it is doing. The energy figures point the same way. Both models drew about the same power, so the one that finishes sooner uses slightly less per flow. At ten thousand flows a day the difference is around seventy cents, small next to the cost of keeping enough GPUs to handle that volume in the first place.</p>
+  </section>
+
+  <p class="illu">† Illustrative in this mockup. The front values (latency, p95, memory, tokens, cost, energy) are the real RTX 3090 session. In the real report every number comes from the session.</p>
+  <div class="foot"><span>AgentMeter measures how efficiently LLMs run. It is not a threat detector.</span><span>Page 11 of 20</span></div>
+</section>
+</body>
+</html>

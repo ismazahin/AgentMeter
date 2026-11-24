@@ -434,7 +434,7 @@ class Report:
         """The session's caveats without the retired locked-study (NVIDIA L4) comparison."""
         out = []
         for c in (self.rel or {}).get("caveats") or self.s.get("caveats") or []:
-            c = re.sub(r",?\s*it does not use the fixed L4 targets \(the absolute SAW does\)", "", c)
+            c = re.sub(r"[,;]?\s*it does not use the fixed L4 targets \(the absolute SAW does\)", "", c)
             c = re.sub(r"\s*\([^()]*\bL4\b[^()]*\)", "", c)
             if not self._OLD_STUDY.search(c):
                 out.append(c)

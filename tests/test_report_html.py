@@ -53,7 +53,7 @@ def test_every_part_is_there(rendered, name):
 @pytest.mark.parametrize("name", NAMES)
 def test_no_leaked_placeholders_or_banned_punctuation(rendered, name):
     t = text_of(rendered[name])
-    for bad in (r"\bNone\b", r"\bnan\b", r"\bNaN\b", r"undefined", "—", ";"):
+    for bad in (r"\bNone\b", r"\bnan\b", r"\bNaN\b", r"undefined", "—", ";", r"\bL4\b", r"locked", r"NON-VALIDATED"):
         assert not re.search(bad, t), (bad, re.search(r".{60}" + bad + r".{40}", t))
 
 

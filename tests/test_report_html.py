@@ -39,10 +39,14 @@ def rendered():
 @pytest.mark.parametrize("name", NAMES)
 def test_every_part_is_there(rendered, name):
     t = text_of(rendered[name])
-    for part in ("In plain words", "Every measure, one chart each", "How each number is measured", "How a winner is decided",
+    for part in ("In plain words", "Setup", "Every measure, one chart each", "What to do next",
                  "Overview", "Ranking", "Output reliability", "Performance", "Agents", "Cost and energy",
-                 "Recommendations", "Data", "Methodology", "Words used in this report"):
+                 "Recommendations"):
         assert part in t, part
+    # general explanation of the system is not in the report (2026-11-24, the owner's cut)
+    for gone in ("How each number is measured", "How a winner is decided", "How the efficiency score works",
+                 "Methodology", "Words used in this report", "How to read the charts"):
+        assert gone not in t, gone
     assert f"job_{name}" in t
 
 

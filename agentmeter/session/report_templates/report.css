@@ -59,6 +59,9 @@ h2 { font-weight: 700; font-size: 11.5pt; margin: 12px 0 2px; }
 .cav > div.warn { border-left-color: var(--warn); }
 .cav b { display: block; color: var(--text); font-size: 8.2pt; }
 
+.key { margin: 9px 0 0; font-size: 7.9pt; color: var(--muted); }
+.key .tag { margin: 0 2px 0 0; }
+.setup { margin: 0; font-size: 8.2pt; }
 /* page 2 charts */
 .legend { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 6px 9px; background: var(--paper); border-radius: 6px; margin-bottom: 8px; font-weight: 600; }
 .legend.col { flex-direction: column; align-items: flex-start; gap: 4px; }

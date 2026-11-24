@@ -155,7 +155,7 @@ class Report:
         return f'<table class="{cls}"><thead><tr>{th}</tr></thead><tbody>{body}</tbody></table>'
 
     def card(self, q: str, body: str, *, intro: str = "", answer: Optional[str] = None, note: str = "",
-             key: Optional[str] = None, keep: bool = True) -> str:
+             key: Optional[str] = None, keep: bool = True, keep_note: bool = False) -> str:
         """One web card: its question, the web's one-line answer, a short intro, then the content."""
         a = self.answers.get(key or q) if answer is None else answer
         if not body and not a and not intro:
@@ -163,7 +163,7 @@ class Report:
         return (f'<section class="q{" keep" if keep else ""}"><h3>{e(q)}</h3>'
                 + (f'<p class="ans">{e(self.plain(a))}</p>' if a else "")
                 + (f'<p class="intro">{e(self.plain(intro))}</p>' if intro else "")
-                + body + (f'<p class="note">{e(self.plain(note))}</p>' if note else "") + "</section>")
+                + body + (f'<p class="note">{e(self.plain(note))}</p>' if note and keep_note else "") + "</section>")
 
     def lead(self, tab: str) -> str:
         sm = self.summ.get(tab)
@@ -175,8 +175,7 @@ class Report:
         cards = [c for c in cards if c]
         if not cards:
             return ""
-        return (f'<div class="part"><p class="kicker">Session tab</p><h2 class="ph">{e(title)}</h2>'
-                f'<p class="pwhat">{e(what)}</p>' + (self.lead(tab) if tab else "") + "".join(cards) + "</div>")
+        return (f'<div class="part"><h2 class="ph">{e(title)}</h2>' + (self.lead(tab) if tab else "") + "".join(cards) + "</div>")
 
     # ---- page furniture
     def head(self, first: bool = False) -> str:
@@ -451,14 +450,35 @@ class Report:
                f"{len((self.res.get('agents') or {}).get('per_model', [{}])[0].get('agents') or []) or 4}-agent triage on the same "
                f"{fint(self.s.get('n_flows'))} network flows, one model at a time on the same "
                f"{'GPU' if self.real else 'machine'}. A difference only counts when it holds up statistically.")
-        how = ('<p class="kicker">How to read the charts</p><div class="howto">'
-               '<div><span class="ex"><i style="width:46px;background:#0B86A6"></i><i style="width:30px;background:#2E5BD8"></i></span>'
-               '<b>Shorter bar wins</b>Each chart says if lower or higher is better. Most measures are costs, so the shorter bar is the better result.</div>'
-               f'<div><span class="tag best">Best</span><b>The gap is real</b>One model was more than {self.tie_pct()} better and, where the session tests it, the gap passed the statistical test.</div>'
-               f'<div><span class="tag tie">Tie</span> <span class="tag nt">Not tested</span><b>The gap may be noise</b>A Tie is within {self.tie_pct()} or could be chance. An outlined tag marks a number shown for context only.</div></div>')
+        key = (f'<p class="key"><span class="tag best">Best</span> a gap that passed the session\'s test (over {self.tie_pct()} and p below '
+               f'{self.alpha():g}). <span class="tag tie">Tie</span> within {self.tie_pct()} or could be chance. '
+               '<span class="tag nt">Not tested</span> shown for context.</p>')
         return (f'<section class="page front">{self.head(True)}{demo}<p class="kicker">Verdict</p>'
                 f'<h1>{e(self.headline())}</h1><p class="sub">{e(sub)}</p>'
-                f'<p class="kicker">In plain words</p>{self.takeaways()}{self.picks()}{how}{self.caveats()}</section>')
+                f'<p class="kicker">In plain words</p>{self.takeaways()}{self.picks()}{key}{self.setup()}{self.caveats()}</section>')
+
+    def alpha(self) -> float:
+        return _num(((self.rel or {}).get("thresholds") or {}).get("significance_alpha")) or 0.05
+
+    def setup(self) -> str:
+        """This session's own setup: what was held equal (the only method text the report keeps)."""
+        env, s = self.env, self.s
+        sid = self.res.get("session_identity") or {}
+        sha = (sid.get("prepared_set_sha256") or "")[:12]
+        gpu = (f"{env.get('gpu_name')}, driver {env.get('driver_version') or 'unknown'}, CUDA {env.get('cuda_runtime_version') or 'unknown'}, 4-bit NF4"
+               if self.real else "Demo machine, no GPU, no quantisation")
+        caps = {}
+        for m in (self.res.get("agents") or {}).get("per_model") or []:
+            for a in m.get("agents") or []:
+                cap = (a.get("failures") or {}).get("token_cap")
+                if cap:
+                    caps[a["agent"]] = cap
+        cap_t = (", token limits " + ", ".join(f"{a} {fint(c)}" for a, c in caps.items())) if caps else ""
+        src = self.input_meta.get("source_file") or str(s.get("source_type") or "").upper()
+        return ('<p class="kicker">Setup</p><p class="setup">'
+                + e(f"{gpu}. {fint(s.get('n_flows'))} flows from {src}" + (f", prepared set {sha}" if sha else "")
+                    + f"{cap_t}. Every model answered the same flows with the same settings and agent pipeline, one model at a time.")
+                + "</p>")
 
     def tie_pct(self) -> str:
         t = _num(((self.rel or {}).get("thresholds") or {}).get("efficiency_tie_rel"))
@@ -472,9 +492,7 @@ class Report:
                           f'{m["tag"]}<p class="means">{e(m["means"])}</p></div>')
         legend = "".join(f'<span>{self.swatch(m)}{e(self.nick(m))}</span>' for m in self.models)
         return (f'<section class="page">{self.head()}<h2>Every measure, one chart each</h2>'
-                f'<p class="h2p">Each chart compares {"the models" if len(self.models) > 1 else "the model with the score target"} on one measure. '
-                f'The line under it says what the result means in practice.</p>'
-                f'<div class="legend">{legend}<span class="note">Tags explained on page 1</span></div>'
+                f'<div class="legend">{legend}<span class="note">Tags as on page 1</span></div>'
                 f'<div class="grid">{"".join(charts)}</div>{self.together() if len(self.models) <= 2 else ""}</section>')
 
     def together(self) -> str:
@@ -501,51 +519,26 @@ class Report:
             pts = [dict(label=self.nick(m), x=costs[m], y=_num(self.e2e(m).get("mean_latency_s")), color=self.color[m]) for m in self.models]
             svg = ch.scatter(pts, x_label="Cost per 1,000 flows", y_label="Latency per flow", x_fmt=lambda v: f"${v:.2f}",
                              y_fmt=ftime, good_corner="fast and cheap", labels=len(self.models) <= 2)
-            title, expl = "Speed against cost", "Each dot is one model. The best place to be is the lower left, which is fast and cheap."
+            title, expl = "Speed against cost", "Lower left is fast and cheap."
         elif len(self.models) > 1 and ef.get("points"):
             pts = [dict(label=self.nick(p["model"]), x=_num(p["x"]), y=_num(p["y"]), color=self.color.get(p["model"], "#6B7690"))
                    for p in ef["points"]]
             svg = ch.scatter(pts, x_label="Latency per flow", y_label=ef.get("y_label") or "Tokens per flow", x_fmt=ftime,
                              y_fmt=lambda v: f"{v:,.0f}", good_corner="fast and lean", labels=len(self.models) <= 2)
-            title, expl = "Speed against token use", "Each dot is one model. Cost was not measured, so tokens stand in for it. Lower left is best."
+            title, expl = "Speed against token use", "Cost was not measured, so tokens stand in for it. Lower left is best."
         else:
             svg, title, expl = "", "", ""
-        glance = self.glance_table()
-        top = ""
-        if svg and len(self.models) > 2:
-            legend = "".join(f'<span>{self.swatch(m)}{e(self.nick(m))}</span>' for m in self.models)
-            top = (f'<h2>{e(title)}</h2><p class="h2p">{e(expl)}</p><div class="two"><div class="panel">{svg}</div>'
-                   f'<div class="panel"><div class="legend col">{legend}</div><p class="explain">{e(self.plain(self.answers.get("Which models are never beaten on two costs at once?") or ""))}</p></div></div>'
-                   f'<h2>Each model at a glance</h2><div class="panel">{glance}</div>')
-        elif svg:
-            top = (f'<h2>{e(title)}</h2><p class="h2p">{e(expl)}</p><div class="two"><div class="panel">{svg}'
-                   f'<p class="explain">{e(self.plain(self.answers.get("Which models are never beaten on two costs at once?") or ""))}</p></div>'
-                   f'<div class="panel">{glance}</div></div>')
+        frontier = self.plain(self.answers.get("Which models are never beaten on two costs at once?") or "")
+        nxt = f'<h2>What to do next</h2>{self.next_steps()}'
+        if svg:
+            legend = ("" if len(self.models) <= 2 else
+                      '<div class="legend col">' + "".join(f'<span>{self.swatch(m)}{e(self.nick(m))}</span>' for m in self.models) + "</div>")
+            top = (f'<h2>{e(title)}</h2><div class="two"><div class="panel">{svg}</div>'
+                   f'<div>{legend}<p class="explain">{e(expl)} {e(frontier)}</p>{nxt}</div></div>')
         else:
-            top = f'<h2>Each model at a glance</h2><div class="panel">{glance}</div>'
+            top = nxt
         many = len(self.models) > 2
-        return (f'<section class="page">{self.head()}{self.together() if many else ""}{top}{self.agent_split()}'
-                + ("" if many else f'<h2>Words used in this report</h2>{self.glossary()}') + "</section>")
-
-    def glance_table(self) -> str:
-        rows = []
-        dec = {m.get("metric"): m.get("winner") for m in (self.rel or {}).get("metrics") or []}
-
-        def b(v, metric, m):
-            return f"<b>{v}</b>" if dec.get(metric) == m else v
-        for m in self.models:
-            x = self.e2e(m)
-            rows.append([self.mname(m), b(ftime(x.get("mean_latency_s")), "mean_latency_s", m), ftime(x.get("p95_latency_s")),
-                         b(fmb(x.get("mean_peak_vram_mb")), "mean_peak_vram_mb", m), fmb(self.row("memory", m).get("total_peak_mb")),
-                         b(fint(x.get("mean_tokens_per_flow")), "mean_tokens_per_flow", m),
-                         fusd(self.row("cost_energy", m).get("cost_per_1k_flows_usd")), fwh(self.row("cost_energy", m).get("wh_per_flow")),
-                         fpct(self.row("output_reliability", m).get("valid_rate")), fnum(self.saw(m).get("composite_100"), 2)])
-        # transpose: measures down, models across (reads like the mockup)
-        heads = ["Latency per flow", "Slowest 5% (p95)", "Working memory", "Total peak memory", "Tokens per flow",
-                 "Cost per 1,000 flows", "Energy per flow", "Usable answers", "Efficiency score"]
-        trows = [[h] + [r[i + 1] for r in rows] for i, h in enumerate(heads)]
-        t = self.table([""] + [self.mname(m) for m in self.models], trows, num=tuple(range(1, len(self.models) + 1)), cls="glance")
-        return t + '<p class="explain">Bold marks a result that passed the session\'s test. The rest are within noise, not tested or not measured.</p>'
+        return f'<section class="page">{self.head()}{self.together() if many else ""}{top}{self.agent_split()}</section>'
 
     def agent_split(self) -> str:
         ag = (self.res.get("agents") or {}).get("per_model") or []
@@ -566,66 +559,7 @@ class Report:
                                                     if o.get("handoff_tokens_per_flow") is not None else "") + "</div>")
         keys = "".join(f'<span><i class="sw" style="background:{ch.AGENT[j % len(ch.AGENT)]}"></i>{e(a["agent"].capitalize())}</span>'
                        for j, a in enumerate(ag[0].get("agents") or []))
-        return ('<h2>Where the time goes, agent by agent</h2><p class="h2p">Each flow passes through the agents in turn. '
-                f'Each bar splits the mean time per flow between them.</p><div class="panel">{"".join(blocks)}<div class="akeys">{keys}</div></div>')
-
-    def glossary(self) -> str:
-        g = [("Flow", "one network connection the agents read and judge."), ("p95", "the time 95% of flows finished within."),
-             ("Working memory", "GPU memory used while answering, beyond the weights."),
-             ("4-bit NF4", "a way to shrink a model so it uses less memory."),
-             ("Efficiency score", "one 0 to 100 number mixing speed, memory and tokens (SAW)."),
-             ("Significant", "unlikely to be chance, by a statistical test."),
-             ("Hand-off tokens", "an earlier agent's answer sent again inside a later prompt."),
-             ("Tie", f"a gap within {self.tie_pct()}, or one that could be chance.")]
-        return '<dl class="gloss">' + "".join(f"<div><dt>{e(a)}</dt><dd>{e(b)}</dd></div>" for a, b in g) + "</dl>"
-
-    def page4(self) -> str:
-        th = (self.rel or {}).get("thresholds") or {}
-        w = ((self.res.get("phase8_efficiency_only") or {}).get("weights")) or (self.res.get("rank_stability") or {}).get("weights") or {}
-        tg = (self.I.call("criteriaProfile", default={}) or {}).get("targets") or {}
-        wl = self.andlist([f"{k.replace('vram', 'memory')} {float(v):.2f}" for k, v in w.items() if k != "accuracy" and _num(v)])
-        alpha = _num(th.get("significance_alpha")) or 0.05
-        mt = self.table(["Measure", "How it is measured", "Why it matters"], [
-            ["<b>Latency per flow</b>", "Clock time from a flow entering the first agent to the last agent's answer. Mean, median, p95 and p99 over all flows.", "How long someone waits for each flow to be handled."],
-            ["<b>Working memory</b>", "PyTorch's peak memory counter, reset before each agent step and read after it.", "Room left for longer inputs or more agents on one GPU."],
-            ["<b>Total peak memory</b>", "Working memory plus the loaded model weights.", "The size of GPU you need to rent or buy."],
-            ["<b>Tokens per flow</b>", "Input and output tokens of all agents, counted by each model's own tokenizer. Hand-offs count too.", "More tokens means more time, and more money on paid APIs."],
-            ["<b>Energy per flow</b>", "GPU board power sampled through the run, added up over each model's time and divided by its flows.", "The power bill, and the carbon behind it."],
-            ["<b>Cost per 1,000 flows</b>", "Mean latency × the GPU's hourly price ÷ 3,600 × 1,000.", "What a real workload would cost on this GPU."],
-            ["<b>Usable answers</b>", "Share of flows whose final answer had the required format. A validity check, never part of the score.", "Fast but unusable answers are not efficient."]], cls="mtab")
-        lat = self.metric("mean_latency_s")
-        latp = _num((lat or {}).get("p_value"))
-        ex = ""
-        if latp is not None:
-            one_in = round(1 / latp) if latp > 0 else None
-            ex = (f" Latency here got p = {latp:.3f}" + (f", so a gap this size would turn up by chance about 1 time in {one_in}" if one_in and latp >= alpha else "")
-                  + (". That is too often to call a winner." if latp >= alpha else ", below the cut-off, so the gap counts."))
-        win = (f'<div class="two2"><p class="explain">A model wins a measure only when it is more than {self.tie_pct()} better and, for latency and memory, '
-               f'the gap passes the Kruskal-Wallis test with p below {alpha:g}. The test asks if one model\'s flows really ran differently, '
-               f'or if the gap could come from normal variation between flows.</p><p class="explain">{e(ex.strip())} '
-               f'{e(self.plain(self.answers.get("How many flows are needed to tell models apart?") or ""))}</p></div>') if self.rel else \
-            '<p class="explain">One model was benchmarked, so no winner is decided. Its numbers are compared with the score targets instead.</p>'
-        steps = (f'<div class="steps"><div><span class="sn">1</span><b>Scale each measure</b>Each value is compared with a fixed target, '
-                 f'{ftime(tg.get("latency_s"))} latency, {fmb(tg.get("vram_mb"))} memory and {fint(tg.get("tokens_total"))} tokens per flow. '
-                 'Meeting the target scores 1, and twice the target scores 0.5.</div>'
-                 f'<div><span class="sn">2</span><b>Weigh them</b>{e(wl.capitalize() if wl else "The stored weights apply")}. '
-                 'The app can re-rank with other weights as a view only.</div>'
-                 '<div><span class="sn">3</span><b>Add up</b>The weighted parts are added and multiplied by 100. Answer accuracy is never part '
-                 'of the score, and a stored score never changes later.</div></div>')
-        sid = self.res.get("session_identity") or {}
-        sha = (sid.get("prepared_set_sha256") or "")[:12]
-        held = (f"{'All models' if len(self.models) > 1 else 'The model'} answered the exact same flows"
-                + (f", checked by a fingerprint of the prepared files (SHA-256 {sha}…)" if sha else "")
-                + f". They ran on the same {'GPU' if self.real else 'machine'} with the same settings, "
-                + ("4-bit NF4" if self.real else "no quantisation (demo)")
-                + ", the same token limits and the same agent pipeline. So any difference belongs to the model, not the setup.")
-        return (f'<section class="page{" tight" if len(self.models) > 2 else ""}">{self.head()}<h2>How each number is measured</h2>'
-                '<p class="h2p">Every number in this report was recorded during the run. Hand-off tokens are an estimate and are marked as one.</p>'
-                f'{mt}<h2>How a winner is decided</h2>{win}<h2>How the efficiency score works</h2>'
-                '<p class="h2p">The score turns three measures into one number out of 100, so models can be ranked.</p>'
-                f'{steps}<h2>What was held equal</h2><p class="explain">{e(held)}</p>'
-                f'<h2>What to do next</h2>{self.next_steps()}'
-                + (f'<h2>Words used in this report</h2>{self.glossary()}' if len(self.models) > 2 else "") + "</section>")
+        return f'<h2>Where the time goes, agent by agent</h2><div class="panel">{"".join(blocks)}<div class="akeys">{keys}</div></div>'
 
     def next_steps(self) -> str:
         from . import brief
@@ -662,6 +596,9 @@ class Report:
         kv.append(["Measured on", e(f"{env.get('gpu_name')}, driver {env.get('driver_version') or '–'}, CUDA {env.get('cuda_runtime_version') or '–'}, "
                                      f"torch {env.get('torch') or '–'}, transformers {env.get('transformers') or '–'}" if self.real
                                      else "Demo (mock provider), no GPU")])
+        sid = self.res.get("session_identity") or {}
+        if sid.get("prepared_set_sha256"):
+            kv.append(["Prepared set fingerprint (SHA-256)", f'<span class="mono">{e(sid["prepared_set_sha256"])}</span>'])
         kv.append(["Models", e(", ".join(m["model"] + ("" if m.get("canonical", True) else " (extra model, not in the validated baseline)") for m in self.pm))])
         inp = self.card("What went into this run?", self.table(["", ""], kv, cls="kv"), answer="")
         rules = self.audit.get("rules") or []
@@ -677,34 +614,10 @@ class Report:
         kf = self.I.call("keyFindings", default=[]) or []
         find = self.card("Key findings", '<ul class="find">' + "".join(f"<li>{e(self.plain(x.get('text')))}</li>" for x in kf) + "</ul>",
                          answer="", note="Each line restates one stored number of this session.") if kf else ""
-        sc = self.I.call("scorecard", default={}) or {}
-        score = ""
-        if sc.get("dims") and len(self.models) > 1:
-            rows = []
-            for d in sc["dims"]:
-                cells = []
-                for c in d.get("cells") or []:
-                    v = c.get("value")
-                    t = self.fmt_unit(v, d.get("unit"))
-                    g = c.get("grade")
-                    cells.append(f'<span class="g-{e(g)}">{e(t)}</span>' + (f' <small>+{fpct(c.get("gap"), 0)}</small>' if g not in ("best", None) and c.get("gap") else ""))
-                rows.append([e(d.get("label"))] + cells)
-            score = self.card("How do the models compare, criterion by criterion?", self.table(["Measure"] + [self.mname(m) for m in sc.get("models") or []], rows),
-                              note=f"Best is bold. A value within {int(round((sc.get('band') or 0.05) * 100))}% of the best counts as close.")
-        cp = self.I.call("criteriaProfile", default={}) or {}
-        prof = ""
-        if cp.get("rows"):
-            crit = cp.get("criteria") or []
-            rows = [[self.mname(r["model"])] + [fnum((r.get("scores") or {}).get(c), 2) if not (cp.get("missing") or {}).get(c) else "no data" for c in crit]
-                    for r in cp["rows"]]
-            prof = self.card("How does each model score on each criterion?", self.table(["Model"] + [e(c.replace("vram", "memory").capitalize()) for c in crit], rows, num=tuple(range(1, len(crit) + 1))),
-                             intro="Each criterion scaled from 0 to 1 against its target, where 1 meets the target.")
         trust = self.card("Can these results be trusted?", self.gpu_health_html(), answer=None)
-        cav = list((self.rel or {}).get("caveats") or self.s.get("caveats") or [])
-        good = self.card("Good to know", '<ul class="find">' + "".join(f"<li>{e(self.plain(c))}</li>" for c in cav) + "</ul>", answer="") if cav else ""
         verdict = self.card("The session's full verdict", f'<p class="explain">{e(self.plain(self.rel["verdict"]))}</p>', answer="") if self.rel else ""
         return self.part("Overview", "What was run, the headline numbers and how far to trust them.", None,
-                         [inp, verdict, sel, find, score, prof, trust, good])
+                         [inp, verdict, sel, find, trust])
 
     def fmt_unit(self, v, unit):
         return {"s": ftime, "MB": fmb, "tokens": fint, "USD": fusd, "Wh": fwh, "%": fpct}.get(unit, lambda x: fnum(x, 2))(v)
@@ -715,8 +628,7 @@ class Report:
             return f'<p class="small">{e(self.plain(g.get("reason") or "GPU state was not recorded."))}</p>'
         rows = [[self.mname(m.get("model")), e(m.get("status")), fpct(m.get("clock_share"), 0), fnum(m.get("max_temp_c"), 0) + " °C" if m.get("max_temp_c") is not None else "–",
                  fpct(m.get("throttled_share"), 0), e(", ".join(m.get("other_processes") or []) or "none")] for m in g.get("per_model") or []]
-        return self.table(["Model", "GPU state", "Clock (share of max)", "Highest temperature", "Slowed down", "Other processes"], rows, num=(2, 3, 4)) + \
-            (f'<p class="note">{e(self.plain(g.get("rule")))}</p>' if g.get("rule") else "")
+        return self.table(["Model", "GPU state", "Clock (share of max)", "Highest temperature", "Slowed down", "Other processes"], rows, num=(2, 3, 4))
 
     def ranking(self) -> str:
         pm = sorted(self.pm, key=lambda m: -(_num(self.saw(m["model"]).get("composite_100")) or 0))
@@ -727,7 +639,7 @@ class Report:
             rows.append([e(self.nick(r.get("model"))), fnum(r.get("composite_100") or r.get("saw_100"), 2), e(r.get("tier") or "–"), fint(r.get("rank"))])
         scores = self.card("What is each model's efficiency score?", '<div class="bars">' + bars + "</div>",
                            answer=(self.summ.get("ranking") or {}).get("h") or "",
-                           intro="The stored efficiency score, out of 100. It mixes latency, memory and tokens against fixed targets.")
+                           )
         w = p8.get("weights") or {}
         weights = self.card("How much does each criterion count?",
                             self.table(["Criterion", "Weight"], [[e(k.replace("vram", "memory").capitalize()), f"{float(v):.2f}"] for k, v in w.items() if k != "accuracy"], num=(1,)))
@@ -777,8 +689,7 @@ class Report:
             rows = [[self.mname(r["model"]), fpct(r.get("valid_rate")), fint(r.get("unparseable")), fint(r.get("empty")), fint(r.get("truncated")),
                      fpct((r.get("verdict_consistency") or {}).get("rate"))] + ([fpct((r.get("reference_agreement") or {}).get("rate"))] if orl.get("labelled") else [])
                     for r in orl["per_model"]]
-            cards.append(self.card("Did every flow get a usable answer?", self.table(["Model", "Valid answers", "Not a label", "Empty answer", "Hit token budget", "Verdict agrees"] + (["Matches reference label"] if orl.get("labelled") else []), rows, num=tuple(range(1, 7))),
-                                   intro="Each flow should end with one usable answer, a label from the allowed list and no empty reply. A validity check, never a detection score."))
+            cards.append(self.card("Did every flow get a usable answer?", self.table(["Model", "Valid answers", "Not a label", "Empty answer", "Hit token budget", "Verdict agrees"] + (["Matches reference label"] if orl.get("labelled") else []), rows, num=tuple(range(1, 7)))))
         acc = self.res.get("accuracy_stats") or {}
         if acc.get("labelled") and acc.get("per_model"):
             rows = [[self.mname(r["model"]), fpct(r.get("accuracy")), f'{fpct((r.get("ci95") or [None, None])[0], 0)} to {fpct((r.get("ci95") or [None, None])[1], 0)}', f'{fint(r.get("correct"))} of {fint(r.get("n"))}'] for r in acc["per_model"]]
@@ -806,7 +717,7 @@ class Report:
             g = tri.get("gate") or {}
             cards.append(self.card("What would an analyst have to do?", self.table(["Model", "Triage gate"] + pri + (["Missed attacks", "False escalations"] if lab else []), rows, num=tuple(range(2, 2 + len(pri) + 2))),
                                    intro=f"The priority comes from the session's policy table ({pol}), not from the model. Context only, it does not change the score.",
-                                   note=(f"Gate, recommended only if missed attacks are at most {fpct(g.get('max_missed_attack_rate'))}, false escalations at most "
+                                   keep_note=True, note=(f"Gate, recommended only if missed attacks are at most {fpct(g.get('max_missed_attack_rate'))}, false escalations at most "
                                          f"{fpct(g.get('max_false_escalation_rate'))} and valid answers at least {fpct(g.get('min_valid_rate'))}.") if g else ""))
         socs = [(r["model"], self.I.call("socProjection", r, 0.99, 10000, with_res=False)) for r in tri.get("per_model") or []]
         socs = [(m, x) for m, x in socs if x]
@@ -829,17 +740,6 @@ class Report:
 
     def performance(self) -> str:
         cards = []
-        rel = self.rel
-        if rel:
-            rows = []
-            for m in rel.get("metrics") or []:
-                if m.get("metric") == "accuracy":
-                    continue
-                f = {"mean_latency_s": ftime, "mean_peak_vram_mb": fmb}.get(m["metric"], fint)
-                res_t = ("not measured" if not m.get("available") else "tie, " + self.plain(m.get("note") or "") if m.get("winner") == "tie"
-                         else f'{self.nick(m["winner"])}, {fnum(m.get("pct_better"), 1)}% better')
-                rows.append([e(self.plain(m.get("label")).capitalize().replace("vram", "VRAM"))] + [f(m["values"].get(x)) for x in self.models] + [e(res_t)])
-            cards.append(self.card("Which model is faster, and by how much?", self.table(["Measure"] + [self.mname(x) for x in self.models] + ["Result"], rows, num=tuple(range(1, len(self.models) + 1)))))
         pc = self.res.get("per_class") or {}
         if pc.get("table"):
             rows = [[e(self.nick(r.get("model"))), e(r.get("class")), fint(r.get("n")), ftime(r.get("mean_latency_s")), fint(r.get("mean_tokens")), fmb(r.get("mean_vram_mb")), fpct(r.get("accuracy"), 0)] for r in pc["table"]]
@@ -852,21 +752,18 @@ class Report:
                                 edges=h.get("edges") or [], x_fmt=ftime)
             rows = [[self.mname(r["model"]), fint(r.get("n")), ftime(r.get("p50")), ftime(r.get("p95")), ftime(r.get("p99")), ftime(r.get("mean_s")),
                      ftime((r.get("warmup") or {}).get("mean_steady_s")), e(self.plain((r.get("warmup") or {}).get("note") or "–"))] for r in ld["per_model"]]
-            cards.append(self.card("How fast is each model?", svg + self.table(["Model", "Flows", "p50", "p95", "p99", "Mean", "Mean without the first 5", "Warm-up check"], rows, num=(1, 2, 3, 4, 5, 6)),
-                                   intro="How the time per flow spreads. Dashed lines mark the typical flow (p50) and the slowest 5% (p95)."))
+            cards.append(self.card("How fast is each model?", svg + self.table(["Model", "Flows", "p50", "p95", "p99", "Mean", "Mean without the first 5", "Warm-up check"], rows, num=(1, 2, 3, 4, 5, 6))))
         lt = self.res.get("latency_trend") or {}
         if lt.get("per_model"):
             series = [dict(color=self.color.get(m["model"], "#6B7690"), points=[(p[0], p[2]) for p in m.get("points") or []],
                            faint_points=[(p[0], p[1]) for p in m.get("points") or []]) for m in lt["per_model"]]
             svg = ch.lines(series, y_fmt=ftime, x_label="Flow, in run order", y_label="latency")
             rows = [[self.mname(m["model"]), e({"stable": "steady", "slows_down": "slows down", "speeds_up": "speeds up"}.get((m.get("drift") or {}).get("verdict"), "not tested")), fnum((m.get("drift") or {}).get("ratio"), 2) + "×", e(self.plain((m.get("drift") or {}).get("note") or ""))] for m in lt["per_model"]]
-            cards.append(self.card("Does it slow down during the run?", svg + self.table(["Model", "Trend", "Last quarter against first", "Detail"], rows, num=(2,)),
-                                   intro="Each dot is one flow. The line is a rolling median."))
+            cards.append(self.card("Does it slow down during the run?", svg + self.table(["Model", "Trend", "Last quarter against first", "Detail"], rows, num=(2,))))
         cov = (self.res.get("advanced") or {}).get("latency_cov") or []
         if cov:
             rows = [[e(self.nick(r["model"])), ftime(r.get("mean_latency_s")), ftime(r.get("std_latency_s")), fnum(r.get("cov"), 3)] for r in cov]
-            cards.append(self.card("How predictable is it?", self.table(["Model", "Mean", "Spread (SD)", "Coefficient of variation"], rows, num=(1, 2, 3)), answer="",
-                                   intro="The coefficient of variation is the spread divided by the mean. Lower means steadier timings."))
+            cards.append(self.card("How predictable is it?", self.table(["Model", "Mean", "Spread (SD)", "Coefficient of variation"], rows, num=(1, 2, 3)), answer=""))
         pdx = ((self.res.get("advanced") or {}).get("prefill_decode") or {}).get("per_model") or []
         if pdx:
             rows = [[e(self.nick(r["model"])), ftime(r.get("mean_prefill_s")), ftime(r.get("mean_decode_s"))] for r in pdx]
@@ -888,8 +785,7 @@ class Report:
             for m in dr["per_model"]:
                 rows = [[e(f["feature"]), fnum(f.get("rho_latency"), 2), fnum(f.get("rho_tokens"), 2), fp(f.get("p_latency"))] for f in (m.get("features") or [])[:6]]
                 blocks.append(f'<div class="sub"><p class="agm">{self.mname(m["model"])}</p>' + self.table(["Flow feature", "With latency", "With tokens", "p (latency)"], rows, num=(1, 2, 3)) + "</div>")
-            cards.append(self.card("Which flows are slow, and why?", '<div class="cols">' + "".join(blocks) + "</div>",
-                                   intro="Which flow features go together with a longer time or more tokens (Spearman correlation, +1 always more, -1 always less, 0 no link). Correlation, not cause."))
+            cards.append(self.card("Which flows are slow, and why?", '<div class="cols">' + "".join(blocks) + "</div>"))
         mem = self.res.get("memory") or {}
         if mem.get("per_model"):
             rows = [[self.mname(r["model"]), fmb(r.get("weights_mb")), fmb(r.get("working_mean_mb")), fmb(r.get("working_peak_mb")), fmb(r.get("total_peak_mb")), fmb(r.get("device_peak_nvml_mb"))] for r in mem["per_model"]]
@@ -1045,51 +941,13 @@ class Report:
                                    answer="", intro="Context from the Hugging Face model pages. It never changes a score, a rank or the verdict.", keep=False))
         return self.part("Recommendations", "Which model to deploy for which need, and what is known about each model.", "recommendations", cards)
 
-    def data(self) -> str:
-        sid = self.res.get("session_identity") or {}
-        pr = self.prepared
-        cc = pr.get("class_counts") or {}
-        kv = [["Prepared set fingerprint (SHA-256)", f'<span class="mono">{e(sid.get("prepared_set_sha256") or "–")}</span>'],
-              ["Flows", fint(self.s.get("n_flows"))], ["Classes", e(", ".join(self.s.get("class_set") or []))]]
-        if cc.get("available"):
-            lost = (cc.get("lost_in_sampling") or []) + (cc.get("lost_in_selection") or [])
-            kv.append(["Classes lost in sampling", e(", ".join(lost) if lost else "none")])
-        cards = [self.card("Which flows were used?", self.table(["", ""], kv, cls="kv"), answer="",
-                           note="The full per-flow list is in the CSV download on the session's Data page.")]
-        return self.part("Data", "The exact flows this session measured, so it can be repeated.", None, cards)
-
-    def method_back(self) -> str:
-        p = (Path(__file__).resolve().parents[2] / "web" / "app.html")
-        faq = ""
-        try:
-            html = p.read_text(encoding="utf-8")
-            sec = html[html.index('id="help-method"'):]
-            nxt = sec.find('id="help-', 20)
-            sec = sec[:nxt] if nxt > 0 else sec[:12000]
-            blocks = re.findall(r"<(h3|h4|p|li)[^>]*>(.*?)</\1>", sec, flags=re.S)
-            items = []
-            for tag, inner in blocks:
-                txt = re.sub(r"<[^>]+>", "", inner)
-                txt = re.sub(r"\s+", " ", txt).strip()
-                if not txt:
-                    continue
-                txt = self.plain(txt.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&"))
-                items.append(f"<h4>{e(txt)}</h4>" if tag in ("h3", "h4") else f"<p>{e(txt)}</p>")
-            faq = "".join(items)
-        except (OSError, ValueError):
-            faq = ""
-        if not faq:
-            return ""
-        return f'<div class="part back"><p class="kicker">Reference</p><h2 class="ph">Methodology</h2><div class="cols2">{faq}</div></div>'
-
-    # ================================================================ assemble
     def html(self) -> str:
         css = (_DIR / "report.css").read_text(encoding="utf-8").replace("{FONTS}", (_DIR / "fonts").as_uri())
         gen = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         foot = f"AgentMeter session report · {self.job.get('job_id') or self.s.get('run_id') or ''} · generated {gen}"
-        body = (self.page1() + self.page2() + self.page3() + self.page4()
+        body = (self.page1() + self.page2() + self.page3()
                 + '<section class="detail">' + self.overview() + self.ranking() + self.reliability() + self.performance()
-                + self.agents() + self.cost() + self.recommendations() + self.data() + self.method_back() + "</section>")
+                + self.agents() + self.cost() + self.recommendations() + "</section>")
         title = f"AgentMeter session report {self.job.get('job_id') or ''}".strip()
         return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{e(title)}</title>'
                 f'<style>{css}</style><style>@page {{ @bottom-left {{ content: "{e(foot)}"; }} }}</style></head><body>{body}</body></html>')

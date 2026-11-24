@@ -33,7 +33,7 @@ p { margin: 0 0 7px; }
 .l { background: var(--likely-bg); color: var(--likely); border: 1px dashed #E0A06A; padding: 0 4px; }
 sup.r, sup.d { font: 700 7.5px var(--font); margin-left: 1px; }
 sup.r { color: var(--m-ink); } sup.d { color: var(--likely); }
-.likely { background: linear-gradient(transparent 62%, #FFE9D3 62%); }
+.likely { background: #FFEBD8; border-radius: 2px; }
 .read { display: flex; gap: 22px; padding: 8px 12px; background: var(--paper); border-radius: 8px; font-size: 10.5px; color: var(--muted); margin: 6px 0 4px; }
 .read b { color: var(--text); }
 /* comparison table */
@@ -45,7 +45,7 @@ td.res { font-weight: 600; white-space: nowrap; }
 .tag.best { background: var(--best); } .tag.tie { background: #E9EDF6; color: var(--muted); }
 /* model block */
 .model { display: grid; grid-template-columns: 1fr 58mm; gap: 14px; margin-top: 8px; padding-top: 10px; border-top: 3px solid var(--c); }
-.model h2 { margin: 0 0 6px; display: flex; align-items: baseline; gap: 8px; }
+.model h2 { white-space: nowrap; margin: 0 0 6px; display: flex; align-items: baseline; gap: 8px; }
 .model h2 i { width: 10px; height: 10px; border-radius: 3px; background: var(--c); display: inline-block; }
 .model h2 small { font: 500 10.5px var(--font); color: var(--muted); }
 .story p { font-size: 11.3px; line-height: 1.58; }

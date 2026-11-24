@@ -279,7 +279,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#svc-downloads-main a')]);
     const pdfPath = path.join(OUT, 'report.pdf'); await dl.saveAs(pdfPath);
     const pdfText = cp.execFileSync(process.env.PYTHON || 'python', ['-c', 'import sys,pypdf;print("\\n".join(p.extract_text() for p in pypdf.PdfReader(sys.argv[1]).pages))', pdfPath]).toString();
-    log(/How the efficiency score works/.test(pdfText.replace(/\s+/g, ' ')) && /Weigh them/.test(pdfText), 'the stored PDF downloads with a token and states the score weights used');
+    log(/How much does each criterion count\?/.test(pdfText.replace(/\s+/g, ' ')) && /Setup/i.test(pdfText), 'the stored PDF downloads with a token and states the score weights used');
     await p.waitForSelector('#svc-downloads a[data-dl="features.csv"]');
     const [fdl] = await Promise.all([p.waitForEvent('download'), p.click('#svc-downloads a[data-dl="features.csv"]')]);
     const fpath = path.join(OUT, 'features.csv'); await fdl.saveAs(fpath);

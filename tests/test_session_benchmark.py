@@ -112,8 +112,9 @@ def test_two_model_comparison_is_complete_and_honest(labelled):
     vram = next(m for m in c["metrics"] if m["metric"] == "mean_peak_vram_mb")
     assert vram["available"] is False                          # no fake VRAM winner on CPU
     caveats = " ".join(p["session"]["caveats"])
-    for phrase in ("NON-VALIDATED", "Balanced sample", "MOCK provider", "No VRAM readings"):
+    for phrase in ("Balanced sample", "MOCK provider", "No VRAM readings"):
         assert phrase in caveats
+    assert "NON-VALIDATED" not in caveats and "locked" not in caveats        # the retired study wording
     from pathlib import Path
     json.loads((Path(p["session"]["run_dir"]) / "session_results.json").read_text())  # strict JSON
 

@@ -99,7 +99,7 @@ def test_labelled_report_is_a_pdf_with_every_section(labelled):
     assert jid in t and res["session"]["run_id"] in t
     assert "Labelled -> efficiency + reference-label validity check" in t
     assert "Accuracy by class" not in t and "not evaluated as threat detection" in t
-    assert "DEMO RUN — mock provider" in t and "NON-VALIDATED" in t
+    assert "DEMO RUN — mock provider" in t and "NON-VALIDATED" not in t
     assert "class_balance" in t and "fill_remaining" in t                  # the rule-base is shown
 
 

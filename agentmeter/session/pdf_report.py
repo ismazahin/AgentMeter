@@ -263,7 +263,7 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
     story.append(P(f"Run {run_name}  ·  generated {generated}  ·  session run id {s.get('run_id')}"
                    + (f"  ·  job {job['job_id']}" if job else ""), "sub"))
     story.append(P("Resource-efficiency benchmark of LLM agents performing a SOC workload (triaging network "
-                   "flows). The answers are checked for validity, not evaluated as threat detection. NON-VALIDATED user run.",
+                   "flows). The answers are checked for validity, not evaluated as threat detection.",
                    "sub"))
     env = res.get("environment") or {}
     if env:
@@ -607,7 +607,7 @@ def build_report_pdf(res: dict[str, Any], *, job: Optional[dict] = None,
         canvas.saveState()
         canvas.setFont("Helvetica", 7)
         canvas.setFillColor(muted)
-        canvas.drawString(15 * mm, 9 * mm, _safe(f"AgentMeter benchmark report - {run_name} - NON-VALIDATED"
+        canvas.drawString(15 * mm, 9 * mm, _safe(f"AgentMeter benchmark report - {run_name}"
                                                  + (" - DEMO (mock)" if mock else "")))
         canvas.drawRightString(A4[0] - 15 * mm, 9 * mm, f"page {doc.page}")
         canvas.restoreState()

@@ -175,9 +175,9 @@ async function frameOf(p) {
   log(await p.isVisible('#svc-verdict'), 'Overview: "Show full verdict" opens it');
   log((await p.$$('#svc-models-table tbody tr')).length === 2, 'Overview: 2-model table');
   const cavs = await p.$$eval('#svc-caveats button', bs => bs.map(b => b.textContent));
-  log(cavs.includes('Exploratory run') && cavs.includes('Demo data (mock)') && cavs.every(t => t.length <= 40), 'Good to know: short labels (' + cavs.join(' · ') + ')');
+  log(!cavs.some(t => /Exploratory|L4/.test(t)) && cavs.includes('Demo data (mock)') && cavs.every(t => t.length <= 40), 'Good to know: short labels (' + cavs.join(' · ') + ')');
   await p.click('#svc-caveats button[data-cav="0"]');
-  log(/Relative view|NON-VALIDATED/.test(await p.textContent('#svc-cav-detail')) && await p.isVisible('#svc-cav-detail'), 'a label opens its full original sentence');
+  log(/Relative view/.test(await p.textContent('#svc-cav-detail')) && await p.isVisible('#svc-cav-detail'), 'a label opens its full original sentence');
   await p.screenshot({ path: S + '/05-session-overview.png', fullPage: true });
 
   await tab(p, 'ranking');

@@ -621,8 +621,6 @@ function tiles(res) {
 var CAVEAT_LABEL = [
   [/^Relative view: all (\d) models/, function () { return "✓ Fair comparison"; }],
   [/^Relative view/, function () { return "✓ Fair A-vs-B"; }],
-  [/^Measured on (.+?): absolute numbers/, function (m) { return (/^cpu$/i.test(m[1]) ? "CPU" : gpuShort(m[1])) + " ≠ study GPU (L4)"; }],
-  [/^NON-VALIDATED/, function () { return "Exploratory run"; }],
   [/^Efficiency only/, function () { return "No labels → efficiency only"; }],
   [/^PCAP features are approximate/, function () { return "PCAP features approximate"; }],
   [/^Balanced sample/, function () { return "Balanced sample"; }],
@@ -631,7 +629,12 @@ var CAVEAT_LABEL = [
   [/^MOCK provider/, function () { return "Demo data (mock)"; }],
   [/^Small sample \((\d+) flows/, function (m) { return "Small sample (" + m[1] + " flows)"; }]
 ];
+// sessions stored before 2026-11-24 still carry the retired locked-study (NVIDIA L4) caveats: never shown
+var RETIRED_CAVEAT = /^(NON-VALIDATED|Measured on .+?: absolute numbers are not comparable)/;
 function caveatItems(cav) {
+  cav = cav.filter(function (c) { return !RETIRED_CAVEAT.test(c); }).map(function (c) {
+    return c.replace(/; it does not use the fixed L4 targets \(the absolute SAW does\)/, "");
+  });
   var items = cav.map(function (c) {
     for (var i = 0; i < CAVEAT_LABEL.length; i++) { var m = CAVEAT_LABEL[i][0].exec(c); if (m) return { label: CAVEAT_LABEL[i][1](m), text: c }; }
     return { label: c.split(/[:.;—]/)[0].slice(0, 40), text: c };
@@ -662,7 +665,7 @@ function overviewTab(res) {
     '<details class="info" id="svc-measured"><summary>ⓘ How this was measured</summary><p class="small muted">' +
       (real ? 'GPU ' + esc(env.gpu_name || "unknown") + ', NVIDIA driver ' + esc(env.driver_version || "—") + ', CUDA ' + esc(env.cuda_runtime_version || "—") + ', 4-bit NF4' + (env.engine === "vllm" ? ', vLLM engine (continuous batching, so per-agent working VRAM and time-to-first-token are not measured with it)' : env.engine ? ", " + esc(env.engine) + " engine" : "") + ', one model at a time.'
         : 'MOCK provider. It is a fixed heuristic, not a language model. It shows the flow, and the numbers are not model measurements.') + '</p>' +
-      (rel && cmp ? '<p class="small muted" id="svc-absolute"><b>Absolute SAW</b> against fixed L4-study targets. ' + esc(cmp.statement) + '</p>' : "") + '</details></div>');
+      (rel && cmp ? '<p class="small muted" id="svc-absolute"><b>Absolute SAW</b> against the score's fixed targets. ' + esc(cmp.statement) + '</p>' : "") + '</details></div>');
   h.push(gpuHealthCard(res), findingsCard(res), scorecardCard(res), '<div id="svc-changed-host"></div>', profileCard(res));
   var tip = function (t) { return '<span class="info-i" tabindex="0" title="' + esc(t) + '" aria-label="' + esc(t) + '">i</span>'; };
   var rows = pm.map(function (m) {

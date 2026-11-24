@@ -40,9 +40,9 @@ def test_clear_winner_with_percentages_and_sentence():
                                    "20.0% less VRAM, 10.0% fewer tokens per flow.")
     assert r["verdict"].endswith("Validity check (answers matching the data set's reference label): A 80.0%, B 70.0%.")
     assert "accura" not in r["verdict"].lower() and "higher" not in r["verdict"]   # a validity line, not a ranking
-    # honest caveats: like-for-like note, A100 != L4, plus the session's own caveats
+    # honest caveats: the like-for-like note plus the session's own caveats (no retired study comparison)
     assert any("same hardware and the same flows" in c for c in r["caveats"])
-    assert any("NVIDIA A100" in c and "not comparable" in c for c in r["caveats"])
+    assert not any("not comparable" in c for c in r["caveats"])
     assert all(c in r["caveats"] for c in CAVEATS)
 
 
@@ -92,10 +92,11 @@ def test_only_for_two_models():
     assert relative_comparison(["A"], {"A": pm(1, 1)}, True, CAVEATS) is None
 
 
-@pytest.mark.parametrize("hw, flagged", [("NVIDIA L4", False), ("cpu", True), (None, False)])
-def test_hardware_caveat(hw, flagged):
+@pytest.mark.parametrize("hw", ["NVIDIA L4", "cpu", None])
+def test_no_retired_study_caveat(hw):
+    """The locked-study (NVIDIA L4) comparison was retired: no caveat mentions it on any hardware."""
     r = rel(pm(1, 1), pm(1, 1), hardware=hw)
-    assert any("not comparable with the locked study" in c for c in r["caveats"]) is flagged
+    assert not any("locked study" in c or "L4" in c for c in r["caveats"])
 
 
 def test_an_untestable_p_value_never_declares_a_winner():

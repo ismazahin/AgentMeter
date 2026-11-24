@@ -156,12 +156,8 @@ def _pair(a: str, b: str, per_model: dict[str, dict], labelled: bool, caveats: l
 
     rel_caveats = [
         "Relative view: both models were measured in this session on the same hardware and the "
-        "same flows, so the A-vs-B differences are like-for-like; it does not use the fixed L4 "
-        "targets (the absolute SAW does).",
+        "same flows, so the A-vs-B differences are like-for-like.",
     ]
-    if hardware and "L4" not in hardware:
-        rel_caveats.append(f"Measured on {hardware}: absolute numbers are not comparable with the "
-                           "locked study (NVIDIA L4); only the A-vs-B relation is.")
     rel_caveats += caveats
 
     return {
@@ -248,13 +244,9 @@ def _multi(models: list[str], per_model: dict[str, dict], labelled: bool, caveat
 
     rel_caveats = [
         f"Relative view: all {n} models were measured in this session on the same hardware and the same "
-        "flows, so their differences are like-for-like; it does not use the fixed L4 targets (the "
-        "absolute SAW does). Pairwise latency/VRAM differences must be significant in the session's "
-        "Dunn post-hoc test (p < 0.05).",
+        "flows, so their differences are like-for-like. Pairwise latency/VRAM differences must be "
+        "significant in the session's Dunn post-hoc test (p < 0.05).",
     ]
-    if hardware and "L4" not in hardware:
-        rel_caveats.append(f"Measured on {hardware}: absolute numbers are not comparable with the "
-                           "locked study (NVIDIA L4); only the relations between the models are.")
     rel_caveats += caveats
     return {
         "models": list(models),

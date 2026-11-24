@@ -215,8 +215,7 @@ def _compare(models: list[str], per_model: dict[str, dict], eff: pd.DataFrame,
 
 
 def _caveats(meta: dict[str, Any], provider: str, sr: pd.DataFrame, six: bool) -> list[str]:
-    c = ["NON-VALIDATED user run: exploratory; not the locked 5-model CIC-IDS2017 study and "
-         "never merged into its ranking or statistics."]
+    c: list[str] = []
     if not meta["capabilities"]["accuracy"]:
         c.append("Efficiency only: " + "; ".join(meta.get("accuracy_unavailable_reasons") or
                                                  ["no ground-truth labels"]) + ".")

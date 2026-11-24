@@ -9,6 +9,10 @@ import os
 import pytest
 
 os.environ["AGENTMETER_HF_METADATA"] = "off"
+# The download route serves the full PDF report (session/report_html.py, WeasyPrint). The older
+# suite checks the plain ReportLab report's wording, which stays the fallback, so it runs with the
+# plain layout. tests/test_report_html.py tests the full report and unsets this.
+os.environ.setdefault("AGENTMETER_PDF_LAYOUT", "plain")
 
 
 @pytest.fixture(autouse=True)

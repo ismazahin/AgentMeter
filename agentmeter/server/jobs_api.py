@@ -53,9 +53,21 @@ def report_pdf_bytes(mgr: JobManager, job_id: str, decision: Optional[dict] = No
     def read(name):
         p = run_dir / name
         return _json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+    kw = dict(job=job, input_meta=read("input.json"), audit=read("selection_audit.json"),
+              prepared=read("manifest.json").get("prepared_set"), decision=decision)
+    # The full report (charts + every session tab, WeasyPrint). Any failure falls back to the plain
+    # ReportLab report below, so a finished run always has a PDF.
+    # AGENTMETER_PDF_LAYOUT=plain always serves the plain report.
+    import os as _os
+    if _os.environ.get("AGENTMETER_PDF_LAYOUT", "").strip().lower() != "plain":
+        try:
+            from ..session.report_html import build_report_pdf as build_full
+            return build_full(res, **kw)
+        except Exception as e:                        # noqa: BLE001 - missing dependency or a bad block
+            import logging
+            logging.getLogger(__name__).warning("full PDF report failed for %s, using the plain report: %s", job_id, e)
     try:
-        return build_report_pdf(res, job=job, input_meta=read("input.json"), audit=read("selection_audit.json"),
-                                prepared=read("manifest.json").get("prepared_set"), decision=decision)
+        return build_report_pdf(res, **kw)
     except ImportError as e:
         raise JobError(f"PDF reports need reportlab on the server (pip install reportlab): {e}",
                        "pdf_unavailable", 501) from e

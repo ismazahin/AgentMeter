@@ -246,8 +246,8 @@ async function frameOf(p) {
   const [dpdf] = await Promise.all([p.waitForEvent('download'), p.click('#dh-pdf')]);
   await dpdf.saveAs(S + '/limits.pdf');
   const lt = pdfText(S + '/limits.pdf');
-  log(/Decision helper/.test(lt) && /Max mean latency 1000/.test(lt), 'PDF: decision helper with the entered limits');
-  log(/Agents . per-agent breakdown/.test(lt) && /Cost and energy/.test(lt) && /Statistical depth/.test(lt), 'PDF: Agents, Cost and energy, Statistical depth sections');
+  log(/Does a model fit your limits\?/.test(lt) && /Max mean latency 1000/.test(lt), 'PDF: your limits with the entered values');
+  log(/where does the time go\?/.test(lt) && /Cost and energy/.test(lt) && /Is the difference real\?/.test(lt) && /In plain words/i.test(lt), 'PDF: plain-words front, Agents, Cost and energy, statistics');
 
   await tab(p, 'data');
   await p.waitForSelector('#svc-downloads a');

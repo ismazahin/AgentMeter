@@ -469,9 +469,10 @@ still points the app straight at a backend.
 5. **Check traceability:**
    - the results page shows the **Real GPU: <name>** badge with the driver and CUDA
      versions;
-   - **Download PDF report** has a "Measured on: REAL GPU <name>, <N> GB; NVIDIA driver
-     …, CUDA …; provider real (4-bit NF4); host vast.ai instance …" line, and no DEMO
-     banner;
+   - **Download PDF report** shows the GPU name and 4-bit NF4 in its header, a "Measured on"
+     line with the driver and CUDA versions under Overview, and no demo banner. (The full
+     report needs WeasyPrint and Pango, which `vast_up.sh` installs. If either is missing the
+     plain one-table report is served instead. `AGENTMETER_PDF_LAYOUT=plain` forces it.);
    - Downloads → `session_results.json` → `"environment"`: `"provider": "real"`, `"gpu_name"`,
      `"driver_version"`, `"cuda_runtime_version"`;
    - `curl -s -o /dev/null -w '%{http_code}' -X POST https://<backend>/api/prepare` → **401**

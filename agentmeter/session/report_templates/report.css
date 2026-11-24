@@ -1,0 +1,155 @@
+/* AgentMeter session report (PDF, WeasyPrint). Look: docs/superpowers/specs/2026-11-24-report-mockup/.
+ * Path A light tokens, model colours from the app, lime only for the "Best" mark. */
+@font-face { font-family: "Inter"; font-weight: 400; src: url("{FONTS}/Inter-400.ttf"); }
+@font-face { font-family: "Inter"; font-weight: 600; src: url("{FONTS}/Inter-600.ttf"); }
+@font-face { font-family: "Inter"; font-weight: 700; src: url("{FONTS}/Inter-700.ttf"); }
+@font-face { font-family: "Inter Tight"; font-weight: 700; src: url("{FONTS}/InterTight-700.ttf"); }
+@font-face { font-family: "Inter Tight"; font-weight: 800; src: url("{FONTS}/InterTight-800.ttf"); }
+
+:root { --text: #0F1B33; --muted: #5A657A; --faint: #8A94A8; --border: #DCE2EE; --paper: #F6F8FC; --rule: #0F1B33;
+        --accent: #1E4BB8; --best: #C8F25A; --tie: #E9EDF6; --warn: #E8742A; }
+@page { size: A4; margin: 13mm 14mm 15mm;
+  @bottom-left { font: 400 7.5pt "Inter"; color: #8A94A8; }
+  @bottom-right { content: "Page " counter(page) " of " counter(pages); font: 400 7.5pt "Inter"; color: #8A94A8; } }
+html { font: 400 8.6pt/1.45 "Inter", sans-serif; color: var(--text); }
+body { margin: 0; }
+h1, h2, h3, h4 { font-family: "Inter Tight", "Inter", sans-serif; letter-spacing: -0.01em; }
+b, strong { font-weight: 700; }
+.page { page-break-after: always; }
+.detail { page-break-before: always; }
+
+/* header */
+.top { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 7px; border-bottom: 1.6pt solid var(--rule); margin-bottom: 4px; }
+.brand { display: flex; align-items: center; gap: 6px; font: 700 11pt "Inter Tight"; }
+.brand i { display: flex; align-items: flex-end; gap: 0; height: 12px; }
+.brand i b { display: block; width: 3px; background: #9AA3AE; }
+.brand i b:nth-child(1) { height: 3px; } .brand i b:nth-child(2) { height: 6px; } .brand i b:nth-child(3) { height: 9px; }
+.brand i b:nth-child(4) { height: 12px; background: #C8F25A; }
+.meta { text-align: right; color: var(--muted); font-size: 7.6pt; line-height: 1.5; }
+.meta b { color: var(--text); font-weight: 600; }
+.kicker { margin: 11px 0 3px; font: 600 7.4pt "Inter"; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-weight: 700; font-size: 16.5pt; line-height: 1.2; letter-spacing: -.02em; margin: 0 0 5px; }
+.sub { color: var(--muted); margin: 0 0 4px; font-size: 8.8pt; }
+.demo { margin: 8px 0 0; padding: 6px 9px; border-left: 3px solid var(--warn); background: #FFF4EC; color: #8A3A0B; font-size: 8pt; }
+h2 { font-weight: 700; font-size: 11.5pt; margin: 12px 0 2px; }
+.h2p { margin: 0 0 7px; color: var(--muted); font-size: 8pt; }
+.small { font-size: 7.8pt; color: var(--muted); margin: 4px 0 0; }
+.mono { font-family: "Inter"; font-size: 7pt; word-break: break-all; }
+
+/* page 1 */
+.takes { display: grid; grid-template-columns: 1fr 1fr; gap: 9px 14px; margin: 3px 0 4px; }
+.takes > div { border-top: 2.2pt solid var(--rule); padding-top: 5px; }
+.takes .tk { margin: 0; font-size: 7.2pt; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); font-weight: 600; }
+.takes .big { font: 800 15pt/1.1 "Inter Tight"; letter-spacing: -.02em; }
+.takes h4 { font-size: 9.4pt; margin: 3px 0 2px; }
+.takes p { margin: 0; font-size: 8.2pt; }
+.pick { display: flex; background: var(--paper); border-radius: 6px; }
+.pick > div { flex: 1; padding: 8px 11px; }
+.pick > div + div { border-left: 1px solid var(--border); }
+.pick h4 { margin: 0 0 3px; font-size: 9.4pt; }
+.pick p { margin: 0; font-size: 8.4pt; }
+.pick-note { margin: 4px 0 0; font-size: 8pt; color: var(--muted); }
+.howto { display: flex; gap: 12px; }
+.howto > div { flex: 1; font-size: 7.8pt; color: var(--muted); }
+.howto b { display: block; color: var(--text); font: 700 8.6pt "Inter Tight"; margin: 4px 0 1px; }
+.ex { display: flex; gap: 4px; }
+.ex i { display: inline-block; height: 8px; border-radius: 2px; }
+.cav { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 14px; }
+.cav > div { font-size: 7.8pt; color: var(--muted); padding-left: 7px; border-left: 2.4pt solid var(--border); }
+.cav > div.warn { border-left-color: var(--warn); }
+.cav b { display: block; color: var(--text); font-size: 8.2pt; }
+
+/* page 2 charts */
+.legend { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 6px 9px; background: var(--paper); border-radius: 6px; margin-bottom: 8px; font-weight: 600; }
+.legend.col { flex-direction: column; align-items: flex-start; gap: 4px; }
+.legend .note { margin-left: auto; font-weight: 400; color: var(--muted); font-size: 7.6pt; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.chart { border: 0.75pt solid var(--border); border-radius: 6px; padding: 7px 9px 7px; break-inside: avoid; }
+.chart h3 { margin: 0; font-size: 9.2pt; display: flex; justify-content: space-between; align-items: baseline; }
+.chart h3 small { font: 400 7.2pt "Inter"; color: var(--faint); }
+.chart .why { margin: 0 0 5px; color: var(--muted); font-size: 7.4pt; }
+.bar { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.bar .n { width: 64px; font-size: 7.6pt; color: var(--muted); white-space: nowrap; overflow: hidden; }
+.bar .t { flex: 1; height: 11px; background: var(--paper); border-radius: 2px; }
+.bar .t i { display: block; height: 100%; border-radius: 2px; }
+.bar .v { width: 68px; text-align: right; font: 700 8.4pt "Inter Tight"; white-space: nowrap; }
+.bar .v.na { font: 400 7.2pt "Inter"; color: var(--faint); }
+.bar.tgt .t i { background: #D3D9E4; }
+.bar.tgt .v { color: var(--muted); font-weight: 600; }
+.bars .bar .n { width: 90px; }
+.tag { display: inline-block; margin-top: 4px; font-size: 7pt; font-weight: 600; padding: 1px 6px; border-radius: 99px; }
+.tag.best { background: var(--best); color: var(--text); }
+.tag.tie { background: var(--tie); color: var(--muted); }
+.tag.nt { border: 0.75pt solid var(--border); color: var(--muted); padding: 0 6px; }
+.means { margin: 4px 0 0; font-size: 7.9pt; line-height: 1.42; }
+.sum { margin-top: 9px; padding: 8px 10px; background: var(--paper); border-radius: 6px; font-size: 8.2pt; }
+.sum b.h { display: block; font: 700 9.4pt "Inter Tight"; margin-bottom: 2px; }
+
+/* page 3 */
+.two { display: flex; gap: 10px; align-items: flex-start; }
+.two > div { flex: 1; min-width: 0; }
+.panel { border: 0.75pt solid var(--border); border-radius: 6px; padding: 8px; }
+.explain { margin: 6px 0 0; font-size: 8.2pt; }
+.stack { display: flex; border-radius: 3px; overflow: hidden; margin: 3px 0 4px; }
+.stack div { display: flex; align-items: center; justify-content: center; color: #fff; font: 600 7.2pt "Inter"; white-space: nowrap; overflow: hidden; }
+.ag + .ag { margin-top: 7px; padding-top: 6px; border-top: 0.75pt solid var(--border); }
+.agm { margin: 0 0 2px; font-size: 8.2pt; }
+.agm span { color: var(--muted); font-size: 7.8pt; }
+.akeys { display: flex; gap: 12px; margin-top: 6px; font-size: 7.6pt; color: var(--muted); }
+.sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+.mn { white-space: nowrap; }
+.gloss { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; font-size: 7.9pt; color: var(--muted); margin: 0; }
+.gloss dt { color: var(--text); font-weight: 700; display: inline; margin-right: 4px; }
+.gloss dd { display: inline; margin: 0; }
+
+/* page 4 */
+.tight h2 { margin-top: 8px; }
+.tight table.mtab { font-size: 7.2pt; }
+.tight table.mtab td { padding: 2px 4px; }
+.tight .explain, .tight .next { font-size: 7.9pt; }
+.two2 { display: flex; gap: 14px; }
+.two2 p { flex: 1; margin: 2px 0 0; }
+.steps { display: flex; gap: 12px; }
+.steps > div { flex: 1; font-size: 7.9pt; color: var(--muted); border-top: 2.2pt solid var(--rule); padding-top: 5px; }
+.steps b { display: block; color: var(--text); font: 700 9pt "Inter Tight"; margin: 2px 0 1px; }
+.sn { font: 800 13pt "Inter Tight"; color: var(--accent); }
+.next { margin: 4px 0 0; padding-left: 16px; font-size: 8.3pt; }
+.next li { margin: 2px 0; }
+
+/* tables */
+table { width: 100%; border-collapse: collapse; font-size: 7.6pt; margin: 4px 0 2px; }
+th { text-align: left; font-weight: 600; color: var(--muted); padding: 3px 4px; border-bottom: 0.9pt solid var(--rule); vertical-align: bottom; }
+td { padding: 3px 4px; border-bottom: 0.5pt solid var(--border); vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.num { white-space: nowrap; }
+thead { display: table-header-group; }
+tr { break-inside: avoid; }
+table.kv td:first-child { width: 34%; color: var(--muted); }
+table.kv thead { display: none; }
+table.glance td:first-child { color: var(--muted); }
+table.mtab td:last-child { color: var(--muted); }
+.g-best { font-weight: 700; }
+.g-far { color: #A2470D; }
+
+/* detail parts */
+.part { page-break-before: always; }
+.part:first-child { page-break-before: auto; }
+.ph { font-size: 15pt; margin: 0 0 2px; }
+.pwhat { margin: 0 0 6px; color: var(--muted); font-size: 8.6pt; }
+.lead { padding: 7px 10px; background: var(--paper); border-radius: 6px; margin: 4px 0 6px; }
+.lead p { margin: 0; font-size: 8.4pt; color: var(--muted); }
+.lead .lh { font: 700 9.6pt "Inter Tight"; color: var(--text); margin-bottom: 1px; }
+section.q { margin: 10px 0 0; }
+section.q.keep { break-inside: avoid; }
+section.q h3 { break-after: avoid; font-size: 10pt; margin: 0 0 2px; padding-top: 6px; border-top: 0.75pt solid var(--border); }
+.ans { break-after: avoid; margin: 0 0 2px; font-size: 8.5pt; font-weight: 600; }
+.intro { margin: 0 0 3px; font-size: 7.9pt; color: var(--muted); }
+.note { margin: 3px 0 0; font-size: 7.2pt; color: var(--faint); }
+.find { margin: 3px 0 0; padding-left: 14px; font-size: 8.2pt; }
+.find li { margin: 1px 0; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+.cols > .sub { break-inside: avoid; min-width: 0; }
+.back .cols2 { columns: 2; column-gap: 14px; font-size: 7.7pt; color: var(--muted); }
+.back .cols2 h4 { color: var(--text); font-size: 8.8pt; margin: 6px 0 2px; break-after: avoid; }
+.back .cols2 p { margin: 0 0 4px; }
+svg text { font-family: "Inter"; }

@@ -81,9 +81,9 @@ async function embedded(p, job, labelled, nModels, tag) {
   const [pdf] = await Promise.all([p.waitForEvent('download'), p.click('#svc-dl-pdf')]);
   await pdf.saveAs(S + '/csv-report.pdf');
   const txt = pdfText(S + '/csv-report.pdf');
-  log(/Recommendation — stage 3/.test(txt) && /Measured head-to-head verdict/.test(txt), 'PDF has the stage-3 section, verdict first');
-  log(/Rules fired/.test(txt) && /gated_access/.test(txt) && /custom_licence/.test(txt), 'PDF has the "Rules fired" table with rule ids');
-  log(/never changes any score/.test(txt), 'PDF states metadata never changes a score');
+  log(/What is known about these models\?/.test(txt) && /Which model should I deploy\?/.test(txt), 'PDF has the model context section after the deploy advice');
+  log(/gated_access/.test(txt) && /custom_licence/.test(txt), 'PDF names the context rules by id');
+  log(/never changes a score/.test(txt.replace(/\s+/g, ' ')), 'PDF states metadata never changes a score');
   const pcapJob = await session(p, REPO + '/data/sample_pcaps/sample_small.pcap', 8, [2]);
 
   await embedded(p, csvJob, true, 2, 'csv');

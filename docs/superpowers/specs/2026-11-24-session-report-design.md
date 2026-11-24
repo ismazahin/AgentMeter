@@ -1,6 +1,6 @@
 # Session PDF report, rebuilt (design)
 
-Status: proposed, waiting for the owner's approval.
+Status: approved 2026-11-24, built.
 Mockup (approved as the front): `2026-11-24-report-mockup/` (`report.html`, `page-1..4.png`).
 
 ## Why
@@ -127,3 +127,24 @@ column per model, switching the page to landscape for 5 or more models. (My call
 
 ## Left to the builder
 Exact page breaks, chart sizes, spacing and wording of each rule within the constraints above.
+
+## Calls made while building (2026-11-24)
+- **The plain sentences come from the web's own rules.** Instead of rewriting them in Python, the
+  report runs `web/insights.js` (tabSummaries, sectionAnswers, keyFindings and the derived views
+  such as queueSim, weightStability, deploymentFit) through a small embedded JS engine (QuickJS,
+  `agentmeter/session/report_js.py`). The PDF and the session pages therefore say the same sentence
+  about the same number, and Capacity and the other browser-side views needed no Python port.
+- Built as Python-generated HTML plus one stylesheet (`report_templates/report.css`), not Jinja2
+  templates, because almost every block is data-driven.
+- The app allows at most 4 models per session, so the 5+ landscape case does not exist. With 3 or 4
+  models the front moves "Putting it together" and the glossary so the front stays at 4 pages.
+- "Which one to pick" lists the measures the session's own head-to-head test decided first, then
+  the web's `recommend` picks. When the speed gap did not pass the test, a line says the speed pick
+  is a lean, with the flows needed to settle it.
+- `AGENTMETER_PDF_LAYOUT=plain` serves the plain ReportLab report. The older test suite runs with
+  it (tests/conftest.py), since it checks that report's wording; tests/test_report_html.py covers
+  the full report and the fallback.
+- Fonts (Inter, Inter Tight, SIL Open Font Licence) are stored as fixed weights in
+  `report_templates/fonts/`, so rendering never fetches anything.
+- Test fixtures in `tests/fixtures/report/`: mock runs with 1, 2 and 4 models, and one with
+  synthetic GPU readings plus the RTX 3090 numbers of DESIGN_BRIEF.md section 6 (test only).

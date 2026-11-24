@@ -74,6 +74,10 @@ if [ "${SKIP_INSTALL:-0}" != "1" ]; then
   python3 -m pip install -q --upgrade pip
   python3 -m pip install -q -r requirements.txt -r requirements-gpu.txt -r requirements-pcap.txt
   python3 -m pip install -q --no-deps cicflowmeter==0.2.0
+  # the full PDF report (WeasyPrint) needs Pango; without it the plain PDF report is used
+  python3 -c "import ctypes.util,sys; sys.exit(0 if ctypes.util.find_library('pango-1.0') and ctypes.util.find_library('pangoft2-1.0') else 1)" \
+    || { apt-get update -qq && apt-get install -y -qq libpango-1.0-0 libpangoft2-1.0-0 >/dev/null; apt-get install -y -qq libharfbuzz-subset0 >/dev/null 2>&1 || true; } \
+    || say "Pango not installed: PDF reports use the plain layout"
 else
   say "2/6 skipping install (SKIP_INSTALL=1)"
 fi

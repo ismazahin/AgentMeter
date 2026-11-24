@@ -8,6 +8,10 @@ langgraph>=0.2
 langchain-core>=0.3
 # Service PDF benchmark report (Phase 42): GET /api/jobs/<id>/report.pdf
 reportlab>=4.0
+# The full PDF report (agentmeter/session/report_html.py): HTML -> PDF, and the web's own insight
+# rules (web/insights.js) run through a small embedded JS engine. Without them the plain report is used.
+weasyprint>=62
+quickjs>=1.19
 # The IDS gate (agentmeter/ids, scripts/train_ids.py). Pinned: a model trained with one
 # scikit-learn version is only loaded by the same version (train on your PC, run on the GPU).
 scikit-learn==1.9.1

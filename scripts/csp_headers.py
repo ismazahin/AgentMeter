@@ -23,7 +23,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 WEB = REPO / "web"
 PAGES = ("app.html", "analysis.html")   # index.html (the landing page) has no inline script
-EXTRA_CONNECT: list[str] = []
+EXTRA_CONNECT: list[str] = ["https://gpu.agentmeter.win"]   # the GPU server's named tunnel (agentmeter.win)
 _INLINE = re.compile(r"<script>(.*?)</script>", re.S)
 
 

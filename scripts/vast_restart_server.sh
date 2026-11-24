@@ -17,7 +17,7 @@ PORT="${PORT:-8000}"
 export HF_HOME="${HF_HOME:-$DATA/hf}" PYTHONUNBUFFERED=1 HF_HUB_OFFLINE=1
 export AGENTMETER_PUBLIC_URL_FILE="$LOGS/public_url"
 export AGENTMETER_CONTROL_PLANE_URL="${AGENTMETER_CONTROL_PLANE_URL:-${AGENTMETER_WORKER_URL:-}}"
-export AGENTMETER_ALLOWED_ORIGINS="${AGENTMETER_ALLOWED_ORIGINS:-https://agentmeter.pages.dev}"
+export AGENTMETER_ALLOWED_ORIGINS="${AGENTMETER_ALLOWED_ORIGINS:-https://agentmeter.win,https://www.agentmeter.win,https://agentmeter.pages.dev}"
 # the IDS model vast_up.sh used: copied by vast_start.ps1, or fetched to $DATA/ids
 if [ -z "${AGENTMETER_IDS_MODEL:-}" ]; then
   for m in /root/ids/ids_rf.joblib "$DATA"/ids/*.joblib; do

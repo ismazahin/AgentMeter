@@ -13,7 +13,7 @@
 #   required  HF_TOKEN  AGENTMETER_CONTROL_PLANE_URL  AGENTMETER_RUN_TOKEN_SECRET  AGENTMETER_BACKEND_SECRET
 #   optional  CLOUD_PREP_SECRET (= the control plane's: prepares uploads on this machine; without
 #             it nobody can upload)  VAST_API_KEY + IDLE_MIN (default 60: the instance destroys itself after that many idle
-#             minutes)  AGENTMETER_ALLOWED_ORIGINS (default https://agentmeter.pages.dev)
+#             minutes)  AGENTMETER_ALLOWED_ORIGINS (default agentmeter.win, www.agentmeter.win and agentmeter.pages.dev)
 #             PRELOAD_STUDY=1  AGENTMETER_BRANCH (default claude/cool-ride-mitmzl)
 #
 # The IDS model is downloaded from the control plane (Admin › IDS model) by scripts/vast_up.sh.
@@ -61,7 +61,7 @@ ENVF=/root/agentmeter.env
            CLOUD_PREP_TUNNEL_TOKEN CLOUD_PREP_HOSTNAME; do
     [ -n "${!v:-}" ] && printf "export %s=%q\n" "$v" "${!v}"
   done
-  printf "export AGENTMETER_ALLOWED_ORIGINS=%q\n" "${AGENTMETER_ALLOWED_ORIGINS:-https://agentmeter.pages.dev}"
+  printf "export AGENTMETER_ALLOWED_ORIGINS=%q\n" "${AGENTMETER_ALLOWED_ORIGINS:-https://agentmeter.win,https://www.agentmeter.win,https://agentmeter.pages.dev}"
   printf "export IDLE_MIN=%q\n" "${IDLE_MIN:-60}"
 } > "$ENVF"
 

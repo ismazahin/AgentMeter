@@ -18,7 +18,7 @@ param(
   [string]$BackendEnv = "$env:USERPROFILE\.agentmeter\backend.env",
   [string]$HfEnv = (Join-Path (Split-Path -Parent $PSScriptRoot) ".env"),
   [string]$ControlPlaneUrl = "",  # https://<project-ref>.supabase.co/functions/v1/agentmeter (or AGENTMETER_CONTROL_PLANE_URL in backend.env)
-  [string]$AllowedOrigins = "https://agentmeter.pages.dev",
+  [string]$AllowedOrigins = "https://agentmeter.win,https://www.agentmeter.win,https://agentmeter.pages.dev",
   [string]$Repo = "https://github.com/ismazahin/AgentMeter.git",
   [string]$Branch = "claude/cool-ride-mitmzl",
   [int]$IdleMin = 10,

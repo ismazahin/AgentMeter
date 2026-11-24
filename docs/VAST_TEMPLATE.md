@@ -29,6 +29,10 @@ given to every instance you rent. Values are the same as in your `backend.env` a
 | `AGENTMETER_RUN_TOKEN_SECRET` | = the control plane's `RUN_TOKEN_SECRET` (`backend.env`) |
 | `AGENTMETER_BACKEND_SECRET` | = the control plane's `BACKEND_SECRET` (`backend.env`) |
 | `CLOUD_PREP_SECRET` | = the control plane's `CLOUD_PREP_SECRET`: starts the data preparation service on the machine, so users can upload (docs/DEPLOY.md, A7) |
+| `CF_TUNNEL_TOKEN` | the **agentmeter-gpu** named tunnel's token (Cloudflare Zero Trust › Networks › Tunnels). Gives the GPU server a fixed address and avoids quick-tunnel refusals (HTTP 429) |
+| `CF_TUNNEL_HOSTNAME` | `gpu.agentmeter.win` |
+| `CLOUD_PREP_TUNNEL_TOKEN` | the **agentmeter-prep** named tunnel's token |
+| `CLOUD_PREP_HOSTNAME` | `prep.agentmeter.win` |
 | `VAST_API_KEY` | optional but recommended: lets an idle instance destroy itself |
 | `IDLE_MIN` | optional, default 60: idle minutes before it destroys itself |
 | `PRELOAD_STUDY` | optional: `1` downloads all 5 study models at start-up (slower start) |

@@ -473,10 +473,12 @@ still points the app straight at a backend.
      line with the driver and CUDA versions under Overview, and no demo banner. (The full
      report needs WeasyPrint and Pango, which `vast_up.sh` installs. If either is missing the
      plain one-table report is served instead. `AGENTMETER_PDF_LAYOUT=plain` forces it.);
-   - sessions finished before a report change keep their old PDF. To rebuild every stored session's
-     PDF with the current layout, run on the GPU machine (Jupyter terminal):
-     `cd /workspace/AgentMeter && . /root/agentmeter.env && python scripts/rebuild_pdfs.py`
-     (`--dry-run` lists them first, `--session <id>` does one);
+   - stored sessions whose PDF is in an older layout are rebuilt automatically when a GPU machine
+     starts (`scripts/rebuild_pdfs.py --stale-only --gentle`, log `agentmeter-logs/rebuild_pdfs.log`).
+     It works from the control plane's copies, so any rental does it, and only once per layout
+     change. It holds the machine lock one PDF at a time, after any waiting benchmark, so it never
+     runs next to a measurement. `REBUILD_PDFS=0` in the Vast template turns it off. By hand:
+     `python scripts/rebuild_pdfs.py --dry-run` lists, `--session <id>` does one;
    - Downloads → `session_results.json` → `"environment"`: `"provider": "real"`, `"gpu_name"`,
      `"driver_version"`, `"cuda_runtime_version"`;
    - `curl -s -o /dev/null -w '%{http_code}' -X POST https://<backend>/api/prepare` → **401**

@@ -12,6 +12,8 @@ reportlab>=4.0
 # rules (web/insights.js) run through a small embedded JS engine. Without them the plain report is used.
 weasyprint>=62
 quickjs>=1.19
+# reads a stored PDF's layout marker, so the GPU machine rebuilds only out-of-date reports at start-up
+pypdf>=4.0
 # The IDS gate (agentmeter/ids, scripts/train_ids.py). Pinned: a model trained with one
 # scikit-learn version is only loaded by the same version (train on your PC, run on the GPU).
 scikit-learn==1.9.1

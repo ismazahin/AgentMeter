@@ -199,6 +199,16 @@ if [ -n "${CLOUD_PREP_SECRET:-}" ]; then
 fi
 echo "data preparation service: $PREP"
 
+# --- stored sessions' PDFs: rebuild only those in an older layout (every rental, idempotent) ---
+# Runs from the control plane's copies, so it does not matter which machine this is. One PDF at a
+# time under the machine lock, lowest priority, and always after a waiting benchmark or preparation.
+REBUILD="not started (no control plane)"
+if [ -n "${AGENTMETER_CONTROL_PLANE_URL:-}" ] && [ -n "${AGENTMETER_BACKEND_SECRET:-}" ] && [ "${REBUILD_PDFS:-1}" != "0" ]; then
+  nohup nice -n 19 python3 scripts/rebuild_pdfs.py --stale-only --gentle > "$LOGS/rebuild_pdfs.log" 2>&1 &
+  REBUILD="checking stored PDFs in the background (log $LOGS/rebuild_pdfs.log, REBUILD_PDFS=0 turns it off)"
+fi
+echo "PDF rebuild: $REBUILD"
+
 cat <<EOF
 
 ============================================================================

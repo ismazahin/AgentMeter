@@ -29,6 +29,10 @@ from . import report_charts as ch
 from .report_js import Insights
 
 _DIR = Path(__file__).resolve().parent / "report_templates"
+# Written into every PDF's metadata (Keywords). scripts/rebuild_pdfs.py --stale-only rebuilds a stored
+# PDF only when it lacks the current marker, so each rental redoes nothing that is already current.
+# Raise the number whenever the report's layout or content rules change.
+LAYOUT = "agentmeter-report-layout-3"
 
 
 # ---------------------------------------------------------------- number formats (as the web shows them)
@@ -1036,6 +1040,7 @@ class Report:
                 + self.agents() + self.cost() + self.recommendations() + "</section>")
         title = f"AgentMeter session report {self.job.get('job_id') or ''}".strip()
         return (f'<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{e(title)}</title>'
+                f'<meta name="keywords" content="{LAYOUT}{"-explained" if self.ex.get("cards") else ""}">'
                 f'<style>{css}</style><style>@page {{ @bottom-left {{ content: "{e(foot)}"; }} }}</style></head><body>{body}</body></html>')
 
 

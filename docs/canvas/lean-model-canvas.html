@@ -1,0 +1,120 @@
+<!doctype html><html><head><meta charset="utf-8"><title>AgentMeter Lean Model Canvas</title>
+<style>
+@page { size: A4 landscape; margin: 7mm 9mm; }
+* { box-sizing: border-box; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 7.7pt; line-height: 1.2; color: #000; margin: 0; }
+.head { display: grid; grid-template-columns: 1fr 1fr; font-size: 8.6pt; row-gap: 3mm; margin-bottom: 2mm; }
+.line { display: inline-block; border-bottom: 1px solid #000; width: 62mm; height: 3.2mm; vertical-align: bottom; }
+h1 { text-align: center; font-size: 14pt; margin: 1mm 0 2mm; }
+table.c { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.c td { border: 1px solid #000; padding: 1.6mm 2mm; vertical-align: top; }
+table.b { border-top: none; }
+table.b td { border-top: none; }
+h2 { font-size: 7.6pt; margin: 0 0 1.2mm; text-transform: uppercase; }
+h3 { font-size: 7.2pt; margin: 1.4mm 0 0.6mm; }
+ol, ul { margin: 0; padding-left: 6mm; }
+li { margin-bottom: 0.5mm; }
+.uvp .big { font-size: 9.6pt; font-weight: 700; line-height: 1.25; margin-bottom: 1.6mm; }
+.concept { font-weight: 700; font-style: italic; font-size: 8.2pt; }
+.note { font-style: italic; margin-top: 1mm; }
+</style></head><body>
+<div class="head">
+  <div>STUDENT NAME: <span class="line"></span></div>
+  <div>SUPERVISOR: <span class="line"></span></div>
+  <div>PRODUCT NAME: AGENTMETER</div>
+  <div>SIGNATURE: <span class="line"></span></div>
+</div>
+<h1>LEAN MODEL CANVAS</h1>
+<table class="c"><colgroup><col style="width:20%"><col style="width:20%"><col style="width:20%"><col style="width:20%"><col style="width:20%"></colgroup>
+<tr><td rowspan="2">
+    <h2>Problem</h2>
+    <ol>
+      <li><b>Accuracy leaderboards ignore running cost.</b> Public LLM rankings score answers, not the time, GPU memory, tokens and energy a model burns while doing the work.</li>
+      <li><b>Agent pipelines hide where the cost goes.</b> A multi-agent workflow re-sends context at every hand-off, so no one can see which agent or step is slow or expensive.</li>
+      <li><b>Comparing open-source models by hand is slow and unfair.</b> Different GPUs, settings and sample sizes give numbers that cannot be compared, with no test of whether a gap is real.</li>
+    </ol>
+    <h3>EXISTING ALTERNATIVES</h3>
+    <ul>
+      <li>Accuracy leaderboards (Open LLM Leaderboard, LMArena)</li>
+      <li>Throughput tools (vLLM / llama.cpp benchmarks, MLPerf Inference)</li>
+      <li>Tracing tools (LangSmith, Langfuse) that log runs but do not rank models</li>
+      <li>Hand-written scripts and spreadsheets on a rented GPU</li>
+    </ul></td><td>
+    <h2>Solution</h2>
+    <ol>
+      <li><b>One-click benchmark session.</b> Upload network flows, pick up to four open-source models, and run them through the same four-agent pipeline on one real GPU.</li>
+      <li><b>Per-agent measurement.</b> Latency (p95, p99), time to first token, peak and working VRAM, tokens, energy and cost per 1,000 flows, for every agent.</li>
+      <li><b>Honest verdict and report.</b> Weighted efficiency score, significance tests that call small gaps a tie, and a PDF that explains why each model performed that way.</li>
+    </ol></td><td rowspan="2" class="uvp">
+    <h2>Unique Value Proposition</h2>
+    <div class="big">Know which open-source LLM runs your agent workflow with the least time, memory and energy, before you deploy it.</div>
+    <p>Upload your data, pick the models and get a measured, side-by-side verdict from a real GPU, with every number explained and every tie called a tie.</p>
+    <h3>HIGH-LEVEL CONCEPT</h3>
+    <div class="concept">“A fuel-economy test for LLM agents.”</div></td><td>
+    <h2>Unfair Advantage</h2>
+    <ul>
+      <li><b>Per-agent instrumentation:</b> time, VRAM, tokens and energy measured inside each agent step, not only end to end</li>
+      <li><b>Built-in rigour:</b> Kruskal-Wallis and Dunn tests, SAW scoring with sensitivity checks, and a checked explainer that cannot invent numbers</li>
+      <li>A growing public Leaderboard of measured sessions</li>
+    </ul></td><td rowspan="2">
+    <h2>Customer Segments</h2>
+    <ul>
+      <li>SOC and security teams choosing a self-hosted LLM for traffic triage</li>
+      <li>ML engineers and startups sizing GPU cost before deploying an agent</li>
+      <li>Researchers and students benchmarking open-source models</li>
+    </ul>
+    <h3>EARLY ADOPTERS</h3>
+    <ul>
+      <li>University researchers and FYP students running LLM experiments</li>
+      <li>Small security teams testing local LLMs on limited GPUs</li>
+      <li>Developers already renting GPUs on Vast.ai or RunPod</li>
+      <li>Teams that must keep data on their own hardware</li>
+    </ul></td></tr>
+<tr><td>
+    <h2>Key Metrics</h2>
+    <ul>
+      <li>Sign-ups, and % who finish a first benchmark within 7 days</li>
+      <li>Benchmark sessions per week, and % that complete without error</li>
+      <li>Average models compared per session</li>
+      <li>GPU minutes and cost per session</li>
+      <li>PDF reports downloaded per session</li>
+      <li>Sessions shared to the Leaderboard</li>
+      <li>Users who run another benchmark within 30 days</li>
+    </ul></td><td>
+    <h2>Channels</h2>
+    <h3>Inbound</h3>
+    <ul>
+      <li>Shared session links and PDF reports</li>
+      <li>Public Leaderboard at agentmeter.win</li>
+      <li>GitHub repository, Hugging Face and LinkedIn posts; SEO for “LLM efficiency benchmark”</li>
+    </ul>
+    <h3>Outbound</h3>
+    <ul>
+      <li>University AI and cybersecurity labs, FYP supervisors</li>
+      <li>SOC and MSSP teams through industry talks and meetups</li>
+      <li>Demo sessions at tech events and hackathons</li>
+    </ul></td></tr>
+</table>
+<table class="c b"><colgroup><col style="width:50%"><col style="width:50%"></colgroup>
+<tr><td>
+      <h2>Cost Structure</h2>
+      <h3>Fixed</h3>
+      <ul>
+        <li>Supabase control plane (database, storage, edge functions) and Cloudflare Pages hosting</li>
+        <li>Domain, SSL, backups; development and maintenance time</li>
+      </ul>
+      <h3>Variable</h3>
+      <ul>
+        <li>GPU rental per benchmark hour (Vast.ai RTX 3090)</li>
+        <li>Storage for session results, PDFs and model downloads as usage grows</li>
+        <li>Support; marketing (talks, posts, demo events)</li>
+      </ul></td><td>
+      <h2>Revenue Streams</h2>
+      <ul>
+        <li><b>Pay per session:</b> GPU time at cost plus a 20% service margin</li>
+        <li><b>Pro plan:</b> monthly fee for private sessions, more models per session and saved presets</li>
+        <li><b>Team / on-premise licence:</b> run AgentMeter on the customer's own GPUs</li>
+        <li><b>Sponsored entries:</b> model providers pay to have new models benchmarked on the Leaderboard</li>
+      </ul>
+      <div class="note">Example: 1,000 flows × 2 models on an RTX 3090 ≈ 1 GPU hour at USD 0.25 → price USD 0.30, margin USD 0.05. (Illustrative; the FYP demo runs on a rented GPU and charges no fee.)</div></td></tr></table>
+</body></html>

@@ -44,6 +44,8 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
   p.on('console', m => { if (m.type() === 'error' && !/fonts|ERR_|Failed to load resource/.test(m.text())) errs.push(m.text()); });
   try {
     const csv = await session(p, REPO + '/data/sample_csv/cicids2017_sample.csv', 40, [0, 3]);
+    // the IDS gate is always on: only the flows it flags reach the LLM agents
+    const NT = (await (await fetch(ORIGIN + '/api/jobs/' + encodeURIComponent(csv) + '/result')).json()).session.n_flows;
     const pcap = await session(p, REPO + '/data/sample_pcaps/sample_small.pcap', 8, [2]);
 
     // Phase 1 — Overview: key findings + criteria profile
@@ -118,10 +120,10 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
 
     // Output Reliability (replaces the accuracy view): usable answers, failures, a reference-label check
     await tab(p, csv, 'reliability', '#rel-table');
-    log((await p.$$('#rel-bars .hbar')).length === 2 && /valid \(\d+ of 40 flows\)/.test(await hoverText(p, '#rel-bars .track')), 'reliability: one valid-answer bar per model; hover shows the count');
+    log((await p.$$('#rel-bars .hbar')).length === 2 && new RegExp('valid \\(\\d+ of ' + NT + ' flows\\)').test(await hoverText(p, '#rel-bars .track')), 'reliability: one valid-answer bar per model; hover shows the count');
     log((await p.$$('#rel-table tbody tr')).length === 2 && /Act agrees with decide|act agrees with decide/i.test(await p.textContent('#rel-table thead')) && /Reference-label check/.test(await p.textContent('#rel-table thead')),
         'reliability: table with failures, Decide/Act agreement and the reference-label check');
-    log((await p.$$('#rel-failures-table tbody tr')).length === 8 && !/F1|precision|recall|confusion/i.test(await p.textContent('#spanel-reliability')),
+    log((await p.$$('#rel-failures-table tbody tr')).length === 8 && !/F1|precision|recall|confusion/i.test(await p.evaluate(() => { const c = document.querySelector('#spanel-reliability').cloneNode(true); c.querySelectorAll('#rel-ids').forEach(e => e.remove()); return c.textContent; })),
         'reliability: failures per agent (2 models x 4 agents); no detection metrics');
     log((await p.$$('#rel-consistency-table tbody tr')).length === 2 && !/repeat/i.test(await p.textContent('#rel-consistency')),
         'reliability: consistency of answers (format, technique), nothing about a repeat check');
@@ -253,7 +255,7 @@ const texts = (p, sel) => p.$$eval(sel, els => els.map(e => e.textContent.trim()
 
     // Phase E — flow explorer
     await tab(p, csv, 'agents', '#flows-table');
-    log((await p.$$('#flows-table tbody tr')).length === 25 && /40 flows × 2 models/.test(await p.textContent('#flows-status')), 'flow explorer: 40 flows x 2 models, 25 per page');
+    log((await p.$$('#flows-table tbody tr')).length === Math.min(25, NT) && new RegExp(NT + ' flows × 2 models').test(await p.textContent('#flows-status')), 'flow explorer: ' + NT + ' triaged flows x 2 models, up to 25 per page');
     await p.selectOption('#flows-filter', 'wrong'); await p.waitForTimeout(200);
     const wrong = await p.$$eval('#flows-table tbody tr', rs => rs.map(r => r.textContent));
     log(wrong.length > 0 && wrong.every(t => /✗/.test(t)), 'flow explorer: "wrong answer" keeps only flows a model got wrong');

@@ -164,11 +164,11 @@ async function frameOf(p) {
   const stabs = await p.$$eval('#session-tabs [role=tab]', ts => ts.map(t => t.textContent.trim()));
   log(stabs.join('|') === 'Overview|Model Ranking|Output Reliability|Performance|Agent Analysis|Cost & Energy|Recommendations|Data & Exports', 'session sections: ' + stabs.join(', '));
   const chips = await p.textContent('#session-chips');
-  log(/Demo \(no GPU\)/.test(chips) && /10 flows/.test(chips) && /CSV/.test(chips), 'session chips: GPU, flows, input type');
+  log(/Demo \(no GPU\)/.test(chips) && /\d+ flows/.test(chips) && /CSV/.test(chips), 'session chips: GPU, flows, input type');
   log(await p.isVisible('#svc-dl-pdf') && await p.isVisible('#session-compare'), 'Download PDF + Compare buttons');
   await tab(p, 'overview');
   log(/is more efficient than|Mixed result|tied on efficiency/.test(await p.textContent('#svc-headline')), 'Overview: one-line headline: ' + await p.textContent('#svc-headline'));
-  log((await p.$$('#svc-tiles .tile')).length === 5, 'Overview: 5 tiles (latency, VRAM, tokens, valid answers, triage gate)');
+  log((await p.$$('#svc-tiles .tile')).length === 6 && !!(await p.$('#svc-tiles .tile[data-metric="ids"]')), 'Overview: 6 tiles (latency, VRAM, tokens, valid answers, triage gate, IDS gate)');
   log(/pass|not checked/.test(await p.textContent('#svc-tiles .tile[data-metric="gate"]')), 'Overview: the triage gate tile');
   log(await p.isHidden('#svc-verdict') && !!(await p.textContent('#svc-verdict')), 'Overview: the full verdict sentence is one click away (collapsed)');
   await p.click('#svc-full-verdict summary');
@@ -205,7 +205,7 @@ async function frameOf(p) {
   await p.waitForSelector('#rel-table');
   log((await p.$$('#rel-table tbody tr')).length === 2 && /Reference-label check/.test(await p.textContent('#rel-table thead')) && !!(await p.$('#rel-failures-table')),
       'Output Reliability: valid answers per model, a reference-label check (labelled), failures per agent');
-  log(!(await p.$('#spanel-reliability iframe')) && !/precision|recall|F1/.test(await p.textContent('#spanel-reliability')), 'Output Reliability: no detection metrics (precision, recall, F1)');
+  log(!(await p.$('#spanel-reliability iframe')) && !/precision|recall|F1/.test(await p.evaluate(() => { const c = document.querySelector('#spanel-reliability').cloneNode(true); c.querySelectorAll('#rel-ids').forEach(e => e.remove()); return c.textContent; })), 'Output Reliability: no detection metrics (precision, recall, F1)');
 
   await tab(p, 'performance');
   log(/\/performance\/comparison$/.test(await p.evaluate(() => location.hash)) && !!(await p.$('#svc-relative-table')), 'Performance › Comparison: head-to-head');

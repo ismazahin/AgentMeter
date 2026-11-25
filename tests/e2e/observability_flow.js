@@ -49,7 +49,9 @@ async function dragAcross(p, sel, from, to) {
         'Overview: the GPU state during the run (normal; synthetic readings labelled)');
     await p.goto(ORIGIN + '/app.html#/session/' + encodeURIComponent(id) + '/cost'); await p.waitForSelector('#gpu-power', { timeout: 30000 });
     const segs = await p.$$eval('#gpu-lane .lane-seg', x => x.length);
-    log(segs >= 12 * 2 * 4 * 0.9, `the agent lane shows each agent's turn (${segs} turns for 12 flows × 2 models × 4 agents)`);
+    // the IDS gate is always on: only the flows it flags reach the agents
+    const nt = await p.evaluate(j => fetch('/api/jobs/' + encodeURIComponent(j) + '/result').then(r => r.json()).then(r => r.session.n_flows), id);
+    log(nt > 0 && segs >= nt * 2 * 4 * 0.9, `the agent lane shows each agent's turn (${segs} turns for ${nt} triaged flows × 2 models × 4 agents)`);
     log(/Perceive|perceive/.test(await p.textContent('#gpu-lane-legend')), 'the lane has an agent legend');
 
     // shared crosshair: hover the power chart in the middle of the first model's window

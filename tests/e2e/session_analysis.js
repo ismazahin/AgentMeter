@@ -16,7 +16,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
 const pdfText = f => cp.execFileSync(process.env.PYTHON || 'python', ['-c',
   'import sys,pypdf;print("\\n".join(p.extract_text() for p in pypdf.PdfReader(sys.argv[1]).pages))', f]).toString();
 
-async function session(p, file, flows, idx) {
+async function session(p, file, flows, idx, tau) {
   await p.goto(ORIGIN + '/app.html#/new'); await p.waitForSelector('#svc-upload-form:not([hidden])');
   await p.setInputFiles('#svc-file', file); await p.fill('#svc-max-flows', String(flows));
   await p.evaluate(() => { localStorage.setItem('agentmeter.prepWhere', 'server'); }); await p.click('#svc-upload-btn');   // forced to the GPU server (prep_flow.js covers the browser, cloudprep_flow.js the cloud)
@@ -24,6 +24,7 @@ async function session(p, file, flows, idx) {
   await p.waitForSelector('#svc-models input');
   const boxes = await p.$$('#svc-models input');
   for (const i of idx) await boxes[i].check();
+  if (tau) await p.fill('#svc-ids-tau', String(tau));   // the IDS gate is always on; a low threshold keeps benign alerts in the mix
   await p.click('#svc-run');
   await p.waitForFunction(() => /^#\/session\//.test(location.hash), null, { timeout: 180000 });
   await p.waitForSelector('#session-body:not([hidden])', { timeout: 30000 });
@@ -62,7 +63,7 @@ async function embedded(p, job, labelled, nModels, tag) {
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   p.on('console', m => { if (m.type() === 'error' && !/fonts|ERR_|Failed to load resource/.test(m.text())) errs.push(m.text()); });
 
-  const csvJob = await session(p, REPO + '/data/sample_csv/cicids2017_sample.csv', 10, [0, 3]);
+  const csvJob = await session(p, REPO + '/data/sample_csv/cicids2017_sample.csv', 10, [0, 3], 0.05);
   // Output Reliability: accuracy ranges + model-vs-model test, confusion matrices, the realistic SOC
   // projection (its slider recomputes in the browser) and verdict agreement (2026-11-10)
   await p.goto(ORIGIN + '/app.html#/session/' + csvJob + '/reliability'); await p.waitForSelector('#spanel-reliability:not([hidden]) #rel-accuracy-stats', { timeout: 20000 });

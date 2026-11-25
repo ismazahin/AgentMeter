@@ -29,46 +29,47 @@ li { margin-bottom: 0.5mm; }
 <tr><td rowspan="2">
     <h2>Problem</h2>
     <ol>
-      <li><b>Accuracy leaderboards ignore running cost.</b> Public LLM rankings score answers, not the time, GPU memory, tokens and energy a model burns while doing the work.</li>
-      <li><b>Agent pipelines hide where the cost goes.</b> A multi-agent workflow re-sends context at every hand-off, so no one can see which agent or step is slow or expensive.</li>
-      <li><b>Comparing open-source models by hand is slow and unfair.</b> Different GPUs, settings and sample sizes give numbers that cannot be compared, with no test of whether a gap is real.</li>
+      <li><b>Latency piles up and no one can see which agent causes it.</b> Agents run one after another, so their delays add up. Latency is measured only for the whole pipeline, so the slow step cannot be found and fixed while attacks spread.</li>
+      <li><b>Existing benchmarks do not fit agentic security work.</b> They test single-shot, general tasks and report accuracy and cost separately, so SOC teams have no reference for choosing an open-source LLM.</li>
+      <li><b>Resource use is reported only as one total.</b> Time, memory and tokens are summed for the whole pipeline. Two models with similar totals can spend very differently inside, and re-sent context goes unseen.</li>
     </ol>
     <h3>EXISTING ALTERNATIVES</h3>
     <ul>
-      <li>Accuracy leaderboards (Open LLM Leaderboard, LMArena)</li>
-      <li>Throughput tools (vLLM / llama.cpp benchmarks, MLPerf Inference)</li>
-      <li>Tracing tools (LangSmith, Langfuse) that log runs but do not rank models</li>
-      <li>Hand-written scripts and spreadsheets on a rented GPU</li>
+      <li>General LLM leaderboards that score single-shot accuracy only (Open LLM Leaderboard, LMArena)</li>
+      <li>Agent benchmarks that check task completion, not resource cost</li>
+      <li>Inference benchmarks (MLPerf, vLLM) that time the whole model call, not each agent</li>
+      <li>Hand-timed runs and spreadsheets that report one pipeline total</li>
     </ul></td><td>
     <h2>Solution</h2>
     <ol>
-      <li><b>One-click benchmark session.</b> Upload network flows, pick up to four open-source models, and run them through the same four-agent pipeline on one real GPU.</li>
-      <li><b>Per-agent measurement.</b> Latency (p95, p99), time to first token, peak and working VRAM, tokens, energy and cost per 1,000 flows, for every agent.</li>
-      <li><b>Honest verdict and report.</b> Weighted efficiency score, significance tests that call small gaps a tie, and a PDF that explains why each model performed that way.</li>
+      <li><b>Per-agent benchmarking tool.</b> Instruments every step of an agentic threat-detection pipeline, with any number of agents, and assigns response time, memory and tokens to each agent.</li>
+      <li><b>Monitoring and analysis module.</b> Captures per-agent and end-to-end telemetry and combines detection accuracy and resource cost into one composite score ranking.</li>
+      <li><b>Model comparison.</b> Runs five open-source LLMs on the same pipeline and shows which is most efficient and where cost concentrates.</li>
     </ol></td><td rowspan="2" class="uvp">
     <h2>Unique Value Proposition</h2>
-    <div class="big">Know which open-source LLM runs your agent workflow with the least time, memory and energy, before you deploy it.</div>
-    <p>Upload your data, pick the models and get a measured, side-by-side verdict from a real GPU, with every number explained and every tie called a tie.</p>
+    <div class="big">One result that links detection accuracy to resource cost, broken down per agent, for choosing an open-source LLM for agentic threat detection.</div>
+    <p>Upload network traffic, pick the models and see which one detects threats with the least time, memory and tokens, and which agent is the bottleneck, before you deploy it.</p>
     <h3>HIGH-LEVEL CONCEPT</h3>
-    <div class="concept">“A fuel-economy test for LLM agents.”</div></td><td>
+    <div class="concept">“A per-agent fuel-economy test for AI security agents.”</div></td><td>
     <h2>Unfair Advantage</h2>
     <ul>
-      <li><b>Per-agent instrumentation:</b> time, VRAM, tokens and energy measured inside each agent step, not only end to end</li>
-      <li><b>Built-in rigour:</b> Kruskal-Wallis and Dunn tests, SAW scoring with sensitivity checks, and a checked explainer that cannot invent numbers</li>
+      <li><b>Per-agent instrumentation:</b> time, memory and tokens measured inside each agent step, for any number of agents, not only end to end</li>
+      <li><b>One composite score:</b> detection accuracy and resource cost ranked together, with significance tests and sensitivity checks</li>
+      <li><b>Security-specific workload:</b> real network traffic triaged by a multi-step agent pipeline</li>
       <li>A growing public Leaderboard of measured sessions</li>
     </ul></td><td rowspan="2">
     <h2>Customer Segments</h2>
     <ul>
-      <li>SOC and security teams choosing a self-hosted LLM for traffic triage</li>
-      <li>ML engineers and startups sizing GPU cost before deploying an agent</li>
-      <li>Researchers and students benchmarking open-source models</li>
+      <li>IT administrators and SOC analysts at SMEs choosing an open-source LLM for agentic threat detection</li>
+      <li>Academic laboratories researching AI for cybersecurity</li>
+      <li>Developers of agentic systems who need to find bottlenecks</li>
     </ul>
     <h3>EARLY ADOPTERS</h3>
     <ul>
-      <li>University researchers and FYP students running LLM experiments</li>
-      <li>Small security teams testing local LLMs on limited GPUs</li>
-      <li>Developers already renting GPUs on Vast.ai or RunPod</li>
-      <li>Teams that must keep data on their own hardware</li>
+      <li>SME SOC teams already testing local LLMs on limited GPUs</li>
+      <li>University cybersecurity and AI labs running LLM experiments</li>
+      <li>Teams that must keep traffic data on their own hardware</li>
+      <li>Developers building multi-agent pipelines</li>
     </ul></td></tr>
 <tr><td>
     <h2>Key Metrics</h2>
@@ -76,6 +77,7 @@ li { margin-bottom: 0.5mm; }
       <li>Sign-ups, and % who finish a first benchmark within 7 days</li>
       <li>Benchmark sessions per week, and % that complete without error</li>
       <li>Average models compared per session</li>
+      <li>Sessions where a per-agent bottleneck is found</li>
       <li>GPU minutes and cost per session</li>
       <li>PDF reports downloaded per session</li>
       <li>Sessions shared to the Leaderboard</li>
@@ -91,7 +93,7 @@ li { margin-bottom: 0.5mm; }
     <h3>Outbound</h3>
     <ul>
       <li>University AI and cybersecurity labs, FYP supervisors</li>
-      <li>SOC and MSSP teams through industry talks and meetups</li>
+      <li>SME IT and SOC teams through industry talks and meetups</li>
       <li>Demo sessions at tech events and hackathons</li>
     </ul></td></tr>
 </table>

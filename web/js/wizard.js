@@ -201,9 +201,7 @@ function wizModels(q) {
   renderSettings();
   loadHistory();
   setDataState("preparing", "Checking your data…", null);    // never show the previous data set's Ready/Failed
-  if (q.ids && !$("svc-ids").disabled) {                     // from Analyse traffic: the IDS gate at its threshold
-    $("svc-ids").checked = true; $("svc-ids-box").hidden = false; $("svc-ids-tau").value = q.ids;
-  }
+  $("svc-ids-tau").value = q.ids || "";                      // from Analyse traffic: the IDS gate at its threshold
   if (WIZ.set) dataReady(WIZ.set);
   else if (WIZ.prep) pollPrepare(WIZ.prep, ++pollToken);
   else location.replace("#/new");
@@ -331,7 +329,7 @@ $("wiz-preset").addEventListener("change", function () {
   if (!p) return;
   modelInputs().forEach(function (inp) { if (!inp.dataset.locked) inp.checked = p.models.indexOf(inp.value) >= 0; });
   WIZ.want = p.models.slice(); tickWanted();
-  if (!$("svc-ids").disabled) { $("svc-ids").checked = !!p.ids; $("svc-ids-box").hidden = !p.ids; $("svc-ids-tau").value = p.ids && p.ids.threshold ? p.ids.threshold : ""; }
+  $("svc-ids-tau").value = p.ids && p.ids.threshold ? p.ids.threshold : "";
   syncRun();
 });
 $("wiz-preset-save").addEventListener("click", function () {
@@ -423,9 +421,9 @@ function syncRun() {
   var max = (CONFIG && CONFIG.max_models) || 2, n = picked().length;
   modelInputs().forEach(function (inp) { inp.disabled = !!inp.dataset.locked || (!inp.checked && n >= max); });
   if ($("wiz-settings")) renderSettings();
-  var failed = $("wiz-data-chip").textContent === "Failed", off = !ONLINE;
-  $("svc-run").disabled = n < 1 || n > max || failed || off;
-  $("svc-run").textContent = off ? "GPU offline" : WIZ.set || failed ? "Run benchmark" : "Run when data is ready";
+  var failed = $("wiz-data-chip").textContent === "Failed", off = !ONLINE, noIds = !!HEALTH && !HEALTH.ids;
+  $("svc-run").disabled = n < 1 || n > max || failed || off || noIds;
+  $("svc-run").textContent = off ? "GPU offline" : noIds ? "No IDS model" : WIZ.set || failed ? "Run benchmark" : "Run when data is ready";
   $("svc-model-hint").textContent = n >= max ? "Maximum of " + max + " models selected. Deselect one to change."
     : n === 1 ? "1 model selected. Add another to compare, or run it alone." : n > 1 ? n + " models selected, up to " + max + ". Each runs on its own, one after another." : "Select 1 to " + max + " models.";
 }
@@ -474,22 +472,20 @@ function renderSettings() {
   ].concat(estimateLine()).concat(downloadLine()).map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("");
 }
 
-// The IDS gate option: offered when the GPU server has an IDS model (GET /health "ids").
+// The IDS gate is always on: the IDS detects and the LLM agents triage only the flows it
+// flags. A GPU server without an IDS model (GET /health "ids") cannot run a benchmark.
 function idsOptionSync() {
-  var ids = (HEALTH || {}).ids, cb = $("svc-ids"), box = $("svc-ids-box");
-  if (!cb) return;
-  cb.disabled = !ids;
-  if (!ids) { cb.checked = false; box.hidden = true; cb.parentNode.title = "This GPU server has no IDS model (scripts/train_ids.py)."; return; }
-  cb.parentNode.title = "";
+  var ids = (HEALTH || {}).ids, tau = $("svc-ids-tau");
+  if (!tau) return;
+  tau.disabled = !ids;
+  syncRun();
+  if (!ids) { $("svc-ids-note").textContent = "This GPU server has no IDS model. Upload one in Admin, IDS model, before running a benchmark."; return; }
   var h = ids.holdout || {};
   $("svc-ids-note").innerHTML = (ids.demo ? '<span class="chip warn">Demo IDS</span> trained on the 300 bundled flows, for trying the flow only. ' : "") +
     'IDS <span class="mono">' + esc(ids.version || ids.name) + '</span>, threshold ' + fmtNum(ids.threshold, 3) +
     ' (' + esc(ids.threshold_rule || "") + '). On its hold-out flows it has recall ' + fmtPct(h.recall) + ', false-positive rate ' + fmtPct(h.false_positive_rate) + '.';
-  box.hidden = !cb.checked;
 }
-$("svc-ids").addEventListener("change", function () { $("svc-ids-box").hidden = !this.checked; });
 function idsBody() {
-  if (!$("svc-ids").checked) return null;
   var t = parseFloat($("svc-ids-tau").value);
   return isFinite(t) && t > 0 && t <= 1 ? { threshold: t } : true;
 }
@@ -499,7 +495,7 @@ $("svc-run").addEventListener("click", function () {
   // The wizard's own preparation: always after_prepare (one session, counted once; the
   // server uses the prepared set directly when it is already done). Reused sets: run.
   if (WIZ.prep) body.after_prepare = WIZ.prep; else body.run = WIZ.set;
-  var ids = idsBody(); if (ids) body.ids = ids;
+  body.ids = idsBody();
   $("svc-run").disabled = true;
   api("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
     if (!r.ok) { showError(err, r.data); syncRun(); return; }

@@ -25,8 +25,8 @@ alerts: this is flow triage.
   excluded (an attack in which the attack did not take place is neither the class nor benign).
 - **IDS gate** (`docs/IDS.md`): a Random Forest IDS detects first and only the flows it flags
   reach the LLM agents, which triage them. Train it with `python scripts/train_ids.py <csv folder>`
-  (writes `models/ids/ids_rf.*` and the hold-out CSV to benchmark with); tick **IDS gate** in a
-  new benchmark. Reports the IDS's detection, the LLM's triage of its alerts and the cost per
+  (writes `models/ids/ids_rf.*` and the hold-out CSV to benchmark with); the IDS gate is always on
+  for benchmarks started from the website. Reports the IDS's detection, the LLM's triage of its alerts and the cost per
   1,000 incoming flows.
 - **A GPU that sets itself up** (`docs/VAST_TEMPLATE.md`): store the settings in Vast's
   environment variables and use the "AgentMeter" template; a rented instance installs, downloads

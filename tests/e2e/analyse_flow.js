@@ -169,7 +169,7 @@ const txt = (p, sel) => p.$eval(sel, e => e.textContent).catch(() => '');
     log(fs.existsSync(path.join(RESULTS, set, 'ids_scores.csv')) && !fs.existsSync(path.join(RESULTS, set, 'ids_flows_identity.csv')),
         `the set reached the GPU server with its IDS scores and without the addresses (${set})`);
     await p.waitForSelector('#svc-models input');
-    log(await p.$eval('#svc-ids', e => e.checked) && (await p.$eval('#svc-ids-tau', e => e.value)) === '0.3', 'model choice opens with the IDS gate at the page\'s threshold');
+    log((await p.$eval('#svc-ids-tau', e => e.value)) === '0.3', 'model choice opens with the IDS gate at the page\'s threshold');
     const box = (await p.$$('#svc-models input'))[0];
     if (!(await box.isChecked())) await box.check();
     await p.waitForFunction(() => !document.getElementById('svc-run').disabled, null, { timeout: 60000 });

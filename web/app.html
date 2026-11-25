@@ -1735,9 +1735,8 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
         <h2>Settings</h2>
         <p class="small" id="svc-run-mode"></p>
         <dl class="kv small" id="wiz-settings"></dl>
-        <label class="check" style="margin-top:10px"><input type="checkbox" id="svc-ids">
-          <span>IDS gate. The IDS detects, and the LLM agents triage only the flows it flags</span></label><span class="info-i" tabindex="0" role="button" data-tip="A Random Forest IDS (scripts/train_ids.py) scores every selected flow first. Flows at or above the threshold become alerts and go to the LLM agents for triage, and the others are dismissed without an LLM call. The session then reports the IDS's detection, the LLM's triage of its alerts, and the time, cost and energy per 1,000 incoming flows.">i</span>
-        <div id="svc-ids-box" class="small" hidden>
+        <p class="small" style="margin-top:10px"><b>IDS gate</b>. The IDS detects, and the LLM agents triage only the flows it flags. <span class="info-i" tabindex="0" role="button" data-tip="A Random Forest IDS (scripts/train_ids.py) scores every selected flow first. Flows at or above the threshold become alerts and go to the LLM agents for triage, and the others are dismissed without an LLM call. The session then reports the IDS's detection, the LLM's triage of its alerts, and the time, cost and energy per 1,000 incoming flows.">i</span></p>
+        <div id="svc-ids-box" class="small">
           <p class="muted" id="svc-ids-note" style="margin:4px 0"></p>
           <div class="field"><label for="svc-ids-tau">IDS threshold (blank = the model's own)</label>
             <input type="number" id="svc-ids-tau" min="0.01" max="1" step="0.01" placeholder="model default"></div>

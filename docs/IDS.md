@@ -71,8 +71,10 @@ Code: `agentmeter/ids/stage.py: score_pool`, `agentmeter/server/prepare.py: writ
 
 ## 3. Use it
 
-New benchmark → Settings → tick **IDS gate** (the IDS's version, threshold and hold-out metrics
-are shown; leave the threshold blank to use the model's own). The session's results:
+The IDS gate is always on: every benchmark started from the website scores the flows with the IDS
+first and the LLM agents triage only the alerts. New benchmark → Settings shows the IDS's version,
+threshold and hold-out metrics; leave the threshold blank to use the model's own. A GPU server with
+no IDS model cannot start a benchmark (upload one in Admin › IDS model). The session's results:
 Output Reliability → **IDS → LLM triage**; Overview → the **IDS gate** tile; the PDF report's
 "IDS -> LLM triage" section. A session whose flows overlap the IDS's training data is flagged
 (use the hold-out CSV to avoid it).

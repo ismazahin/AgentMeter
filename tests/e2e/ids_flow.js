@@ -28,8 +28,7 @@ const out = []; const log = (ok, msg) => out.push((ok ? 'PASS ' : 'FAIL ') + msg
     await p.waitForFunction(() => /^#\/new\/models\?prep=/.test(location.hash), null, { timeout: 30000 });
     await p.waitForSelector('#svc-models input');
     const boxes = await p.$$('#svc-models input'); await boxes[0].check(); await boxes[1].check();
-    log(!(await p.isDisabled('#svc-ids')), 'wizard: the IDS gate can be ticked');
-    await p.check('#svc-ids');
+    log(!(await p.$('#svc-ids')), 'wizard: no IDS gate tickbox, the gate is always on');
     log(await p.isVisible('#svc-ids-box') && /Demo IDS/.test(await p.textContent('#svc-ids-note')), 'wizard: the IDS details and the demo warning show');
     await p.click('#svc-run');
     await p.waitForFunction(() => /^#\/new\/run\//.test(location.hash), null, { timeout: 30000 });

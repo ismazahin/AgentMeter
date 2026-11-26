@@ -116,7 +116,6 @@ function resolveConfig() {
   return fetch("config.json", { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : {}; }, function () { return {}; })
     .then(function (c) {
       c = c || {};
-      if (c.pyodide_base) PYODIDE_BASE = String(c.pyodide_base).replace(/\/*$/, "/");
       return { cp: String(saved.cp || c.control_plane || "").replace(/\/+$/, ""), api: String(saved.api || c.api_base || "").replace(/\/+$/, "") };
     });
 }

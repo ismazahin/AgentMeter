@@ -75,28 +75,8 @@ $("svc-upload-form").addEventListener("submit", function (ev) {
   }
   var src = WIZ.src === "url" ? { url: fd.get("url") } : { file: file };
   if (viaService()) { startAnalysis(src); return; }   // the preparation service: no GPU needed (analyse.js)
-  $("svc-upload-btn").disabled = true; $("svc-upload-busy").hidden = false;
-  $("svc-upload-busy").textContent = "Checking the GPU…";
-  prepRoute(src).then(function (where) {
-    $("svc-upload-btn").disabled = false; $("svc-upload-busy").hidden = true;
-    if (where === "local") { prepareLocally(src.file); return; }
-    prepareOnServer(fd);
-  });
+  prepareOnServer(fd);
 });
-// ---------- where the data is prepared: chosen automatically, never by the user ----------
-// The GPU server prepares it when it is free. While it runs (or queues) a job, the cloud
-// preparation service does (control plane: /api/prep/jobs, cloudprep/), so nothing waits in
-// the GPU queue; without cloud preparation, this browser does (web/prep). All three run the
-// same Python code: the prepared flows and their hash are identical. (localStorage
-// "agentmeter.prepWhere" = server | cloud | local forces one; the end-to-end tests use it.)
-// Without a control plane (one GPU server, one user) the GPU server prepares the data as a job in
-// its own queue, so it never runs alongside a benchmark either. "agentmeter.prepWhere" = local
-// prepares it in this browser instead (web/prep; the end-to-end tests use it).
-function prepRoute(src) {
-  var forced = null;
-  try { forced = localStorage.getItem("agentmeter.prepWhere"); } catch (e) { /* none */ }
-  return Promise.resolve(forced === "local" && src.file ? "local" : "server");
-}
 function prepareOnServer(fd) {
   var err = $("svc-upload-error");
   fd.append("max_flows", $("svc-max-flows").value || "50");
@@ -108,44 +88,8 @@ function prepareOnServer(fd) {
     location.hash = "#/new/models?prep=" + enc(r.data.job_id);      // models now; data prepares meanwhile
   });
 }
-// ---------- "Prepare on this computer": the dataset is prepared in this browser ----------
-// web/prep/prep-worker.js runs the server's own Python preparation (Pyodide) on this computer's
-// CPU; the GPU server gets only the prepared set (manifest + features + labels), checks its
-// hashes and stores it at once (POST /api/prepared/import), even while it benchmarks.
-var PREP_WORKER = null;
-function prepareLocally(file) {
-  var err = $("svc-upload-error"), box = $("svc-local-prep"), log = $("svc-local-log"), btn = $("svc-upload-btn");
-  var lim = (CONFIG && CONFIG.limits) || {};
-  var line = function (msg, cls) {
-    var li = document.createElement("li"); li.className = "tel-line" + (cls ? " " + cls : "");
-    li.textContent = new Date().toTimeString().slice(0, 8) + "  " + msg; log.appendChild(li); log.scrollTop = log.scrollHeight;
-  };
-  log.innerHTML = ""; box.hidden = false; btn.disabled = true; err.hidden = true;
-  line("The GPU is busy with a benchmark, so " + file.name + " (" + fmtSize(file.size) + ") is prepared on this computer, in this browser.");
-  if (!PREP_WORKER) PREP_WORKER = new Worker("prep/prep-worker.js", { type: "module" });
-  var done = function () { btn.disabled = false; box.querySelector(".bar").hidden = true; };
-  box.querySelector(".bar").hidden = false;
-  PREP_WORKER.onerror = function (e) { done(); line("The preparation worker could not start.", "tel-failed"); showError(err, { error: "Preparing on this computer could not start" + (e && e.message ? ": " + e.message : "") + ". Try again when the GPU has finished its benchmark.", code: "browser_prepare_failed" }); };
-  PREP_WORKER.onmessage = function (ev) {
-    var m = ev.data || {};
-    if (m.type === "progress") { line((PHASES[m.phase] && m.phase !== "loading" ? PHASES[m.phase] + (m.message ? ": " : "") : "") + (m.message || "")); return; }
-    if (m.type === "error") { done(); line(m.error, "tel-failed"); showError(err, { error: m.error, code: m.code }); return; }
-    if (m.type !== "done") return;
-    line("Prepared " + m.set_name.split("/").pop() + ". Sending the prepared flows to the GPU server…");
-    var fd = new FormData();
-    fd.append("manifest", new Blob([m.files["manifest.json"]], { type: "application/json" }), "manifest.json");
-    fd.append("features", new Blob([m.files["features.csv"]], { type: "text/csv" }), "features.csv");
-    if (m.files["labels.csv"]) fd.append("labels", new Blob([m.files["labels.csv"]], { type: "text/csv" }), "labels.csv");
-    api("/api/prepared/import", { method: "POST", body: fd }).then(function (r) {
-      done();
-      if (!r.ok) { line("The GPU server did not accept it: " + (r.data.error || r.status), "tel-failed"); showError(err, r.data); return; }
-      line("Stored on the GPU server as " + r.data.prepared_set + ".", "tel-done");
-      location.hash = "#/new/models?set=" + enc(r.data.prepared_set);
-    });
-  };
-  PREP_WORKER.postMessage({ type: "prepare", base: PYODIDE_BASE, file: file, max_flows: parseInt($("svc-max-flows").value || "50", 10),
-                            other_attack: false, limits: lim });
-}
+// Without a control plane (one GPU server, one user) the GPU server prepares the data as a job in
+// its own queue, so it never runs alongside a benchmark.
 // ---------- the preparation service's files go to the GPU server (hash-checked there) ----------
 // Imported once: a set already on the GPU server is used as it is, so a page reload never creates a
 // second copy (each upload starts one benchmark, checked by the control plane on the set's name).

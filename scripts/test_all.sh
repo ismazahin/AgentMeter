@@ -8,8 +8,7 @@
 #
 # Needs: Python with requirements.txt + requirements-dev.txt + flask (+ requirements-pcap.txt for
 # PCAP flows), Node 22 with Playwright (require('playwright') must resolve; set PLAYWRIGHT_PATH
-# otherwise) and `npm ci` in controlplane/. Optional: PYODIDE_DIST = a local copy of the Pyodide
-# 0.28.3 "full" files for prep_flow (without it Pyodide loads from its CDN).
+# otherwise) and `npm ci` in controlplane/.
 #
 # Each browser flow runs against a FRESH mock backend on port 8766 (an empty results folder), as it
 # expects. Logs and screenshots go to $OUT (default: a new temp folder). Exit code 1 if anything failed.
@@ -59,7 +58,6 @@ if [ "$WHAT" = all ] || [ "$WHAT" = e2e ]; then
   flow datasets_gpu_flow AGENTMETER_MOCK_LATENCY_S=0.2
   flow workflow_flow
   flow telemetry_flow AGENTMETER_MOCK_LATENCY_S=0.05
-  flow prep_flow
   flow observability_flow AGENTMETER_TEST_SYNTHETIC_GPU=1 AGENTMETER_IDLE_SAMPLE_S=1 AGENTMETER_MOCK_LATENCY_S=0.02
   flow model_picker_flow AGENTMETER_TEST_MODEL_REPOS=tests/fixtures/model_repos.json AGENTMETER_TEST_DISK_FREE_GB=200
   flow ids_flow

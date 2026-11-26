@@ -1,7 +1,7 @@
 """The prepared-set hash (version 2): what the models see and are scored against.
 
 Its own small module (json, csv, hashlib only), so the data preparation can import it
-anywhere, including the browser (web/prep, Pyodide), without the analyses' dependencies.
+anywhere without the analyses' dependencies.
 agentmeter.session.analyses re-exports it.
 """
 from __future__ import annotations

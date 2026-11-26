@@ -62,8 +62,6 @@ var METRIC_FMT = { s: fmtTime, MB: fmtMB, tokens: function (v) { return fmtNum(v
 // issued (POST /api/runs/authorize). Without CP (local development) the backend is called
 // directly, without tokens.
 var CP = "", AUTH = { access: null, exp: 0, user: null }, SETTINGS = null, BACKEND = null;
-// "Prepare on this computer" loads Pyodide from here (config.json "pyodide_base" can point elsewhere, e.g. a self-hosted copy)
-var PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/";
 var WORKER_PATHS = /^\/api\/(sessions(\/|\?|$)|datasets(\/|$)|compare(\/|\?|$)|leaderboard(\?|$)|settings(\/|$)|me(\/|$)|admin\/|backend$|runs\/|auth\/)/;
 var STRONG_JOB = /^job_\d{8}_\d{6}_[0-9a-f]{32}$/;
 var READ_TOK = null, FILE_TOK = {}, GRANTS = {};          // cached read/files tokens; jti of my prepare/import

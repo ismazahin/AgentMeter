@@ -49,8 +49,6 @@ DASHBOARD_DIR = REPO_ROOT / "dashboard"     # the baseline's data (sample_analys
 WEB_DIR = REPO_ROOT / "web"                 # the static service front-end
 # Only these baseline-page assets are servable (no arbitrary file access).
 # analysis.json: a canonical results file dropped in dashboard/ auto-loads (gitignored).
-_PREP_ASSETS = {"prep-worker.js", "agentmeter-prep.zip", "wheels/scapy-2.8.0-py3-none-any.whl",
-                "wheels/cicflowmeter-0.2.0-py3-none-any.whl"}
 _ALLOWED_ASSETS = {"saw.js", "report.js", "insights.js", "landing.js", "sample_analysis.json", "README.md", "analysis.json"}
 _WEB_SCRIPTS = {"saw.js", "report.js", "insights.js", "landing.js"}   # served from web/ (no second copy in dashboard/; landing.js: the main page)
 # Requests that must not count as "activity" for the idle cost guard: a front-end
@@ -213,14 +211,6 @@ def create_app(dashboard_dir: Path = DASHBOARD_DIR, guard: "CostGuard" = None, a
     @app.route("/baseline", methods=["GET"])
     def analysis_page():
         return send_from_directory(WEB_DIR, "analysis.html")      # the one copy (also on Pages)
-
-    @app.route("/prep/<path:asset>", methods=["GET"])
-    def prep_asset(asset):
-        # "Prepare on this computer": the worker, the Python bundle and its two wheels (web/prep)
-        if asset not in _PREP_ASSETS:
-            return jsonify({"error": "not found"}), 404
-        return send_from_directory(WEB_DIR / "prep", asset,
-                                   mimetype="text/javascript" if asset.endswith(".js") else "application/octet-stream")
 
     @app.route("/js/<asset>", methods=["GET"])
     def app_script(asset):

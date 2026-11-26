@@ -825,7 +825,6 @@
   .wait-facts li { display: grid; grid-template-columns: minmax(120px, 220px) 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
   .wait-facts li span:first-child { color: var(--muted); }
   @media (max-width: 560px) { .wait-facts li { grid-template-columns: 1fr; gap: 2px; } }
-  .local-prep { margin-top: 12px; } .local-prep .tel-log { list-style: none; margin: 8px 0 0; }
   .tel-line.tel-failed { color: var(--danger); } .tel-line.tel-done { font-weight: 600; }
   svg.trend .tline { fill: none; stroke: var(--series-1); stroke-width: 2; }
   svg.trend .base { stroke: var(--muted-2); stroke-width: 1.5; stroke-dasharray: 6 4; }
@@ -1690,10 +1689,6 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
         <div class="row">
           <button type="submit" class="btn primary" id="svc-upload-btn">Continue</button>
           <span id="svc-upload-busy" class="muted" hidden role="status">Uploading…</span>
-        </div>
-        <div id="svc-local-prep" class="local-prep" hidden aria-live="polite">
-          <div class="bar indet" aria-hidden="true"><span></span></div>
-          <ol class="tel-log mono" id="svc-local-log" aria-label="Preparation progress"></ol>
         </div>
         <div id="svc-upload-error" class="notice error" role="alert" hidden></div>
       </form>

@@ -209,11 +209,7 @@ and commit. Cloudflare Pages for now (any static host works: the site is the `we
 is): `npx wrangler pages deploy web --project-name agentmeter`, or connect the repo in the
 Cloudflare dashboard (Framework preset **None**, no build command, output directory **`web`**).
 `web/_headers` sets the CSP; its `connect-src` allows `https://*.supabase.co` and
-`*.trycloudflare.com`. Uploads are prepared on the GPU machine (A7). The browser route (Pyodide,
-`web/prep/`) is used only without a control plane; for it the CSP also allows
-`https://cdn.jsdelivr.net` and `'wasm-unsafe-eval'`. After editing anything in `agentmeter/ingest/`,
-`agentmeter/server/prepare.py` or the input configs, run `python scripts/build_web_prep.py` (a test
-fails while the browser bundle is stale). Another static host must send the same headers (copy the
+`*.trycloudflare.com`. Uploads are prepared on the GPU machine (A7). Another static host must send the same headers (copy the
 `Content-Security-Policy` line from `web/_headers` into that host's header settings). A custom
 domain for the control plane or a named tunnel? Run
 `AGENTMETER_CSP_CONNECT="https://api.example.org https://gpu.example.org" python scripts/csp_headers.py`
@@ -225,7 +221,7 @@ other users under **Admin** (each must choose a new password at first login).
 Uploads are prepared by a small service that runs **on the rented GPU machine, next to the GPU
 server**: `cloudprep/app.py`, started by `scripts/prep_local.py` from `scripts/vast_up.sh`. It starts
 with the instance and is destroyed with it, so it costs nothing extra and nothing runs on your own
-computer. It runs the same preparation code as the server and the browser, so the prepared flows
+computer. It runs the same preparation code as the server, so the prepared flows
 and their fingerprint are identical.
 
 **Never alongside a benchmark.** Preparing is CPU work; next to a benchmark it would compete for the

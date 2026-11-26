@@ -90,7 +90,7 @@ function renderGpu(r) {
         '</td><td class="small">' + esc(fmtDate(j.finished_at)) + '</td><td class="num">' + gqDur(secs(j.started_at, j.finished_at)) + '</td></tr>';
     }).join("") + '</tbody></table></div>' : '<p class="muted" style="margin-bottom:0">Nothing has run yet.</p>') + '</div>';
 }
-// where a file uploaded now would be prepared (the same rule as New benchmark: prepRoute)
+// where a file uploaded now would be prepared (the same rule as New benchmark)
 function renderPrepWhere(d) {
   var busy = d ? d.running.length > 0 : false;
   var where = !d ? "when the GPU server is back on" : busy ? "on the GPU server, as soon as the running benchmark ends" : "on the GPU server, right away";

@@ -29,9 +29,9 @@ li { margin-bottom: 0.5mm; }
 <tr><td rowspan="2">
     <h2>Problem</h2>
     <ol>
-      <li><b>Latency piles up and no one can see which agent causes it.</b> Agents run one after another, so their delays add up. Latency is measured only for the whole pipeline, so the slow step cannot be found and fixed while attacks spread.</li>
+      <li><b>Latency piles up and no one can see which agent causes it.</b> Agents run one after another, so their delays add up. Only the whole pipeline is timed, so the slow agent cannot be found and fixed while attacks spread.</li>
       <li><b>Existing benchmarks do not fit agentic security work.</b> They test single-shot, general tasks and report accuracy and cost separately, so SOC teams have no reference for choosing an open-source LLM.</li>
-      <li><b>Resource use is reported only as one total.</b> Time, memory and tokens are summed for the whole pipeline. Two models with similar totals can spend very differently inside, and re-sent context goes unseen.</li>
+      <li><b>Memory and token use is reported only as one total.</b> Two models with similar totals can spend very differently inside. Context re-sent at every hand-off uses most of the tokens and goes unseen.</li>
     </ol>
     <h3>EXISTING ALTERNATIVES</h3>
     <ul>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Experiment mode mockup</title>
+<style>
+:root { --bg:#0B1222; --surface:#111B31; --surface-2:#17233D; --border:#22304D; --border-2:#33456A; --text:#E8ECF5; --muted:#9AA6BE;
+  --accent:#7FA3F5; --cta:#C8F25A; --cta-ink:#0F1B33; --warn:#F59A5A; --ok:#6CC3A0;
+  --p4:#3987e5; --p8:#c98500; --p16:#d55181; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:14px/1.5 Inter, -apple-system, "Segoe UI", Roboto, sans-serif; }
+.wrap { max-width:1080px; margin:0 auto; padding:24px 16px 64px; }
+.note { color:var(--muted); font-size:12px; border:1px dashed var(--border-2); border-radius:4px; padding:8px 12px; margin-bottom:24px; }
+h1 { font-size:28px; margin:0 0 4px; letter-spacing:-.01em; } h2 { font-size:16px; margin:0 0 12px; } h3 { font-size:13px; margin:0 0 8px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.screen { margin-bottom:56px; } .label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:16px; }
+.row { display:flex; gap:16px; flex-wrap:wrap; align-items:center; }
+.grid2 { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:16px; }
+.chip { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border:1px solid var(--border-2); border-radius:999px; font-size:13px; color:var(--muted); background:transparent; }
+.chip.on { border-color:var(--accent); color:var(--text); background:#1A2950; }
+.chip.off { opacity:.45; text-decoration:line-through; }
+.field { margin-bottom:16px; } .field > b { display:block; margin-bottom:8px; font-size:13px; }
+.sum { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; border-top:1px solid var(--border); padding-top:16px; margin-top:8px; }
+.big { font-size:20px; font-weight:700; } .muted { color:var(--muted); } .small { font-size:12px; }
+.btn { border:1px solid var(--border-2); border-radius:4px; padding:9px 16px; background:transparent; color:var(--text); font:inherit; font-weight:600; }
+.btn.primary { background:var(--cta); color:var(--cta-ink); border-color:var(--cta); }
+.warn { color:var(--warn); }
+table { width:100%; border-collapse:collapse; font-size:13px; } th, td { padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; }
+th { color:var(--muted); font-weight:600; font-size:12px; } td.n, th.n { text-align:right; font-variant-numeric:tabular-nums; }
+.st { font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--border-2); }
+.st.done { color:var(--ok); border-color:var(--ok); } .st.run { color:var(--accent); border-color:var(--accent); } .st.wait { color:var(--muted); } .st.reuse { color:var(--cta); border-color:var(--cta); } .st.nofit { color:var(--warn); border-color:var(--warn); }
+.legend { display:flex; gap:14px; font-size:12px; color:var(--muted); } .legend i { display:inline-block; width:14px; height:3px; vertical-align:middle; margin-right:5px; }
+.tabs { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:16px; } .tabs span { padding:8px 12px; color:var(--muted); font-size:13px; } .tabs span.on { color:var(--text); border-bottom:2px solid var(--accent); }
+.hm td { text-align:center; font-variant-numeric:tabular-nums; font-size:12px; border:2px solid var(--surface); border-radius:4px; }
+.prog { height:6px; background:var(--surface-2); border-radius:3px; overflow:hidden; } .prog span { display:block; height:100%; width:58%; background:var(--accent); }
+svg text { fill:var(--muted); font-size:10px; font-family:inherit; }
+</style></head><body><div class="wrap">
+
+<p class="note">Mockup for the experiment mode design (2026-11-26). Every number here is made-up example data to show the layout, not a measurement.</p>
+
+<!-- ============ SCREEN 1: SET-UP ============ -->
+<section class="screen">
+  <div class="label">Screen 1 · New experiment</div>
+  <h1>New experiment</h1>
+  <p class="muted" style="margin:0 0 16px">Change the model size and the number of agents, and see how speed, memory, accuracy and cost respond. Every run uses the same flows, GPU and settings.</p>
+
+  <div class="card">
+    <h2>1. Data</h2>
+    <div class="row"><span class="chip on">cicids2017_holdout.csv · 20 flows · IDS gate on (threshold 0.458)</span><span class="small muted">17 of 20 flows flagged, so each run triages 17</span></div>
+  </div>
+
+  <div class="card">
+    <h2>2. What to compare</h2>
+    <div class="field"><b>Models</b><div class="row">
+      <span class="chip on">✓ Qwen2.5 7B</span><span class="chip on">✓ Llama 3 8B</span><span class="chip">Mistral 7B</span><span class="chip">Phi-3.5 mini</span></div></div>
+    <div class="field"><b>Model size (precision)</b><div class="row">
+      <span class="chip on">✓ 4-bit</span><span class="chip on">✓ 8-bit</span><span class="chip">16-bit</span>
+      <span class="small muted">16-bit needs about 16 GB for a 7B model; Llama 3 8B fits, a 14B would not</span></div></div>
+    <div class="field"><b>Number of agents</b><div class="row">
+      <span class="chip">1</span><span class="chip on">✓ 2</span><span class="chip">3</span><span class="chip on">✓ 4</span><span class="chip">6</span><span class="chip">8</span><span class="chip on">✓ 10</span></div>
+      <p class="small muted" style="margin:8px 0 0">2 agents: Analyse → Conclude &nbsp;·&nbsp; 4: Perceive → Reason → Decide → Act &nbsp;·&nbsp; 10: Perceive → Enrich → Hypothesise → Reason → Compare → Verify → Critique → Decide → Justify → Act</p></div>
+    <div class="sum">
+      <div><div class="big">2 models × 2 sizes × 3 agent counts = 12 runs</div>
+        <div class="small muted">1 already measured and reused, so 11 to run · about 1 h 50 min on the RTX 3090 · about USD 0.45 · up to 12 runs per experiment</div></div>
+      <button class="btn primary">Run experiment</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SCREEN 2: RESULTS ============ -->
+<section class="screen">
+  <div class="label">Screen 2 · Experiment results (running, 7 of 12 cells done)</div>
+  <h1>Qwen 7B vs Llama 3 8B · size × agents</h1>
+  <div class="row small muted" style="margin-bottom:16px"><span>17 flows triaged per run · NVIDIA RTX 3090 · started 14:02</span></div>
+  <div class="card" style="padding:14px 20px"><div class="row" style="justify-content:space-between"><span class="small">Running Llama 3 8B, 8-bit, 4 agents: 9 / 17 flows</span><span class="small muted">about 45 min left</span></div><div class="prog" style="margin-top:8px"><span></span></div></div>
+
+  <div class="card">
+    <h2>What changed</h2>
+    <p style="margin:0 0 8px">Going from 2 to 10 agents roughly tripled the time per flow for both models, because every extra agent re-reads all the earlier answers: re-sent context grew from 0.4k to 5.1k tokens per flow. Triage accuracy moved by 3 points or less, a gap the test calls a tie.</p>
+    <p style="margin:0" class="muted">8-bit used about a third more GPU memory than 4-bit and was slower at every agent count, so on this GPU it costs more without a measured accuracy gain.</p>
+  </div>
+
+  <div class="card">
+    <div class="tabs"><span class="on">Latency per flow</span><span>GPU memory</span><span>Tokens per flow</span><span>Re-sent context</span><span>Triage accuracy</span><span>Cost per 1,000 flows</span><span>Energy</span></div>
+    <div class="row" style="justify-content:space-between;margin-bottom:8px"><div class="legend"><span><i style="background:var(--p4)"></i>4-bit</span><span><i style="background:var(--p8)"></i>8-bit</span><span>dots: 95% range</span></div><span class="small muted">Lines · <u>Heatmap</u></span></div>
+    <div class="grid2">
+      <!-- panel Qwen -->
+      <div><h3>Qwen2.5 7B</h3>
+        <svg viewBox="0 0 320 200" width="100%">
+          <line x1="40" y1="170" x2="310" y2="170" stroke="#33456A"/><line x1="40" y1="20" x2="40" y2="170" stroke="#33456A"/>
+          <text x="4" y="173">0 s</text><text x="4" y="98">30 s</text><text x="4" y="24">60 s</text>
+          <line x1="40" y1="95" x2="310" y2="95" stroke="#22304D" stroke-dasharray="3 3"/>
+          <text x="60" y="186">2</text><text x="128" y="186">4</text><text x="290" y="186">10</text><text x="150" y="198">agents</text>
+          <polyline points="62,146 130,124 292,72" fill="none" stroke="var(--p4)" stroke-width="2"/>
+          <polyline points="62,134 130,108 292,48" fill="none" stroke="var(--p8)" stroke-width="2"/>
+          <g fill="var(--p4)"><circle cx="62" cy="146" r="4"/><circle cx="130" cy="124" r="4"/><circle cx="292" cy="72" r="4"/></g>
+          <g fill="var(--p8)"><circle cx="62" cy="134" r="4"/><circle cx="130" cy="108" r="4"/><circle cx="292" cy="48" r="4"/></g>
+          <g stroke="var(--p8)"><line x1="292" y1="40" x2="292" y2="56"/></g><g stroke="var(--p4)"><line x1="292" y1="65" x2="292" y2="79"/></g>
+        </svg></div>
+      <!-- panel Llama -->
+      <div><h3>Llama 3 8B</h3>
+        <svg viewBox="0 0 320 200" width="100%">
+          <line x1="40" y1="170" x2="310" y2="170" stroke="#33456A"/><line x1="40" y1="20" x2="40" y2="170" stroke="#33456A"/>
+          <text x="4" y="173">0 s</text><text x="4" y="98">30 s</text><text x="4" y="24">60 s</text>
+          <line x1="40" y1="95" x2="310" y2="95" stroke="#22304D" stroke-dasharray="3 3"/>
+          <text x="60" y="186">2</text><text x="128" y="186">4</text><text x="290" y="186">10</text><text x="150" y="198">agents</text>
+          <polyline points="62,140 130,116" fill="none" stroke="var(--p4)" stroke-width="2"/>
+          <polyline points="62,128" fill="none" stroke="var(--p8)" stroke-width="2"/>
+          <g fill="var(--p4)"><circle cx="62" cy="140" r="4"/><circle cx="130" cy="116" r="4"/></g>
+          <g fill="var(--p8)"><circle cx="62" cy="128" r="4"/></g>
+          <circle cx="130" cy="100" r="5" fill="none" stroke="var(--p8)" stroke-dasharray="2 2"/><text x="140" y="96">running</text>
+          <text x="248" y="120">waiting</text>
+        </svg></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Heatmap · latency per flow (seconds)</h2>
+    <div class="grid2">
+      <div><h3>Qwen2.5 7B</h3><table class="hm"><tr><th></th><th>2</th><th>4</th><th>10</th></tr>
+        <tr><th>4-bit</th><td style="background:#1d3a6b">13.2</td><td style="background:#27467d">18.6</td><td style="background:#3d5f9c">39.5</td></tr>
+        <tr><th>8-bit</th><td style="background:#22406f">15.9</td><td style="background:#2d4f88">22.4</td><td style="background:#5172b0">48.1</td></tr></table></div>
+      <div><h3>Llama 3 8B</h3><table class="hm"><tr><th></th><th>2</th><th>4</th><th>10</th></tr>
+        <tr><th>4-bit</th><td style="background:#1f3c6d">14.5</td><td style="background:#2a4a82">20.3</td><td class="muted">waiting</td></tr>
+        <tr><th>8-bit</th><td style="background:#24436f">17.2</td><td class="muted">running</td><td class="muted">waiting</td></tr></table></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">Every run</h2><button class="btn">Download CSV</button></div>
+    <table><thead><tr><th>Model</th><th>Size</th><th class="n">Agents</th><th class="n">Latency / flow</th><th class="n">Peak VRAM</th><th class="n">Tokens / flow</th><th class="n">Accuracy</th><th>Status</th></tr></thead><tbody>
+      <tr><td>Qwen2.5 7B</td><td>4-bit</td><td class="n">2</td><td class="n">13.2 s</td><td class="n">5.9 GB</td><td class="n">1,820</td><td class="n">71%</td><td><span class="st done">done</span></td></tr>
+      <tr><td>Qwen2.5 7B</td><td>4-bit</td><td class="n">4</td><td class="n">18.6 s</td><td class="n">6.1 GB</td><td class="n">3,410</td><td class="n">72%</td><td><span class="st reuse">reused</span></td></tr>
+      <tr><td>Qwen2.5 7B</td><td>4-bit</td><td class="n">10</td><td class="n">39.5 s</td><td class="n">6.6 GB</td><td class="n">11,240</td><td class="n">74%</td><td><span class="st done">done</span></td></tr>
+      <tr><td>Llama 3 8B</td><td>8-bit</td><td class="n">4</td><td class="n">…</td><td class="n">…</td><td class="n">…</td><td class="n">…</td><td><span class="st run">running</span></td></tr>
+      <tr><td>Llama 3 8B</td><td>4-bit</td><td class="n">10</td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"></td><td><span class="st wait">waiting</span></td></tr>
+    </tbody></table>
+    <p class="small muted" style="margin:8px 0 0">Each run is also an ordinary session (click a row to open it). "Reused" means the same model, size, agents, flows and GPU were already measured, so it was not run again.</p>
+  </div>
+</section>
+</div></body></html>

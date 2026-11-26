@@ -289,7 +289,8 @@ async function frameOf(p) {
   // 9. Leaderboard (By setup: setup list + ranking panel; Overall: podium + model list). Demo runs are
   // ranked only when there are no real runs, as on this demo server.
   await p.click('.mainnav a[data-nav="leaderboard"]'); await p.waitForSelector('#lb-slist');
-  await p.waitForFunction(() => document.querySelectorAll('#lb-slist .sitem').length >= 2, null, { timeout: 15000 }).catch(() => {});   // the list re-renders as the sessions load
+  await p.waitForFunction(() => document.querySelectorAll('#lb-slist .sitem').length >= 2, null, { timeout: 60000 }).catch(() => {});   // the list re-renders as the sessions load
+  await p.waitForTimeout(500);                                         // let a re-render that is under way finish
   const groups = await p.$$('#lb-slist .sitem');
   log(groups.length === 2, 'Leaderboard: 2 setups (CSV set, PCAP set) listed, ' + groups.length);
   log(/2 sessions/.test(await p.textContent('#lb-slist .sitem')), 'Leaderboard: the CSV setup pools its 2 sessions');

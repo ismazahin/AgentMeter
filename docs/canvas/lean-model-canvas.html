@@ -44,11 +44,11 @@ li { margin-bottom: 0.5mm; }
     <ol>
       <li><b>Per-agent benchmarking tool.</b> Instruments every step of an agentic triage pipeline that handles the threats an IDS has detected, with any number of agents, and assigns response time, memory and tokens to each agent.</li>
       <li><b>Monitoring and analysis module.</b> Captures per-agent and end-to-end telemetry and combines triage accuracy and resource cost into one composite score ranking.</li>
-      <li><b>Model comparison.</b> Runs five open-source LLMs on the same pipeline and shows which is most efficient and where cost concentrates.</li>
+      <li><b>What-if experiments.</b> Runs each open-source LLM at 4, 8 and 16-bit and with 1 to 10 agents on the same alerts, and charts how speed, memory, tokens, accuracy and cost change.</li>
     </ol></td><td rowspan="2" class="uvp">
     <h2>Unique Value Proposition</h2>
     <div class="big">Find the open-source LLM that triages IDS-detected threats at the lowest resource cost, with that cost broken down per agent.</div>
-    <p>The IDS detects the threats. AgentMeter runs each candidate LLM through the same triage pipeline on those alerts and shows which one triages them with the least time, memory and tokens, how accurate its triage is, and which agent is the bottleneck, before you deploy it.</p>
+    <p>The IDS detects the threats. AgentMeter runs each candidate LLM through the same triage pipeline on those alerts and shows which one triages them with the least time, memory and tokens, how accurate its triage is, which agent is the bottleneck, and how model size and the number of agents change that cost, before you deploy it.</p>
     <h3>HIGH-LEVEL CONCEPT</h3>
     <div class="concept">“A per-agent fuel-economy test for LLM triage agents.”</div></td><td>
     <h2>Unfair Advantage</h2>
@@ -56,6 +56,7 @@ li { margin-bottom: 0.5mm; }
       <li><b>Per-agent instrumentation:</b> time, memory and tokens measured inside each agent step, for any number of agents, not only end to end</li>
       <li><b>One composite score:</b> triage accuracy and resource cost ranked together, with significance tests and sensitivity checks</li>
       <li><b>Security-specific workload:</b> IDS alerts from real network traffic, triaged by a multi-step agent pipeline</li>
+      <li><b>Controlled experiments:</b> model size × number of agents measured on identical alerts, GPU and settings, so only those factors change</li>
       <li>A growing public Leaderboard of measured sessions</li>
     </ul></td><td rowspan="2">
     <h2>Customer Segments</h2>
@@ -76,7 +77,7 @@ li { margin-bottom: 0.5mm; }
     <ul>
       <li>Sign-ups, and % who finish a first benchmark within 7 days</li>
       <li>Benchmark sessions per week, and % that complete without error</li>
-      <li>Average models compared per session</li>
+      <li>Average runs per experiment (models × sizes × agents)</li>
       <li>Sessions where a per-agent bottleneck is found</li>
       <li>GPU minutes and cost per session</li>
       <li>PDF reports downloaded per session</li>
@@ -107,7 +108,7 @@ li { margin-bottom: 0.5mm; }
       </ul>
       <h3>Variable</h3>
       <ul>
-        <li>GPU rental per benchmark hour (Vast.ai RTX 3090)</li>
+        <li>GPU rental per benchmark hour (Vast.ai RTX 3090), growing with the runs in an experiment</li>
         <li>Storage for session results, PDFs and model downloads as usage grows</li>
         <li>Support; marketing (talks, posts, demo events)</li>
       </ul></td><td>

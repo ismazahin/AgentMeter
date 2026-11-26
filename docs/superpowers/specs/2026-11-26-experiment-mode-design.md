@@ -1,7 +1,8 @@
 # Experiment mode: vary precision and agent count, compare in charts (design)
 
 Status: approved 2026-11-26 by the owner, phase 1 of 3.
-Mockup: `2026-11-26-experiment-mode-mockup/experiment.html` (set-up and results screens).
+Mockups: `2026-11-26-experiment-mode-mockup/experiment.html` (set-up and results screens),
+`one-or-two.html` (one page or two: the owner chose one page).
 
 ## Why
 The owner's supervisor does not want AgentMeter to be a one-way tool (upload, run, read a report).
@@ -230,3 +231,27 @@ as rough. The page shows runs, minutes and the GPU cost at the configured hourly
 ## Decided with the owner
 - **Hand-off rule**: every agent reads all earlier outputs (the owner's choice, 2026-11-26). It is
   how most agent frameworks pass context and shows the growing re-sent context (problem 3).
+
+## Changes decided after approval (2026-11-26)
+- **One page, not a separate experiment mode.** New benchmark gets an optional block "Compare model
+  sizes and number of agents". Untouched, it is a standard benchmark (4-bit, 4 agents). With more
+  than one size or number of agents ticked, it becomes an experiment. The session page shows a
+  **Size & agents** tab for any run of an experiment. There is no separate New experiment page.
+- **Every benchmark uses the full-history hand-off** (prompt version `triage-2`), including the
+  standard 4-agent pipeline, so all new readings follow one rule. Older sessions stay viewable but
+  are separate setups (the owner said not to worry about them).
+- **Data preparation stays on the Vast machine**, in the waiting list, never alongside a benchmark
+  (Hugging Face Spaces that run code now need a paid plan; a CPU-core split was considered and not
+  needed).
+
+## Built (phase 1)
+- `agentmeter/pipeline/agents.py`: role framework, `LADDERS`, full-history hand-off.
+- `agentmeter/session/experiment.py`: sizes, plan (cap 12), variant block, memory estimate.
+- `POST /api/jobs` with `precisions[]` and `agents[]`: one job per combination, each an ordinary
+  session with `session.variant` and `session.experiment`; cells skip the per-session explainer;
+  Stop cancels the waiting runs; `GET /api/experiments/<id>`; won't-fit cells are skipped.
+- Control plane: one Telegram message per experiment (its last run).
+- Web: the compare block, the watch page names each run and follows the experiment, the Size &
+  agents tab (charts, heatmap, what changed, every run, CSV).
+- Not yet: reuse of already-measured cells, loading a model once for several pipeline sizes, the
+  LLM-written experiment explanation (the tab's "What changed" is built from the measurements).

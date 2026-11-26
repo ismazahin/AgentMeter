@@ -23,7 +23,8 @@ def test_an_old_custom_pipeline_config_is_still_described():
 def test_a_custom_agent_can_no_longer_run():
     from agentmeter.config import Config
     from agentmeter.pipeline import Pipeline
-    cfg = Config({"pipeline": OLD_CUSTOM, "classes": ["Benign"]}, path=None)
+    # an old custom agent name that is not a built-in role (the ladder's roles, such as "triage", are)
+    cfg = Config({"pipeline": {**OLD_CUSTOM, "agents": ["perceive", "my_custom_step"]}, "classes": ["Benign"]}, path=None)
     with pytest.raises(ValueError, match="Unknown agent"):
         Pipeline(cfg, provider=None)
 

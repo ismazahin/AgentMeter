@@ -119,13 +119,13 @@ def test_a_session_records_its_policy_and_reports_triage(tmp_path):
     run_dir = tmp_path / "cicids2017_sample"
     p = run_session(run_dir, ["mock-a"], provider="mock")
     cfg = yaml.safe_load((run_dir / "session_config.yaml").read_text())
-    assert cfg["pipeline"]["prompt_version"] == "triage-1" and cfg["triage"]["Benign"] == DISMISS
+    assert cfg["pipeline"]["prompt_version"] == "triage-2" and cfg["triage"]["Benign"] == DISMISS
     t = p["triage"]
     m = t["per_model"][0]
     assert t["labelled"] is True and sum(m["queue"].values()) == m["n_flows"] == 8
     assert m["n_attacks"] + m["n_benign"] == 8 and m["missed_attacks"] <= m["n_attacks"]
     st = p["session_identity"]["settings"]
-    assert st["pipeline.prompt_version"] == "triage-1" and st["triage"] == cfg["triage"]
+    assert st["pipeline.prompt_version"] == "triage-2" and st["triage"] == cfg["triage"]
     flows = json.loads(next(run_dir.glob("flows_*.json")).read_text())
     f = flows["flows"][0]
     assert f["truth_priority"] in (ESCALATE, INVESTIGATE, DISMISS)

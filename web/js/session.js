@@ -107,7 +107,7 @@ var SESSION = { id: null, res: null, job: null };
 // Session sections (workflow order) and the sub-views of the two data-heavy ones. Each section
 // and sub-view has its own link: #/session/<id>/<section>[/<view>].
 var SECTIONS = {
-  overview: {}, reliability: {}, agents: {}, cost: {}, data: {},
+  overview: {}, reliability: {}, agents: {}, cost: {}, data: {}, variants: {},
   ranking: { subs: [["scores", "Scores"], ["weighting", "Weighting"], ["robustness", "Robustness"], ["tradeoffs", "Trade-offs"], ["guide", "Model Guide"]] },
   performance: { subs: [["comparison", "Comparison"], ["latency", "Latency"], ["capacity", "Capacity"], ["drivers", "What drives it"], ["gpu", "GPU & Throughput"], ["statistics", "Statistics"]] },
   recommendations: { subs: [["limits", "Your limits"], ["context", "Model context"], ["guidance", "Deployment guidance"]] }
@@ -281,6 +281,7 @@ function showSessionTab(tab) {
   panel.querySelectorAll("[data-pane]").forEach(function (pn) { pn.hidden = pn.getAttribute("data-pane") !== (t.sub || "main"); });
   showEmbed(EMBED_PARTS[key] || null, t.tab);
   if (t.tab === "agents") loadFlows();
+  if (t.tab === "variants" && typeof renderVariants === "function") renderVariants(SESSION.res);
   tocSpy(t.tab);
   var want = (parseHash().q || {}).sec;                    // a link to a section: open it there
   if (want) setTimeout(function () { tocGo(want, true); }, 60);
@@ -436,10 +437,13 @@ function renderSession(res, job) {
   $("h-session").textContent = job.title || vs || job.job_id;      // a session the owner named shows its name
   $("h-session").title = (res.per_model || []).map(function (m) { return m.model; }).join(" vs ");   // the full names on hover
   document.title = $("h-session").textContent + " | AgentMeter";
+  $("stab-variants").hidden = !s.experiment;                        // the comparison of an experiment's runs
   $("session-chips").innerHTML = '<span class="chip ' + (real ? "ok" : "warn") + '">' + (real ? "GPU: " + esc(env.gpu_name || "unknown") : "Demo (no GPU)") + '</span>' +
     '<span class="chip">' + fmtNum(s.n_flows) + ' flows</span><span class="chip">' + esc((s.source_type || "").toUpperCase()) + '</span>' +
     '<span class="chip">' + (s.accuracy_available ? "labelled" : "no reference labels") + '</span>' +
     (job.title && vs ? '<span class="chip">' + esc(vs) + '</span>' : "") +
+    (s.variant && !s.variant.standard ? '<span class="chip" title="Model size and number of agents of this run">' + esc(s.variant.label) + '</span>' : "") +
+    (s.experiment ? '<a class="chip" href="#/session/' + enc(job.job_id) + '/variants" title="This run is part of an experiment">Run ' + s.experiment.index + ' of ' + s.experiment.total + '</a>' : "") +
     '<button type="button" class="chip mono copy-id" data-copy="' + esc(job.job_id) + '" title="Copy the session id ' + esc(job.job_id) + '">ID ' +
       esc((/_([0-9a-f]{32})$/.exec(job.job_id) || [0, job.job_id])[1].slice(0, 8)) + '</button>' +
     (job.owner ? '<span class="chip" title="Started by">' + esc(job.owner) + '</span>' : "");

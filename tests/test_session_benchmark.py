@@ -493,7 +493,8 @@ def test_prompt_composition_is_counted_and_stored(tmp_path):
     assert pc["measured"] is True
     by = {a["agent"]: a for a in pc["per_model"][0]["agents"]}
     assert by["perceive"]["handoff_tokens"] == 0 and by["perceive"]["feature_tokens"] > 0
-    assert by["act"]["feature_tokens"] == 0 and by["act"]["handoff_tokens"] > 0         # act re-reads reason only
+    # every agent re-reads the flow and all earlier outputs (prompt version triage-2)
+    assert by["act"]["feature_tokens"] > 0 and by["act"]["handoff_tokens"] > by["decide"]["handoff_tokens"]
     assert by["decide"]["handoff_tokens"] > by["reason"]["handoff_tokens"]                 # reason + perceive
     pf = pc["per_model"][0]["per_flow"]
     assert 0 < pf["cacheable_share"] < 1 and pf["input_tokens"] == p["per_model"][0]["efficiency"]["end_to_end"]["mean_input_tokens_per_flow"]

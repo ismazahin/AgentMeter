@@ -932,6 +932,24 @@
   .seg-opts label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
   .seg-opts input { accent-color: var(--accent); width: 18px; height: 18px; }
   .models { display: grid; gap: 8px; grid-template-columns: 1fr; margin: 6px 0 8px; }
+  .cmp-box { border: 1px dashed var(--border-2); border-radius: var(--radius-lg); padding: 10px 14px; margin: 14px 0 4px; }
+  .cmp-box summary { cursor: pointer; }
+  .cmp-label { font-size: 13px; font-weight: 600; margin: 10px 0 6px; }
+  .cmp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cmp-chips label { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-2); border-radius: 999px; padding: 4px 12px; font-size: 13px; cursor: pointer; min-height: 32px; }
+  .cmp-chips label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .cmp-chips input { margin: 0; }
+  .cmp-pipes { margin: 8px 0 0; padding-left: 18px; }
+  .warn-text { color: var(--warn-text); }
+  .xp-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); }
+  .xp-legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 6px; }
+  .xp-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .xp-panels > div { max-width: 560px; min-width: 0; }
+  .xp-panels svg { width: 100%; height: auto; display: block; }
+  #xp-cells td.mono, #xp-cells td:nth-child(2) { white-space: nowrap; }
+  .xp-panels svg text { fill: var(--muted); font-size: 10px; }
+  .xp-hm td.v { text-align: center; font-variant-numeric: tabular-nums; }
+  .xp-measures { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
   @media (min-width: 640px) { .models { grid-template-columns: 1fr 1fr; } }
   .model { display: flex; gap: 10px; align-items: center; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; font-weight: 500; cursor: pointer; min-height: 48px; background: var(--surface); }
   .model:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
@@ -1726,6 +1744,25 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
           <button type="button" class="btn small-btn" id="wiz-preset-save">Save these choices as a preset</button>
           <button type="button" class="btn small-btn danger-lite" id="wiz-preset-del" hidden>Delete preset</button>
         </div>
+        <details class="cmp-box" id="cmp-box">
+          <summary><b>Compare model sizes and number of agents</b> <span class="muted small">(optional)</span></summary>
+          <p class="small muted" style="margin:6px 0 10px">Tick more than one to compare. Each combination is its own run on the same flows, one after another on the GPU, and the session shows them side by side in charts. Leave as is for a standard benchmark.</p>
+          <p class="cmp-label">Model size</p>
+          <div class="cmp-chips" id="cmp-prec" role="group" aria-label="Model size">
+            <label><input type="checkbox" value="4bit" checked> 4-bit</label>
+            <label><input type="checkbox" value="8bit"> 8-bit</label>
+            <label><input type="checkbox" value="16bit"> 16-bit</label>
+          </div>
+          <p class="cmp-label">Number of agents</p>
+          <div class="cmp-chips" id="cmp-agents" role="group" aria-label="Number of agents">
+            <label><input type="checkbox" value="1"> 1</label><label><input type="checkbox" value="2"> 2</label>
+            <label><input type="checkbox" value="3"> 3</label><label><input type="checkbox" value="4" checked> 4</label>
+            <label><input type="checkbox" value="6"> 6</label><label><input type="checkbox" value="8"> 8</label>
+            <label><input type="checkbox" value="10"> 10</label>
+          </div>
+          <ul class="small muted cmp-pipes" id="cmp-pipes"></ul>
+          <p class="small" id="cmp-line" aria-live="polite"></p>
+        </details>
         <hr class="sep">
         <h2>Settings</h2>
         <p class="small" id="svc-run-mode"></p>
@@ -1824,6 +1861,7 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
         <a role="tab" href="#" data-tab="agents" id="stab-agents" aria-controls="spanel-agents">Agent Analysis</a>
         <a role="tab" href="#" data-tab="cost" id="stab-cost" aria-controls="spanel-cost">Cost &amp; Energy</a>
         <a role="tab" href="#" data-tab="recommendations" id="stab-recommendations" aria-controls="spanel-recommendations">Recommendations</a>
+        <a role="tab" href="#" data-tab="variants" id="stab-variants" aria-controls="spanel-variants" hidden>Size &amp; agents</a>
         <a role="tab" href="#" data-tab="data" id="stab-data" aria-controls="spanel-data">Data &amp; Exports</a>
       </div>
       <div class="subtabs-bar" role="tablist" aria-label="Views in this section" id="session-subtabs" hidden></div>
@@ -1834,6 +1872,7 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
       <div role="tabpanel" id="spanel-agents" aria-labelledby="stab-agents" hidden></div>
       <div role="tabpanel" id="spanel-cost" aria-labelledby="stab-cost" hidden></div>
       <div role="tabpanel" id="spanel-recommendations" aria-labelledby="stab-recommendations" hidden></div>
+      <div role="tabpanel" id="spanel-variants" aria-labelledby="stab-variants" hidden></div>
       <div role="tabpanel" id="spanel-data" aria-labelledby="stab-data" hidden></div>
       <div id="embed-host" class="embed-host" hidden></div>
     </div>
@@ -2132,6 +2171,7 @@ tr.first .rbar b, tr.best .rbar b { background: var(--cta) !important; }
 <script src="js/home.js"></script>
 <script src="js/wizard.js"></script>
 <script src="js/session.js"></script>
+<script src="js/experiment.js"></script>
 <script src="js/analysis.js"></script>
 <script src="js/analyse.js"></script>
 <script src="js/planner.js"></script>

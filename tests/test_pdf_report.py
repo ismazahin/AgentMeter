@@ -138,7 +138,7 @@ def test_recommendation_is_honest_about_accuracy_and_ties(labelled):
     if res["relative_comparison"]["efficiency_verdict"]["verdict"] == "tie":
         assert "equally resource-efficient" in t
         assert "best resource-efficient starting point" not in t           # no arbitrary leader
-    assert "decision support" in t or "best resource-efficient starting point" in t
+    assert "decision support" in t or "best resource-efficient starting point" in t or "none meets them" in t
     assert "not a threat-detection product" in t and "does not evaluate threat detection" in t
 
 

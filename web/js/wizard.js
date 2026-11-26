@@ -361,13 +361,38 @@ function renderExtras(cat) {
 }
 function modelInputs() { return document.querySelectorAll("#svc-models input, #svc-extra-models input"); }
 function picked() { return Array.prototype.filter.call(modelInputs(), function (i) { return i.checked; }).map(function (i) { return i.value; }); }
+// ---------- compare model sizes and number of agents (an experiment: one run per combination) ----------
+var CMP_PIPES = { 1: "Triage", 2: "Analyse → Conclude", 3: "Perceive → Reason → Conclude", 4: "Perceive → Reason → Decide → Act",
+  6: "Perceive → Enrich → Reason → Verify → Decide → Act", 8: "Perceive → Enrich → Hypothesise → Reason → Verify → Critique → Decide → Act",
+  10: "Perceive → Enrich → Hypothesise → Reason → Compare → Verify → Critique → Decide → Justify → Act" };
+var CMP_LABEL = { "4bit": "4-bit", "8bit": "8-bit", "16bit": "16-bit" };
+var CMP_MAX = 12;
+function cmpSel() {
+  var vals = function (id) { return Array.prototype.filter.call(document.querySelectorAll("#" + id + " input"), function (i) { return i.checked; }).map(function (i) { return i.value; }); };
+  var p = vals("cmp-prec"), a = vals("cmp-agents").map(Number);
+  return { precisions: p.length ? p : ["4bit"], agents: a.length ? a : [4] };
+}
+function cmpRuns() { var c = cmpSel(); return picked().length * c.precisions.length * c.agents.length; }
+function cmpIsStandard() { var c = cmpSel(); return c.precisions.join() === "4bit" && c.agents.join() === "4"; }
+function cmpRender() {
+  var c = cmpSel(), n = picked().length, runs = cmpRuns();
+  $("cmp-pipes").innerHTML = c.agents.map(function (k) { return "<li><b>" + k + " agent" + (k === 1 ? "" : "s") + "</b>: " + esc(CMP_PIPES[k]) + "</li>"; }).join("");
+  var line = $("cmp-line");
+  if (cmpIsStandard()) { line.textContent = "A standard benchmark: 4-bit, 4 agents."; line.className = "small"; return; }
+  line.className = "small" + (runs > CMP_MAX ? " warn-text" : "");
+  line.textContent = runs + " run" + (runs === 1 ? "" : "s") + ": " + n + " model" + (n === 1 ? "" : "s") + " × " + c.precisions.length + " size" + (c.precisions.length === 1 ? "" : "s") +
+    " × " + c.agents.length + " number" + (c.agents.length === 1 ? "" : "s") + " of agents" + (runs > CMP_MAX ? ". At most " + CMP_MAX + " runs per experiment, so untick a model, a size or a number of agents." : ". They run one after another, never at the same time.");
+}
+document.querySelectorAll("#cmp-prec input, #cmp-agents input").forEach(function (i) { i.addEventListener("change", function () { syncRun(); }); });
 function syncRun() {
   var max = (CONFIG && CONFIG.max_models) || 2, n = picked().length;
+  if ($("cmp-line")) cmpRender();
   modelInputs().forEach(function (inp) { inp.disabled = !!inp.dataset.locked || (!inp.checked && n >= max); });
   if ($("wiz-settings")) renderSettings();
   var failed = $("wiz-data-chip").textContent === "Failed", off = !ONLINE, noIds = !!HEALTH && !HEALTH.ids;
-  $("svc-run").disabled = n < 1 || n > max || failed || off || noIds;
-  $("svc-run").textContent = off ? "GPU offline" : noIds ? "No IDS model" : WIZ.set || failed ? "Run benchmark" : "Run when data is ready";
+  var runs = cmpRuns(), exp = !cmpIsStandard();
+  $("svc-run").disabled = n < 1 || n > max || failed || off || noIds || runs > CMP_MAX;
+  $("svc-run").textContent = off ? "GPU offline" : noIds ? "No IDS model" : !(WIZ.set || failed) ? "Run when data is ready" : exp ? "Run " + runs + " benchmark" + (runs === 1 ? "" : "s") : "Run benchmark";
   $("svc-model-hint").textContent = n >= max ? "Maximum of " + max + " models selected. Deselect one to change."
     : n === 1 ? "1 model selected. Add another to compare, or run it alone." : n > 1 ? n + " models selected, up to " + max + ". Each runs on its own, one after another." : "Select 1 to " + max + " models.";
 }
@@ -394,6 +419,11 @@ function estimateLine() {
   var where = real ? "on " + (e.gpu || "this GPU") : "in demo mode";
   if (!e.complete) return [["Estimate", "no earlier session of " + e.unknown.map(short).join(" or ") + " " + where + " yet, so no estimate"]];
   var src = Math.max.apply(null, e.models.map(function (m) { return m.sessions; }));
+  if (!cmpIsStandard()) {                       // every combination: scaled by its number of agents (rough)
+    var c = cmpSel(), k = c.agents.reduce(function (s, a) { return s + a / 4; }, 0) * c.precisions.length;
+    return [["Estimate", "roughly " + fmtDur(e.seconds * k) + " of model time for all " + cmpRuns() + " runs" + (e.cost_usd != null ? ", about $" + fmtNum(e.cost_usd * k, 2) : "") +
+      " (scaled from earlier 4-agent sessions " + where + " by the number of agents; 8-bit and 16-bit can differ, plus model loading)"]];
+  }
   var out = [["Estimate", "about " + fmtDur(e.seconds) + " of model time" + (e.cost_usd != null ? ", about $" + fmtNum(e.cost_usd, 2) : "") +
     " (from earlier sessions " + where + ", plus model loading and first-use downloads)" + (src < 2 ? ", from one earlier session only" : "")]];
   var fg = models.length > 1 && INSIGHTS.flowGuidance ? INSIGHTS.flowGuidance(WIZ.history, { models: models, n_flows: n, demo: !real, gpu: real && HEALTH.gpu ? HEALTH.gpu.name : null }) : null;
@@ -409,10 +439,10 @@ function loadHistory() {
 function renderSettings() {
   var s = WIZ.summary;
   $("wiz-settings").innerHTML = [
-    ["Provider", HEALTH && HEALTH.provider === "real" ? "Real GPU, 4-bit NF4" + (HEALTH.engine === "vllm" ? ", vLLM engine" : "") : "Demo (no GPU)"],
+    ["Provider", HEALTH && HEALTH.provider === "real" ? "Real GPU, " + cmpSel().precisions.map(function (p) { return CMP_LABEL[p]; }).join(", ") + (HEALTH.engine === "vllm" ? ", vLLM engine" : "") : "Demo (no GPU)"],
     ["Flows", s ? fmtNum(s.rows_selected) : "from step 1 (" + ($("svc-max-flows").value || 50) + " max)"],
     ["Evaluation", s ? (s.accuracy_available ? "efficiency, with a reference-label validity check" : "efficiency (no reference labels)") : "known when the data is ready"],
-    ["Agents", "Perceive → Reason → Decide → Act"]
+    ["Agents", cmpSel().agents.length === 1 ? CMP_PIPES[cmpSel().agents[0]] : cmpSel().agents.join(", ") + " agents (one run each)"]
   ].concat(estimateLine()).concat(downloadLine()).map(function (kv) { return '<dt>' + esc(kv[0]) + '</dt><dd>' + esc(kv[1]) + '</dd>'; }).join("");
 }
 
@@ -440,6 +470,7 @@ $("svc-run").addEventListener("click", function () {
   // server uses the prepared set directly when it is already done). Reused sets: run.
   if (WIZ.prep) body.after_prepare = WIZ.prep; else body.run = WIZ.set;
   body.ids = idsBody();
+  if (!cmpIsStandard()) { var cs = cmpSel(); body.precisions = cs.precisions; body.agents = cs.agents; }
   $("svc-run").disabled = true;
   api("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(function (r) {
     if (!r.ok) { showError(err, r.data); syncRun(); return; }
@@ -512,6 +543,7 @@ function renderProgress(j, target) {
     bar.classList.add("indet");
   } else {
     phase = j.status === "done" ? "Benchmark finished" : j.status === "queued" ? "Waiting for the GPU" : "Benchmarking";
+    if (j.experiment) phase = "Run " + j.experiment.index + " of " + j.experiment.total + ": " + (CMP_LABEL[j.precision] || j.precision) + ", " + j.agents + " agent" + (j.agents === 1 ? "" : "s") + " · " + phase.toLowerCase();
     pct = p.total ? Math.round(100 * p.completed / p.total) : 0;
     var dl = j.model_download, downloading = j.status === "running" && !!dl && dl.phase === "downloading";
     if (downloading) {
@@ -683,6 +715,18 @@ function wireStop(j, t) {
     });
   };
 }
+// an experiment: after one run, watch the next one; after the last, open the comparison
+function nextExperimentRun(job, token) {
+  api("/api/experiments/" + enc(job.experiment.id)).then(function (r) {
+    if (token !== pollToken) return;
+    var jobs = r.ok ? r.data.jobs || [] : [], next = jobs.filter(function (j) { return j.status === "queued" || j.status === "running"; })[0];
+    var first = jobs[0] || job;
+    setTimeout(function () {
+      if (token !== pollToken) return;
+      location.hash = next ? "#/new/run/" + enc(next.job_id) : "#/session/" + enc(first.job_id) + "/variants";
+    }, 1500);
+  });
+}
 function watchRun(id) {
   var token = ++pollToken;
   var t = { status: $("svc-job-status"), bar: $("svc-progress"), fill: $("svc-progress-bar"), models: $("svc-job-models"),
@@ -706,6 +750,7 @@ function watchRun(id) {
       if (token !== pollToken) return;
       if (!r.ok) { showError(t.error, r.data); return; }
       renderProgress(r.data, t);
+      if (r.data.status === "done" && r.data.experiment) { nextExperimentRun(r.data, token); return; }
       if (r.data.status === "done") { setTimeout(function () { if (token === pollToken) location.hash = "#/session/" + enc(id); }, 2500); return; }
       if (r.data.status === "failed" || r.data.status === "interrupted" || r.data.status === "stopped") return;
       setTimeout(tick, r.data.prepare ? 1000 : 2000);

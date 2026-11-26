@@ -1,6 +1,6 @@
 # Experiment mode: vary precision and agent count, compare in charts (design)
 
-Status: proposed 2026-11-26, phase 1 of 3.
+Status: approved 2026-11-26 by the owner, phase 1 of 3.
 Mockup: `2026-11-26-experiment-mode-mockup/experiment.html` (set-up and results screens).
 
 ## Why
@@ -142,8 +142,8 @@ is parsed from it as `make_verdict` already does for a pipeline without a verdic
 (the full history). This is how most agent frameworks pass context, and it makes the re-sent
 context grow with the number of agents, which is the effect to measure. The experiment's 4-agent
 rung therefore differs slightly from the normal benchmark's pipeline (where Act reads only
-Reason), and it has its own prompt version, so the two are never pooled. *(Builder's call
-recorded here; see "Open question for the owner".)*
+Reason), and it has its own prompt version, so the two are never pooled. *(Decided by the owner,
+2026-11-26: every agent reads all earlier outputs.)*
 
 Token budgets: the existing per-agent `max_new_tokens` apply by role; new roles get the Reason
 budget. Decoding stays as configured for normal sessions.
@@ -227,7 +227,6 @@ as rough. The page shows runs, minutes and the GPU cost at the configured hourly
 - Chart library details, colours and layout within the existing design tokens and the mockup.
 - Names of tables, routes and fields.
 
-## Open question for the owner
-- **Hand-off rule.** Every agent reads all earlier outputs (proposed: realistic, and it shows the
-  growing re-sent context), or every agent reads only the previous one (cheaper, flatter cost
-  curve, closer to a strict chain)? The choice changes what the agent-count curve shows.
+## Decided with the owner
+- **Hand-off rule**: every agent reads all earlier outputs (the owner's choice, 2026-11-26). It is
+  how most agent frameworks pass context and shows the growing re-sent context (problem 3).

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ms"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Satu atau dua halaman</title>
+<style>
+:root { --bg:#0B1222; --side:#102A5C; --surface:#111B31; --surface-2:#17233D; --border:#22304D; --border-2:#33456A; --text:#E8ECF5; --muted:#9AA6BE;
+  --accent:#7FA3F5; --cta:#C8F25A; --cta-ink:#0F1B33; --warn:#F59A5A; }
+* { box-sizing:border-box; }
+body { margin:0; background:#060b16; color:var(--text); font:13px/1.5 Inter, -apple-system, "Segoe UI", Roboto, sans-serif; padding:24px; }
+h1 { font-size:22px; margin:0 0 4px; } .lede { color:var(--muted); margin:0 0 20px; max-width:90ch; }
+.cols { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.opt > .t { font-size:15px; font-weight:700; margin-bottom:2px; } .opt > .d { color:var(--muted); margin-bottom:10px; }
+.win { display:grid; grid-template-columns:150px 1fr; border:1px solid var(--border-2); border-radius:10px; overflow:hidden; background:var(--bg); }
+.side { background:var(--side); padding:14px 10px; } .side .logo { font-weight:800; margin-bottom:14px; }
+.nav { display:block; padding:6px 8px; border-radius:4px; color:#cbd5ec; margin-bottom:2px; } .nav.on { background:rgba(255,255,255,.12); color:#fff; } .nav.new { outline:1px dashed var(--cta); color:var(--cta); }
+.main { padding:16px; } .main h2 { font-size:18px; margin:0 0 10px; }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:10px; }
+.lab { font-weight:600; font-size:12px; margin-bottom:6px; } .row { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.chip { padding:4px 10px; border:1px solid var(--border-2); border-radius:999px; color:var(--muted); font-size:12px; } .chip.on { border-color:var(--accent); color:var(--text); background:#1A2950; }
+.btn { border:1px solid var(--cta); background:var(--cta); color:var(--cta-ink); border-radius:4px; padding:6px 12px; font-weight:700; font-size:12px; }
+.sum { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.muted { color:var(--muted); } .small { font-size:11px; }
+.more { border:1px dashed var(--border-2); border-radius:8px; padding:10px 12px; margin-bottom:10px; }
+.more summary { font-weight:600; cursor:default; list-style:none; } .note { color:var(--warn); font-size:11px; }
+.verdict { margin-top:24px; display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+.v { border:1px solid var(--border-2); border-radius:10px; padding:14px; background:var(--surface); } .v > b { display:block; margin-bottom:6px; }
+.v ul { margin:0; padding-left:18px; } .rec { border-color:var(--cta); }
+</style></head><body>
+<h1>Dua halaman berasingan, atau satu halaman?</h1>
+<p class="lede">Mockup. Kiri: reka bentuk asal, iaitu New benchmark dan New experiment sebagai dua halaman. Kanan: cadangan baru, satu halaman New benchmark dengan bahagian "Bandingkan saiz dan agent" yang boleh dibuka.</p>
+<div class="cols">
+  <!-- A -->
+  <div class="opt"><div class="t">A · Dua halaman (reka bentuk asal)</div><div class="d">Pengguna kena pilih dulu: nak benchmark biasa atau eksperimen.</div>
+    <div class="win"><div class="side"><div class="logo">AgentMeter</div>
+      <span class="nav">Home</span><span class="nav on">New Benchmark</span><span class="nav new">New Experiment</span><span class="nav">Sessions</span><span class="nav">Leaderboard</span></div>
+      <div class="main"><h2>New benchmark</h2>
+        <div class="card"><div class="lab">Data</div><span class="chip on">holdout.csv · 20 flows · IDS on</span></div>
+        <div class="card"><div class="lab">Models</div><div class="row"><span class="chip on">✓ Qwen 7B</span><span class="chip on">✓ Llama 3 8B</span><span class="chip">Mistral 7B</span></div>
+          <p class="small muted" style="margin:8px 0 0">Tetap: 4-bit, 4 agent</p></div>
+        <div class="card sum"><span>2 models · ~12 min</span><span class="btn">Run benchmark</span></div>
+        <p class="small muted">Nak ubah saiz atau agent? Pergi ke halaman lain, upload data semula.</p></div></div></div>
+  <!-- B -->
+  <div class="opt"><div class="t">B · Satu halaman (cadangan baru)</div><div class="d">Satu tempat sahaja. Benchmark biasa ialah eksperimen dengan satu saiz dan satu bilangan agent.</div>
+    <div class="win"><div class="side"><div class="logo">AgentMeter</div>
+      <span class="nav">Home</span><span class="nav on">New Benchmark</span><span class="nav">Sessions</span><span class="nav">Leaderboard</span></div>
+      <div class="main"><h2>New benchmark</h2>
+        <div class="card"><div class="lab">Data</div><span class="chip on">holdout.csv · 20 flows · IDS on</span></div>
+        <div class="card"><div class="lab">Models</div><div class="row"><span class="chip on">✓ Qwen 7B</span><span class="chip on">✓ Llama 3 8B</span><span class="chip">Mistral 7B</span></div></div>
+        <div class="more"><div class="lab" style="margin-bottom:8px">▾ Bandingkan saiz dan bilangan agent <span class="muted small">(pilihan)</span></div>
+          <div class="lab">Saiz model</div><div class="row" style="margin-bottom:8px"><span class="chip on">✓ 4-bit</span><span class="chip on">✓ 8-bit</span><span class="chip">16-bit</span></div>
+          <div class="lab">Bilangan agent</div><div class="row"><span class="chip">1</span><span class="chip on">✓ 2</span><span class="chip">3</span><span class="chip on">✓ 4</span><span class="chip">6</span><span class="chip">8</span><span class="chip on">✓ 10</span></div></div>
+        <div class="card sum"><span>2 × 2 × 3 = 12 runs · ~1 h 50 min</span><span class="btn">Run</span></div>
+        <p class="small muted">Tak buka bahagian itu? Terus jadi benchmark biasa (4-bit, 4 agent), sama macam sekarang.</p></div></div></div>
+</div>
+<div class="verdict">
+  <div class="v"><b>Selepas Run, A</b><ul><li>Benchmark biasa: halaman sesi seperti sekarang.</li><li>Eksperimen: halaman keputusan eksperimen yang berasingan.</li><li>Pengguna perlu faham dua konsep dan dua menu.</li></ul></div>
+  <div class="v rec"><b>Selepas Run, B (cadangan)</b><ul><li>Satu saiz dan satu bilangan agent: halaman sesi seperti sekarang.</li><li>Lebih daripada satu: halaman sesi yang sama, ditambah tab baru <b>Size &amp; agents</b> dengan carta perbandingan.</li><li>Satu konsep, satu menu. Demo lebih mudah diterangkan.</li></ul></div>
+</div>
+</body></html>

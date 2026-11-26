@@ -415,7 +415,7 @@ async function noHScroll(p) { return p.evaluate(() => document.documentElement.s
     const jobS = decodeURIComponent((await p.evaluate(() => location.hash)).split('/')[3]);
     await p.waitForSelector('#svc-stop:not([hidden])', { timeout: 60000 });
     log(true, 'a running benchmark shows a Stop button to its owner');
-    await p.waitForFunction(() => /now running/.test(document.getElementById('svc-progress-text').textContent), null, { timeout: 60000 });
+    await p.waitForFunction(() => / flows \(\d+% of the benchmark\)/.test(document.getElementById('svc-progress-text').textContent), null, { timeout: 60000 });
     await p.click('#svc-stop'); await p.click('#confirm-ok');
     await p.waitForFunction(() => /Stopped/.test(document.getElementById('svc-job-status').textContent), null, { timeout: 60000 });
     log(/not scored/.test(await p.textContent('#svc-progress-text')) && await p.isHidden('#svc-stop'), 'after confirming, the run stops: "Stopped … not scored", no Stop button');

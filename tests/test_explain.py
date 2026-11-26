@@ -315,8 +315,11 @@ def test_the_test_explainer_drops_its_wrong_tag_and_made_up_quote(tmp_path, monk
 
 def test_explainer_models_downloaded_at_rental_start():
     cfg = E.load_config()
-    assert E.startup_models(24.0, cfg) == ["swiss-ai/Apertus-8B-Instruct-2509", "openai/gpt-oss-20b"]
+    # a 24 GB GPU (RTX 3090): only Apertus; gpt-oss-20b needs a large GPU (min_total_vram_gb)
+    assert E.startup_models(24.0, cfg) == ["swiss-ai/Apertus-8B-Instruct-2509"]
+    assert E.startup_models(80.0, cfg) == ["swiss-ai/Apertus-8B-Instruct-2509", "openai/gpt-oss-20b"]
     assert E.startup_models(12.0, cfg) == []
+    assert [m["id"] for m in E._fitting_models(cfg, 23.0, 24.0)] == ["swiss-ai/Apertus-8B-Instruct-2509"]
     assert "openai/gpt-oss-20b" not in Path(E.ROOT / "configs" / "model_catalog.yaml").read_text()
 
 
@@ -400,3 +403,41 @@ def test_a_tie_follows_the_page_order():
     st = S.build_statements(r, d)
     assert st["ranking"][0]["text"].startswith("Llama 3 8B scores 66.3")
     assert not any("Mistral 7B" in x["text"] for x in st["deployment"][:1])
+
+
+def test_the_time_limit_keeps_what_is_done_and_saves_after_every_request(sess, monkeypatch):
+    """At the limit no new request starts; the sections written so far are kept and were saved."""
+    _, d, st = sess
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(E.time, "time", lambda: clock["t"])
+    fake = E._fake_gen(st, [])
+    caps = []
+
+    def gen(msgs, cap=None):
+        caps.append(cap)
+        clock["t"] += 100.0                       # every reply takes 100 s
+        return fake(msgs)
+    saves = []
+    out = E.orchestrate(gen, st, [], d, E.load_config(), deadline=1000.0 + 350, save=saves.append)
+    assert out["out_of_time"] and out["status"] == "partial" and out["sections"]
+    assert len(caps) == 3                         # started at 0, 100, 200 s; not at 300 s (under a minute left)
+    assert all(c == E.REPLY_TOKENS["section"] for c in caps)
+    assert len(saves) >= 3 and saves[-1]["sections"] == out["sections"]
+
+
+def test_one_time_limit_for_every_explainer_model(monkeypatch):
+    """A fallback model is not started when the first one used up the time limit."""
+    clock = {"t": 0.0}
+    monkeypatch.setattr(E.time, "time", lambda: clock["t"])
+    tried = []
+
+    def child(mspec, plan, cfg, deadline):
+        tried.append(mspec["id"])
+        clock["t"] = deadline - 10                # the first model used almost all the time, then failed
+        raise E.ExplainerError("boom")
+    monkeypatch.setattr(E, "_run_child", child)
+    monkeypatch.setattr(E, "_engine_problem", lambda engine: None)
+    cfg = {**E.load_config(), "timeout_s": 1200}
+    out = E._try_models({"statements": {}, "groups": [], "digest": {}}, [{"id": "a"}, {"id": "b"}], cfg, None, False)
+    assert tried == ["a"] and out["status"] == "failed"
+    assert any(x["model"] == "b" and "time limit" in x["reason"] for x in out["attempts"])

@@ -484,6 +484,19 @@ setInterval(function () {
   });
 }, 15000);
 
+// "19 flows × 3 models": the flows each model triages (only those the IDS flagged), not their product
+function flowsLine(p) {
+  var n = p.flows_per_model, m = p.n_models || 1;
+  if (n == null) return (p.completed || 0) + " / " + (p.total || 0) + " flow answers";
+  return fmtNum(n) + " flow" + (n === 1 ? "" : "s") + (m > 1 ? " × " + m + " models" : "");
+}
+function progressLine(p, pct) {
+  if (p.all_flows_done) return "Every flow measured (" + flowsLine(p) + "). Writing the explanation, up to 20 minutes.";
+  if (p.flows_per_model == null) return (p.completed || 0) + " / " + (p.total || 0) + " flow answers, " + pct + "%";
+  var cur = p.current_model, done = cur && p.per_model ? (p.per_model[cur] || 0) : 0;
+  return (p.n_models > 1 && p.model_index ? "Model " + p.model_index + " of " + p.n_models + ", " : "") +
+    (cur ? short(cur) + ": " : "") + fmtNum(done) + " / " + fmtNum(p.flows_per_model) + " flows (" + pct + "% of the benchmark)";
+}
 // step 3 (also the "Watch" view of a running session)
 function renderProgress(j, target) {
   var p = j.progress || {}, prep = j.prepare, st = target.status, bar = target.bar;
@@ -514,8 +527,8 @@ function renderProgress(j, target) {
       (!CP ? "" : SETTINGS && SETTINGS.telegram_chat_id && SETTINGS.notify_on && SETTINGS.notify_on !== "none"
         ? " You'll get a Telegram message when it finishes, so you can close this page."
         : " To get a Telegram message when it finishes, set your Telegram chat in Settings.");
-    else if (j.status === "running") text = (p.completed || 0) + " / " + (p.total || 0) + " flows, " + pct + "%, now running " + (p.current_model || "…");
-    else if (j.status === "done") text = (p.completed || 0) + " / " + (p.total || 0) + " flows, done";
+    else if (j.status === "running") text = progressLine(p, pct);
+    else if (j.status === "done") text = flowsLine(p) + ", done";
     else if (j.status === "stopped") text = "Stopped" + (j.stopped_by ? " by " + j.stopped_by : "") + " after " + (p.completed || 0) + " / " + (p.total || 0) + " flows, not scored.";
     else text = (p.completed || 0) + " / " + (p.total || 0) + " flows completed before it stopped.";
     if (!downloading) bar.classList.toggle("indet", j.status === "running" && !p.completed);
@@ -628,7 +641,9 @@ function startTelemetry(host, id) {
     if (r.gpu) st.gpu.push(r.gpu);
     renderSteps(); renderGpu(r); renderFlow(); renderLog(r.events);
     var p = r.progress || {};
-    q("tel-now").textContent = r.status === "running" && p.total ? (p.completed || 0) + " / " + p.total + " flows" : (r.message || "");
+    q("tel-now").textContent = r.status === "running" && p.total ? (p.all_flows_done ? "Writing the explanation" :
+      p.flows_per_model != null && p.current_model ? short(p.current_model) + ": " + fmtNum((p.per_model || {})[p.current_model] || 0) + " / " + fmtNum(p.flows_per_model) + " flows"
+      : (p.completed || 0) + " / " + p.total + " flow answers") : (r.message || "");
   }
   (function poll() {
     if (token !== pollToken || !q("tel-card")) return;

@@ -174,7 +174,7 @@ def session_progress(job: dict[str, Any]) -> dict[str, Any]:
     if not job.get("run_dir"):                      # Phase 46: still waiting for its prepare step
         return {"completed": 0, "total": 0, "per_model": {m: 0 for m in models}, "current_model": None,
                 "percent": 0.0, "phase": "waiting for data"}
-    total_flows = int(job.get("n_flows") or 0)
+    total_flows = _triaged_flows(Path(job["run_dir"])) or int(job.get("n_flows") or 0)
     per_model = {m: 0 for m in models}
     db = Path(job["run_dir"]) / SESSION_DB
     if db.exists():
@@ -200,8 +200,22 @@ def session_progress(job: dict[str, Any]) -> dict[str, Any]:
     total = total_flows * len(models)
     current = next((m for m in models if per_model[m] < total_flows), None)
     return {"completed": completed, "total": total, "per_model": per_model,
+            "flows_per_model": total_flows, "n_models": len(models),
+            "model_index": (models.index(current) + 1) if current else None,
             "current_model": current if job.get("status") == "running" else None,
+            "all_flows_done": bool(total) and completed >= total,
             "percent": round(100.0 * completed / total, 1) if total else 0.0}
+
+
+def _triaged_flows(run_dir: Path) -> int:
+    """The flows each model runs: the session's scenario list, written after the IDS gate (only the
+    flows it flags), so it can be fewer than the prepared set's. 0 until it exists."""
+    from ..session.benchmark import SCENARIOS_CSV
+    try:
+        with open(run_dir / SCENARIOS_CSV, encoding="utf-8") as f:
+            return max(0, sum(1 for _ in f) - 1)
+    except OSError:
+        return 0
 
 
 # ---------------------------------------------------------------------------

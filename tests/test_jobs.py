@@ -372,3 +372,13 @@ def test_a_stopped_data_preparation_is_not_waited_for(root):
     with pytest.raises(JobError) as e:
         mgr.resume(b["job_id"])
     assert e.value.code == "not_resumable" and "prepare the data again" in str(e.value)
+
+
+def test_progress_counts_the_flows_the_ids_flagged_per_model(tmp_path):
+    """20 flows prepared, 19 flagged by the IDS, 3 models: the total is 19 x 3, not 20 x 3."""
+    from agentmeter.server.jobs import session_progress
+    from agentmeter.session.benchmark import SCENARIOS_CSV
+    (tmp_path / SCENARIOS_CSV).write_text("flow_id,label\n" + "".join(f"f{i},BENIGN\n" for i in range(19)))
+    p = session_progress({"models": ["a", "b", "c"], "run_dir": str(tmp_path), "n_flows": 20, "status": "running"})
+    assert p["total"] == 57 and p["flows_per_model"] == 19 and p["n_models"] == 3
+    assert p["completed"] == 0 and p["current_model"] == "a" and p["model_index"] == 1 and not p["all_flows_done"]

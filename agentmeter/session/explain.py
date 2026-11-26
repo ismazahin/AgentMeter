@@ -110,7 +110,19 @@ def startup_models(total_vram_gb: Optional[float], cfg: Optional[dict] = None) -
     if not cfg.get("enabled"):
         return []
     return [m["id"] for m in cfg.get("models") or []
-            if m.get("id") and (total_vram_gb is None or total_vram_gb - 1 >= float(m.get("min_free_vram_gb") or 0))]
+            if m.get("id") and (total_vram_gb is None or total_vram_gb - 1 >= float(m.get("min_free_vram_gb") or 0))
+            and _fits_gpu(m, total_vram_gb)]
+
+
+def _fits_gpu(m: dict, total_vram_gb: Optional[float]) -> bool:
+    """min_total_vram_gb: a model that can only run on a larger GPU (gpt-oss-20b: on a GPU without
+    MXFP4 kernels, such as an RTX 3090, its experts are unpacked and spill onto the CPU)."""
+    need = m.get("min_total_vram_gb")
+    return need is None or total_vram_gb is None or total_vram_gb >= float(need)
+
+
+# the reply length each kind of request needs (tokens): a short JSON object, never the full budget
+REPLY_TOKENS = {"section": 450, "pattern": 300, "cards": 1100}
 
 
 # ---------------------------------------------------------------------------- names
@@ -527,11 +539,15 @@ def card_messages(cards: dict[str, dict], digest: dict, retry: Optional[dict] = 
     return [{"role": "system", "content": CARD_PROMPT_PATH.read_text(encoding="utf-8")}, {"role": "user", "content": user}]
 
 
-def orchestrate_cards(ask: Callable[[list[dict]], str], plan_cards: dict, digest: dict) -> dict:
+def orchestrate_cards(ask: Callable[..., str], plan_cards: dict, digest: dict,
+                      out: Optional[dict] = None, saved: Optional[Callable[[], None]] = None) -> dict:
     """The report's reading paragraphs: a few sections per request, every sentence checked against
-    its facts; sections that fail are asked once more together, then left to the standard text."""
-    out: dict[str, Any] = {"cards": {}, "why": {}, "dropped": {}, "facts": {}, "design": plan_cards.get("design") or {}}
-    for group in ("cards", "why"):
+    its facts; sections that fail are asked once more together, then left to the standard text.
+    The "why each model" part goes first: it is what a reader of the report needs most. `out` is
+    filled in place and `saved()` is called after every request, so a time limit keeps what is done."""
+    out = out if out is not None else {}
+    out.update({"cards": {}, "why": {}, "dropped": {}, "facts": {}, "design": plan_cards.get("design") or {}})
+    for group in ("why", "cards"):
         items = plan_cards.get(group) or {}
         for v in items.values():
             for f in v["facts"]:
@@ -545,7 +561,7 @@ def orchestrate_cards(ask: Callable[[list[dict]], str], plan_cards: dict, digest
                 if not todo:
                     break
                 try:
-                    got = _json_reply(ask(card_messages(todo, digest, retry)))
+                    got = _json_reply(ask(card_messages(todo, digest, retry), "cards"))
                     reply = (got or {}).get("cards") if isinstance(got, dict) else None
                 except ValueError as e:
                     reply, retry = None, {"all": str(e) + ", reply with the JSON object only"}
@@ -570,6 +586,8 @@ def orchestrate_cards(ask: Callable[[list[dict]], str], plan_cards: dict, digest
                     else:
                         retry[k] = [{"sentence": b["text"], "problem": b["why"]} for b in bad] or \
                             [{"problem": "too few sentences" if len(kept) < 2 else "starts like another paragraph"}]
+                if saved:
+                    saved()
             for k in todo:
                 out["dropped"][f"{group}.{k}"] = "; ".join(r.get("problem", "") for r in (retry or {}).get(k, []))[:300] or "no reply"
     return out
@@ -643,17 +661,44 @@ def _assemble(section: str, kept: list[dict]) -> dict[str, str]:
     return {section: " ".join(x["text"] for x in kept)}
 
 
-def orchestrate(gen: Callable[[list[dict]], tuple[str, int, int]], statements: dict[str, list[dict]],
-                groups: list[dict], digest: dict, cfg: dict, cards: Optional[dict] = None) -> dict:
-    """One request per section, then per answer group, checked as described in the module's
-    docstring. `gen(messages) -> (text, input tokens, output tokens)`."""
+class OutOfTime(Exception):
+    """The explainer's time limit is reached: no new request is started."""
+
+
+def _call_gen(gen: Callable, msgs: list[dict], cap: Optional[int]) -> tuple[str, int, int]:
+    """gen(msgs, max_new_tokens) when the generator takes a reply cap, else gen(msgs)."""
+    import inspect
+    try:
+        n = sum(1 for x in inspect.signature(gen).parameters.values()
+                if x.kind in (x.POSITIONAL_ONLY, x.POSITIONAL_OR_KEYWORD, x.VAR_POSITIONAL))
+    except (TypeError, ValueError):
+        n = 1
+    return gen(msgs, cap) if n >= 2 else gen(msgs)
+
+
+# a request is started only with at least this much time left (a short reply takes about a minute)
+MIN_REQUEST_S = 60
+
+
+def orchestrate(gen: Callable[..., tuple[str, int, int]], statements: dict[str, list[dict]],
+                groups: list[dict], digest: dict, cfg: dict, cards: Optional[dict] = None,
+                deadline: Optional[float] = None, save: Optional[Callable[[dict], None]] = None) -> dict:
+    """One request per section, then the report's "why each model" part and reading paragraphs, then
+    one per answer group, checked as described in the module's docstring.
+    `gen(messages[, max_new_tokens]) -> (text, input tokens, output tokens)`.
+    deadline (time.time()): no request starts after it; what is done by then is kept.
+    save(result): called after every request with the result so far, so a killed process keeps it."""
     from .answer_patterns import check_pattern
     t0 = time.time()
     tokens = {"input": 0, "output": 0}
     raws: list[str] = []
+    mx = int(cfg.get("max_new_tokens") or 1800)
 
-    def ask(msgs):
-        text, n_in, n_out = gen(msgs)
+    def ask(msgs, kind="section"):
+        if deadline is not None and time.time() > deadline - MIN_REQUEST_S:
+            raise OutOfTime()
+        cap = min(mx, REPLY_TOKENS.get(kind, mx))
+        text, n_in, n_out = _call_gen(gen, msgs, cap)
         tokens["input"] += int(n_in or 0)
         tokens["output"] += int(n_out or 0)
         raws.append(text or "")
@@ -662,75 +707,95 @@ def orchestrate(gen: Callable[[list[dict]], tuple[str, int, int]], statements: d
     sections: dict[str, str] = {}
     detail: dict[str, dict] = {}
     dropped: dict[str, str] = {}
-    seen: set[str] = set()
-    for section in ORDER:
-        stmts = statements.get(section.replace("tab.", "")) if section.startswith("tab.") else statements.get(section)
-        if not stmts:
-            continue
-        by_id = {s["id"]: s for s in stmts}
-        lo, _hi = SECTION_SPECS[section]["sentences"]
-        retry, result = None, None
-        for attempt in (1, 2):
-            try:
-                got = _json_reply(ask(section_messages(section, stmts, digest, retry)))
-                sents = got.get("sentences") if isinstance(got, dict) else got
-            except ValueError as e:
-                sents, retry = [], [{"problem": str(e) + ", reply with the JSON object only"}]
-                continue
-            kept, bad = [], []
-            for s in sents if isinstance(sents, list) else []:
-                text, uses = str((s or {}).get("text") or "").strip(), [str(u) for u in (s or {}).get("uses") or []]
-                why = check_sentence(text, uses, by_id, digest)
-                if not why and section != "summary" and _norm_sentence(text) in seen:
-                    why = "repeats a sentence of another section"
-                (bad if why else kept).append({"text": text, "uses": uses, **({"why": why} if why else {})})
-            first_ok = bool(kept) and (not section.startswith("tab.") or (sents and kept[0]["text"] == str((sents[0] or {}).get("text") or "").strip()
-                                                                           and len(kept[0]["text"].split()) >= 6))
-            if len(kept) >= lo and first_ok:
-                result = (kept, bad)
-                break
-            retry = [{"sentence": b["text"], "problem": b["why"]} for b in bad] or [{"problem": "too few sentences"}]
-        if result is None:
-            dropped[section] = "no version passed the checks: " + "; ".join(r.get("problem", "") for r in (retry or []))[:300]
-            continue
-        kept, bad = result
-        sections.update(_assemble(section, kept))
-        detail[section] = {"sentences": kept, "dropped": bad}
-        seen.update(_norm_sentence(x["text"]) for x in kept)
-
     patterns, patterns_dropped = [], []
-    for g in groups:
-        why = None
-        for attempt in (1, 2):
-            try:
-                got = _json_reply(ask(pattern_messages(g, cfg, why)))
-            except ValueError as e:
-                why = str(e)
-                continue
-            if isinstance(got, dict) and not str(got.get("pattern") or "").strip():
-                why = "no pattern fits"
-                break
-            kept, why = check_pattern(got, g)
-            if kept:
-                patterns.append(kept)
-                break
-        else:
-            pass
-        if not any(p["group"] == g.get("id") for p in patterns):
-            patterns_dropped.append({"group": g.get("id"), "describe": g.get("describe"), "why": why})
+    report: Optional[dict] = {} if cards else None
+    state = {"out_of_time": False}
 
-    report = orchestrate_cards(ask, cards, digest) if cards else None
-    status = "ok" if sections and not dropped else "partial" if sections else "failed"
-    out = {"status": status, "sections": sections, "detail": detail, "dropped": dropped,
-           "patterns": patterns, "patterns_dropped": patterns_dropped,
-           "statements": {s["id"]: s["text"] for v in statements.values() for s in v},
-           "tokens": tokens, "seconds": round(time.time() - t0, 1)}
-    if report is not None:
-        out["report"] = report
-    if status == "failed":
-        out["reason"] = "no section passed the checks"
-    if status != "ok":
-        out["raw_reply"] = "\n----- next reply -----\n".join(raws)[-6000:]
+    def result() -> dict:
+        status = "ok" if sections and not dropped and not state["out_of_time"] else "partial" if sections else "failed"
+        out = {"status": status, "sections": dict(sections), "detail": dict(detail), "dropped": dict(dropped),
+               "patterns": list(patterns), "patterns_dropped": list(patterns_dropped),
+               "statements": {s["id"]: s["text"] for v in statements.values() for s in v},
+               "tokens": dict(tokens), "seconds": round(time.time() - t0, 1)}
+        if report:
+            out["report"] = report
+        if state["out_of_time"]:
+            out["out_of_time"] = True
+        if status == "failed":
+            out["reason"] = "the time limit was reached before any section was written" if state["out_of_time"] \
+                else "no section passed the checks"
+        if status != "ok":
+            out["raw_reply"] = "\n----- next reply -----\n".join(raws)[-6000:]
+        return out
+
+    def saved():
+        if save:
+            save(result())
+
+    seen: set[str] = set()
+    try:
+        for section in ORDER:
+            stmts = statements.get(section.replace("tab.", "")) if section.startswith("tab.") else statements.get(section)
+            if not stmts:
+                continue
+            by_id = {s["id"]: s for s in stmts}
+            lo, _hi = SECTION_SPECS[section]["sentences"]
+            retry, res = None, None
+            for attempt in (1, 2):
+                try:
+                    got = _json_reply(ask(section_messages(section, stmts, digest, retry), "section"))
+                    sents = got.get("sentences") if isinstance(got, dict) else got
+                except ValueError as e:
+                    sents, retry = [], [{"problem": str(e) + ", reply with the JSON object only"}]
+                    continue
+                kept, bad = [], []
+                for s in sents if isinstance(sents, list) else []:
+                    text, uses = str((s or {}).get("text") or "").strip(), [str(u) for u in (s or {}).get("uses") or []]
+                    why = check_sentence(text, uses, by_id, digest)
+                    if not why and section != "summary" and _norm_sentence(text) in seen:
+                        why = "repeats a sentence of another section"
+                    (bad if why else kept).append({"text": text, "uses": uses, **({"why": why} if why else {})})
+                first_ok = bool(kept) and (not section.startswith("tab.") or (sents and kept[0]["text"] == str((sents[0] or {}).get("text") or "").strip()
+                                                                               and len(kept[0]["text"].split()) >= 6))
+                if len(kept) >= lo and first_ok:
+                    res = (kept, bad)
+                    break
+                retry = [{"sentence": b["text"], "problem": b["why"]} for b in bad] or [{"problem": "too few sentences"}]
+            if res is None:
+                dropped[section] = "no version passed the checks: " + "; ".join(r.get("problem", "") for r in (retry or []))[:300]
+            else:
+                kept, bad = res
+                sections.update(_assemble(section, kept))
+                detail[section] = {"sentences": kept, "dropped": bad}
+                seen.update(_norm_sentence(x["text"]) for x in kept)
+            saved()
+
+        if cards:
+            orchestrate_cards(ask, cards, digest, out=report, saved=saved)
+
+        for g in groups:
+            why = None
+            for attempt in (1, 2):
+                try:
+                    got = _json_reply(ask(pattern_messages(g, cfg, why), "pattern"))
+                except ValueError as e:
+                    why = str(e)
+                    continue
+                if isinstance(got, dict) and not str(got.get("pattern") or "").strip():
+                    why = "no pattern fits"
+                    break
+                kept, why = check_pattern(got, g)
+                if kept:
+                    patterns.append(kept)
+                    break
+            if not any(p["group"] == g.get("id") for p in patterns):
+                patterns_dropped.append({"group": g.get("id"), "describe": g.get("describe"), "why": why})
+            saved()
+    except OutOfTime:
+        state["out_of_time"] = True
+    out = result()
+    if save:
+        save(out)
     return out
 
 
@@ -789,7 +854,8 @@ def _load_generator(spec: dict) -> tuple[Callable, float]:
         llm = LLM(model=mid, gpu_memory_utilization=0.85, max_model_len=16384)
         sp = SamplingParams(max_tokens=mx, temperature=0.3)
 
-        def gen(msgs):
+        def gen(msgs, cap=None):
+            sp.max_tokens = int(cap or mx)
             r = llm.chat(msgs, sp, **({"chat_template_kwargs": kw_chat} if kw_chat else {}))
             return r[0].outputs[0].text, len(r[0].prompt_token_ids or []), len(r[0].outputs[0].token_ids)
         return gen, round(time.time() - t0, 1)
@@ -798,7 +864,9 @@ def _load_generator(spec: dict) -> tuple[Callable, float]:
     tok = AutoTokenizer.from_pretrained(mid)
     model = AutoModelForCausalLM.from_pretrained(mid, dtype="auto", device_map="cuda")
 
-    def gen(msgs):
+    deadline = spec.get("deadline")
+
+    def gen(msgs, cap=None):
         # transformers 4.56+ and 5.x: ask for the mapping (input_ids, attention_mask)
         enc = tok.apply_chat_template(msgs, add_generation_prompt=True, tokenize=True, return_dict=True,
                                       return_tensors="pt", **kw_chat)
@@ -808,7 +876,8 @@ def _load_generator(spec: dict) -> tuple[Callable, float]:
             inputs = {"input_ids": enc.to(model.device)}
         n_in = int(inputs["input_ids"].shape[-1])
         with torch.no_grad():
-            out = model.generate(**inputs, max_new_tokens=mx, do_sample=True, temperature=0.3)
+            kw = {"max_time": max(5.0, deadline - time.time())} if deadline else {}   # never past the time limit
+            out = model.generate(**inputs, max_new_tokens=int(cap or mx), do_sample=True, temperature=0.3, **kw)
         new = out[0][n_in:]
         return tok.decode(new, skip_special_tokens=False), n_in, int(new.shape[-1])
     return gen, round(time.time() - t0, 1)
@@ -823,9 +892,13 @@ def _worker_main(argv: list[str]) -> int:
     try:
         gen, load_s = _load_generator(spec)
         plan = spec["plan"]
-        res = orchestrate(gen, plan["statements"], plan["groups"], plan["digest"], plan["cfg"], plan.get("cards"))
-        res["load_s"] = load_s
-        out.write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
+
+        def save(res):                  # after every request: a process killed at the limit keeps its work
+            tmp = out.with_suffix(".part")
+            tmp.write_text(json.dumps({**res, "load_s": load_s}, ensure_ascii=False), encoding="utf-8")
+            os.replace(tmp, out)
+        orchestrate(gen, plan["statements"], plan["groups"], plan["digest"], plan["cfg"], plan.get("cards"),
+                    deadline=spec.get("deadline"), save=save)
         return 0
     except BaseException as e:  # noqa: BLE001 — report it to the parent, then fail
         out.write_text(json.dumps({"error": f"{type(e).__name__}: {e}"[:400], "trace": traceback.format_exc()[-4000:]}),
@@ -838,17 +911,32 @@ class ExplainerError(RuntimeError):
     trace = ""
 
 
-def _run_child(mspec: dict, plan: dict, cfg: dict) -> dict:
+# after the time limit, the model's process gets this long to finish its last reply and save, then it is killed
+KILL_GRACE_S = 90
+
+
+def _run_child(mspec: dict, plan: dict, cfg: dict, deadline: Optional[float] = None) -> dict:
+    deadline = deadline or time.time() + int(cfg["timeout_s"])
     with tempfile.TemporaryDirectory(prefix="am-explain-") as td:
         spec_p, out_p = Path(td) / "in.json", Path(td) / "out.json"
         spec_p.write_text(json.dumps({"engine": mspec.get("engine", "hf"), "model": mspec["id"],
                                       "reasoning": mspec.get("reasoning"), "max_new_tokens": int(cfg["max_new_tokens"]),
-                                      "plan": plan}, ensure_ascii=False), encoding="utf-8")
+                                      "deadline": deadline, "plan": plan}, ensure_ascii=False), encoding="utf-8")
         env = dict(os.environ, HF_HUB_OFFLINE=os.environ.get("HF_HUB_OFFLINE", "1"),
                    # reuse memory PyTorch reserved in pieces (a long prompt's attention needs one block)
                    PYTORCH_CUDA_ALLOC_CONF=os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True"))
-        p = subprocess.run([sys.executable, "-m", "agentmeter.session.explain", "--worker", str(spec_p), str(out_p)],
-                           cwd=str(ROOT), env=env, capture_output=True, text=True, timeout=int(cfg["timeout_s"]))
+        try:
+            p = subprocess.run([sys.executable, "-m", "agentmeter.session.explain", "--worker", str(spec_p), str(out_p)],
+                               cwd=str(ROOT), env=env, capture_output=True, text=True,
+                               timeout=max(30.0, deadline - time.time() + KILL_GRACE_S))
+        except subprocess.TimeoutExpired as e:
+            got = _read_json(out_p)                 # the sections saved before it was killed
+            if got and not got.get("error") and got.get("sections"):
+                got.update(out_of_time=True, status="partial")
+                return got
+            err = ExplainerError(f"the explainer did not finish within the time limit ({int(cfg['timeout_s'])} s)")
+            err.trace = (e.stderr or b"")[-4000:].decode("utf-8", "replace") if isinstance(e.stderr, bytes) else (e.stderr or "")[-4000:]
+            raise err from None
         got = None
         if out_p.is_file():
             try:
@@ -862,6 +950,23 @@ def _run_child(mspec: dict, plan: dict, cfg: dict) -> dict:
             err.trace = trace
             raise err
         return got
+
+
+def _read_json(p: Path) -> Optional[dict]:
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _total_vram_gb() -> Optional[float]:
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return torch.cuda.get_device_properties(0).total_memory / 1024 ** 3
+    except Exception:  # noqa: BLE001
+        return None
+    return None
 
 
 def _free_vram_gb() -> Optional[float]:
@@ -893,10 +998,11 @@ def _engine_problem(engine: str) -> Optional[str]:
     return None
 
 
-def _fitting_models(cfg: dict, free_gb: Optional[float]) -> list[dict]:
-    """The configured models whose memory need fits the free GPU memory, in config order."""
+def _fitting_models(cfg: dict, free_gb: Optional[float], total_gb: Optional[float] = None) -> list[dict]:
+    """The configured models whose memory need fits the free GPU memory and that can run on this
+    GPU at all (min_total_vram_gb), in config order."""
     return [m for m in cfg.get("models") or []
-            if free_gb is None or free_gb >= float(m.get("min_free_vram_gb") or 0)]
+            if (free_gb is None or free_gb >= float(m.get("min_free_vram_gb") or 0)) and _fits_gpu(m, total_gb)]
 
 
 def _sha(s: str) -> str:
@@ -951,7 +1057,8 @@ def explain_session(results: dict, run_dir: str | Path, *, real: bool, cfg: Opti
             if fake:
                 cands = [{"id": "test-explainer", "engine": "fake"}]
             else:
-                cands = _fitting_models(cfg, free_vram_gb if free_vram_gb is not None else _free_vram_gb())
+                cands = _fitting_models(cfg, free_vram_gb if free_vram_gb is not None else _free_vram_gb(),
+                                        None if free_vram_gb is not None else _total_vram_gb())
             if not cands:
                 out["reason"] = "the GPU does not have enough free memory for any configured explainer model"
             else:
@@ -969,10 +1076,19 @@ def explain_session(results: dict, run_dir: str | Path, *, real: bool, cfg: Opti
     return out
 
 
+# a fallback model is started only with at least this long left (loading alone takes a minute or two)
+MIN_FALLBACK_S = 300
+
+
 def _try_models(plan: dict, cands: list[dict], cfg: dict, runner: Optional[Callable], fake: bool) -> dict:
-    """Each fitting model in turn until one writes something; every failed attempt is kept."""
+    """Each fitting model in turn until one writes something; every failed attempt is kept.
+    timeout_s is the limit for all of them together, not for each one."""
     attempts: list[dict] = []
-    for mspec in cands:
+    deadline = time.time() + int(cfg["timeout_s"])
+    for i, mspec in enumerate(cands):
+        if i and deadline - time.time() < MIN_FALLBACK_S:
+            attempts.append({"model": mspec["id"], "reason": "not tried: too little of the time limit left", "skipped": True})
+            continue
         problem = None if (runner is not None or fake) else _engine_problem(mspec.get("engine", "hf"))
         if problem:
             attempts.append({"model": mspec["id"], "reason": problem, "skipped": True})
@@ -982,13 +1098,14 @@ def _try_models(plan: dict, cands: list[dict], cfg: dict, runner: Optional[Calla
                 res = orchestrate(_fake_gen(plan["statements"], plan["groups"]), plan["statements"], plan["groups"], plan["digest"], cfg,
                                   plan.get("cards"))
             elif runner is not None:
-                def gen(msgs, _m=mspec):
+                def gen(msgs, cap=None, *, _m=mspec):
                     r = runner(_m, msgs, cfg)
                     tk = r.get("tokens") or {}
                     return r.get("text") or "", tk.get("input", 0), tk.get("output", 0)
-                res = orchestrate(gen, plan["statements"], plan["groups"], plan["digest"], cfg, plan.get("cards"))
+                res = orchestrate(gen, plan["statements"], plan["groups"], plan["digest"], cfg, plan.get("cards"),
+                                  deadline=deadline)
             else:
-                res = _run_child(mspec, plan, cfg)
+                res = _run_child(mspec, plan, cfg, deadline)
         except Exception as e:  # noqa: BLE001 — try the next model
             log.warning("explainer %s failed: %s", mspec["id"], e)
             a = {"model": mspec["id"], "reason": f"{type(e).__name__}: {e}"[:300]}

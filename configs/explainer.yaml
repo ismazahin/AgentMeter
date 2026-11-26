@@ -13,10 +13,14 @@ models:
   - id: openai/gpt-oss-20b          # Apache 2.0; mixture of experts, about 3.6B active per token
     engine: hf                       # hf (transformers) or vllm
     min_free_vram_gb: 16
+    min_total_vram_gb: 40            # without MXFP4 kernels (RTX 3090, L4) its experts are unpacked and spill onto the
+                                     # CPU, so it only runs on a large GPU; on a 24 GB card it is neither tried nor downloaded
     reasoning: low                   # gpt-oss only: low reasoning keeps it fast
-max_new_tokens: 1800
-timeout_s: 1200                      # the explainer process is killed after this. It writes the session explanations, then the
-                                     # report's reading paragraphs (4 sections per request) and the why part, about 15 requests
+max_new_tokens: 1800                 # the most any reply may use; each kind of request asks for less (explain.REPLY_TOKENS)
+timeout_s: 1200                      # the time limit of the whole explanation step, every model together. In order: the
+                                     # session explanations, the report's "why each model" part, its reading paragraphs (4
+                                     # sections per request), the answer patterns. Each finished part is saved at once; at the
+                                     # limit no new request starts and the parts not written keep the standard one-line text
 retries: 1                           # one more request for a section that failed a check, with the reasons
 excerpts: 12                         # agent-answer excerpts sent (failures and mix-ups first)
 excerpt_chars: 200

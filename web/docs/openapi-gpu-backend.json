@@ -271,6 +271,48 @@
     }
    }
   },
+  "/api/experiments/{experiment_id}": {
+   "get": {
+    "operationId": "get__api_experiments_experiment_id",
+    "tags": [
+     "Benchmarks"
+    ],
+    "summary": "Every run of an experiment, in run order",
+    "security": [
+     {
+      "runToken": [
+       "read"
+      ]
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "OK"
+     },
+     "401": {
+      "description": "Not logged in / bad or missing token or signature",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
+     }
+    },
+    "parameters": [
+     {
+      "name": "experiment_id",
+      "in": "path",
+      "required": true,
+      "description": "Experiment id (exp_…)",
+      "schema": {
+       "type": "string"
+      }
+     }
+    ]
+   }
+  },
   "/api/gpu": {
    "get": {
     "operationId": "get__api_gpu",
@@ -370,9 +412,19 @@
         }
        }
       }
+     },
+     "400": {
+      "description": "too_many_runs · bad_experiment",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Error"
+        }
+       }
+      }
      }
     },
-    "description": "Authorization: Bearer <run token from POST /api/runs/authorize>. Without a control plane (one-user mode) no token is needed.",
+    "description": "Authorization: Bearer <run token from POST /api/runs/authorize>. Without a control plane (one-user mode) no token is needed. More than one model size or number of agents is an experiment: one job per combination (at most 12 runs), returned as experiment_jobs; the first job is the response.",
     "requestBody": {
      "required": true,
      "content": {
@@ -393,6 +445,14 @@
          "ids": {
           "type": "boolean",
           "description": "boolean | object {threshold: number}"
+         },
+         "precisions": {
+          "type": "array",
+          "description": "array of 4bit | 8bit | 16bit (default [4bit])"
+         },
+         "agents": {
+          "type": "array",
+          "description": "array of 1, 2, 3, 4, 6, 8, 10 (default [4])"
          }
         }
        }

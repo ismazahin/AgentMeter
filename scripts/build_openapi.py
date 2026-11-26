@@ -183,7 +183,13 @@ op(BE, "post", "/api/prepared/{kind}/{name}/delete", "Data sets", "Delete a prep
    desc="Refused while a queued or running benchmark uses the set. Sessions that ran on it keep their results. " + RT)
 op(BE, "get", "/api/jobs", "Benchmarks", "Jobs on this server, newest first", RUN("read"), [p("limit", schema={"type": "integer"})])
 op(BE, "post", "/api/jobs", "Benchmarks", "Start a benchmark", RUN("benchmark"),
-   body={"run": "string", "after_prepare": "string", "models": "array (1–4)", "ids": "boolean | object {threshold: number}"}, ok="202", desc=RT)
+   body={"run": "string", "after_prepare": "string", "models": "array (1–4)", "ids": "boolean | object {threshold: number}",
+         "precisions": "array of 4bit | 8bit | 16bit (default [4bit])", "agents": "array of 1, 2, 3, 4, 6, 8, 10 (default [4])"},
+   ok="202", errors=["400 too_many_runs", "400 bad_experiment"],
+   desc=RT + " More than one model size or number of agents is an experiment: one job per combination (at most 12 "
+        "runs), returned as experiment_jobs; the first job is the response.")
+op(BE, "get", "/api/experiments/{experiment_id}", "Benchmarks", "Every run of an experiment, in run order", RUN("read"),
+   [p("experiment_id", "path", "Experiment id (exp_…)")])
 op(BE, "get", "/api/jobs/{job_id}", "Benchmarks", "A job's status and progress", NONE, [JOB], desc="Open for 128-bit job ids (the id is the secret); older short ids need a read token.")
 op(BE, "get", "/api/jobs/{job_id}/result", "Benchmarks", "A finished job's results", RUN("read"), [JOB], errors=["409 not_ready"])
 op(BE, "get", "/api/jobs/{job_id}/report.pdf", "Benchmarks", "The PDF report", RUN("read"), [JOB])

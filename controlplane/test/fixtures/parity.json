@@ -26,6 +26,11 @@
    "tags": [],
    "schedule_id": null,
    "pipeline": null,
+   "variant": {
+    "precision": "4bit",
+    "agents": 4
+   },
+   "experiment": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -167,6 +172,11 @@
    "tags": [],
    "schedule_id": null,
    "pipeline": null,
+   "variant": {
+    "precision": "4bit",
+    "agents": 4
+   },
+   "experiment": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -308,6 +318,11 @@
    "tags": [],
    "schedule_id": null,
    "pipeline": null,
+   "variant": {
+    "precision": "4bit",
+    "agents": 4
+   },
+   "experiment": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -448,6 +463,11 @@
    "tags": [],
    "schedule_id": null,
    "pipeline": null,
+   "variant": {
+    "precision": "4bit",
+    "agents": 4
+   },
+   "experiment": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -557,6 +577,11 @@
    "tags": [],
    "schedule_id": null,
    "pipeline": null,
+   "variant": {
+    "precision": "4bit",
+    "agents": 4
+   },
+   "experiment": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -698,6 +723,11 @@
    "tags": [],
    "schedule_id": null,
    "pipeline": null,
+   "variant": {
+    "precision": "4bit",
+    "agents": 4
+   },
+   "experiment": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -828,6 +858,11 @@
    "tags": [],
    "schedule_id": null,
    "pipeline": null,
+   "variant": {
+    "precision": "4bit",
+    "agents": 4
+   },
+   "experiment": null,
    "verdict": {
     "kind": "more_efficient",
     "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -975,6 +1010,11 @@
      "tags": [],
      "schedule_id": null,
      "pipeline": null,
+     "variant": {
+      "precision": "4bit",
+      "agents": 4
+     },
+     "experiment": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -1088,6 +1128,11 @@
      "tags": [],
      "schedule_id": null,
      "pipeline": null,
+     "variant": {
+      "precision": "4bit",
+      "agents": 4
+     },
+     "experiment": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -1527,6 +1572,11 @@
      "tags": [],
      "schedule_id": null,
      "pipeline": null,
+     "variant": {
+      "precision": "4bit",
+      "agents": 4
+     },
+     "experiment": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -1640,6 +1690,11 @@
      "tags": [],
      "schedule_id": null,
      "pipeline": null,
+     "variant": {
+      "precision": "4bit",
+      "agents": 4
+     },
+     "experiment": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -2069,6 +2124,11 @@
      "tags": [],
      "schedule_id": null,
      "pipeline": null,
+     "variant": {
+      "precision": "4bit",
+      "agents": 4
+     },
+     "experiment": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -2181,6 +2241,11 @@
      "tags": [],
      "schedule_id": null,
      "pipeline": null,
+     "variant": {
+      "precision": "4bit",
+      "agents": 4
+     },
+     "experiment": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -2572,6 +2637,11 @@
      "tags": [],
      "schedule_id": null,
      "pipeline": null,
+     "variant": {
+      "precision": "4bit",
+      "agents": 4
+     },
+     "experiment": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -2685,6 +2755,11 @@
      "tags": [],
      "schedule_id": null,
      "pipeline": null,
+     "variant": {
+      "precision": "4bit",
+      "agents": 4
+     },
+     "experiment": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -3130,6 +3205,11 @@
      "tags": [],
      "schedule_id": null,
      "pipeline": null,
+     "variant": {
+      "precision": "4bit",
+      "agents": 4
+     },
+     "experiment": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -3243,6 +3323,11 @@
      "tags": [],
      "schedule_id": null,
      "pipeline": null,
+     "variant": {
+      "precision": "4bit",
+      "agents": 4
+     },
+     "experiment": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -3690,6 +3775,11 @@
      "tags": [],
      "schedule_id": null,
      "pipeline": null,
+     "variant": {
+      "precision": "4bit",
+      "agents": 4
+     },
+     "experiment": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",
@@ -3802,6 +3892,11 @@
      "tags": [],
      "schedule_id": null,
      "pipeline": null,
+     "variant": {
+      "precision": "4bit",
+      "agents": 4
+     },
+     "experiment": null,
      "verdict": {
       "kind": "more_efficient",
       "model": "Qwen/Qwen2.5-7B-Instruct",

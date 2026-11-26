@@ -161,7 +161,7 @@ async function frameOf(p) {
   await p.waitForSelector('#session-body:not([hidden])');
 
   // 6. session sections (CSV, 2 models)
-  const stabs = await p.$$eval('#session-tabs [role=tab]', ts => ts.map(t => t.textContent.trim()));
+  const stabs = await p.$$eval('#session-tabs [role=tab]:not([hidden])', ts => ts.map(t => t.textContent.trim()));
   log(stabs.join('|') === 'Overview|Model Ranking|Output Reliability|Performance|Agent Analysis|Cost & Energy|Recommendations|Data & Exports', 'session sections: ' + stabs.join(', '));
   const chips = await p.textContent('#session-chips');
   log(/Demo \(no GPU\)/.test(chips) && /\d+ flows/.test(chips) && /CSV/.test(chips), 'session chips: GPU, flows, input type');

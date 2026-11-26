@@ -91,7 +91,10 @@ class MockProvider(ModelProvider):
         name = m.group(1) if m else ""
         low = prompt.lower()
 
-        if "allowed labels (copy one verbatim)" in low or name == "decide":
+        if "allowed labels (copy one verbatim)" in low and "its mitre att&ck technique" in low:
+            text = (f"Label: {predicted}\nMITRE ATT&CK: {self.mitre.get(predicted, 'N/A')}\n"
+                    f"Justification: Flow features are most consistent with {predicted}.")
+        elif "allowed labels (copy one verbatim)" in low or name == "decide":
             text = f"Classification: {predicted}"
         elif "its mitre att&ck technique" in low or name == "act":
             technique = self.mitre.get(predicted, "N/A")

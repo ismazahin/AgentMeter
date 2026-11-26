@@ -3,7 +3,7 @@
 Builds a LangGraph StateGraph from the config-listed agents and wires them in a
 strictly LINEAR chain: START -> a1 -> a2 -> ... -> an -> END. No conditional
 edges, no loops, no governance. The agent list comes from config.pipeline.agents
-so the harness is agent-count agnostic (3/4/5 agents all work), from the built-in agents.
+so the harness is agent-count agnostic (1 to 10 agents, agents.LADDERS), from the built-in roles.
 """
 from __future__ import annotations
 
@@ -24,6 +24,16 @@ class PipelineState(TypedDict, total=False):
     reason: str
     decide: str
     act: str
+    # the other roles of the pipeline sizes (agents.LADDERS)
+    triage: str
+    analyse: str
+    conclude: str
+    enrich: str
+    hypothesise: str
+    compare: str
+    verify: str
+    critique: str
+    justify: str
     # decision artifacts
     predicted_class: str
     verdict: dict

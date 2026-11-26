@@ -62,6 +62,7 @@ _READ_EXACT = {"/api/jobs", "/api/sessions", "/api/compare", "/api/compare/candi
                "/api/logs/recent"}
 _JOB_SUB = re.compile(r"^/api/jobs/([^/]+)(?:/(result|report\.pdf|constraints|flows|telemetry|explanation|resume|stop))?$")
 _SESSION = re.compile(r"^/api/sessions/[^/]+$")
+_EXPERIMENT = re.compile(r"^/api/experiments/[^/]+$")
 _PREPARED = re.compile(r"^/api/prepared/([^/]+)/([^/]+)(?:/([^/]+))?$")
 
 
@@ -80,7 +81,7 @@ def required(method: str, path: str) -> tuple[Optional[str], dict]:
         return "deny", {}
     if method != "GET":
         return None, {}
-    if path in _READ_EXACT or _SESSION.match(path):
+    if path in _READ_EXACT or _SESSION.match(path) or _EXPERIMENT.match(path):
         return "read", {}
     m = _JOB_SUB.match(path)
     if m:

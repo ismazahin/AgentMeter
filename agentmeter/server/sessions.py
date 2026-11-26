@@ -171,6 +171,10 @@ def session_summary(job: dict[str, Any], res: Optional[dict[str, Any]] = None,
         # the agents this session ran (a custom pipeline lists its own; None = the default four)
         "schedule_id": job.get("schedule_id"),          # a scheduled re-run (sessions made before schedules were removed)
         "pipeline": [a.get("name") if isinstance(a, dict) else a for a in job["pipeline"]] if job.get("pipeline") else None,
+        # model size and pipeline size of this run (4-bit, 4 agents unless chosen), and its experiment
+        "variant": {"precision": job.get("precision") or "4bit", "agents": int(job.get("agents") or 4)},
+        "experiment": ({k: (job.get("experiment") or {}).get(k) for k in ("id", "index", "total")}
+                       if job.get("experiment") else None),
     }
     if res:
         v = _verdict(res)

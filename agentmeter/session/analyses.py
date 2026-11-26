@@ -1297,12 +1297,13 @@ def add_analyses(payload: dict[str, Any], *, db_path: str | Path, run_id: str, r
     budgets = {k: int(v) for k, v in ((config_data.get("pipeline") or {}).get("max_new_tokens") or {}).items() if v}
     env = payload.get("environment") or {}
     real = env.get("provider") == "real"
-    from ..pipeline.spec import describe, label_agent
+    from ..pipeline.spec import describe, label_agent, verdict_agent
     pl = config_data.get("pipeline") or {}
     custom = bool(pl.get("custom"))
+    standard = not custom and list(pl.get("agents") or AGENT_ORDER) == AGENT_ORDER
     payload["agents"] = agents_block(sr, am, label_of, budgets, decide_agent=label_agent(pl) or "decide",
-                                     pipeline=describe(pl) if custom else None)
-    verdict = next((a["name"] for a in describe(pl) if a["kind"] == "verdict"), None)
+                                     pipeline=None if standard else describe(pl))
+    verdict = verdict_agent(pl)
     from ..run.extras import read_all as read_extras
     labels = {m: label_of[m] for m in label_of}
     payload["output_reliability"] = reliability_block(

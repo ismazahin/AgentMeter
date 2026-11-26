@@ -86,7 +86,8 @@ def _locked_dbs() -> set[Path]:
 def prepare_session(run_dir: str | Path, models: list[str], *,
                     base_config: Optional[str] = None,
                     provider: Optional[str] = None,
-                    ids: Any = None) -> dict[str, Any]:
+                    ids: Any = None, precision: Optional[str] = None,
+                    agents: Optional[int] = None) -> dict[str, Any]:
     """Write session_scenarios.csv + session_config.yaml into run_dir and return
     what the session will do. Raises SessionError / InputContractError.
 
@@ -119,6 +120,12 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
     data["severity"] = severity_table(data)
     data["triage_gate"] = gate_config(data)
     data.setdefault("pipeline", {})["prompt_version"] = PROMPT_VERSION
+    # the cell of an experiment: model size (quantization) and pipeline size; 4-bit, 4 agents by default
+    from .experiment import ExperimentError, apply_variant
+    try:
+        apply_variant(data, precision, agents)
+    except ExperimentError as e:
+        raise SessionError(str(e)) from e
 
     # --- scenarios: hidden id + model-visible features + held-out label ---------------
     feats = list(meta["feature_columns"])
@@ -169,6 +176,8 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
     if engine and engine != "transformers" and data["model"].get("provider") == "hf":
         if engine != "vllm":
             raise SessionError(f"unknown engine {engine!r} (transformers | vllm)")
+        if (precision or "4bit") != "4bit":
+            raise SessionError("the vLLM engine runs 4-bit only; 8-bit and 16-bit need the transformers engine")
         data["model"]["engine"] = "vllm"
     data["dataset"] = {
         "path": str(run_dir / SCENARIOS_CSV),
@@ -201,13 +210,16 @@ def prepare_session(run_dir: str | Path, models: list[str], *,
 def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional[str] = None,
                 provider: Optional[str] = None, fresh: bool = False,
                 environment: Optional[dict[str, Any]] = None,
-                run_id: Optional[str] = None, ids: Any = None) -> dict[str, Any]:
+                run_id: Optional[str] = None, ids: Any = None, precision: Optional[str] = None,
+                agents: Optional[int] = None, experiment: Optional[dict[str, Any]] = None,
+                explain: bool = True) -> dict[str, Any]:
     """Prepare, execute (existing sequential runner), score, and write
     <run_dir>/session_results.json. Returns the results payload."""
     from ..run.runner import run_full
     from .scoring import score_session, write_results
 
-    plan = prepare_session(run_dir, models, base_config=base_config, provider=provider, ids=ids)
+    plan = prepare_session(run_dir, models, base_config=base_config, provider=provider, ids=ids,
+                           precision=precision, agents=agents)
     if plan.get("ids"):
         from .. import telemetry
         i = plan["ids"]
@@ -257,6 +269,10 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
     # recommendation_stage3). Runs after scoring on a copy; never fails the session.
     from .stage3 import add_stage3
     add_stage3(payload)
+    from .experiment import variant_block
+    payload.setdefault("session", {})["variant"] = variant_block(precision, agents)
+    if experiment:
+        payload["session"]["experiment"] = experiment
     write_results(Path(plan["run_dir"]) / RESULTS_JSON, payload)
     telemetry.emit("results", "Results written; the PDF report is generated on request.")
     # the flow explorer's data: every flow, every agent (own file per run, never in the results)
@@ -273,6 +289,9 @@ def run_session(run_dir: str | Path, models: list[str], *, base_config: Optional
                               ids_scores=ids_scores)), encoding="utf-8")
     # Last step: the explainer writes this session's explanations from its finished results, in
     # its own process, after every measured model has released the GPU. Never fails the session.
+    if not explain:                  # a cell of an experiment: one explanation for the experiment instead
+        telemetry.emit("explained", "No explanation for this run: the experiment is explained as a whole.")
+        return payload
     from .explain import explain_session
     telemetry.emit("explain", "Writing the explanation from this session's results.")
     ex = explain_session(payload, plan["run_dir"], real=bool(real))

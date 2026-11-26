@@ -126,7 +126,9 @@ def run_benchmark_job(job: dict[str, Any]) -> str:
 
     run_session(job["run_dir"], job["models"], base_config=job.get("base_config"),
                 provider=job.get("provider"), fresh=False, environment=job.get("environment"),
-                run_id=job.get("run_id"), ids=job.get("ids"))
+                run_id=job.get("run_id"), ids=job.get("ids"), precision=job.get("precision"),
+                agents=job.get("agents"), experiment=job.get("experiment"),
+                explain=not job.get("experiment"))
     # Sessions on one prepared set share its folder, and run_session always writes
     # <run_dir>/session_results.json: keep this session's own copy, so a later run on the same
     # flows never replaces these results (they are what this job reports, uploads and prints).
@@ -597,6 +599,7 @@ class JobManager:
         """Stop a queued job (it never starts) or a running one. Final: a stopped benchmark is
         never scored or uploaded (half a run would misrepresent a model)."""
         who = f" by {by}" if by else ""
+        self._stop_siblings(job_id, by)
         with self._lock:
             job = self._load(job_id)
             st = job["status"]
@@ -612,6 +615,24 @@ class JobManager:
         if job.get("kind") != "prepare":
             self.stop_runner()                      # ends the current model's worker process
         return self.get(job_id)
+
+    def _stop_siblings(self, job_id: str, by: Optional[str]) -> None:
+        """Stopping one run of an experiment stops the whole experiment: its runs still waiting are
+        cancelled (finished runs keep their results)."""
+        exp = (self._load(job_id).get("experiment") or {}).get("id")
+        if not exp:
+            return
+        who = f" by {by}" if by else ""
+        with self._lock:
+            for j in self._all():
+                if j.get("job_id") != job_id and (j.get("experiment") or {}).get("id") == exp and j.get("status") == "queued":
+                    self._update(j["job_id"], status="stopped", finished_at=_now(), stopped_by=by,
+                                 message=f"stopped{who} with its experiment, before it started — not scored")
+
+    def experiment(self, exp_id: str) -> list[dict[str, Any]]:
+        """Every job of an experiment, in run order."""
+        jobs = [j for j in self._all() if (j.get("experiment") or {}).get("id") == exp_id]
+        return sorted(jobs, key=lambda j: (j.get("experiment") or {}).get("index") or 0)
 
     def get(self, job_id: str) -> dict[str, Any]:
         job = self._load(job_id)

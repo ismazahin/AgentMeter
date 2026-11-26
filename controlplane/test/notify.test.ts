@@ -46,6 +46,23 @@ describe("Telegram notifications (sent by the control plane, per user settings)"
     expect(me.text).not.toMatch(/test-bot-token/);
   });
 
+  it("sends one message per experiment, when its last run is done", async () => {
+    const sent = spyTelegram();
+    const u = await user();
+    await api("/api/settings", { method: "PUT", token: u.token, body: { telegram_chat_id: "12345", notify_on: "done" } });
+    await register();
+    const g = await benchAuth(u, "csv_runs/x_1");
+    const ids = [SID, "job_20261010_100001_" + "f".repeat(32)];
+    for (const id of ids) await backendCall("POST", "/api/backend/jobs", { job_id: id, kind: "benchmark", status: "running", jti: g.data.jti, models: ["m/a"] });
+    for (const [i, id] of ids.entries()) {
+      await backendCall("POST", `/api/backend/jobs/${id}/status`, { status: "done" });
+      const s = { ...F.summaries[0], session_id: id, job_id: id, experiment: { id: "exp_abc", index: i + 1, total: 2 } };
+      await backendCall("PUT", `/api/backend/sessions/${id}/summary`, { summary: s });
+      expect(sent).toHaveLength(i);                                    // nothing for run 1, one message after run 2
+    }
+    expect(sent[0].body.text).toMatch(/experiment exp_abc \(2 runs\)/);
+  });
+
   it("respects notify_on: failed only / none", async () => {
     const sent = spyTelegram();
     const u = await user();

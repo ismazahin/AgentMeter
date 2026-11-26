@@ -29,9 +29,12 @@ const WANTS: Record<string, string[]> = { done: ["Done", "Demo"], failed: ["Fail
 /** Call when a session reaches a final status; notifies its owner once, per their settings. */
 export async function notifyFinal(env: Env, id: string, status: string, stoppedBy?: string): Promise<boolean> {
   if (!["Done", "Demo", "Failed", "Interrupted", "Stopped"].includes(status) || !env.TELEGRAM_BOT_TOKEN) return false;
-  const row = await env.DB.prepare("SELECT owner_id, owner_username, more_efficient, models_json FROM sessions WHERE id=? AND notified_status IS NULL")
-    .bind(id).first<{ owner_id: string | null; owner_username: string | null; more_efficient: string | null; models_json: string | null }>();
+  const row = await env.DB.prepare("SELECT owner_id, owner_username, more_efficient, models_json, summary_json FROM sessions WHERE id=? AND notified_status IS NULL")
+    .bind(id).first<{ owner_id: string | null; owner_username: string | null; more_efficient: string | null; models_json: string | null; summary_json: string | null }>();
   if (!row?.owner_id) return false;
+  // one message per experiment (model size x number of agents): only its last run sends it
+  const exp = experimentOf(row.summary_json);
+  if (exp && exp.index < exp.total) return false;
   const s = await loadSettings(env, row.owner_id);
   if (!s.telegram_chat_id) return false;
   // an alert (Repeatability rule): a finished run that got worse than its usual range on the same setup
@@ -45,9 +48,21 @@ export async function notifyFinal(env: Env, id: string, status: string, stoppedB
   const demo = status === "Demo" ? "\nDEMO (mock provider) — not a measurement." : "";
   const stop = status === "Stopped" ? `\nStopped${stoppedBy ? " by " + stoppedBy.slice(0, 32) : ""} before it finished — not scored.` : "";
   const drift = moved.length ? `\n\nAgainst earlier runs on the same setup:\n${movedLines(moved).join("\n")}` : "";
+  const what = exp ? `experiment ${exp.id} (${exp.total} runs), last run ${id}` : `session ${id}`;
   return sendTelegram(env, s.telegram_chat_id,
-    `${alert ? "AgentMeter ALERT: a result moved beyond its usual range" : "AgentMeter"}: session ${id} — ${status}\n${models}${more}${demo}${stop}${drift}` +
+    `${alert ? "AgentMeter ALERT: a result moved beyond its usual range" : "AgentMeter"}: ${what} — ${status}\n${models}${more}${demo}${stop}${drift}` +
     `\nAgentMeter measures LLM efficiency; it is not a threat detector.`);
+}
+
+/** The experiment a session belongs to (its summary's "experiment"), or null. */
+export function experimentOf(summaryJson: string | null): { id: string; index: number; total: number } | null {
+  if (!summaryJson) return null;
+  try {
+    const e = JSON.parse(summaryJson).experiment;
+    return e && e.id && Number(e.total) > 1 ? { id: String(e.id), index: Number(e.index) || 0, total: Number(e.total) } : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The session's results that moved beyond their usual spread against earlier runs on its setup. */

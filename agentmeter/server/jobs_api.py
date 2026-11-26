@@ -21,6 +21,8 @@ not_resumable, bad_pipeline, bad_request.
 """
 from __future__ import annotations
 
+import os
+
 from typing import Callable, Optional
 
 from . import runtoken
@@ -97,6 +99,33 @@ def check_benchmark_token(mgr: JobManager, tok: Optional[dict], run: Optional[st
                        "run_token_mismatch", 403)
 
 
+def won_t_fit(exp: dict, real: bool) -> set:
+    """(model, precision) pairs that will not fit this GPU's memory, from each model's parameter
+    count in its local config (unknown: assumed to fit, the benchmark reports it if not)."""
+    if not real or exp["precisions"] == ["4bit"]:
+        return set()
+    try:
+        import torch
+        total = torch.cuda.get_device_properties(0).total_memory / 1024 ** 3 if torch.cuda.is_available() else None
+    except Exception:  # noqa: BLE001
+        total = None
+    if not total:
+        return set()
+    from ..session.experiment import vram_need_gb
+    from ..session.model_design import read_design
+    out = set()
+    for m in exp["models"]:
+        try:
+            pb = (read_design(m) or {}).get("params_b")
+        except Exception:  # noqa: BLE001
+            pb = None
+        for p in exp["precisions"]:
+            need = vram_need_gb(pb, p)
+            if need is not None and need > total * 0.95:
+                out.add((m, p))
+    return out
+
+
 def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional[str] = None,
                   base_config: Optional[str] = None,
                   environment: Optional[Callable[[], dict]] = None) -> None:
@@ -171,14 +200,51 @@ def register_jobs(app, get_manager: Callable[[], JobManager], provider: Optional
                 if bad:
                     raise JobError(*bad)
             check_benchmark_token(mgr, runtoken.current(), run, after)
-            job = mgr.create_job(run, models, provider=asked,
-                                 base_config=base_config if provider is not None and base_config
-                                 else body.get("base_config"),
-                                 environment=environment() if environment else None,
-                                 after_prepare=after, meta=runtoken.job_meta(), ids=ids)
+            # the model sizes and pipeline sizes to compare (an experiment): one job per
+            # combination, all on this upload; a plain benchmark is 4-bit, 4 agents
+            from ..session.experiment import ExperimentError, plan as plan_experiment
+            try:
+                exp = plan_experiment(models, body.get("precisions") or body.get("precision"), body.get("agents"))
+            except ExperimentError as e:
+                raise JobError(str(e), e.code, 400) from e
+            engine = (os.environ.get("AGENTMETER_ENGINE") or "").strip().lower()
+            if engine == "vllm" and exp["precisions"] != ["4bit"]:
+                raise JobError("this GPU server runs the vLLM engine, which is 4-bit only; 8-bit and 16-bit "
+                               "need the transformers engine", "precision_unsupported", 400)
+            skipped = won_t_fit(exp, provider == "hf")
+            specs = [dict(j, models=[m for m in j["models"] if (m, j["precision"]) not in skipped]) for j in exp["jobs"]]
+            specs = [j for j in specs if j["models"]]
+            if not specs:
+                raise JobError("no model fits this GPU at the chosen sizes", "wont_fit", 400)
+            cfg = base_config if provider is not None and base_config else body.get("base_config")
+            env = environment() if environment else None
+            info = None
+            if exp["is_experiment"]:
+                info = {"id": exp["id"], "precisions": exp["precisions"], "agents": exp["agents"],
+                        "models": exp["models"], "total": len(specs),
+                        "skipped": [{"model": m, "precision": p, "reason": "does not fit this GPU's memory"}
+                                    for m, p in sorted(skipped)]}
+            jobs = []
+            for i, spec in enumerate(specs):
+                meta = {**runtoken.job_meta(), "precision": spec["precision"], "agents": spec["agents"]}
+                if info:
+                    meta["experiment"] = {**info, "index": i + 1}
+                jobs.append(mgr.create_job(run, spec["models"], provider=asked, base_config=cfg, environment=env,
+                                           after_prepare=after, meta=meta, ids=ids))
         except JobError as e:
             return fail(e)
-        return jsonify(with_links(job)), 202
+        out = with_links(jobs[0])
+        if info:
+            out["experiment_jobs"] = [j["job_id"] for j in jobs]
+        return jsonify(out), 202
+
+    @app.route("/api/experiments/<exp_id>", methods=["GET"])
+    def experiment_status(exp_id):
+        """Every run of an experiment (model size x number of agents), in run order."""
+        jobs = [j for j in get_manager().experiment(exp_id) if runtoken.may_read(j)]
+        if not jobs:
+            return fail(JobError(f"no experiment {exp_id}", "not_found", 404))
+        return jsonify({"experiment": jobs[0].get("experiment"), "jobs": [with_links(j) for j in jobs]})
 
     @app.route("/api/jobs/<job_id>", methods=["GET"])
     def job_status(job_id):

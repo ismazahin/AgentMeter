@@ -42,9 +42,9 @@ li { margin-bottom: 0.5mm; }
     </ul></td><td>
     <h2>Solution</h2>
     <ol>
-      <li><b>Per-agent benchmarking tool.</b> Instruments every step of an agentic triage pipeline that handles the threats an IDS has detected, with any number of agents, and assigns response time, memory and tokens to each agent.</li>
-      <li><b>Monitoring and analysis module.</b> Captures per-agent and end-to-end telemetry and combines triage accuracy and resource cost into one composite score ranking.</li>
-      <li><b>What-if experiments.</b> Runs each open-source LLM at 4, 8 and 16-bit and with 1 to 10 agents on the same alerts, and charts how speed, memory, tokens, accuracy and cost change.</li>
+      <li><b>Per-agent timing.</b> Times every agent step of the triage pipeline behind the IDS, for any number of agents, so the slow agent is found and fixed.</li>
+      <li><b>A security triage benchmark with one score.</b> Runs open-source LLMs on real IDS alerts and ranks them by one composite score of triage accuracy and resource cost, with significance tests.</li>
+      <li><b>Per-agent memory and tokens, with what-if experiments.</b> Shows each agent's GPU memory and tokens, including re-sent context, and charts how they change at 4, 8 and 16-bit and with 1 to 10 agents.</li>
     </ol></td><td rowspan="2" class="uvp">
     <h2>Unique Value Proposition</h2>
     <div class="big">Find the open-source LLM that triages IDS-detected threats at the lowest resource cost, with that cost broken down per agent.</div>
@@ -53,24 +53,21 @@ li { margin-bottom: 0.5mm; }
     <div class="concept">“A per-agent fuel-economy test for LLM triage agents.”</div></td><td>
     <h2>Unfair Advantage</h2>
     <ul>
-      <li><b>Per-agent instrumentation:</b> time, memory and tokens measured inside each agent step, for any number of agents, not only end to end</li>
-      <li><b>One composite score:</b> triage accuracy and resource cost ranked together, with significance tests and sensitivity checks</li>
-      <li><b>Security-specific workload:</b> IDS alerts from real network traffic, triaged by a multi-step agent pipeline</li>
-      <li><b>Controlled experiments:</b> model size × number of agents measured on identical alerts, GPU and settings, so only those factors change</li>
-      <li>A growing public Leaderboard of measured sessions</li>
+      <li><b>A growing database of measurements:</b> every session is measured on the same GPU and settings, so the Leaderboard gains value over time and cannot be copied overnight</li>
+      <li><b>A published, checked method:</b> per-agent instrumentation, statistical tests and fact-checked explanations from the FYP research, open to review</li>
+      <li><b>Trust from the security domain:</b> built on real IDS alerts and SOC triage rules, not generic chat tasks</li>
+      <li><b>Academic partnership:</b> FSKM labs and supervisors as first users and reviewers</li>
     </ul></td><td rowspan="2">
     <h2>Customer Segments</h2>
     <ul>
-      <li>IT administrators and SOC analysts at SMEs choosing an open-source LLM to triage IDS alerts</li>
-      <li>Academic laboratories researching AI for cybersecurity</li>
-      <li>Developers of agentic systems who need to find bottlenecks</li>
+      <li><b>SOC analysts and IT administrators at SMEs</b> who must choose an open-source LLM to triage their IDS alerts on limited GPUs and budgets</li>
     </ul>
     <h3>EARLY ADOPTERS</h3>
     <ul>
-      <li>SME SOC teams already testing local LLMs on limited GPUs</li>
-      <li>Academic research labs (AI and cybersecurity) running LLM experiments</li>
-      <li>Teams that must keep traffic data on their own hardware</li>
-      <li>Developers building multi-agent pipelines</li>
+      <li>SME SOC teams already testing local LLMs on a single GPU</li>
+      <li>SOC analysts overloaded by IDS alerts who want AI to triage them</li>
+      <li>IT administrators who must keep traffic data on their own hardware</li>
+      <li>SMEs already running an IDS (Snort, Suricata or a machine-learning IDS)</li>
     </ul></td></tr>
 <tr><td>
     <h2>Key Metrics</h2>
@@ -89,13 +86,13 @@ li { margin-bottom: 0.5mm; }
     <ul>
       <li>Shared session links and PDF reports</li>
       <li>Public Leaderboard at agentmeter.win</li>
-      <li>GitHub repository, Hugging Face and LinkedIn posts; SEO for “LLM efficiency benchmark”</li>
+      <li>GitHub repository, Hugging Face and LinkedIn posts; SEO for “LLM for SOC alert triage”</li>
     </ul>
     <h3>Outbound</h3>
     <ul>
-      <li>Academic research labs (AI and cybersecurity), FYP supervisors</li>
-      <li>SME IT and SOC teams through industry talks and meetups</li>
-      <li>Demo sessions at tech events and hackathons</li>
+      <li>SME IT and SOC teams through cybersecurity talks and meetups</li>
+      <li>Partnerships with managed security providers (MSSPs) and IT resellers serving SMEs</li>
+      <li>Live demos at cybersecurity conferences and exhibitions</li>
     </ul></td></tr>
 </table>
 <table class="c b"><colgroup><col style="width:50%"><col style="width:50%"></colgroup>
@@ -115,9 +112,9 @@ li { margin-bottom: 0.5mm; }
       <h2>Revenue Streams</h2>
       <ul>
         <li><b>Pay per session:</b> GPU time at cost plus a 20% service margin</li>
-        <li><b>Pro plan:</b> monthly fee for private sessions, more models per session and saved presets</li>
-        <li><b>Team / on-premise licence:</b> run AgentMeter on the customer's own GPUs</li>
-        <li><b>Sponsored entries:</b> model providers pay to have new models benchmarked on the Leaderboard</li>
+        <li><b>Pro plan, RM49 per month:</b> private sessions, experiments of up to 12 runs, saved presets</li>
+        <li><b>On-premise licence, RM2,000 per year per site:</b> run AgentMeter on the SME's own GPU, so traffic data never leaves</li>
+        <li><b>Sponsored benchmark, RM500 per model:</b> model providers pay to have a new model measured on the Leaderboard</li>
       </ul>
-      <div class="note">Example: 1,000 flows × 2 models on an RTX 3090 ≈ 1 GPU hour at USD 0.25 → price USD 0.30, margin USD 0.05. (Illustrative; the FYP demo runs on a rented GPU and charges no fee.)</div></td></tr></table>
+      <div class="note">Example: 1,000 flows × 2 models on an RTX 3090 ≈ 1 GPU hour at about RM1.10 → price RM1.32, margin RM0.22. (Illustrative prices; the FYP demo runs on a rented GPU and charges no fee.)</div></td></tr></table>
 </body></html>
